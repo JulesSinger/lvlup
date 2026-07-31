@@ -73,6 +73,33 @@ export function profileRank(goals: Goal[]): ProfileRank {
   };
 }
 
+/**
+ * Points de Palier (PP) rapportés par la validation d'un palier d'un rang donné.
+ * Barème simple et lisible : 25 PP par échelon de rang (Fer = 25 … Challenger = 250).
+ */
+export function ppForRank(rank: Rank): number {
+  return rank.value * 25;
+}
+
+/**
+ * Total des PP du profil : somme des PP de tous les paliers validés des
+ * objectifs actifs. C'est le score cumulatif de toute la progression — il ne
+ * redescend jamais tant qu'on ne dé-valide pas un palier.
+ */
+export function profilePP(goals: Goal[]): number {
+  return goals
+    .filter((g) => !g.archived)
+    .reduce(
+      (sum, goal) =>
+        sum +
+        goal.tiers.reduce(
+          (acc, tier) => acc + (tier.completedAt ? ppForRank(getRank(tier.rank)) : 0),
+          0,
+        ),
+      0,
+    );
+}
+
 export interface HistoryEntry {
   tier: Tier;
   goal: Goal;

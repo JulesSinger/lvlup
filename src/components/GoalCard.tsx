@@ -6,6 +6,8 @@ import { RankBadge, RankSelect } from './RankBadge';
 
 interface Props {
   goal: Goal;
+  /** Position dans la grille, sert au décalage de l'animation d'entrée */
+  index?: number;
   expanded: boolean;
   onToggleExpand: () => void;
   onEdit: () => void;
@@ -21,6 +23,7 @@ interface Props {
 
 export function GoalCard({
   goal,
+  index = 0,
   expanded,
   onToggleExpand,
   onEdit,
@@ -36,7 +39,10 @@ export function GoalCard({
     : 'linear-gradient(90deg, #3a4456, #4a5570)';
 
   return (
-    <article className={`goal${progress.complete ? ' complete' : ''}`}>
+    <article
+      className={`goal${progress.complete ? ' complete' : ''}`}
+      style={{ ['--i' as string]: index }}
+    >
       <div
         className="goal-head"
         onClick={onToggleExpand}

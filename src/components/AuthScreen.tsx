@@ -35,9 +35,9 @@ export function AuthScreen() {
     <div className="auth-screen">
       <form className="auth-card" onSubmit={submit}>
         <div className="brand">
-          <span className="brand-mark">◆</span> Palier
+          <span className="brand-mark">▲</span> Zénith
         </div>
-        <p className="auth-tagline">Transforme tes objectifs en montée de rang.</p>
+        <p className="auth-tagline">Chaque objectif est une montée. Atteins ton zénith.</p>
 
         {error && <div className="notice error">{error}</div>}
         {info && <div className="notice success">{info}</div>}

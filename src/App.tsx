@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AuthScreen } from './components/AuthScreen';
+import { Ceremony, type Celebration } from './components/Ceremony';
 import { GoalCard } from './components/GoalCard';
 import { GoalEditor } from './components/GoalEditor';
 import { ProfileHeader } from './components/ProfileHeader';
 import { Timeline } from './components/Timeline';
 import { store } from './data';
 import { DEMO_GOALS } from './lib/demo';
-import type { AppUser, Goal, GoalInput, TierInput } from './lib/types';
+import { goalProgress, ppForRank, profileRank } from './lib/progress';
+import { getRank } from './lib/ranks';
+import type { AppUser, Goal, GoalInput, Tier, TierInput } from './lib/types';
 
 type Tab = 'objectifs' | 'historique';
 
@@ -19,6 +22,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('objectifs');
   const [editing, setEditing] = useState<{ goal: Goal | null } | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [celebrations, setCelebrations] = useState<Celebration[]>([]);
 
   useEffect(() => {
     return store.onUserChange((next) => {
@@ -62,6 +66,45 @@ export default function App() {
   );
 
   const activeGoals = useMemo(() => goals.filter((g) => !g.archived), [goals]);
+
+  /**
+   * Prépare les cérémonies déclenchées par la validation d'un palier : l'écran
+   * du palier lui-même, puis — si la moyenne des objectifs franchit un cap —
+   * celui de la montée de rang du profil. Le calcul est fait sur une copie
+   * locale des données pour afficher la célébration sans attendre le serveur.
+   */
+  function celebrateTier(goal: Goal, tier: Tier) {
+    const before = profileRank(goals);
+    const nextGoals = goals.map((g) =>
+      g.id === goal.id
+        ? {
+            ...g,
+            tiers: g.tiers.map((t) =>
+              t.id === tier.id ? { ...t, completedAt: new Date().toISOString() } : t,
+            ),
+          }
+        : g,
+    );
+    const after = profileRank(nextGoals);
+    const updatedGoal = nextGoals.find((g) => g.id === goal.id);
+    const progress = updatedGoal ? goalProgress(updatedGoal) : null;
+    const rank = getRank(tier.rank);
+
+    const queue: Celebration[] = [
+      {
+        kind: 'tier',
+        rank,
+        tierTitle: tier.title,
+        goalTitle: goal.title,
+        pp: ppForRank(rank),
+        goalComplete: progress?.complete ?? false,
+      },
+    ];
+    if (after.rank && (!before.rank || after.rank.value > before.rank.value)) {
+      queue.push({ kind: 'profile', rank: after.rank, previous: before.rank });
+    }
+    setCelebrations(queue);
+  }
 
   async function saveGoal(input: GoalInput, tiers: TierInput[]) {
     const target = editing?.goal;
@@ -107,7 +150,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `palier-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `zenith-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -155,7 +198,7 @@ export default function App() {
     <div className="shell">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark">◆</span> Palier
+          <span className="brand-mark">▲</span> Zénith
         </div>
         <div className="topbar-actions">
           {user && <span className="account">{user.email}</span>}
@@ -223,16 +266,23 @@ export default function App() {
         </div>
       ) : (
         <div className="goal-grid">
-          {activeGoals.map((goal) => (
+          {activeGoals.map((goal, index) => (
             <GoalCard
               key={goal.id}
               goal={goal}
+              index={index}
               expanded={expanded.has(goal.id)}
               onToggleExpand={() => toggleExpand(goal.id)}
               onEdit={() => setEditing({ goal })}
               onDelete={() => deleteGoal(goal)}
               onAddTier={(input) => run(() => store.createTier(goal.id, input))}
-              onUpdateTier={(tierId, patch) => run(() => store.updateTier(tierId, patch))}
+              onUpdateTier={(tierId, patch) => {
+                if (patch.completedAt) {
+                  const tier = goal.tiers.find((t) => t.id === tierId);
+                  if (tier) celebrateTier(goal, tier);
+                }
+                return run(() => store.updateTier(tierId, patch));
+              }}
               onDeleteTier={(tierId) => run(() => store.deleteTier(tierId))}
               onMoveTier={async (tierId, direction) => moveTier(goal, tierId, direction)}
             />
@@ -242,6 +292,10 @@ export default function App() {
 
       {editing && (
         <GoalEditor goal={editing.goal} onCancel={() => setEditing(null)} onSave={saveGoal} />
+      )}
+
+      {celebrations.length > 0 && (
+        <Ceremony items={celebrations} onFinish={() => setCelebrations([])} />
       )}
     </div>
   );

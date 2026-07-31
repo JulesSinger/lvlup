@@ -6,12 +6,8 @@
     </linearGradient>
   </defs>
   <rect width="64" height="64" rx="14" fill="#0b0e14" />
-  <path d="M32 10 L54 24 L54 44 L32 56 L10 44 L10 24 Z" fill="url(#g)" />
-  <path
-    d="M22 41 h6 v-6 h6 v-6 h6 v-6 h6"
-    fill="none"
-    stroke="#0b0e14"
-    stroke-width="4"
-    stroke-linecap="square"
-  />
+  <!-- Le sommet : deux versants, le zénith marqué d'un éclat au-dessus -->
+  <path d="M32 18 L52 52 L12 52 Z" fill="url(#g)" />
+  <path d="M32 18 L40 32 L36 30 L32 35 L28 30 L24 32 Z" fill="#0b0e14" opacity="0.35" />
+  <circle cx="32" cy="10" r="3.4" fill="#ffd267" />
 </svg>

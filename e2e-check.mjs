@@ -12,6 +12,22 @@ function check(label, condition, detail = '') {
   console.log(`${condition ? 'OK  ' : 'FAIL'} ${label}${detail ? ` — ${detail}` : ''}`);
 }
 
+/**
+ * Referme les cérémonies de célébration (elles peuvent s'enchaîner :
+ * palier validé puis montée de rang du profil).
+ */
+async function dismissCeremonies(p) {
+  for (let i = 0; i < 5; i++) {
+    const visible = await p
+      .locator('.ceremony')
+      .isVisible()
+      .catch(() => false);
+    if (!visible) return;
+    await p.getByRole('button', { name: 'Continuer' }).click();
+    await p.waitForTimeout(200);
+  }
+}
+
 const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
 });
@@ -40,7 +56,21 @@ check(
 await page.locator('.goal').first().locator('.goal-head').click();
 await page.waitForSelector('.ladder');
 await page.locator('.tier-check').nth(0).click();
+await page.waitForSelector('.ceremony');
+check('Cérémonie affichée à la validation', await page.locator('.ceremony-rank').isVisible());
+check(
+  'PP annoncés dans la cérémonie (Bronze = +50 PP)',
+  (await page.locator('.ceremony-pp').textContent()) === '+50 PP',
+  await page.locator('.ceremony-pp').textContent(),
+);
+await dismissCeremonies(page);
 await page.locator('.tier-check').nth(1).click();
+await page.waitForSelector('.ceremony');
+await dismissCeremonies(page);
+check(
+  'Cérémonie de montée de rang enchaînée puis refermée',
+  !(await page.locator('.ceremony').isVisible().catch(() => false)),
+);
 await page.waitForTimeout(300);
 check(
   "Rang de l'objectif = palier validé le plus haut (Argent)",
@@ -58,6 +88,12 @@ check(
   'Rang global calculé (moyenne 3/3 objectifs = Fer)',
   (await page.locator('.profile-rank').textContent()) === 'Fer',
   await page.locator('.profile-rank').textContent(),
+);
+await page.waitForTimeout(1100); // laisse le compteur de PP finir son animation
+check(
+  'PP du profil cumulés (Bronze 50 + Argent 75 = 125)',
+  (await page.locator('.stat-pp').textContent()) === '125',
+  await page.locator('.stat-pp').textContent(),
 );
 
 // 3. Ajout d'un palier à un objectif existant

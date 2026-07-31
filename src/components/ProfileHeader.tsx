@@ -1,6 +1,38 @@
-import { profileRank } from '../lib/progress';
+import { useEffect, useRef, useState } from 'react';
+import { profilePP, profileRank } from '../lib/progress';
 import { rankByValue } from '../lib/ranks';
 import type { Goal } from '../lib/types';
+
+/**
+ * Anime un nombre de sa valeur précédente vers la nouvelle (easing doux).
+ * Rend les gains de PP visibles : le compteur défile au lieu de sauter.
+ */
+function useCountUp(target: number, duration = 900): number {
+  const [display, setDisplay] = useState(target);
+  const previous = useRef(target);
+
+  useEffect(() => {
+    const from = previous.current;
+    previous.current = target;
+    if (from === target) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setDisplay(target);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    function frame(now: number) {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(from + (target - from) * eased));
+      if (t < 1) raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+
+  return display;
+}
 
 export function ProfileHeader({ goals }: { goals: Goal[] }) {
   const profile = profileRank(goals);
@@ -8,6 +40,7 @@ export function ProfileHeader({ goals }: { goals: Goal[] }) {
   const active = goals.filter((g) => !g.archived);
   const tiersDone = active.reduce((n, g) => n + g.tiers.filter((t) => t.completedAt).length, 0);
   const tiersTotal = active.reduce((n, g) => n + g.tiers.length, 0);
+  const pp = useCountUp(profilePP(goals));
 
   const nextRank =
     rank && rank.value < 10 ? rankByValue(rank.value + 1) : rank ? null : rankByValue(1);
@@ -41,9 +74,25 @@ export function ProfileHeader({ goals }: { goals: Goal[] }) {
               ? `${Math.round(profile.toNext * 100)} % du chemin vers ${nextRank.label} · moyenne de ${profile.rankedGoals} objectif${profile.rankedGoals > 1 ? 's' : ''}`
               : `Rang maximum atteint sur ${profile.rankedGoals} objectifs. Chapeau.`}
         </div>
+        {nextRank && profile.rankedGoals > 0 && (
+          <div className="profile-tonext" aria-hidden="true">
+            <span
+              style={{
+                width: `${Math.round(profile.toNext * 100)}%`,
+                background: rank
+                  ? `linear-gradient(90deg, ${rank.color}, ${rank.color2})`
+                  : 'var(--border-strong)',
+              }}
+            />
+          </div>
+        )}
       </div>
 
       <div className="profile-stats">
+        <div>
+          <div className="stat-value stat-pp">{pp.toLocaleString('fr-FR')}</div>
+          <div className="stat-label">PP</div>
+        </div>
         <div>
           <div className="stat-value">{active.length}</div>
           <div className="stat-label">Objectifs</div>

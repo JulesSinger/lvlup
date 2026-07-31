@@ -1,4 +1,4 @@
-# Palier
+# Zénith
 
 Suivi d'objectifs par paliers, où chaque palier vaut un rang à décrocher (Fer → Challenger).
 

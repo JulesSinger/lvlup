@@ -1,7 +1,7 @@
 {
-  "name": "palier",
+  "name": "zenith",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -25,5 +25,5 @@
     "typescript": "~6.0.2",
     "vite": "^8.1.1"
   },
-  "description": "Suivi d'objectifs par paliers, chaque palier vaut un rang"
+  "description": "Zénith — suivi d'objectifs par paliers, chaque palier vaut un rang à décrocher"
 }
