@@ -40,7 +40,7 @@ export function GoalCard({
 
   return (
     <article
-      className={`goal${progress.complete ? ' complete' : ''}`}
+      className={`goal${progress.complete ? ' complete' : ''}${expanded ? ' expanded' : ''}`}
       style={{ ['--i' as string]: index }}
     >
       <div
@@ -79,6 +79,12 @@ export function GoalCard({
               {progress.done}/{progress.total} paliers
             </span>
           </div>
+
+          {!expanded && progress.next && (
+            <div className="goal-next-line">
+              Prochain : <strong>{progress.next.title}</strong>
+            </div>
+          )}
         </div>
 
         <div className="goal-actions" onClick={(e) => e.stopPropagation()}>

@@ -3,7 +3,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { Ceremony, type Celebration } from './components/Ceremony';
 import { GoalCard } from './components/GoalCard';
 import { GoalEditor } from './components/GoalEditor';
-import { ProfileHeader } from './components/ProfileHeader';
+import { Hub } from './components/Hub';
 import { Timeline } from './components/Timeline';
 import { store } from './data';
 import { DEMO_GOALS } from './lib/demo';
@@ -11,7 +11,19 @@ import { goalProgress, ppForRank, profileRank } from './lib/progress';
 import { getRank } from './lib/ranks';
 import type { AppUser, Goal, GoalInput, Tier, TierInput } from './lib/types';
 
-type Tab = 'objectifs' | 'historique';
+type View = 'accueil' | 'objectifs' | 'historique';
+
+const VIEWS: { id: View; label: string; icon: string }[] = [
+  { id: 'accueil', label: 'Accueil', icon: '▲' },
+  { id: 'objectifs', label: 'Objectifs', icon: '◎' },
+  { id: 'historique', label: 'Historique', icon: '↺' },
+];
+
+/** Emplacements réservés des prochains sprints — visibles mais inactifs. */
+const SOON: { label: string; icon: string }[] = [
+  { label: 'Trophées', icon: '🏆' },
+  { label: 'Amis', icon: '⚔' },
+];
 
 export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -19,7 +31,7 @@ export default function App() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<Tab>('objectifs');
+  const [view, setView] = useState<View>('accueil');
   const [editing, setEditing] = useState<{ goal: Goal | null } | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
@@ -106,6 +118,12 @@ export default function App() {
     setCelebrations(queue);
   }
 
+  /** Validation directe d'un palier (depuis le hub ou une carte d'objectif). */
+  function validateTier(goal: Goal, tier: Tier) {
+    celebrateTier(goal, tier);
+    void run(() => store.updateTier(tier.id, { completedAt: new Date().toISOString() }));
+  }
+
   async function saveGoal(input: GoalInput, tiers: TierInput[]) {
     const target = editing?.goal;
     if (target) {
@@ -113,6 +131,7 @@ export default function App() {
     } else {
       const created = await store.createGoal(input, tiers);
       setExpanded((set) => new Set(set).add(created.id));
+      setView('objectifs');
     }
     await refresh();
     setEditing(null);
@@ -194,101 +213,157 @@ export default function App() {
     return <AuthScreen />;
   }
 
+  const emptyState = (
+    <div className="empty">
+      <h3>Aucun objectif pour l'instant</h3>
+      <p>
+        Un objectif se découpe en paliers, du plus accessible au plus ambitieux, et chaque palier
+        porte un rang. Valide-les un par un pour faire monter ton rang global.
+      </p>
+      <div style={{ display: 'flex', gap: 9, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <button className="btn btn-primary" onClick={() => setEditing({ goal: null })}>
+          Créer mon premier objectif
+        </button>
+        <button className="btn" onClick={loadDemo}>
+          Charger des exemples
+        </button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="shell">
-      <header className="topbar">
+    <div className="layout">
+      <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">▲</span> Zénith
+          <span className="brand-mark">▲</span>
+          <span className="brand-name">Zénith</span>
         </div>
-        <div className="topbar-actions">
-          {user && <span className="account">{user.email}</span>}
-          <button className="btn btn-sm" onClick={exportJson}>
-            Exporter
-          </button>
-          <button className="btn btn-sm" onClick={importJson}>
-            Importer
-          </button>
-          {user && !user.isLocal && (
-            <button className="btn btn-sm" onClick={() => void store.signOut()}>
-              Déconnexion
+
+        <nav className="nav" aria-label="Navigation principale">
+          {VIEWS.map((v) => (
+            <button
+              key={v.id}
+              className={`nav-item${view === v.id ? ' active' : ''}`}
+              onClick={() => setView(v.id)}
+              aria-current={view === v.id ? 'page' : undefined}
+            >
+              <span className="nav-icon" aria-hidden="true">
+                {v.icon}
+              </span>
+              <span className="nav-label">{v.label}</span>
+              {v.id === 'objectifs' && activeGoals.length > 0 && (
+                <span className="nav-count">{activeGoals.length}</span>
+              )}
             </button>
-          )}
-          <button className="btn btn-primary btn-sm" onClick={() => setEditing({ goal: null })}>
-            + Objectif
-          </button>
-        </div>
-      </header>
+          ))}
+          {SOON.map((item) => (
+            <span key={item.label} className="nav-item soon" aria-disabled="true">
+              <span className="nav-icon" aria-hidden="true">
+                {item.icon}
+              </span>
+              <span className="nav-label">{item.label}</span>
+              <span className="nav-soon">bientôt</span>
+            </span>
+          ))}
+        </nav>
 
-      {user?.isLocal && (
-        <div className="notice info">
-          Mode local : tes objectifs sont enregistrés dans ce navigateur uniquement. Renseigne tes
-          clés Supabase pour activer les comptes et la synchronisation entre appareils.
-        </div>
-      )}
-      {error && <div className="notice error">{error}</div>}
-
-      <ProfileHeader goals={goals} />
-
-      <nav className="tabs">
-        <button
-          className={`tab${tab === 'objectifs' ? ' active' : ''}`}
-          onClick={() => setTab('objectifs')}
-        >
-          Objectifs ({activeGoals.length})
-        </button>
-        <button
-          className={`tab${tab === 'historique' ? ' active' : ''}`}
-          onClick={() => setTab('historique')}
-        >
-          Historique
-        </button>
-      </nav>
-
-      {loading ? (
-        <p style={{ color: 'var(--text-dim)' }}>Chargement…</p>
-      ) : tab === 'historique' ? (
-        <Timeline goals={goals} />
-      ) : activeGoals.length === 0 ? (
-        <div className="empty">
-          <h3>Aucun objectif pour l'instant</h3>
-          <p>
-            Un objectif se découpe en paliers, du plus accessible au plus ambitieux, et chaque
-            palier porte un rang. Valide-les un par un pour faire monter ton rang global.
-          </p>
-          <div style={{ display: 'flex', gap: 9, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button className="btn btn-primary" onClick={() => setEditing({ goal: null })}>
-              Créer mon premier objectif
+        <div className="sidebar-foot">
+          {user && <div className="account" title={user.email}>{user.email}</div>}
+          <div className="sidebar-foot-actions">
+            <button className="btn btn-ghost btn-sm" onClick={exportJson}>
+              Exporter
             </button>
-            <button className="btn" onClick={loadDemo}>
-              Charger des exemples
+            <button className="btn btn-ghost btn-sm" onClick={importJson}>
+              Importer
             </button>
+            {user && !user.isLocal && (
+              <button className="btn btn-ghost btn-sm" onClick={() => void store.signOut()}>
+                Déconnexion
+              </button>
+            )}
           </div>
         </div>
-      ) : (
-        <div className="goal-grid">
-          {activeGoals.map((goal, index) => (
-            <GoalCard
-              key={goal.id}
-              goal={goal}
-              index={index}
-              expanded={expanded.has(goal.id)}
-              onToggleExpand={() => toggleExpand(goal.id)}
-              onEdit={() => setEditing({ goal })}
-              onDelete={() => deleteGoal(goal)}
-              onAddTier={(input) => run(() => store.createTier(goal.id, input))}
-              onUpdateTier={(tierId, patch) => {
-                if (patch.completedAt) {
-                  const tier = goal.tiers.find((t) => t.id === tierId);
-                  if (tier) celebrateTier(goal, tier);
-                }
-                return run(() => store.updateTier(tierId, patch));
-              }}
-              onDeleteTier={(tierId) => run(() => store.deleteTier(tierId))}
-              onMoveTier={async (tierId, direction) => moveTier(goal, tierId, direction)}
+      </aside>
+
+      <main className="main">
+        <header className="topbar">
+          <h1 className="page-title">{VIEWS.find((v) => v.id === view)?.label}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Doublon des actions du pied de sidebar, visible uniquement sur mobile
+                où la sidebar devient une barre d'onglets sans pied. */}
+            <div className="topbar-mobile-actions">
+              <button className="btn btn-ghost btn-sm" onClick={exportJson} title="Exporter">
+                ⬇
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={importJson} title="Importer">
+                ⬆
+              </button>
+              {user && !user.isLocal && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => void store.signOut()}
+                  title="Déconnexion"
+                >
+                  ⎋
+                </button>
+              )}
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={() => setEditing({ goal: null })}>
+              + Objectif
+            </button>
+          </div>
+        </header>
+
+        {user?.isLocal && (
+          <div className="notice info">
+            Mode local : tes objectifs sont enregistrés dans ce navigateur uniquement. Renseigne
+            tes clés Supabase pour activer les comptes et la synchronisation entre appareils.
+          </div>
+        )}
+        {error && <div className="notice error">{error}</div>}
+
+        {loading ? (
+          <p style={{ color: 'var(--text-dim)' }}>Chargement…</p>
+        ) : view === 'historique' ? (
+          <Timeline goals={goals} />
+        ) : view === 'accueil' ? (
+          activeGoals.length === 0 ? (
+            emptyState
+          ) : (
+            <Hub
+              goals={goals}
+              onValidateTier={validateTier}
+              onGoToGoals={() => setView('objectifs')}
             />
-          ))}
-        </div>
-      )}
+          )
+        ) : activeGoals.length === 0 ? (
+          emptyState
+        ) : (
+          <div className="goal-grid">
+            {activeGoals.map((goal, index) => (
+              <GoalCard
+                key={goal.id}
+                goal={goal}
+                index={index}
+                expanded={expanded.has(goal.id)}
+                onToggleExpand={() => toggleExpand(goal.id)}
+                onEdit={() => setEditing({ goal })}
+                onDelete={() => deleteGoal(goal)}
+                onAddTier={(input) => run(() => store.createTier(goal.id, input))}
+                onUpdateTier={(tierId, patch) => {
+                  if (patch.completedAt) {
+                    const tier = goal.tiers.find((t) => t.id === tierId);
+                    if (tier) celebrateTier(goal, tier);
+                  }
+                  return run(() => store.updateTier(tierId, patch));
+                }}
+                onDeleteTier={(tierId) => run(() => store.deleteTier(tierId))}
+                onMoveTier={async (tierId, direction) => moveTier(goal, tierId, direction)}
+              />
+            ))}
+          </div>
+        )}
+      </main>
 
       {editing && (
         <GoalEditor goal={editing.goal} onCancel={() => setEditing(null)} onSave={saveGoal} />

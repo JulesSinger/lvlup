@@ -40,9 +40,17 @@ page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 await page.goto(BASE);
 await page.waitForSelector('.brand');
 
-// 1. Écran vide puis chargement des exemples
+// 1. Écran vide (sur le hub) puis chargement des exemples
 check('Écran vide affiché', await page.locator('.empty h3').isVisible());
 await page.getByRole('button', { name: 'Charger des exemples' }).click();
+await page.waitForSelector('.hub');
+check('Hub affiché après chargement', await page.locator('.hub').isVisible());
+check(
+  'Prochains paliers listés sur le hub (un par objectif)',
+  (await page.locator('.next-tier').count()) === 3,
+  String(await page.locator('.next-tier').count()),
+);
+await page.getByRole('button', { name: 'Objectifs' }).click();
 await page.waitForSelector('.goal');
 check('3 objectifs créés', (await page.locator('.goal').count()) === 3);
 check(
@@ -84,6 +92,9 @@ check(
   await page.locator('.tier-date').first().textContent(),
 );
 check('Barre de progression à 40 %', (await page.locator('.goal-count').first().textContent())?.includes('2/5'));
+// Le rang de profil et les PP s'affichent sur le hub
+await page.getByRole('button', { name: 'Accueil' }).click();
+await page.waitForSelector('.profile-rank');
 check(
   'Rang global calculé (moyenne 3/3 objectifs = Fer)',
   (await page.locator('.profile-rank').textContent()) === 'Fer',
@@ -95,6 +106,13 @@ check(
   (await page.locator('.stat-pp').textContent()) === '125',
   await page.locator('.stat-pp').textContent(),
 );
+check(
+  "Activité récente alimentée sur le hub",
+  (await page.locator('.activity-item').count()) === 2,
+  String(await page.locator('.activity-item').count()),
+);
+await page.getByRole('button', { name: 'Objectifs' }).click();
+await page.waitForSelector('.ladder');
 
 // 3. Ajout d'un palier à un objectif existant
 await page.locator('.ladder-add input').fill('Courir 42 km sous les 4 h');
@@ -103,8 +121,10 @@ await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
 await page.waitForTimeout(300);
 check('Palier ajouté', (await page.locator('.goal-count').first().textContent())?.includes('2/6'));
 
-// 4. Persistance après rechargement
+// 4. Persistance après rechargement (retour sur le hub par défaut)
 await page.reload();
+await page.waitForSelector('.brand');
+await page.getByRole('button', { name: 'Objectifs' }).click();
 await page.waitForSelector('.goal');
 check('Données persistées après rechargement', (await page.locator('.goal').count()) === 3);
 check(
@@ -169,6 +189,17 @@ await page.screenshot({ path: 'screens/accueil.png', fullPage: true });
 const mobile = await page.context().newPage();
 await mobile.setViewportSize({ width: 390, height: 844 });
 await mobile.goto(BASE);
+await mobile.waitForSelector('.brand', { state: 'attached' });
+check(
+  'Barre de navigation mobile en bas',
+  await mobile.locator('.sidebar .nav-item').first().isVisible(),
+);
+await mobile.waitForSelector('.hub');
+check(
+  'Hub mobile sans débordement horizontal',
+  await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+);
+await mobile.getByRole('button', { name: 'Objectifs' }).click();
 await mobile.waitForSelector('.goal');
 await mobile.locator('.goal-head').first().click();
 await mobile.waitForTimeout(200);
