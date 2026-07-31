@@ -1,0 +1,16 @@
+# Dépendances
+node_modules/
+
+# Build
+dist/
+
+# Variables d'environnement — ne jamais committer
+.env
+.env.local
+.env.*.local
+
+# Système / éditeurs
+.DS_Store
+*.log
+.vscode/
+.idea/
