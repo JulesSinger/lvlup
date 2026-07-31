@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CHECKIN_PP, goalProgress, history, ppForRank, relativeDate, weekStats } from '../lib/progress';
 import { getRank } from '../lib/ranks';
-import { dayString } from '../lib/streak';
+import { computeStreak, dayString } from '../lib/streak';
 import type { Checkin, Goal, Tier } from '../lib/types';
 import { ProfileHeader } from './ProfileHeader';
 import { RankBadge } from './RankBadge';
@@ -67,9 +67,21 @@ export function Hub({
   const week = weekStats(goals, checkins, 0);
   const lastWeek = weekStats(goals, checkins, -1);
 
+  const streak = computeStreak(goals, checkins);
+
   return (
     <div className="hub">
       <ProfileHeader goals={goals} checkins={checkins} />
+
+      {streak.atRisk && streak.current > 0 && (
+        <div className="notice streak-banner" role="status">
+          🔥 <strong>Streak de {streak.current} jour{streak.current > 1 ? 's' : ''} en jeu</strong>{' '}
+          — fais un check-in avant minuit pour le prolonger
+          {streak.freezes > 0
+            ? ` (sinon un gel ❄ sur ${streak.freezes} sera consommé).`
+            : '.'}
+        </div>
+      )}
 
       {active.length > 0 && (
         <section className="hub-section checkin-section">

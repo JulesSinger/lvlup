@@ -1,17 +1,18 @@
 import type { AppUser, Checkin, Goal, GoalInput, Tier, TierInput } from '../lib/types';
-import { newId, type Backup, type Store } from './store';
+import { newId, type Backup, type Store, type UnlockedAchievement } from './store';
 
 const KEY = 'palier.v1';
 
 interface Snapshot {
   goals: Goal[];
   checkins: Checkin[];
+  achievements: UnlockedAchievement[];
 }
 
 function read(): Snapshot {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return { goals: [], checkins: [] };
+    if (!raw) return { goals: [], checkins: [], achievements: [] };
     const parsed = JSON.parse(raw) as Partial<Snapshot>;
     return {
       goals: Array.isArray(parsed.goals) ? parsed.goals : [],
@@ -20,9 +21,10 @@ function read(): Snapshot {
       checkins: Array.isArray(parsed.checkins)
         ? parsed.checkins.map((c) => ({ ...c, note: c.note ?? '' }))
         : [],
+      achievements: Array.isArray(parsed.achievements) ? parsed.achievements : [],
     };
   } catch {
-    return { goals: [], checkins: [] };
+    return { goals: [], checkins: [], achievements: [] };
   }
 }
 
@@ -200,12 +202,35 @@ export class LocalStore implements Store {
     write(snapshot);
   }
 
+  async listAchievements(): Promise<UnlockedAchievement[]> {
+    return read().achievements.slice();
+  }
+
+  async unlockAchievements(ids: string[]) {
+    if (ids.length === 0) return;
+    const snapshot = read();
+    const known = new Set(snapshot.achievements.map((a) => a.id));
+    const now = new Date().toISOString();
+    for (const id of ids) {
+      if (!known.has(id)) snapshot.achievements.push({ id, unlockedAt: now });
+    }
+    write(snapshot);
+  }
+
   async exportAll(): Promise<Backup> {
-    const { checkins } = read();
-    return { goals: await this.listGoals(), checkins: checkins.slice() };
+    const { checkins, achievements } = read();
+    return {
+      goals: await this.listGoals(),
+      checkins: checkins.slice(),
+      achievements: achievements.slice(),
+    };
   }
 
   async importAll(backup: Backup) {
-    write({ goals: backup.goals, checkins: backup.checkins ?? [] });
+    write({
+      goals: backup.goals,
+      checkins: backup.checkins ?? [],
+      achievements: backup.achievements ?? [],
+    });
   }
 }

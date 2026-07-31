@@ -11,3 +11,13 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 );
+
+// PWA : offline de base + installation sur l'écran d'accueil.
+// En dev, Vite sert les modules à la volée — on n'enregistre qu'en production.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Pas bloquant : l'app fonctionne sans offline.
+    });
+  });
+}

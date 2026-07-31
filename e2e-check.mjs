@@ -173,11 +173,27 @@ check(
     'Apprendre la guitare folk',
 );
 
-// 8. Suppression
+// 8. Suppression (les actions sont désormais ✎ / 📦 / 🗑)
 page.once('dialog', (d) => d.accept());
-await page.locator('.goal').nth(3).locator('.goal-actions button').nth(1).click();
+await page.locator('.goal').nth(3).locator('.goal-actions button').nth(2).click();
 await page.waitForTimeout(400);
 check('Objectif supprimé', (await page.locator('.goal').count()) === 3);
+
+// 8 bis. Archivage réversible
+await page.locator('.goal').nth(1).locator('.goal-actions button').nth(1).click();
+await page.waitForTimeout(400);
+check(
+  'Objectif archivé : retiré de la grille',
+  (await page.locator('.goal').count()) === 2,
+  String(await page.locator('.goal').count()),
+);
+check('Section Archivés visible', (await page.locator('.archived-row').count()) === 1);
+await page.getByRole('button', { name: 'Restaurer' }).click();
+await page.waitForTimeout(400);
+check(
+  'Objectif restauré depuis les archives',
+  (await page.locator('.goal').count()) === 3 && (await page.locator('.archived-row').count()) === 0,
+);
 
 // 9. Check-in quotidien, streak et trophées
 await page.getByRole('button', { name: 'Accueil' }).click();
@@ -256,11 +272,17 @@ await page.getByRole('button', { name: 'Trophées' }).click();
 await page.waitForSelector('.trophy-grid');
 check('12 trophées listés', (await page.locator('.trophy').count()) === 12, String(await page.locator('.trophy').count()));
 check(
-  '2 trophées débloqués (Premier sang, Stratège)',
-  (await page.locator('.trophy.unlocked').count()) === 2,
+  "3 trophées acquis — « Premier pas » persiste malgré l'annulation du check-in",
+  (await page.locator('.trophy.unlocked').count()) === 3,
   String(await page.locator('.trophy.unlocked').count()),
 );
 await page.screenshot({ path: 'screens/trophees.png', fullPage: true });
+
+// PWA : manifest et service worker servis
+check('Manifest PWA lié dans la page', (await page.locator('link[rel="manifest"]').count()) === 1);
+check('manifest.webmanifest servi', (await page.request.get(`${BASE}/manifest.webmanifest`)).ok());
+check('Service worker servi', (await page.request.get(`${BASE}/sw.js`)).ok());
+check('Icône 192 servie', (await page.request.get(`${BASE}/icons/icon-192.png`)).ok());
 
 // 10. Vue finale
 await page.getByRole('button', { name: 'Objectifs' }).click();
@@ -271,6 +293,43 @@ await page.screenshot({ path: 'screens/accueil.png', fullPage: true });
 
 // 10. Rendu mobile
 // Même contexte que la page précédente, sinon le localStorage repart à vide.
+// Bannière « streak en jeu » : contexte isolé, activité datée d'hier seulement
+const riskCtx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+const riskPage = await riskCtx.newPage();
+await riskPage.goto(BASE);
+await riskPage.evaluate(() => {
+  const yesterday = new Date(Date.now() - 86_400_000);
+  const day = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+  const now = new Date().toISOString();
+  const goal = {
+    id: 'g1',
+    title: 'Objectif test',
+    description: '',
+    emoji: '🎯',
+    position: 0,
+    archived: false,
+    createdAt: now,
+    tiers: [
+      { id: 't1', goalId: 'g1', title: 'Palier 1', rank: 'or', position: 0, completedAt: null, createdAt: now },
+    ],
+  };
+  localStorage.setItem(
+    'palier.v1',
+    JSON.stringify({
+      goals: [goal],
+      checkins: [{ id: 'c1', goalId: 'g1', day, note: '', createdAt: now }],
+      achievements: [],
+    }),
+  );
+});
+await riskPage.reload();
+await riskPage.waitForSelector('.hub');
+check(
+  "Bannière « streak en jeu » quand rien n'est fait aujourd'hui",
+  await riskPage.locator('.streak-banner').isVisible(),
+);
+await riskCtx.close();
+
 const mobile = await page.context().newPage();
 await mobile.setViewportSize({ width: 390, height: 844 });
 await mobile.goto(BASE);

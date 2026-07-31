@@ -7,11 +7,12 @@ import { Hub } from './components/Hub';
 import { Timeline } from './components/Timeline';
 import { Trophies } from './components/Trophies';
 import { store } from './data';
-import { newlyUnlocked } from './lib/achievements';
+import type { UnlockedAchievement } from './data/store';
+import { newlyUnlocked, unlockedAchievements } from './lib/achievements';
 import { DEMO_GOALS } from './lib/demo';
 import { goalProgress, ppForRank, profileRank } from './lib/progress';
 import { getRank } from './lib/ranks';
-import { dayString } from './lib/streak';
+import { computeStreak, dayString } from './lib/streak';
 import type { AppUser, Checkin, Goal, GoalInput, Tier, TierInput } from './lib/types';
 
 type View = 'accueil' | 'objectifs' | 'historique' | 'trophees';
@@ -31,6 +32,7 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [checkins, setCheckins] = useState<Checkin[]>([]);
+  const [achievements, setAchievements] = useState<UnlockedAchievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [view, setView] = useState<View>('accueil');
@@ -47,12 +49,25 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const [nextGoals, nextCheckins] = await Promise.all([
+      const [nextGoals, nextCheckins, stored] = await Promise.all([
         store.listGoals(),
         store.listCheckins(),
+        store.listAchievements(),
       ]);
+      // Un trophée dont la condition est remplie devient acquis pour toujours,
+      // même si l'action qui l'a rempli est annulée plus tard.
+      let nextAchievements = stored;
+      const computed = unlockedAchievements({ goals: nextGoals, checkins: nextCheckins });
+      const known = new Set(stored.map((a) => a.id));
+      const fresh = [...computed].filter((id) => !known.has(id));
+      if (fresh.length > 0) {
+        await store.unlockAchievements(fresh);
+        const now = new Date().toISOString();
+        nextAchievements = [...stored, ...fresh.map((id) => ({ id, unlockedAt: now }))];
+      }
       setGoals(nextGoals);
       setCheckins(nextCheckins);
+      setAchievements(nextAchievements);
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Chargement impossible.');
@@ -65,12 +80,31 @@ export default function App() {
     if (!user) {
       setGoals([]);
       setCheckins([]);
+      setAchievements([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     void refresh();
   }, [user, refresh]);
+
+  // Badge sur l'icône installée (PWA) : un point tant que le check-in du jour
+  // n'est pas fait. Silencieusement ignoré là où l'API n'existe pas.
+  useEffect(() => {
+    const nav = navigator as Navigator & {
+      setAppBadge?: (count?: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+    if (!nav.setAppBadge) return;
+    const streak = computeStreak(goals, checkins);
+    const hasGoals = goals.some((g) => !g.archived);
+    try {
+      if (hasGoals && !streak.activeToday) void nav.setAppBadge(1);
+      else void nav.clearAppBadge?.();
+    } catch {
+      // API refusée : rien à faire.
+    }
+  }, [goals, checkins]);
 
   /** Exécute une mutation puis resynchronise l'affichage sur le stockage. */
   const run = useCallback(
@@ -86,6 +120,7 @@ export default function App() {
   );
 
   const activeGoals = useMemo(() => goals.filter((g) => !g.archived), [goals]);
+  const archivedGoals = useMemo(() => goals.filter((g) => g.archived), [goals]);
 
   /**
    * Prépare les cérémonies déclenchées par la validation d'un palier : l'écran
@@ -123,8 +158,13 @@ export default function App() {
     if (after.rank && (!before.rank || after.rank.value > before.rank.value)) {
       queue.push({ kind: 'profile', rank: after.rank, previous: before.rank });
     }
+    const alreadyOwned = new Set(achievements.map((a) => a.id));
     for (const trophy of newlyUnlocked({ goals, checkins }, { goals: nextGoals, checkins })) {
-      queue.push({ kind: 'trophy', icon: trophy.icon, name: trophy.name, desc: trophy.desc });
+      // Un trophée déjà acquis (puis « re-rempli » après une annulation) ne se
+      // re-célèbre pas.
+      if (!alreadyOwned.has(trophy.id)) {
+        queue.push({ kind: 'trophy', icon: trophy.icon, name: trophy.name, desc: trophy.desc });
+      }
     }
     setCelebrations(queue);
   }
@@ -145,10 +185,11 @@ export default function App() {
       note: '',
       createdAt: new Date().toISOString(),
     };
+    const alreadyOwned = new Set(achievements.map((a) => a.id));
     const trophies = newlyUnlocked(
       { goals, checkins },
       { goals, checkins: [...checkins, optimistic] },
-    );
+    ).filter((t) => !alreadyOwned.has(t.id));
     if (trophies.length > 0) {
       setCelebrations(
         trophies.map((t) => ({ kind: 'trophy', icon: t.icon, name: t.name, desc: t.desc })),
@@ -187,6 +228,14 @@ export default function App() {
     });
   }
 
+  function archiveGoal(goal: Goal) {
+    void run(() => store.updateGoal(goal.id, { archived: true }));
+  }
+
+  function restoreGoal(goal: Goal) {
+    void run(() => store.updateGoal(goal.id, { archived: false }));
+  }
+
   function deleteGoal(goal: Goal) {
     const label = `Supprimer « ${goal.title} » et ses ${goal.tiers.length} palier(s) ? Cette action est définitive.`;
     if (!window.confirm(label)) return;
@@ -205,7 +254,18 @@ export default function App() {
   async function exportJson() {
     const backup = await store.exportAll();
     const blob = new Blob(
-      [JSON.stringify({ version: 2, goals: backup.goals, checkins: backup.checkins }, null, 2)],
+      [
+        JSON.stringify(
+          {
+            version: 3,
+            goals: backup.goals,
+            checkins: backup.checkins,
+            achievements: backup.achievements,
+          },
+          null,
+          2,
+        ),
+      ],
       { type: 'application/json' },
     );
     const url = URL.createObjectURL(blob);
@@ -227,15 +287,17 @@ export default function App() {
         const parsed = JSON.parse(await file.text()) as {
           goals?: Goal[];
           checkins?: Checkin[];
+          achievements?: UnlockedAchievement[];
         };
         if (!Array.isArray(parsed.goals)) throw new Error('Fichier de sauvegarde non reconnu.');
         if (!window.confirm('Importer cette sauvegarde ? Elle remplacera tes objectifs actuels.'))
           return;
-        // Les sauvegardes v1 (avant le Sprint 2) n'ont pas de check-ins.
+        // Les sauvegardes plus anciennes n'ont ni check-ins (v1) ni trophées (v2).
         await run(() =>
           store.importAll({
             goals: parsed.goals as Goal[],
             checkins: Array.isArray(parsed.checkins) ? parsed.checkins : [],
+            achievements: Array.isArray(parsed.achievements) ? parsed.achievements : [],
           }),
         );
       } catch (err) {
@@ -378,7 +440,7 @@ export default function App() {
         ) : view === 'historique' ? (
           <Timeline goals={goals} checkins={checkins} />
         ) : view === 'trophees' ? (
-          <Trophies goals={goals} checkins={checkins} />
+          <Trophies achievements={achievements} />
         ) : view === 'accueil' ? (
           activeGoals.length === 0 ? (
             emptyState
@@ -393,32 +455,67 @@ export default function App() {
               onGoToGoals={() => setView('objectifs')}
             />
           )
-        ) : activeGoals.length === 0 ? (
+        ) : activeGoals.length === 0 && archivedGoals.length === 0 ? (
           emptyState
         ) : (
-          <div className="goal-grid">
-            {activeGoals.map((goal, index) => (
-              <GoalCard
-                key={goal.id}
-                goal={goal}
-                index={index}
-                expanded={expanded.has(goal.id)}
-                onToggleExpand={() => toggleExpand(goal.id)}
-                onEdit={() => setEditing({ goal })}
-                onDelete={() => deleteGoal(goal)}
-                onAddTier={(input) => run(() => store.createTier(goal.id, input))}
-                onUpdateTier={(tierId, patch) => {
-                  if (patch.completedAt) {
-                    const tier = goal.tiers.find((t) => t.id === tierId);
-                    if (tier) celebrateTier(goal, tier);
-                  }
-                  return run(() => store.updateTier(tierId, patch));
-                }}
-                onDeleteTier={(tierId) => run(() => store.deleteTier(tierId))}
-                onMoveTier={async (tierId, direction) => moveTier(goal, tierId, direction)}
-              />
-            ))}
-          </div>
+          <>
+            {activeGoals.length === 0 ? (
+              emptyState
+            ) : (
+              <div className="goal-grid">
+                {activeGoals.map((goal, index) => (
+                  <GoalCard
+                    key={goal.id}
+                    goal={goal}
+                    index={index}
+                    expanded={expanded.has(goal.id)}
+                    onToggleExpand={() => toggleExpand(goal.id)}
+                    onEdit={() => setEditing({ goal })}
+                    onArchive={() => archiveGoal(goal)}
+                    onDelete={() => deleteGoal(goal)}
+                    onAddTier={(input) => run(() => store.createTier(goal.id, input))}
+                    onUpdateTier={(tierId, patch) => {
+                      if (patch.completedAt) {
+                        const tier = goal.tiers.find((t) => t.id === tierId);
+                        if (tier) celebrateTier(goal, tier);
+                      }
+                      return run(() => store.updateTier(tierId, patch));
+                    }}
+                    onDeleteTier={(tierId) => run(() => store.deleteTier(tierId))}
+                    onMoveTier={async (tierId, direction) => moveTier(goal, tierId, direction)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {archivedGoals.length > 0 && (
+              <section className="archived">
+                <h2 className="archived-title">Archivés ({archivedGoals.length})</h2>
+                <p className="archived-hint">
+                  Un objectif archivé ne compte plus dans ton rang ni tes PP, mais son histoire
+                  est conservée. Restaure-le quand tu veux.
+                </p>
+                {archivedGoals.map((goal) => (
+                  <div key={goal.id} className="archived-row">
+                    <span className="archived-emoji" aria-hidden="true">
+                      {goal.emoji}
+                    </span>
+                    <span className="archived-name">{goal.title}</span>
+                    <button className="btn btn-sm" onClick={() => restoreGoal(goal)}>
+                      Restaurer
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm btn-danger"
+                      onClick={() => deleteGoal(goal)}
+                      title="Supprimer définitivement"
+                    >
+                      🗑
+                    </button>
+                  </div>
+                ))}
+              </section>
+            )}
+          </>
         )}
       </main>
 

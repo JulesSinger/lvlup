@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { RankId } from '../lib/ranks';
 import type { AppUser, Checkin, Goal, GoalInput, Tier, TierInput } from '../lib/types';
-import type { Backup, Store } from './store';
+import type { Backup, Store, UnlockedAchievement } from './store';
 
 interface GoalRow {
   id: string;
@@ -270,8 +270,29 @@ export class SupabaseStore implements Store {
     if (error) throw new Error(error.message);
   }
 
+  async listAchievements(): Promise<UnlockedAchievement[]> {
+    const rows = unwrap(
+      await this.client.from('achievements').select('achievement_id, unlocked_at'),
+    ) as { achievement_id: string; unlocked_at: string }[];
+    return rows.map((r) => ({ id: r.achievement_id, unlockedAt: r.unlocked_at }));
+  }
+
+  async unlockAchievements(ids: string[]) {
+    if (ids.length === 0) return;
+    const userId = await this.requireUserId();
+    const { error } = await this.client.from('achievements').upsert(
+      ids.map((id) => ({ user_id: userId, achievement_id: id })),
+      { onConflict: 'user_id,achievement_id', ignoreDuplicates: true },
+    );
+    if (error) throw new Error(error.message);
+  }
+
   async exportAll(): Promise<Backup> {
-    return { goals: await this.listGoals(), checkins: await this.listCheckins() };
+    return {
+      goals: await this.listGoals(),
+      checkins: await this.listCheckins(),
+      achievements: await this.listAchievements(),
+    };
   }
 
   async importAll(backup: Backup) {
@@ -311,5 +332,6 @@ export class SupabaseStore implements Store {
       );
       if (error) throw new Error(error.message);
     }
+    await this.unlockAchievements((backup.achievements ?? []).map((a) => a.id));
   }
 }

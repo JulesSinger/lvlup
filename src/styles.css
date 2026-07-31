@@ -1612,6 +1612,60 @@ textarea {
   background: var(--bg);
 }
 
+.streak-banner {
+  background: rgba(255, 157, 77, 0.1);
+  border-color: rgba(255, 157, 77, 0.4);
+  color: #ffc79b;
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------- archivés */
+.archived {
+  margin-top: 26px;
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+}
+
+.archived-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+.archived-hint {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  margin: 6px 0 12px;
+}
+
+.archived-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.archived-row:last-child {
+  border-bottom: none;
+}
+
+.archived-emoji {
+  font-size: 19px;
+  opacity: 0.6;
+}
+
+.archived-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ------------------------------------------------------ journal (entrées) */
 .entry-checkin .entry-title {
   font-weight: 450;

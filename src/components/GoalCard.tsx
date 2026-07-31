@@ -11,6 +11,7 @@ interface Props {
   expanded: boolean;
   onToggleExpand: () => void;
   onEdit: () => void;
+  onArchive: () => void;
   onDelete: () => void;
   onAddTier: (input: TierInput) => Promise<void>;
   onUpdateTier: (
@@ -27,6 +28,7 @@ export function GoalCard({
   expanded,
   onToggleExpand,
   onEdit,
+  onArchive,
   onDelete,
   onAddTier,
   onUpdateTier,
@@ -90,6 +92,13 @@ export function GoalCard({
         <div className="goal-actions" onClick={(e) => e.stopPropagation()}>
           <button className="btn btn-ghost btn-sm" onClick={onEdit} title="Modifier">
             ✎
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={onArchive}
+            title="Archiver (réversible : l'objectif sort du rang et des PP)"
+          >
+            📦
           </button>
           <button className="btn btn-ghost btn-sm btn-danger" onClick={onDelete} title="Supprimer">
             🗑

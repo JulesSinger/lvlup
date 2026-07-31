@@ -1,9 +1,16 @@
 import type { AppUser, Checkin, Goal, GoalInput, Tier, TierInput } from '../lib/types';
 
+/** Trophée débloqué, définitivement acquis (jamais re-verrouillé). */
+export interface UnlockedAchievement {
+  id: string;
+  unlockedAt: string;
+}
+
 /** Sauvegarde complète (export/import). La v1 ne contenait que les objectifs. */
 export interface Backup {
   goals: Goal[];
   checkins: Checkin[];
+  achievements: UnlockedAchievement[];
 }
 
 /**
@@ -45,6 +52,11 @@ export interface Store {
   /** Ajoute ou modifie la note libre d'un check-in. */
   updateCheckin(id: string, patch: { note?: string }): Promise<void>;
   deleteCheckin(id: string): Promise<void>;
+
+  // --- Trophées (acquis pour toujours) ---
+  listAchievements(): Promise<UnlockedAchievement[]>;
+  /** Idempotent : les ids déjà débloqués sont ignorés. */
+  unlockAchievements(ids: string[]): Promise<void>;
 
   // --- Sauvegarde ---
   exportAll(): Promise<Backup>;
