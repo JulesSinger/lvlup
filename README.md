@@ -76,15 +76,48 @@ tests : **Authentication → Providers → Email → Confirm email**, désactive
 
 ### 3. Mettre en ligne
 
-Avec Cloudflare Pages :
+Avec Cloudflare (Workers & Pages) :
 
 1. Pousse le projet sur GitHub.
-2. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages → Create → Pages → Connect to Git**.
+2. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages → Create → Connect to Git**.
 3. Build command `npm run build`, output directory `dist`.
-4. **Settings → Environment variables** : ajoute `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`.
+4. **Settings → Build → Build Variables and Secrets** : ajoute `VITE_SUPABASE_URL`,
+   `VITE_SUPABASE_ANON_KEY` et `NODE_VERSION=22`.
+5. **Settings → Domains & Routes** : active `workers.dev` pour obtenir l'adresse publique.
 
 Chaque `git push` redéploie automatiquement. Vercel et Netlify se configurent exactement pareil
 (ils détectent Vite tout seuls).
+
+#### Trois pièges vérifiés sur le terrain
+
+**Variables de *build*, pas d'exécution.** Cloudflare propose deux jeux de variables. Vite lit les
+siennes au moment de la compilation pour les inscrire en dur dans le JavaScript produit : elles
+doivent être dans *Settings → Build*, pas dans *Settings → Variables and Secrets*. Placées au
+mauvais endroit, le build réussit sans erreur et le site déployé retombe silencieusement en mode
+local — le symptôme est le bandeau jaune « Mode local » au lieu de l'écran de connexion.
+
+**`NODE_VERSION=22`.** Vite 8 s'appuie sur Rolldown, qui exige Node ≥ 20.19. La version par défaut
+de l'image de build Cloudflare peut être plus ancienne ; l'échec se manifeste par
+`SyntaxError: ... does not provide an export named 'styleText'`. Un fichier `.nvmrc` contenant `22`
+fait le même travail. Même contrainte en local : `nvm install 22`.
+
+**Ajouter une variable ne suffit pas.** Comme les valeurs sont figées à la compilation, toute
+modification n'a d'effet qu'au déploiement suivant. Pour en déclencher un sans changer le code :
+`git commit --allow-empty -m "redéploiement" && git push`. Recharge ensuite avec Cmd+Shift+R, le
+navigateur pouvant resservir l'ancien bundle.
+
+### 4. Déclarer l'adresse du site dans Supabase
+
+Une fois l'URL de production connue, retourne dans Supabase : **Authentication → URL
+Configuration**.
+
+- **Site URL** : `https://ton-site.workers.dev`
+- **Redirect URLs** : `https://ton-site.workers.dev/**` (garde aussi `http://localhost:5173/**`)
+
+Sans cette étape, les liens de confirmation envoyés par e-mail pointent vers `localhost` et
+n'aboutissent nulle part chez tes utilisateurs. Cette liste fait aussi office de liste blanche :
+Supabase refuse toute redirection vers une adresse non déclarée, ce qui empêche le détournement
+d'un lien de confirmation.
 
 Une fois en ligne, tes amis créent leur compte depuis l'écran d'accueil et disposent de leur propre
 espace, sans que tu aies quoi que ce soit à faire.
