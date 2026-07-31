@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { profilePP, profileRank } from '../lib/progress';
 import { rankByValue } from '../lib/ranks';
-import type { Goal } from '../lib/types';
+import { computeStreak, MAX_FREEZES } from '../lib/streak';
+import type { Checkin, Goal } from '../lib/types';
 
 /**
  * Anime un nombre de sa valeur précédente vers la nouvelle (easing doux).
@@ -34,16 +35,29 @@ function useCountUp(target: number, duration = 900): number {
   return display;
 }
 
-export function ProfileHeader({ goals }: { goals: Goal[] }) {
+export function ProfileHeader({
+  goals,
+  checkins = [],
+}: {
+  goals: Goal[];
+  checkins?: Checkin[];
+}) {
   const profile = profileRank(goals);
   const rank = profile.rank;
   const active = goals.filter((g) => !g.archived);
   const tiersDone = active.reduce((n, g) => n + g.tiers.filter((t) => t.completedAt).length, 0);
   const tiersTotal = active.reduce((n, g) => n + g.tiers.length, 0);
-  const pp = useCountUp(profilePP(goals));
+  const pp = useCountUp(profilePP(goals, checkins));
+  const streak = computeStreak(goals, checkins);
 
   const nextRank =
     rank && rank.value < 10 ? rankByValue(rank.value + 1) : rank ? null : rankByValue(1);
+
+  const streakTitle = streak.activeToday
+    ? `${streak.current} jour${streak.current > 1 ? 's' : ''} d'affilée — déjà validé aujourd'hui`
+    : streak.atRisk
+      ? `${streak.current} jour${streak.current > 1 ? 's' : ''} d'affilée — agis aujourd'hui pour continuer`
+      : "Fais une action aujourd'hui pour lancer un streak";
 
   return (
     <section
@@ -89,6 +103,25 @@ export function ProfileHeader({ goals }: { goals: Goal[] }) {
       </div>
 
       <div className="profile-stats">
+        <div title={streakTitle}>
+          <div
+            className={`stat-value stat-streak${streak.activeToday ? ' lit' : ''}${streak.atRisk ? ' risk' : ''}`}
+          >
+            <span aria-hidden="true">🔥</span> {streak.current}
+          </div>
+          <div className="stat-label">
+            Streak
+            {streak.freezes > 0 && (
+              <span
+                className="stat-freezes"
+                title={`${streak.freezes}/${MAX_FREEZES} gel${streak.freezes > 1 ? 's' : ''} : un jour manqué consomme un gel au lieu de casser le streak`}
+              >
+                {' '}
+                ❄×{streak.freezes}
+              </span>
+            )}
+          </div>
+        </div>
         <div>
           <div className="stat-value stat-pp">{pp.toLocaleString('fr-FR')}</div>
           <div className="stat-label">PP</div>

@@ -1,4 +1,10 @@
-import type { AppUser, Goal, GoalInput, Tier, TierInput } from '../lib/types';
+import type { AppUser, Checkin, Goal, GoalInput, Tier, TierInput } from '../lib/types';
+
+/** Sauvegarde complète (export/import). La v1 ne contenait que les objectifs. */
+export interface Backup {
+  goals: Goal[];
+  checkins: Checkin[];
+}
 
 /**
  * Contrat unique entre l'interface et le stockage.
@@ -32,9 +38,17 @@ export interface Store {
   /** `orderedIds` donne la nouvelle position de chaque palier de l'objectif */
   reorderTiers(goalId: string, orderedIds: string[]): Promise<void>;
 
+  // --- Check-ins quotidiens ---
+  listCheckins(): Promise<Checkin[]>;
+  /** Un seul check-in par objectif et par jour ; `day` au format YYYY-MM-DD. */
+  addCheckin(goalId: string, day: string): Promise<Checkin>;
+  /** Ajoute ou modifie la note libre d'un check-in. */
+  updateCheckin(id: string, patch: { note?: string }): Promise<void>;
+  deleteCheckin(id: string): Promise<void>;
+
   // --- Sauvegarde ---
-  exportAll(): Promise<Goal[]>;
-  importAll(goals: Goal[]): Promise<void>;
+  exportAll(): Promise<Backup>;
+  importAll(backup: Backup): Promise<void>;
 }
 
 export function newId(): string {

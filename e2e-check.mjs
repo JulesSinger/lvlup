@@ -179,7 +179,92 @@ await page.locator('.goal').nth(3).locator('.goal-actions button').nth(1).click(
 await page.waitForTimeout(400);
 check('Objectif supprimé', (await page.locator('.goal').count()) === 3);
 
-// 9. Vue finale
+// 9. Check-in quotidien, streak et trophées
+await page.getByRole('button', { name: 'Accueil' }).click();
+await page.waitForSelector('.checkin-chips');
+check(
+  'Section check-in affichée avec un chip par objectif',
+  (await page.locator('.checkin-chip').count()) === 3,
+  String(await page.locator('.checkin-chip').count()),
+);
+check(
+  'Streak à 1 (les validations du jour comptent)',
+  ((await page.locator('.stat-streak').textContent()) ?? '').includes('1'),
+  await page.locator('.stat-streak').textContent(),
+);
+await page.locator('.checkin-chip').first().click();
+await page.waitForSelector('.ceremony');
+check(
+  'Trophée « Premier pas » célébré au premier check-in',
+  (await page.locator('.ceremony-rank').textContent()) === 'Premier pas',
+  await page.locator('.ceremony-rank').textContent(),
+);
+await dismissCeremonies(page);
+await page.waitForTimeout(1100);
+check('Check-in marqué comme fait', await page.locator('.checkin-chip.done').isVisible());
+check(
+  'PP passés à 135 (+10 du check-in)',
+  (await page.locator('.stat-pp').textContent()) === '135',
+  await page.locator('.stat-pp').textContent(),
+);
+
+// Note libre optionnelle : l'éditeur s'ouvre après le check-in
+check('Éditeur de note ouvert après le check-in', await page.locator('.checkin-note input').isVisible());
+await page.locator('.checkin-note input').fill('8 km ce matin, dur mais fait');
+await page.locator('.checkin-note input').press('Enter');
+await page.waitForTimeout(400);
+check(
+  'Note enregistrée (indicateur 📝 sur le chip)',
+  (await page.locator('.checkin-chip.done .checkin-note-btn').textContent()) === '📝',
+  await page.locator('.checkin-chip.done .checkin-note-btn').textContent(),
+);
+await page.getByRole('button', { name: 'Historique' }).click();
+await page.waitForSelector('.entry');
+check(
+  'La note apparaît dans le journal',
+  (await page.locator('.entry-checkin .entry-title').first().textContent()) ===
+    '8 km ce matin, dur mais fait',
+  await page.locator('.entry-checkin .entry-title').first().textContent(),
+);
+await page.getByRole('button', { name: 'Accueil' }).click();
+await page.waitForSelector('.checkin-chips');
+check(
+  'Récap « Cette semaine » : 1 check-in',
+  (await page.locator('.week-stats > div').nth(1).locator('.week-value').textContent()) === '1',
+  await page.locator('.week-stats > div').nth(1).locator('.week-value').textContent(),
+);
+
+// Persistance du check-in après rechargement
+await page.reload();
+await page.waitForSelector('.checkin-chips');
+check(
+  'Check-in persistant après rechargement',
+  (await page.locator('.checkin-chip.done').count()) === 1,
+);
+
+// Annulation : re-cliquer le chip rend les PP
+await page.locator('.checkin-chip.done').click();
+await page.waitForTimeout(1200);
+check(
+  "Annulation du check-in : les PP retombent à 125",
+  (await page.locator('.stat-pp').textContent()) === '125',
+  await page.locator('.stat-pp').textContent(),
+);
+
+// Salle des trophées
+await page.getByRole('button', { name: 'Trophées' }).click();
+await page.waitForSelector('.trophy-grid');
+check('12 trophées listés', (await page.locator('.trophy').count()) === 12, String(await page.locator('.trophy').count()));
+check(
+  '2 trophées débloqués (Premier sang, Stratège)',
+  (await page.locator('.trophy.unlocked').count()) === 2,
+  String(await page.locator('.trophy.unlocked').count()),
+);
+await page.screenshot({ path: 'screens/trophees.png', fullPage: true });
+
+// 10. Vue finale
+await page.getByRole('button', { name: 'Objectifs' }).click();
+await page.waitForSelector('.goal');
 await page.locator('.goal').nth(1).locator('.goal-head').click();
 await page.waitForTimeout(200);
 await page.screenshot({ path: 'screens/accueil.png', fullPage: true });

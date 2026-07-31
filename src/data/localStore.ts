@@ -1,20 +1,28 @@
-import type { AppUser, Goal, GoalInput, Tier, TierInput } from '../lib/types';
-import { newId, type Store } from './store';
+import type { AppUser, Checkin, Goal, GoalInput, Tier, TierInput } from '../lib/types';
+import { newId, type Backup, type Store } from './store';
 
 const KEY = 'palier.v1';
 
 interface Snapshot {
   goals: Goal[];
+  checkins: Checkin[];
 }
 
 function read(): Snapshot {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return { goals: [] };
-    const parsed = JSON.parse(raw) as Snapshot;
-    return { goals: Array.isArray(parsed.goals) ? parsed.goals : [] };
+    if (!raw) return { goals: [], checkins: [] };
+    const parsed = JSON.parse(raw) as Partial<Snapshot>;
+    return {
+      goals: Array.isArray(parsed.goals) ? parsed.goals : [],
+      // Les sauvegardes d'avant le Sprint 2 n'ont pas de check-ins, et celles
+      // d'avant les notes n'ont pas le champ `note`.
+      checkins: Array.isArray(parsed.checkins)
+        ? parsed.checkins.map((c) => ({ ...c, note: c.note ?? '' }))
+        : [],
+    };
   } catch {
-    return { goals: [] };
+    return { goals: [], checkins: [] };
   }
 }
 
@@ -98,6 +106,8 @@ export class LocalStore implements Store {
     const snapshot = read();
     snapshot.goals = snapshot.goals.filter((g) => g.id !== id);
     snapshot.goals.forEach((g, index) => (g.position = index));
+    // Les check-ins suivent leur objectif, comme le ON DELETE CASCADE côté SQL.
+    snapshot.checkins = snapshot.checkins.filter((c) => c.goalId !== id);
     write(snapshot);
   }
 
@@ -156,11 +166,46 @@ export class LocalStore implements Store {
     write(snapshot);
   }
 
-  async exportAll() {
-    return this.listGoals();
+  async listCheckins(): Promise<Checkin[]> {
+    return read().checkins.slice();
   }
 
-  async importAll(goals: Goal[]) {
-    write({ goals });
+  async addCheckin(goalId: string, day: string): Promise<Checkin> {
+    const snapshot = read();
+    const existing = snapshot.checkins.find((c) => c.goalId === goalId && c.day === day);
+    if (existing) return existing;
+    const checkin: Checkin = {
+      id: newId(),
+      goalId,
+      day,
+      note: '',
+      createdAt: new Date().toISOString(),
+    };
+    snapshot.checkins.push(checkin);
+    write(snapshot);
+    return checkin;
+  }
+
+  async updateCheckin(id: string, patch: { note?: string }) {
+    const snapshot = read();
+    const checkin = snapshot.checkins.find((c) => c.id === id);
+    if (!checkin) return;
+    if (patch.note !== undefined) checkin.note = patch.note;
+    write(snapshot);
+  }
+
+  async deleteCheckin(id: string) {
+    const snapshot = read();
+    snapshot.checkins = snapshot.checkins.filter((c) => c.id !== id);
+    write(snapshot);
+  }
+
+  async exportAll(): Promise<Backup> {
+    const { checkins } = read();
+    return { goals: await this.listGoals(), checkins: checkins.slice() };
+  }
+
+  async importAll(backup: Backup) {
+    write({ goals: backup.goals, checkins: backup.checkins ?? [] });
   }
 }

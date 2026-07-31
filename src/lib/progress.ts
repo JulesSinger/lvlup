@@ -1,5 +1,6 @@
 import { getRank, rankByValue, type Rank } from './ranks';
-import type { Goal, Tier } from './types';
+import { dayString } from './streak';
+import type { Checkin, Goal, Tier } from './types';
 
 export interface GoalProgress {
   done: number;
@@ -81,13 +82,16 @@ export function ppForRank(rank: Rank): number {
   return rank.value * 25;
 }
 
+/** PP rapportés par un check-in quotidien. */
+export const CHECKIN_PP = 10;
+
 /**
- * Total des PP du profil : somme des PP de tous les paliers validés des
- * objectifs actifs. C'est le score cumulatif de toute la progression — il ne
- * redescend jamais tant qu'on ne dé-valide pas un palier.
+ * Total des PP du profil : paliers validés + check-ins quotidiens. C'est le
+ * score cumulatif de toute la progression — il ne redescend jamais tant qu'on
+ * n'annule pas une validation ou un check-in.
  */
-export function profilePP(goals: Goal[]): number {
-  return goals
+export function profilePP(goals: Goal[], checkins: Checkin[] = []): number {
+  const tiersPP = goals
     .filter((g) => !g.archived)
     .reduce(
       (sum, goal) =>
@@ -98,6 +102,59 @@ export function profilePP(goals: Goal[]): number {
         ),
       0,
     );
+  return tiersPP + checkins.length * CHECKIN_PP;
+}
+
+export interface WeekStats {
+  pp: number;
+  checkins: number;
+  tiersValidated: number;
+}
+
+/** Lundi de la semaine du jour donné (YYYY-MM-DD). */
+function mondayOf(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  const date = new Date(y, m - 1, d, 12);
+  const shift = (date.getDay() + 6) % 7; // lundi = 0
+  date.setDate(date.getDate() - shift);
+  return dayString(date);
+}
+
+/**
+ * Stats d'une semaine (lundi → dimanche) : PP gagnés, check-ins, paliers
+ * validés. `offsetWeeks` = 0 pour la semaine en cours, -1 pour la précédente.
+ */
+export function weekStats(
+  goals: Goal[],
+  checkins: Checkin[],
+  offsetWeeks = 0,
+  today: string = dayString(),
+): WeekStats {
+  const [y, m, d] = mondayOf(today).split('-').map(Number);
+  const start = new Date(y, m - 1, d + offsetWeeks * 7, 12);
+  const startDay = dayString(start);
+  const end = new Date(y, m - 1, d + offsetWeeks * 7 + 6, 12);
+  const endDay = dayString(end);
+
+  const weekCheckins = checkins.filter((c) => c.day >= startDay && c.day <= endDay);
+  let tiersValidated = 0;
+  let tiersPP = 0;
+  for (const goal of goals) {
+    if (goal.archived) continue;
+    for (const tier of goal.tiers) {
+      if (!tier.completedAt) continue;
+      const day = dayString(new Date(tier.completedAt));
+      if (day >= startDay && day <= endDay) {
+        tiersValidated += 1;
+        tiersPP += ppForRank(getRank(tier.rank));
+      }
+    }
+  }
+  return {
+    pp: tiersPP + weekCheckins.length * CHECKIN_PP,
+    checkins: weekCheckins.length,
+    tiersValidated,
+  };
 }
 
 export interface HistoryEntry {

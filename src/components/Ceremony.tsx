@@ -16,7 +16,11 @@ export type Celebration =
       pp: number;
       goalComplete: boolean;
     }
-  | { kind: 'profile'; rank: Rank; previous: Rank | null };
+  | { kind: 'profile'; rank: Rank; previous: Rank | null }
+  | { kind: 'trophy'; icon: string; name: string; desc: string };
+
+/** Couleurs des cérémonies de trophée (or Zénith). */
+const TROPHY_COLORS = { color: '#b9812a', color2: '#f2c14e' };
 
 const AUTO_ADVANCE_MS = 5200;
 
@@ -50,13 +54,20 @@ export function Ceremony({
     if (item.kind === 'profile') {
       playRankUpFanfare();
       vibrate([40, 60, 40, 60, 120]);
+    } else if (item.kind === 'trophy') {
+      playRankUpFanfare();
+      vibrate([40, 60, 120]);
     } else {
       playTierChime();
       vibrate(item.goalComplete ? [40, 60, 120] : 40);
     }
+    const colors =
+      item.kind === 'trophy'
+        ? [TROPHY_COLORS.color, TROPHY_COLORS.color2]
+        : [item.rank.color, item.rank.color2];
     let cancelBurst = () => {};
     if (canvasRef.current) {
-      cancelBurst = burst(canvasRef.current, [item.rank.color, item.rank.color2]);
+      cancelBurst = burst(canvasRef.current, colors);
     }
     const timer = window.setTimeout(advance, AUTO_ADVANCE_MS);
     return () => {
@@ -80,19 +91,29 @@ export function Ceremony({
 
   if (!item) return null;
 
-  const rank = item.rank;
+  const colors = item.kind === 'trophy' ? TROPHY_COLORS : item.rank;
   const eyebrow =
-    item.kind === 'profile'
-      ? 'Montée de rang'
-      : item.goalComplete
-        ? 'Objectif accompli'
-        : 'Palier validé';
+    item.kind === 'trophy'
+      ? 'Trophée débloqué'
+      : item.kind === 'profile'
+        ? 'Montée de rang'
+        : item.goalComplete
+          ? 'Objectif accompli'
+          : 'Palier validé';
   const subtitle =
-    item.kind === 'profile'
-      ? item.previous
-        ? `${item.previous.label} → ${rank.label}. Ton profil vient de monter.`
-        : 'Ton profil décroche son premier rang.'
-      : `${item.tierTitle} — ${item.goalTitle}`;
+    item.kind === 'trophy'
+      ? item.desc
+      : item.kind === 'profile'
+        ? item.previous
+          ? `${item.previous.label} → ${item.rank.label}. Ton profil vient de monter.`
+          : 'Ton profil décroche son premier rang.'
+        : `${item.tierTitle} — ${item.goalTitle}`;
+  const headline =
+    item.kind === 'trophy'
+      ? item.name
+      : item.kind === 'profile'
+        ? `Rang ${item.rank.label}`
+        : item.rank.label;
 
   return (
     <div
@@ -106,7 +127,7 @@ export function Ceremony({
       <div
         className="ceremony-glow"
         style={{
-          background: `radial-gradient(560px 420px at 50% 40%, ${rank.color}59, transparent 70%)`,
+          background: `radial-gradient(560px 420px at 50% 40%, ${colors.color}59, transparent 70%)`,
         }}
         aria-hidden="true"
       />
@@ -115,21 +136,22 @@ export function Ceremony({
       <div className="ceremony-content" key={index}>
         <div className="ceremony-eyebrow">{eyebrow}</div>
         <div className="ceremony-crest-wrap">
-          <span className="ceremony-ring" style={{ borderColor: `${rank.color2}88` }} />
-          <span className="ceremony-ring late" style={{ borderColor: `${rank.color}66` }} />
+          <span className="ceremony-ring" style={{ borderColor: `${colors.color2}88` }} />
+          <span className="ceremony-ring late" style={{ borderColor: `${colors.color}66` }} />
           <div
             className="ceremony-crest"
             style={{
-              background: `linear-gradient(150deg, ${rank.color2}, ${rank.color})`,
-              color: rank.ink,
-              boxShadow: `0 0 60px ${rank.color}66, inset 0 0 0 2px rgba(255,255,255,0.3)`,
+              background: `linear-gradient(150deg, ${colors.color2}, ${colors.color})`,
+              color: item.kind === 'trophy' ? '#2b2000' : item.rank.ink,
+              boxShadow: `0 0 60px ${colors.color}66, inset 0 0 0 2px rgba(255,255,255,0.3)`,
+              fontSize: item.kind === 'trophy' ? 52 : undefined,
             }}
           >
-            {rank.label.charAt(0).toUpperCase()}
+            {item.kind === 'trophy' ? item.icon : item.rank.label.charAt(0).toUpperCase()}
           </div>
         </div>
-        <div className="ceremony-rank" style={{ color: rank.color2 }}>
-          {item.kind === 'profile' ? `Rang ${rank.label}` : rank.label}
+        <div className="ceremony-rank" style={{ color: colors.color2 }}>
+          {headline}
         </div>
         <div className="ceremony-sub">{subtitle}</div>
         {item.kind === 'tier' && <div className="ceremony-pp">+{item.pp} PP</div>}

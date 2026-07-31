@@ -5,30 +5,32 @@ import { GoalCard } from './components/GoalCard';
 import { GoalEditor } from './components/GoalEditor';
 import { Hub } from './components/Hub';
 import { Timeline } from './components/Timeline';
+import { Trophies } from './components/Trophies';
 import { store } from './data';
+import { newlyUnlocked } from './lib/achievements';
 import { DEMO_GOALS } from './lib/demo';
 import { goalProgress, ppForRank, profileRank } from './lib/progress';
 import { getRank } from './lib/ranks';
-import type { AppUser, Goal, GoalInput, Tier, TierInput } from './lib/types';
+import { dayString } from './lib/streak';
+import type { AppUser, Checkin, Goal, GoalInput, Tier, TierInput } from './lib/types';
 
-type View = 'accueil' | 'objectifs' | 'historique';
+type View = 'accueil' | 'objectifs' | 'historique' | 'trophees';
 
 const VIEWS: { id: View; label: string; icon: string }[] = [
   { id: 'accueil', label: 'Accueil', icon: '▲' },
   { id: 'objectifs', label: 'Objectifs', icon: '◎' },
+  { id: 'trophees', label: 'Trophées', icon: '🏆' },
   { id: 'historique', label: 'Historique', icon: '↺' },
 ];
 
 /** Emplacements réservés des prochains sprints — visibles mais inactifs. */
-const SOON: { label: string; icon: string }[] = [
-  { label: 'Trophées', icon: '🏆' },
-  { label: 'Amis', icon: '⚔' },
-];
+const SOON: { label: string; icon: string }[] = [{ label: 'Amis', icon: '⚔' }];
 
 export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [checkins, setCheckins] = useState<Checkin[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [view, setView] = useState<View>('accueil');
@@ -45,7 +47,12 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     try {
-      setGoals(await store.listGoals());
+      const [nextGoals, nextCheckins] = await Promise.all([
+        store.listGoals(),
+        store.listCheckins(),
+      ]);
+      setGoals(nextGoals);
+      setCheckins(nextCheckins);
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Chargement impossible.');
@@ -57,6 +64,7 @@ export default function App() {
   useEffect(() => {
     if (!user) {
       setGoals([]);
+      setCheckins([]);
       setLoading(false);
       return;
     }
@@ -81,8 +89,8 @@ export default function App() {
 
   /**
    * Prépare les cérémonies déclenchées par la validation d'un palier : l'écran
-   * du palier lui-même, puis — si la moyenne des objectifs franchit un cap —
-   * celui de la montée de rang du profil. Le calcul est fait sur une copie
+   * du palier, la montée de rang du profil si la moyenne franchit un cap, puis
+   * les trophées éventuellement débloqués. Le calcul est fait sur une copie
    * locale des données pour afficher la célébration sans attendre le serveur.
    */
   function celebrateTier(goal: Goal, tier: Tier) {
@@ -115,6 +123,9 @@ export default function App() {
     if (after.rank && (!before.rank || after.rank.value > before.rank.value)) {
       queue.push({ kind: 'profile', rank: after.rank, previous: before.rank });
     }
+    for (const trophy of newlyUnlocked({ goals, checkins }, { goals: nextGoals, checkins })) {
+      queue.push({ kind: 'trophy', icon: trophy.icon, name: trophy.name, desc: trophy.desc });
+    }
     setCelebrations(queue);
   }
 
@@ -122,6 +133,36 @@ export default function App() {
   function validateTier(goal: Goal, tier: Tier) {
     celebrateTier(goal, tier);
     void run(() => store.updateTier(tier.id, { completedAt: new Date().toISOString() }));
+  }
+
+  /** Check-in du jour sur un objectif : PP, streak, et trophées éventuels. */
+  function checkinToday(goal: Goal) {
+    const day = dayString();
+    const optimistic: Checkin = {
+      id: `optimiste-${goal.id}`,
+      goalId: goal.id,
+      day,
+      note: '',
+      createdAt: new Date().toISOString(),
+    };
+    const trophies = newlyUnlocked(
+      { goals, checkins },
+      { goals, checkins: [...checkins, optimistic] },
+    );
+    if (trophies.length > 0) {
+      setCelebrations(
+        trophies.map((t) => ({ kind: 'trophy', icon: t.icon, name: t.name, desc: t.desc })),
+      );
+    }
+    void run(() => store.addCheckin(goal.id, day));
+  }
+
+  function removeCheckin(checkin: Checkin) {
+    void run(() => store.deleteCheckin(checkin.id));
+  }
+
+  function saveCheckinNote(checkin: Checkin, note: string) {
+    void run(() => store.updateCheckin(checkin.id, { note }));
   }
 
   async function saveGoal(input: GoalInput, tiers: TierInput[]) {
@@ -162,10 +203,11 @@ export default function App() {
   }
 
   async function exportJson() {
-    const data = await store.exportAll();
-    const blob = new Blob([JSON.stringify({ version: 1, goals: data }, null, 2)], {
-      type: 'application/json',
-    });
+    const backup = await store.exportAll();
+    const blob = new Blob(
+      [JSON.stringify({ version: 2, goals: backup.goals, checkins: backup.checkins }, null, 2)],
+      { type: 'application/json' },
+    );
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -182,11 +224,20 @@ export default function App() {
       const file = input.files?.[0];
       if (!file) return;
       try {
-        const parsed = JSON.parse(await file.text()) as { goals?: Goal[] };
+        const parsed = JSON.parse(await file.text()) as {
+          goals?: Goal[];
+          checkins?: Checkin[];
+        };
         if (!Array.isArray(parsed.goals)) throw new Error('Fichier de sauvegarde non reconnu.');
         if (!window.confirm('Importer cette sauvegarde ? Elle remplacera tes objectifs actuels.'))
           return;
-        await run(() => store.importAll(parsed.goals as Goal[]));
+        // Les sauvegardes v1 (avant le Sprint 2) n'ont pas de check-ins.
+        await run(() =>
+          store.importAll({
+            goals: parsed.goals as Goal[],
+            checkins: Array.isArray(parsed.checkins) ? parsed.checkins : [],
+          }),
+        );
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Import impossible.');
       }
@@ -325,13 +376,19 @@ export default function App() {
         {loading ? (
           <p style={{ color: 'var(--text-dim)' }}>Chargement…</p>
         ) : view === 'historique' ? (
-          <Timeline goals={goals} />
+          <Timeline goals={goals} checkins={checkins} />
+        ) : view === 'trophees' ? (
+          <Trophies goals={goals} checkins={checkins} />
         ) : view === 'accueil' ? (
           activeGoals.length === 0 ? (
             emptyState
           ) : (
             <Hub
               goals={goals}
+              checkins={checkins}
+              onCheckin={checkinToday}
+              onUncheckin={removeCheckin}
+              onSaveNote={saveCheckinNote}
               onValidateTier={validateTier}
               onGoToGoals={() => setView('objectifs')}
             />

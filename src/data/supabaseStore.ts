@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { RankId } from '../lib/ranks';
-import type { AppUser, Goal, GoalInput, Tier, TierInput } from '../lib/types';
-import type { Store } from './store';
+import type { AppUser, Checkin, Goal, GoalInput, Tier, TierInput } from '../lib/types';
+import type { Backup, Store } from './store';
 
 interface GoalRow {
   id: string;
@@ -23,6 +23,25 @@ interface TierRow {
   position: number;
   completed_at: string | null;
   created_at: string;
+}
+
+interface CheckinRow {
+  id: string;
+  goal_id: string;
+  user_id: string;
+  day: string;
+  note: string | null;
+  created_at: string;
+}
+
+function toCheckin(row: CheckinRow): Checkin {
+  return {
+    id: row.id,
+    goalId: row.goal_id,
+    day: row.day,
+    note: row.note ?? '',
+    createdAt: row.created_at,
+  };
 }
 
 function toTier(row: TierRow): Tier {
@@ -219,18 +238,54 @@ export class SupabaseStore implements Store {
     }
   }
 
-  async exportAll() {
-    return this.listGoals();
+  async listCheckins(): Promise<Checkin[]> {
+    const rows = unwrap(
+      await this.client.from('checkins').select('*').order('day', { ascending: true }),
+    ) as CheckinRow[];
+    return rows.map(toCheckin);
   }
 
-  async importAll(goals: Goal[]) {
+  async addCheckin(goalId: string, day: string): Promise<Checkin> {
     const userId = await this.requireUserId();
-    for (const goal of goals) {
-      await this.createGoal(
+    // upsert sur la contrainte unique : re-cliquer le même jour ne crée pas de doublon.
+    const row = unwrap(
+      await this.client
+        .from('checkins')
+        .upsert({ goal_id: goalId, user_id: userId, day }, { onConflict: 'user_id,goal_id,day' })
+        .select()
+        .single(),
+    ) as CheckinRow;
+    return toCheckin(row);
+  }
+
+  async updateCheckin(id: string, patch: { note?: string }) {
+    const row: Record<string, unknown> = {};
+    if (patch.note !== undefined) row.note = patch.note;
+    const { error } = await this.client.from('checkins').update(row).eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteCheckin(id: string) {
+    const { error } = await this.client.from('checkins').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
+  async exportAll(): Promise<Backup> {
+    return { goals: await this.listGoals(), checkins: await this.listCheckins() };
+  }
+
+  async importAll(backup: Backup) {
+    const userId = await this.requireUserId();
+    // Les objectifs reçoivent de nouveaux ids côté serveur : on garde la
+    // correspondance ancien → nouveau pour rebrancher les check-ins.
+    const idMap = new Map<string, string>();
+    for (const goal of backup.goals) {
+      const created = await this.createGoal(
         { title: goal.title, description: goal.description, emoji: goal.emoji },
         [],
-      ).then(async (created) => {
-        if (goal.tiers.length === 0) return;
+      );
+      idMap.set(goal.id, created.id);
+      if (goal.tiers.length > 0) {
         const rows = goal.tiers.map((t, index) => ({
           goal_id: created.id,
           user_id: userId,
@@ -241,7 +296,20 @@ export class SupabaseStore implements Store {
         }));
         const { error } = await this.client.from('tiers').insert(rows);
         if (error) throw new Error(error.message);
-      });
+      }
+    }
+    const checkins = (backup.checkins ?? []).filter((c) => idMap.has(c.goalId));
+    if (checkins.length > 0) {
+      const { error } = await this.client.from('checkins').insert(
+        checkins.map((c) => ({
+          goal_id: idMap.get(c.goalId),
+          user_id: userId,
+          day: c.day,
+          note: c.note ?? '',
+          created_at: c.createdAt,
+        })),
+      );
+      if (error) throw new Error(error.message);
     }
   }
 }

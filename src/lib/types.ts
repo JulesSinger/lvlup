@@ -34,6 +34,20 @@ export interface TierInput {
   rank: RankId;
 }
 
+/**
+ * Un check-in : « aujourd'hui, j'ai fait avancer cet objectif ».
+ * Un seul par objectif et par jour ; nourrit les PP, le streak et l'historique.
+ */
+export interface Checkin {
+  id: string;
+  goalId: string;
+  /** Jour local au format YYYY-MM-DD */
+  day: string;
+  /** Note libre optionnelle : « 8 km ce matin, dur mais fait » */
+  note: string;
+  createdAt: string;
+}
+
 export interface AppUser {
   id: string;
   email: string;

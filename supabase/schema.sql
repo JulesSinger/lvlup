@@ -1,5 +1,5 @@
 -- =====================================================================
---  Palier — schéma Supabase
+--  Zénith — schéma Supabase
 --  À coller dans Supabase Studio > SQL Editor > Run.
 --  Idempotent : peut être relancé sans risque.
 -- =====================================================================
@@ -77,4 +77,38 @@ create policy "tiers_update_own" on public.tiers
 
 drop policy if exists "tiers_delete_own" on public.tiers;
 create policy "tiers_delete_own" on public.tiers
+  for delete using (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------
+-- Check-ins quotidiens : « aujourd'hui, j'ai fait avancer cet objectif »
+-- ---------------------------------------------------------------------
+create table if not exists public.checkins (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  goal_id    uuid not null references public.goals (id) on delete cascade,
+  day        date not null,
+  note       text not null default '',
+  created_at timestamptz not null default now(),
+  -- Un seul check-in par objectif et par jour.
+  unique (user_id, goal_id, day)
+);
+
+create index if not exists checkins_user_day_idx on public.checkins (user_id, day);
+
+alter table public.checkins enable row level security;
+
+drop policy if exists "checkins_select_own" on public.checkins;
+create policy "checkins_select_own" on public.checkins
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "checkins_insert_own" on public.checkins;
+create policy "checkins_insert_own" on public.checkins
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "checkins_update_own" on public.checkins;
+create policy "checkins_update_own" on public.checkins
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "checkins_delete_own" on public.checkins;
+create policy "checkins_delete_own" on public.checkins
   for delete using (auth.uid() = user_id);
