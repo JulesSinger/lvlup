@@ -103,10 +103,16 @@ export class SupabaseStore implements Store {
   }
 
   onUserChange(callback: (user: AppUser | null) => void) {
-    void this.getUser().then(callback);
+    // On s'appuie uniquement sur onAuthStateChange : l'événement INITIAL_SESSION
+    // arrive une fois la session restaurée (et le jeton rafraîchi si besoin).
+    // L'ancien appel parallèle à getUser() créait une course : sur un appareil
+    // au jeton expiré, sa réponse « null » pouvait arriver APRÈS la session
+    // restaurée et l'écraser — d'où des écrans vides au réveil de l'app.
     const { data } = this.client.auth.onAuthStateChange((_event, session) => {
       callback(
-        session?.user ? { id: session.user.id, email: session.user.email ?? '', isLocal: false } : null,
+        session?.user
+          ? { id: session.user.id, email: session.user.email ?? '', isLocal: false }
+          : null,
       );
     });
     return () => data.subscription.unsubscribe();

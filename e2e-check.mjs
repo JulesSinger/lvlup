@@ -343,6 +343,41 @@ check(
   'Hub mobile sans débordement horizontal',
   await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
 );
+// iOS zoome sur tout champ dont la police fait moins de 16px : on vérifie que
+// le champ de note (le plus exposé, il s'ouvre après chaque check-in) est à 16px.
+await mobile.locator('.checkin-chip').first().click();
+await mobile.waitForSelector('.checkin-note input');
+check(
+  'Champ de note à 16px sur mobile (pas de zoom iOS)',
+  (await mobile
+    .locator('.checkin-note input')
+    .evaluate((el) => parseFloat(getComputedStyle(el).fontSize))) >= 16,
+  `${await mobile.locator('.checkin-note input').evaluate((el) => getComputedStyle(el).fontSize)}`,
+);
+check(
+  'Pas de background-attachment: fixed (jank de scroll mobile)',
+  (await mobile.evaluate(() => getComputedStyle(document.body).backgroundAttachment)) !== 'fixed',
+  await mobile.evaluate(() => getComputedStyle(document.body).backgroundAttachment),
+);
+await mobile.waitForTimeout(600); // le scrollIntoView est animé
+check(
+  'Champ de note visible, pas masqué par la barre d\'onglets',
+  await mobile.evaluate(() => {
+    const input = document.querySelector('.checkin-note input');
+    const bar = document.querySelector('.sidebar');
+    if (!input || !bar) return false;
+    const i = input.getBoundingClientRect();
+    const b = bar.getBoundingClientRect();
+    return i.top >= 0 && i.bottom <= b.top;
+  }),
+);
+check(
+  'Aucune animation permanente sur mobile',
+  (await mobile.evaluate(
+    () => document.getAnimations().filter((a) => a.playState === 'running').length,
+  )) === 0,
+);
+
 await mobile.getByRole('button', { name: 'Objectifs' }).click();
 await mobile.waitForSelector('.goal');
 await mobile.locator('.goal-head').first().click();

@@ -12,6 +12,7 @@ import { newlyUnlocked, unlockedAchievements } from './lib/achievements';
 import { DEMO_GOALS } from './lib/demo';
 import { goalProgress, ppForRank, profileRank } from './lib/progress';
 import { getRank } from './lib/ranks';
+import { playCheckinBlip, vibrate } from './lib/sound';
 import { computeStreak, dayString } from './lib/streak';
 import type { AppUser, Checkin, Goal, GoalInput, Tier, TierInput } from './lib/types';
 
@@ -41,13 +42,22 @@ export default function App() {
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
 
   useEffect(() => {
-    return store.onUserChange((next) => {
+    const unsubscribe = store.onUserChange((next) => {
       setUser(next);
       setAuthReady(true);
     });
+    // Filet de sécurité : si la restauration de session n'aboutit jamais
+    // (réseau coupé au réveil de l'app), on sort de l'écran « Chargement… »
+    // au lieu d'y rester bloqué — l'écran de connexion vaut mieux qu'un spinner
+    // éternel, et une session valide reprendra la main dès qu'elle arrivera.
+    const safety = window.setTimeout(() => setAuthReady(true), 8000);
+    return () => {
+      window.clearTimeout(safety);
+      unsubscribe();
+    };
   }, []);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (retry = true): Promise<void> => {
     try {
       const [nextGoals, nextCheckins, stored] = await Promise.all([
         store.listGoals(),
@@ -70,6 +80,13 @@ export default function App() {
       setAchievements(nextAchievements);
       setError('');
     } catch (err) {
+      // Au réveil de l'app (surtout sur téléphone), la première requête peut
+      // partir pendant le rafraîchissement du jeton et être rejetée. On
+      // réessaie une fois avant d'afficher quoi que ce soit d'inquiétant.
+      if (retry && store.isRemote) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        return refresh(false);
+      }
       setError(err instanceof Error ? err.message : 'Chargement impossible.');
     } finally {
       setLoading(false);
@@ -86,6 +103,16 @@ export default function App() {
     }
     setLoading(true);
     void refresh();
+  }, [user, refresh]);
+
+  // Retour au premier plan (multi-appareils) : les données ont pu changer sur
+  // un autre appareil pendant que celui-ci dormait — on resynchronise.
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible' && user) void refresh();
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [user, refresh]);
 
   // Badge sur l'icône installée (PWA) : un point tant que le check-in du jour
@@ -177,6 +204,8 @@ export default function App() {
 
   /** Check-in du jour sur un objectif : PP, streak, et trophées éventuels. */
   function checkinToday(goal: Goal) {
+    playCheckinBlip();
+    vibrate(20);
     const day = dayString();
     const optimistic: Checkin = {
       id: `optimiste-${goal.id}`,
@@ -433,7 +462,21 @@ export default function App() {
             tes clés Supabase pour activer les comptes et la synchronisation entre appareils.
           </div>
         )}
-        {error && <div className="notice error">{error}</div>}
+        {error && (
+          <div className="notice error">
+            {error}{' '}
+            <button
+              className="btn btn-sm"
+              style={{ marginLeft: 8 }}
+              onClick={() => {
+                setLoading(true);
+                void refresh();
+              }}
+            >
+              Réessayer
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <p style={{ color: 'var(--text-dim)' }}>Chargement…</p>

@@ -158,6 +158,11 @@ export function Hub({
               </span>
               <input
                 autoFocus
+                // Sur mobile, le champ s'ouvre souvent sous la barre d'onglets
+                // (et sous le clavier) : on le ramène au centre de l'écran.
+                ref={(el) =>
+                  el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+                }
                 value={noteDraft}
                 onChange={(e) => setNoteDraft(e.target.value)}
                 onBlur={() => saveNote(false)}

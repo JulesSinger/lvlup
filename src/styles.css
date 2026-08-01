@@ -30,11 +30,12 @@ body,
 
 body {
   margin: 0;
+  /* Pas de background-attachment: fixed — il force un re-rendu du dégradé à
+     chaque frame de scroll sur mobile et plombe toute l'app. */
   background:
     radial-gradient(1100px 620px at 15% -10%, #1b2440 0%, transparent 60%),
     radial-gradient(900px 560px at 90% 0%, #241d3a 0%, transparent 55%),
     var(--bg);
-  background-attachment: fixed;
   color: var(--text);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
     sans-serif;
@@ -1861,9 +1862,31 @@ textarea {
     padding: 4px 6px calc(4px + env(safe-area-inset-bottom));
     border-right: none;
     border-top: 1px solid var(--border);
-    background: rgba(11, 14, 20, 0.94);
-    backdrop-filter: blur(12px);
+    /* Fond quasi opaque plutôt que backdrop-filter : le blur permanent coûte
+       cher sur GPU mobile pour un gain visuel minime. */
+    background: rgba(11, 14, 20, 0.97);
     z-index: 60;
+  }
+
+  /* iOS zoome automatiquement sur tout champ < 16px : on aligne tous les
+     champs de saisie sur 16px pour neutraliser ce comportement. */
+  input,
+  textarea,
+  select,
+  .checkin-note input,
+  .ladder-add input,
+  .ladder-add select {
+    font-size: 16px;
+  }
+
+  /* Les animations de confort coûtent plus qu'elles ne rapportent sur mobile :
+     entrée des cartes rejouée à chaque navigation, reflets permanents… */
+  .goal {
+    animation: none;
+  }
+  .bar > span::after {
+    animation: none;
+    display: none;
   }
 
   .sidebar .brand,

@@ -62,6 +62,16 @@ export function playTierChime() {
   note(audio, 990, t + 0.12, 0.32, 0.1);
 }
 
+/** Blip doux et bref : un check-in vient d'être fait. Plus discret que le
+ *  carillon des paliers — c'est un geste quotidien, pas une cérémonie. */
+export function playCheckinBlip() {
+  if (isMuted()) return;
+  const audio = audioContext();
+  if (!audio) return;
+  const t = audio.currentTime;
+  note(audio, 880, t, 0.14, 0.07);
+}
+
 /** Arpège ascendant : montée de rang du profil. */
 export function playRankUpFanfare() {
   if (isMuted()) return;
