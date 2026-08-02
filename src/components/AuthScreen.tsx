@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { store } from '../data';
 
-export function AuthScreen() {
+export function AuthScreen({ onBack }: { onBack?: () => void } = {}) {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -90,6 +90,14 @@ export function AuthScreen() {
             {mode === 'signup' ? 'Se connecter' : 'En créer un'}
           </button>
         </p>
+
+        {onBack && (
+          <p className="auth-switch">
+            <button type="button" className="link-btn" onClick={onBack}>
+              ← Revenir à la présentation
+            </button>
+          </p>
+        )}
       </form>
     </div>
   );

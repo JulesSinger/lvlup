@@ -1,6 +1,7 @@
 import { formatDate, history, relativeDate } from '../lib/progress';
 import { getRank } from '../lib/ranks';
 import type { Checkin, Goal } from '../lib/types';
+import { PPChart } from './PPChart';
 import { RankBadge } from './RankBadge';
 
 interface JournalEntry {
@@ -15,8 +16,8 @@ interface JournalEntry {
 }
 
 /**
- * Historique = journal de bord : paliers validés ET check-ins (avec leur note
- * éventuelle), du plus récent au plus ancien. C'est la mémoire de la montée.
+ * Historique = courbe de progression + journal de bord : paliers validés ET
+ * check-ins (avec leur note éventuelle), du plus récent au plus ancien.
  */
 export function Timeline({ goals, checkins }: { goals: Goal[]; checkins: Checkin[] }) {
   const goalById = new Map(goals.map((g) => [g.id, g]));
@@ -60,27 +61,31 @@ export function Timeline({ goals, checkins }: { goals: Goal[]; checkins: Checkin
   }
 
   return (
-    <div className="timeline">
-      {entries.map((entry) => (
-        <div
-          className={`entry${entry.kind === 'checkin' ? ' entry-checkin' : ''}`}
-          key={entry.key}
-          style={{ ['--dot' as string]: entry.rankColor ?? 'var(--border-strong)' }}
-        >
-          <div className="entry-date">
-            {formatDate(entry.date)} · {relativeDate(entry.date)}
+    <>
+      <PPChart goals={goals} checkins={checkins} />
+
+      <div className="timeline">
+        {entries.map((entry) => (
+          <div
+            className={`entry${entry.kind === 'checkin' ? ' entry-checkin' : ''}`}
+            key={entry.key}
+            style={{ ['--dot' as string]: entry.rankColor ?? 'var(--border-strong)' }}
+          >
+            <div className="entry-date">
+              {formatDate(entry.date)} · {relativeDate(entry.date)}
+            </div>
+            <div className="entry-title">{entry.title}</div>
+            <div className="entry-goal">
+              {entry.goalLabel}{' '}
+              {entry.kind === 'tier' && entry.rankId ? (
+                <RankBadge rank={getRank(entry.rankId)} />
+              ) : (
+                <span className="entry-kind">check-in</span>
+              )}
+            </div>
           </div>
-          <div className="entry-title">{entry.title}</div>
-          <div className="entry-goal">
-            {entry.goalLabel}{' '}
-            {entry.kind === 'tier' && entry.rankId ? (
-              <RankBadge rank={getRank(entry.rankId)} />
-            ) : (
-              <span className="entry-kind">check-in</span>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </>
   );
 }

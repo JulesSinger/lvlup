@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AuthScreen } from './components/AuthScreen';
 import { Ceremony, type Celebration } from './components/Ceremony';
 import { GoalCard } from './components/GoalCard';
 import { GoalEditor } from './components/GoalEditor';
 import { Hub } from './components/Hub';
+import { Landing } from './components/Landing';
+import { Onboarding } from './components/Onboarding';
 import { Timeline } from './components/Timeline';
 import { Trophies } from './components/Trophies';
 import { store } from './data';
@@ -28,6 +29,9 @@ const VIEWS: { id: View; label: string; icon: string }[] = [
 /** Emplacements réservés des prochains sprints — visibles mais inactifs. */
 const SOON: { label: string; icon: string }[] = [{ label: 'Amis', icon: '⚔' }];
 
+/** Marqueur local : l'onboarding a déjà été vu (ou passé) sur cet appareil. */
+const ONBOARDING_KEY = 'zenith.onboarded';
+
 export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -40,6 +44,22 @@ export default function App() {
   const [editing, setEditing] = useState<{ goal: Goal | null } | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
+  const [onboardingDone, setOnboardingDone] = useState(() => {
+    try {
+      return localStorage.getItem(ONBOARDING_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  function finishOnboarding() {
+    try {
+      localStorage.setItem(ONBOARDING_KEY, '1');
+    } catch {
+      // localStorage indisponible : l'onboarding se represente, tant pis.
+    }
+    setOnboardingDone(true);
+  }
 
   useEffect(() => {
     const unsubscribe = store.onUserChange((next) => {
@@ -352,7 +372,23 @@ export default function App() {
     return <div className="auth-screen">Chargement…</div>;
   }
   if (store.isRemote && !user) {
-    return <AuthScreen />;
+    return <Landing />;
+  }
+
+  // Première visite : on guide au lieu de laisser devant un écran vide.
+  if (!loading && !onboardingDone && goals.length === 0) {
+    return (
+      <Onboarding
+        onSkip={finishOnboarding}
+        onFinish={(input, tiers) => {
+          finishOnboarding();
+          void run(async () => {
+            const created = await store.createGoal(input, tiers);
+            setExpanded((set) => new Set(set).add(created.id));
+          });
+        }}
+      />
+    );
   }
 
   const emptyState = (

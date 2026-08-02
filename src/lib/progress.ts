@@ -105,6 +105,48 @@ export function profilePP(goals: Goal[], checkins: Checkin[] = []): number {
   return tiersPP + checkins.length * CHECKIN_PP;
 }
 
+export interface PPPoint {
+  /** Jour local YYYY-MM-DD */
+  day: string;
+  /** PP gagnés ce jour-là */
+  gained: number;
+  /** Total cumulé à la fin de ce jour */
+  total: number;
+  /** Paliers validés ce jour-là (pour marquer les jalons) */
+  tiers: number;
+}
+
+/**
+ * Courbe des PP cumulés : un point par jour ayant eu au moins une activité
+ * (check-in ou palier validé), du plus ancien au plus récent.
+ */
+export function ppTimeline(goals: Goal[], checkins: Checkin[]): PPPoint[] {
+  const perDay = new Map<string, { gained: number; tiers: number }>();
+  const bump = (day: string, gained: number, tiers: number) => {
+    const entry = perDay.get(day) ?? { gained: 0, tiers: 0 };
+    entry.gained += gained;
+    entry.tiers += tiers;
+    perDay.set(day, entry);
+  };
+
+  for (const checkin of checkins) bump(checkin.day, CHECKIN_PP, 0);
+  for (const goal of goals) {
+    if (goal.archived) continue;
+    for (const tier of goal.tiers) {
+      if (!tier.completedAt) continue;
+      bump(dayString(new Date(tier.completedAt)), ppForRank(getRank(tier.rank)), 1);
+    }
+  }
+
+  let running = 0;
+  return [...perDay.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([day, { gained, tiers }]) => {
+      running += gained;
+      return { day, gained, total: running, tiers };
+    });
+}
+
 export interface WeekStats {
   pp: number;
   checkins: number;

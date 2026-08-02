@@ -38,10 +38,39 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
 await page.goto(BASE);
+
+// 0. Onboarding de première connexion
+await page.waitForSelector('.onboarding-card');
+check('Onboarding affiché à la première visite', await page.locator('.onboarding-card').isVisible());
+check(
+  'Premier écran : le principe des paliers',
+  (await page.locator('.onboarding-title').textContent()) === 'Un objectif, des paliers',
+  await page.locator('.onboarding-title').textContent(),
+);
+await page.getByRole('button', { name: 'Suivant' }).click();
+await page.getByRole('button', { name: 'Suivant' }).click();
+await page.getByRole('button', { name: 'Suivant' }).click();
+check(
+  'Dernier écran : objectif de départ pré-rempli',
+  (await page.locator('#starter-title').inputValue()) === 'Courir un semi-marathon',
+  await page.locator('#starter-title').inputValue(),
+);
+check(
+  'Paliers du modèle affichés avec leur rang',
+  (await page.locator('.starter-preview li').count()) === 4,
+  String(await page.locator('.starter-preview li').count()),
+);
+await page.getByRole('button', { name: 'Lecture' }).click();
+check(
+  'Changer de modèle met à jour l’intitulé',
+  (await page.locator('#starter-title').inputValue()) === 'Me remettre à lire',
+  await page.locator('#starter-title').inputValue(),
+);
+await page.getByRole('button', { name: 'Passer' }).click();
 await page.waitForSelector('.brand');
 
 // 1. Écran vide (sur le hub) puis chargement des exemples
-check('Écran vide affiché', await page.locator('.empty h3').isVisible());
+check('Écran vide affiché après avoir passé l’onboarding', await page.locator('.empty h3').isVisible());
 await page.getByRole('button', { name: 'Charger des exemples' }).click();
 await page.waitForSelector('.hub');
 check('Hub affiché après chargement', await page.locator('.hub').isVisible());
@@ -133,10 +162,42 @@ check(
     'Argent',
 );
 
-// 5. Historique
+// 5. Historique + graphique de progression
 await page.getByRole('button', { name: 'Historique' }).click();
 await page.waitForSelector('.entry');
 check('Historique daté alimenté', (await page.locator('.entry').count()) === 2);
+check(
+  'Courbe des PP tracée (aire + ligne)',
+  (await page.locator('.chart-wrap svg path').count()) === 2,
+  String(await page.locator('.chart-wrap svg path').count()),
+);
+check(
+  'Étiquette de fin = total des PP',
+  (await page.locator('.chart-endlabel').textContent()) === '125',
+  await page.locator('.chart-endlabel').textContent(),
+);
+// Régression : si la graduation haute est sous le maximum, le dernier point
+// et son étiquette sortent du cadre par le haut.
+{
+  const label = await page.locator('.chart-endlabel').boundingBox();
+  const svg = await page.locator('.chart-wrap svg').boundingBox();
+  check(
+    'Étiquette de fin à l’intérieur du cadre',
+    label.y >= svg.y && label.y + label.height <= svg.y + svg.height,
+    `label ${Math.round(label.y)}–${Math.round(label.y + label.height)} / svg ${Math.round(svg.y)}–${Math.round(svg.y + svg.height)}`,
+  );
+}
+await page.locator('.chart-wrap svg').hover();
+await page.waitForTimeout(200);
+check('Infobulle au survol de la courbe', await page.locator('.chart-tooltip').isVisible());
+await page.getByRole('button', { name: 'Voir le tableau' }).click();
+await page.waitForSelector('.chart-table');
+check(
+  'Vue tableau : les valeurs sont lisibles sans survol',
+  (await page.locator('.chart-table tbody tr').count()) >= 1,
+  String(await page.locator('.chart-table tbody tr').count()),
+);
+await page.getByRole('button', { name: 'Voir la courbe' }).click();
 await page.screenshot({ path: 'screens/historique.png', fullPage: true });
 
 // 6. Création d'un objectif avec un nombre de paliers différent
