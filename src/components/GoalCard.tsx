@@ -20,6 +20,8 @@ interface Props {
   ) => Promise<void>;
   onDeleteTier: (tierId: string) => Promise<void>;
   onMoveTier: (tierId: string, direction: -1 | 1) => Promise<void>;
+  /** Bloc d'édition des actions du quotidien, injecté par App */
+  actionEditor?: React.ReactNode;
 }
 
 export function GoalCard({
@@ -34,6 +36,7 @@ export function GoalCard({
   onUpdateTier,
   onDeleteTier,
   onMoveTier,
+  actionEditor,
 }: Props) {
   const progress = goalProgress(goal);
   const barColor = progress.rank
@@ -107,14 +110,17 @@ export function GoalCard({
       </div>
 
       {expanded && (
-        <Ladder
-          goal={goal}
-          nextTierId={progress.next?.id ?? null}
-          onAddTier={onAddTier}
-          onUpdateTier={onUpdateTier}
-          onDeleteTier={onDeleteTier}
-          onMoveTier={onMoveTier}
-        />
+        <>
+          <Ladder
+            goal={goal}
+            nextTierId={progress.next?.id ?? null}
+            onAddTier={onAddTier}
+            onUpdateTier={onUpdateTier}
+            onDeleteTier={onDeleteTier}
+            onMoveTier={onMoveTier}
+          />
+          {actionEditor}
+        </>
       )}
     </article>
   );

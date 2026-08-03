@@ -7,15 +7,25 @@ import { Landing } from './components/Landing';
 import { Onboarding } from './components/Onboarding';
 import { Timeline } from './components/Timeline';
 import { Trophies } from './components/Trophies';
+import { ActionEditor } from './components/ActionEditor';
 import { store } from './data';
-import type { UnlockedAchievement } from './data/store';
+import { DAILY_GOAL_LEVELS, DEFAULT_SETTINGS, type Settings, type UnlockedAchievement } from './data/store';
 import { newlyUnlocked, unlockedAchievements } from './lib/achievements';
 import { DEMO_GOALS } from './lib/demo';
-import { goalProgress, ppForRank, profileRank } from './lib/progress';
+import { goalProgress, ppForRank, profileRank, todayPP } from './lib/progress';
 import { getRank } from './lib/ranks';
 import { playCheckinBlip, vibrate } from './lib/sound';
 import { computeStreak, dayString } from './lib/streak';
-import type { AppUser, Checkin, Goal, GoalInput, Tier, TierInput } from './lib/types';
+import type {
+  Action,
+  ActionInput,
+  AppUser,
+  Checkin,
+  Goal,
+  GoalInput,
+  Tier,
+  TierInput,
+} from './lib/types';
 
 type View = 'accueil' | 'objectifs' | 'historique' | 'trophees';
 
@@ -37,7 +47,9 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [checkins, setCheckins] = useState<Checkin[]>([]);
+  const [actions, setActions] = useState<Action[]>([]);
   const [achievements, setAchievements] = useState<UnlockedAchievement[]>([]);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [view, setView] = useState<View>('accueil');
@@ -79,10 +91,12 @@ export default function App() {
 
   const refresh = useCallback(async (retry = true): Promise<void> => {
     try {
-      const [nextGoals, nextCheckins, stored] = await Promise.all([
+      const [nextGoals, nextCheckins, nextActions, stored, nextSettings] = await Promise.all([
         store.listGoals(),
         store.listCheckins(),
+        store.listActions(),
         store.listAchievements(),
+        store.getSettings(),
       ]);
       // Un trophée dont la condition est remplie devient acquis pour toujours,
       // même si l'action qui l'a rempli est annulée plus tard.
@@ -97,7 +111,9 @@ export default function App() {
       }
       setGoals(nextGoals);
       setCheckins(nextCheckins);
+      setActions(nextActions);
       setAchievements(nextAchievements);
+      setSettings(nextSettings);
       setError('');
     } catch (err) {
       // Au réveil de l'app (surtout sur téléphone), la première requête peut
@@ -117,6 +133,7 @@ export default function App() {
     if (!user) {
       setGoals([]);
       setCheckins([]);
+      setActions([]);
       setAchievements([]);
       setLoading(false);
       return;
@@ -213,6 +230,13 @@ export default function App() {
         queue.push({ kind: 'trophy', icon: trophy.icon, name: trophy.name, desc: trophy.desc });
       }
     }
+    queue.push(
+      ...dayCelebrations(
+        todayPP(goals, checkins),
+        todayPP(nextGoals, checkins),
+        computeStreak(nextGoals, checkins).current,
+      ),
+    );
     setCelebrations(queue);
   }
 
@@ -222,32 +246,53 @@ export default function App() {
     void run(() => store.updateTier(tier.id, { completedAt: new Date().toISOString() }));
   }
 
-  /** Check-in du jour sur un objectif : PP, streak, et trophées éventuels. */
-  function checkinToday(goal: Goal) {
+  /**
+   * Journée bouclée ? On compare l'avant et l'après : la cérémonie ne se
+   * déclenche qu'au moment précis où la cible est franchie, jamais ensuite.
+   */
+  function dayCelebrations(before: number, after: number, streakAfter: number): Celebration[] {
+    if (before >= settings.dailyGoal || after < settings.dailyGoal) return [];
+    return [{ kind: 'day', earned: after, goal: settings.dailyGoal, streak: streakAfter }];
+  }
+
+  /** Enregistre une action faite aujourd'hui : PP, streak, trophées, journée. */
+  function logAction(goal: Goal, action: Action) {
     playCheckinBlip();
     vibrate(20);
     const day = dayString();
     const optimistic: Checkin = {
-      id: `optimiste-${goal.id}`,
+      id: `optimiste-${action.id}`,
       goalId: goal.id,
+      actionId: action.id,
+      pp: action.pp,
       day,
       note: '',
       createdAt: new Date().toISOString(),
     };
+    const nextCheckins = [...checkins, optimistic];
+    // L'affichage bascule immédiatement : sur mobile l'aller-retour serveur
+    // se voit, et un chip qui ne réagit pas donne l'impression d'un clic raté.
+    // `refresh()` remplacera cette ligne optimiste par la vraie.
+    setCheckins(nextCheckins);
+    const before = todayPP(goals, checkins);
+    const after = todayPP(goals, nextCheckins);
+    const streakAfter = computeStreak(goals, nextCheckins).current;
+
+    const queue: Celebration[] = [];
     const alreadyOwned = new Set(achievements.map((a) => a.id));
-    const trophies = newlyUnlocked(
-      { goals, checkins },
-      { goals, checkins: [...checkins, optimistic] },
-    ).filter((t) => !alreadyOwned.has(t.id));
-    if (trophies.length > 0) {
-      setCelebrations(
-        trophies.map((t) => ({ kind: 'trophy', icon: t.icon, name: t.name, desc: t.desc })),
-      );
+    for (const t of newlyUnlocked({ goals, checkins }, { goals, checkins: nextCheckins })) {
+      if (!alreadyOwned.has(t.id)) {
+        queue.push({ kind: 'trophy', icon: t.icon, name: t.name, desc: t.desc });
+      }
     }
-    void run(() => store.addCheckin(goal.id, day));
+    queue.push(...dayCelebrations(before, after, streakAfter));
+    if (queue.length > 0) setCelebrations(queue);
+
+    void run(() => store.addCheckin(goal.id, day, action.id, action.pp));
   }
 
-  function removeCheckin(checkin: Checkin) {
+  function unlogAction(checkin: Checkin) {
+    setCheckins((prev) => prev.filter((c) => c.id !== checkin.id));
     void run(() => store.deleteCheckin(checkin.id));
   }
 
@@ -306,10 +351,12 @@ export default function App() {
       [
         JSON.stringify(
           {
-            version: 3,
+            version: 4,
             goals: backup.goals,
+            actions: backup.actions,
             checkins: backup.checkins,
             achievements: backup.achievements,
+            settings: backup.settings,
           },
           null,
           2,
@@ -335,8 +382,10 @@ export default function App() {
       try {
         const parsed = JSON.parse(await file.text()) as {
           goals?: Goal[];
+          actions?: Action[];
           checkins?: Checkin[];
           achievements?: UnlockedAchievement[];
+          settings?: Settings;
         };
         if (!Array.isArray(parsed.goals)) throw new Error('Fichier de sauvegarde non reconnu.');
         if (!window.confirm('Importer cette sauvegarde ? Elle remplacera tes objectifs actuels.'))
@@ -345,8 +394,10 @@ export default function App() {
         await run(() =>
           store.importAll({
             goals: parsed.goals as Goal[],
+            actions: Array.isArray(parsed.actions) ? parsed.actions : [],
             checkins: Array.isArray(parsed.checkins) ? parsed.checkins : [],
             achievements: Array.isArray(parsed.achievements) ? parsed.achievements : [],
+            settings: parsed.settings,
           }),
         );
       } catch (err) {
@@ -446,6 +497,24 @@ export default function App() {
         </nav>
 
         <div className="sidebar-foot">
+          <label className="daily-picker">
+            <span>Objectif du jour</span>
+            <select
+              value={settings.dailyGoal}
+              onChange={(e) => {
+                const dailyGoal = Number(e.target.value);
+                setSettings((s) => ({ ...s, dailyGoal }));
+                void run(() => store.updateSettings({ dailyGoal }));
+              }}
+              aria-label="Objectif de PP quotidien"
+            >
+              {DAILY_GOAL_LEVELS.map((level) => (
+                <option key={level.pp} value={level.pp}>
+                  {level.label} · {level.pp} PP
+                </option>
+              ))}
+            </select>
+          </label>
           {user && <div className="account" title={user.email}>{user.email}</div>}
           <div className="sidebar-foot-actions">
             <button className="btn btn-ghost btn-sm" onClick={exportJson}>
@@ -526,9 +595,11 @@ export default function App() {
           ) : (
             <Hub
               goals={goals}
+              actions={actions}
               checkins={checkins}
-              onCheckin={checkinToday}
-              onUncheckin={removeCheckin}
+              dailyGoal={settings.dailyGoal}
+              onLogAction={logAction}
+              onUnlogAction={unlogAction}
               onSaveNote={saveCheckinNote}
               onValidateTier={validateTier}
               onGoToGoals={() => setView('objectifs')}
@@ -562,6 +633,16 @@ export default function App() {
                     }}
                     onDeleteTier={(tierId) => run(() => store.deleteTier(tierId))}
                     onMoveTier={async (tierId, direction) => moveTier(goal, tierId, direction)}
+                    actionEditor={
+                      <ActionEditor
+                        actions={actions.filter((a) => a.goalId === goal.id)}
+                        onCreate={(input: ActionInput) =>
+                          run(() => store.createAction(goal.id, input))
+                        }
+                        onUpdate={(id, patch) => run(() => store.updateAction(id, patch))}
+                        onDelete={(id) => run(() => store.deleteAction(id))}
+                      />
+                    }
                   />
                 ))}
               </div>

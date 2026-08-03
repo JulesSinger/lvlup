@@ -17,7 +17,8 @@ export type Celebration =
       goalComplete: boolean;
     }
   | { kind: 'profile'; rank: Rank; previous: Rank | null }
-  | { kind: 'trophy'; icon: string; name: string; desc: string };
+  | { kind: 'trophy'; icon: string; name: string; desc: string }
+  | { kind: 'day'; earned: number; goal: number; streak: number };
 
 /** Couleurs des cérémonies de trophée (or Zénith). */
 const TROPHY_COLORS = { color: '#b9812a', color2: '#f2c14e' };
@@ -54,7 +55,7 @@ export function Ceremony({
     if (item.kind === 'profile') {
       playRankUpFanfare();
       vibrate([40, 60, 40, 60, 120]);
-    } else if (item.kind === 'trophy') {
+    } else if (item.kind === 'trophy' || item.kind === 'day') {
       playRankUpFanfare();
       vibrate([40, 60, 120]);
     } else {
@@ -62,7 +63,7 @@ export function Ceremony({
       vibrate(item.goalComplete ? [40, 60, 120] : 40);
     }
     const colors =
-      item.kind === 'trophy'
+      item.kind === 'trophy' || item.kind === 'day'
         ? [TROPHY_COLORS.color, TROPHY_COLORS.color2]
         : [item.rank.color, item.rank.color2];
     let cancelBurst = () => {};
@@ -91,29 +92,35 @@ export function Ceremony({
 
   if (!item) return null;
 
-  const colors = item.kind === 'trophy' ? TROPHY_COLORS : item.rank;
+  const colors = item.kind === 'trophy' || item.kind === 'day' ? TROPHY_COLORS : item.rank;
   const eyebrow =
-    item.kind === 'trophy'
-      ? 'Trophée débloqué'
-      : item.kind === 'profile'
-        ? 'Montée de rang'
-        : item.goalComplete
-          ? 'Objectif accompli'
-          : 'Palier validé';
+    item.kind === 'day'
+      ? 'Journée bouclée'
+      : item.kind === 'trophy'
+        ? 'Trophée débloqué'
+        : item.kind === 'profile'
+          ? 'Montée de rang'
+          : item.goalComplete
+            ? 'Objectif accompli'
+            : 'Palier validé';
   const subtitle =
-    item.kind === 'trophy'
-      ? item.desc
-      : item.kind === 'profile'
-        ? item.previous
-          ? `${item.previous.label} → ${item.rank.label}. Ton profil vient de monter.`
-          : 'Ton profil décroche son premier rang.'
-        : `${item.tierTitle} — ${item.goalTitle}`;
+    item.kind === 'day'
+      ? `${item.earned} PP sur les ${item.goal} visés${item.earned > item.goal ? ` — ${item.earned - item.goal} de plus que demandé` : ''}.`
+      : item.kind === 'trophy'
+        ? item.desc
+        : item.kind === 'profile'
+          ? item.previous
+            ? `${item.previous.label} → ${item.rank.label}. Ton profil vient de monter.`
+            : 'Ton profil décroche son premier rang.'
+          : `${item.tierTitle} — ${item.goalTitle}`;
   const headline =
-    item.kind === 'trophy'
-      ? item.name
-      : item.kind === 'profile'
-        ? `Rang ${item.rank.label}`
-        : item.rank.label;
+    item.kind === 'day'
+      ? 'Objectif atteint'
+      : item.kind === 'trophy'
+        ? item.name
+        : item.kind === 'profile'
+          ? `Rang ${item.rank.label}`
+          : item.rank.label;
 
   return (
     <div
@@ -142,12 +149,16 @@ export function Ceremony({
             className="ceremony-crest"
             style={{
               background: `linear-gradient(150deg, ${colors.color2}, ${colors.color})`,
-              color: item.kind === 'trophy' ? '#2b2000' : item.rank.ink,
+              color: item.kind === 'trophy' || item.kind === 'day' ? '#2b2000' : item.rank.ink,
               boxShadow: `0 0 60px ${colors.color}66, inset 0 0 0 2px rgba(255,255,255,0.3)`,
-              fontSize: item.kind === 'trophy' ? 52 : undefined,
+              fontSize: item.kind === 'trophy' || item.kind === 'day' ? 52 : undefined,
             }}
           >
-            {item.kind === 'trophy' ? item.icon : item.rank.label.charAt(0).toUpperCase()}
+            {item.kind === 'day'
+              ? '✓'
+              : item.kind === 'trophy'
+                ? item.icon
+                : item.rank.label.charAt(0).toUpperCase()}
           </div>
         </div>
         <div className="ceremony-rank" style={{ color: colors.color2 }}>
@@ -155,6 +166,15 @@ export function Ceremony({
         </div>
         <div className="ceremony-sub">{subtitle}</div>
         {item.kind === 'tier' && <div className="ceremony-pp">+{item.pp} PP</div>}
+        {item.kind === 'day' && (
+          <div className="ceremony-streak">
+            <span className="flame lit" aria-hidden="true">
+              🔥
+            </span>
+            <b>{item.streak}</b>
+            <span>jour{item.streak > 1 ? 's' : ''} d'affilée</span>
+          </div>
+        )}
         <button
           className="btn btn-primary"
           onClick={(e) => {

@@ -1,4 +1,13 @@
-import type { AppUser, Checkin, Goal, GoalInput, Tier, TierInput } from '../lib/types';
+import type {
+  Action,
+  ActionInput,
+  AppUser,
+  Checkin,
+  Goal,
+  GoalInput,
+  Tier,
+  TierInput,
+} from '../lib/types';
 
 /** Trophée débloqué, définitivement acquis (jamais re-verrouillé). */
 export interface UnlockedAchievement {
@@ -6,11 +15,29 @@ export interface UnlockedAchievement {
   unlockedAt: string;
 }
 
+/** Réglages du compte, synchronisés entre appareils. */
+export interface Settings {
+  /** Cible de PP à atteindre chaque jour */
+  dailyGoal: number;
+}
+
+export const DEFAULT_SETTINGS: Settings = { dailyGoal: 40 };
+
+/** Niveaux d'objectif quotidien proposés (à la Duolingo). */
+export const DAILY_GOAL_LEVELS: { label: string; pp: number; hint: string }[] = [
+  { label: 'Tranquille', pp: 20, hint: 'une action, ou deux petits pas' },
+  { label: 'Régulier', pp: 40, hint: 'deux à trois actions' },
+  { label: 'Sérieux', pp: 70, hint: 'une vraie session quotidienne' },
+  { label: 'Intense', pp: 120, hint: 'plusieurs objectifs chaque jour' },
+];
+
 /** Sauvegarde complète (export/import). La v1 ne contenait que les objectifs. */
 export interface Backup {
   goals: Goal[];
+  actions: Action[];
   checkins: Checkin[];
   achievements: UnlockedAchievement[];
+  settings?: Settings;
 }
 
 /**
@@ -45,11 +72,20 @@ export interface Store {
   /** `orderedIds` donne la nouvelle position de chaque palier de l'objectif */
   reorderTiers(goalId: string, orderedIds: string[]): Promise<void>;
 
-  // --- Check-ins quotidiens ---
+  // --- Actions du quotidien ---
+  listActions(): Promise<Action[]>;
+  createAction(goalId: string, input: ActionInput): Promise<Action>;
+  updateAction(id: string, patch: Partial<ActionInput> & { archived?: boolean }): Promise<void>;
+  deleteAction(id: string): Promise<void>;
+
+  // --- Réalisations quotidiennes ---
   listCheckins(): Promise<Checkin[]>;
-  /** Un seul check-in par objectif et par jour ; `day` au format YYYY-MM-DD. */
-  addCheckin(goalId: string, day: string): Promise<Checkin>;
-  /** Ajoute ou modifie la note libre d'un check-in. */
+  /**
+   * Enregistre une action faite aujourd'hui. Une seule fois par action et par
+   * jour ; `day` au format YYYY-MM-DD. Les PP sont figés à l'enregistrement.
+   */
+  addCheckin(goalId: string, day: string, actionId: string, pp: number): Promise<Checkin>;
+  /** Ajoute ou modifie la note libre d'une réalisation. */
   updateCheckin(id: string, patch: { note?: string }): Promise<void>;
   deleteCheckin(id: string): Promise<void>;
 
@@ -57,6 +93,10 @@ export interface Store {
   listAchievements(): Promise<UnlockedAchievement[]>;
   /** Idempotent : les ids déjà débloqués sont ignorés. */
   unlockAchievements(ids: string[]): Promise<void>;
+
+  // --- Réglages ---
+  getSettings(): Promise<Settings>;
+  updateSettings(patch: Partial<Settings>): Promise<void>;
 
   // --- Sauvegarde ---
   exportAll(): Promise<Backup>;

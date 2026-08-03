@@ -1,30 +1,62 @@
-import type { AppUser, Checkin, Goal, GoalInput, Tier, TierInput } from '../lib/types';
-import { newId, type Backup, type Store, type UnlockedAchievement } from './store';
+import type {
+  Action,
+  ActionInput,
+  AppUser,
+  Checkin,
+  Goal,
+  GoalInput,
+  Tier,
+  TierInput,
+} from '../lib/types';
+import { DEFAULT_ACTIONS } from '../lib/types';
+import {
+  DEFAULT_SETTINGS,
+  newId,
+  type Backup,
+  type Settings,
+  type Store,
+  type UnlockedAchievement,
+} from './store';
 
 const KEY = 'palier.v1';
 
 interface Snapshot {
   goals: Goal[];
+  actions: Action[];
   checkins: Checkin[];
   achievements: UnlockedAchievement[];
+  settings: Settings;
 }
 
 function read(): Snapshot {
+  const empty: Snapshot = {
+    goals: [],
+    actions: [],
+    checkins: [],
+    achievements: [],
+    settings: { ...DEFAULT_SETTINGS },
+  };
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return { goals: [], checkins: [], achievements: [] };
+    if (!raw) return empty;
     const parsed = JSON.parse(raw) as Partial<Snapshot>;
     return {
       goals: Array.isArray(parsed.goals) ? parsed.goals : [],
-      // Les sauvegardes d'avant le Sprint 2 n'ont pas de check-ins, et celles
-      // d'avant les notes n'ont pas le champ `note`.
+      actions: Array.isArray(parsed.actions) ? parsed.actions : [],
+      // Sauvegardes antérieures : ni note, ni action, ni PP figés.
       checkins: Array.isArray(parsed.checkins)
-        ? parsed.checkins.map((c) => ({ ...c, note: c.note ?? '' }))
+        ? parsed.checkins.map((c) => ({
+            ...c,
+            note: c.note ?? '',
+            actionId: c.actionId ?? null,
+            pp: typeof c.pp === 'number' ? c.pp : 10,
+          }))
         : [],
       achievements: Array.isArray(parsed.achievements) ? parsed.achievements : [],
+      settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
     };
   } catch {
-    return { goals: [], checkins: [], achievements: [] };
+    return empty;
   }
 }
 
@@ -92,6 +124,19 @@ export class LocalStore implements Store {
       })),
     };
     snapshot.goals.push(goal);
+    // Tout objectif naît avec ses deux actions génériques : aucun formulaire à
+    // remplir avant la première victoire.
+    DEFAULT_ACTIONS.forEach((a, index) => {
+      snapshot.actions.push({
+        id: newId(),
+        goalId,
+        title: a.title,
+        pp: a.pp,
+        position: index,
+        archived: false,
+        createdAt: now,
+      });
+    });
     write(snapshot);
     return goal;
   }
@@ -108,7 +153,8 @@ export class LocalStore implements Store {
     const snapshot = read();
     snapshot.goals = snapshot.goals.filter((g) => g.id !== id);
     snapshot.goals.forEach((g, index) => (g.position = index));
-    // Les check-ins suivent leur objectif, comme le ON DELETE CASCADE côté SQL.
+    // Actions et réalisations suivent leur objectif (ON DELETE CASCADE côté SQL).
+    snapshot.actions = snapshot.actions.filter((a) => a.goalId !== id);
     snapshot.checkins = snapshot.checkins.filter((c) => c.goalId !== id);
     write(snapshot);
   }
@@ -168,17 +214,60 @@ export class LocalStore implements Store {
     write(snapshot);
   }
 
+  async listActions(): Promise<Action[]> {
+    return read()
+      .actions.filter((a) => !a.archived)
+      .sort((a, b) => a.position - b.position);
+  }
+
+  async createAction(goalId: string, input: ActionInput): Promise<Action> {
+    const snapshot = read();
+    const siblings = snapshot.actions.filter((a) => a.goalId === goalId);
+    const action: Action = {
+      id: newId(),
+      goalId,
+      title: input.title,
+      pp: input.pp,
+      position: siblings.length,
+      archived: false,
+      createdAt: new Date().toISOString(),
+    };
+    snapshot.actions.push(action);
+    write(snapshot);
+    return action;
+  }
+
+  async updateAction(id: string, patch: Partial<ActionInput> & { archived?: boolean }) {
+    const snapshot = read();
+    const action = snapshot.actions.find((a) => a.id === id);
+    if (!action) return;
+    Object.assign(action, patch);
+    write(snapshot);
+  }
+
+  async deleteAction(id: string) {
+    const snapshot = read();
+    snapshot.actions = snapshot.actions.filter((a) => a.id !== id);
+    // Les réalisations passées gardent leurs PP : l'historique ne se réécrit pas.
+    snapshot.checkins = snapshot.checkins.map((c) =>
+      c.actionId === id ? { ...c, actionId: null } : c,
+    );
+    write(snapshot);
+  }
+
   async listCheckins(): Promise<Checkin[]> {
     return read().checkins.slice();
   }
 
-  async addCheckin(goalId: string, day: string): Promise<Checkin> {
+  async addCheckin(goalId: string, day: string, actionId: string, pp: number): Promise<Checkin> {
     const snapshot = read();
-    const existing = snapshot.checkins.find((c) => c.goalId === goalId && c.day === day);
+    const existing = snapshot.checkins.find((c) => c.actionId === actionId && c.day === day);
     if (existing) return existing;
     const checkin: Checkin = {
       id: newId(),
       goalId,
+      actionId,
+      pp,
       day,
       note: '',
       createdAt: new Date().toISOString(),
@@ -217,20 +306,34 @@ export class LocalStore implements Store {
     write(snapshot);
   }
 
+  async getSettings(): Promise<Settings> {
+    return { ...read().settings };
+  }
+
+  async updateSettings(patch: Partial<Settings>) {
+    const snapshot = read();
+    snapshot.settings = { ...snapshot.settings, ...patch };
+    write(snapshot);
+  }
+
   async exportAll(): Promise<Backup> {
-    const { checkins, achievements } = read();
+    const { actions, checkins, achievements, settings } = read();
     return {
       goals: await this.listGoals(),
+      actions: actions.slice(),
       checkins: checkins.slice(),
       achievements: achievements.slice(),
+      settings: { ...settings },
     };
   }
 
   async importAll(backup: Backup) {
     write({
       goals: backup.goals,
+      actions: backup.actions ?? [],
       checkins: backup.checkins ?? [],
       achievements: backup.achievements ?? [],
+      settings: { ...DEFAULT_SETTINGS, ...(backup.settings ?? {}) },
     });
   }
 }

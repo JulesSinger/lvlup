@@ -82,8 +82,13 @@ export function ppForRank(rank: Rank): number {
   return rank.value * 25;
 }
 
-/** PP rapportés par un check-in quotidien. */
+/** PP d'un check-in d'avant les actions (repli pour les données anciennes). */
 export const CHECKIN_PP = 10;
+
+/** Somme des PP d'une liste de réalisations. */
+export function sumCheckinPP(checkins: Checkin[]): number {
+  return checkins.reduce((sum, c) => sum + (c.pp ?? CHECKIN_PP), 0);
+}
 
 /**
  * Total des PP du profil : paliers validés + check-ins quotidiens. C'est le
@@ -102,7 +107,25 @@ export function profilePP(goals: Goal[], checkins: Checkin[] = []): number {
         ),
       0,
     );
-  return tiersPP + checkins.length * CHECKIN_PP;
+  return tiersPP + sumCheckinPP(checkins);
+}
+
+/**
+ * PP engrangés aujourd'hui : réalisations du jour + paliers validés aujourd'hui.
+ * C'est ce que remplit l'anneau de l'objectif quotidien.
+ */
+export function todayPP(goals: Goal[], checkins: Checkin[], today: string = dayString()): number {
+  const fromActions = sumCheckinPP(checkins.filter((c) => c.day === today));
+  let fromTiers = 0;
+  for (const goal of goals) {
+    if (goal.archived) continue;
+    for (const tier of goal.tiers) {
+      if (tier.completedAt && dayString(new Date(tier.completedAt)) === today) {
+        fromTiers += ppForRank(getRank(tier.rank));
+      }
+    }
+  }
+  return fromActions + fromTiers;
 }
 
 export interface PPPoint {
@@ -129,7 +152,7 @@ export function ppTimeline(goals: Goal[], checkins: Checkin[]): PPPoint[] {
     perDay.set(day, entry);
   };
 
-  for (const checkin of checkins) bump(checkin.day, CHECKIN_PP, 0);
+  for (const checkin of checkins) bump(checkin.day, checkin.pp ?? CHECKIN_PP, 0);
   for (const goal of goals) {
     if (goal.archived) continue;
     for (const tier of goal.tiers) {
@@ -193,7 +216,7 @@ export function weekStats(
     }
   }
   return {
-    pp: tiersPP + weekCheckins.length * CHECKIN_PP,
+    pp: tiersPP + sumCheckinPP(weekCheckins),
     checkins: weekCheckins.length,
     tiersValidated,
   };

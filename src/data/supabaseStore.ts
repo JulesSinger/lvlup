@@ -1,7 +1,23 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { RankId } from '../lib/ranks';
-import type { AppUser, Checkin, Goal, GoalInput, Tier, TierInput } from '../lib/types';
-import type { Backup, Store, UnlockedAchievement } from './store';
+import type {
+  Action,
+  ActionInput,
+  AppUser,
+  Checkin,
+  Goal,
+  GoalInput,
+  Tier,
+  TierInput,
+} from '../lib/types';
+import { DEFAULT_ACTIONS } from '../lib/types';
+import {
+  DEFAULT_SETTINGS,
+  type Backup,
+  type Settings,
+  type Store,
+  type UnlockedAchievement,
+} from './store';
 
 interface GoalRow {
   id: string;
@@ -29,6 +45,8 @@ interface CheckinRow {
   id: string;
   goal_id: string;
   user_id: string;
+  action_id: string | null;
+  pp: number | null;
   day: string;
   note: string | null;
   created_at: string;
@@ -38,8 +56,34 @@ function toCheckin(row: CheckinRow): Checkin {
   return {
     id: row.id,
     goalId: row.goal_id,
+    actionId: row.action_id ?? null,
+    // Les check-ins d'avant les actions valent leurs 10 PP d'origine.
+    pp: typeof row.pp === 'number' ? row.pp : 10,
     day: row.day,
     note: row.note ?? '',
+    createdAt: row.created_at,
+  };
+}
+
+interface ActionRow {
+  id: string;
+  goal_id: string;
+  user_id: string;
+  title: string;
+  pp: number;
+  position: number;
+  archived: boolean;
+  created_at: string;
+}
+
+function toAction(row: ActionRow): Action {
+  return {
+    id: row.id,
+    goalId: row.goal_id,
+    title: row.title,
+    pp: row.pp,
+    position: row.position,
+    archived: row.archived,
     createdAt: row.created_at,
   };
 }
@@ -181,6 +225,20 @@ export class SupabaseStore implements Store {
           .select(),
       ) as TierRow[];
     }
+
+    // Tout objectif naît avec ses deux actions génériques : aucun formulaire à
+    // remplir avant la première victoire.
+    const { error: actionsError } = await this.client.from('actions').insert(
+      DEFAULT_ACTIONS.map((a, index) => ({
+        goal_id: goalRow.id,
+        user_id: userId,
+        title: a.title,
+        pp: a.pp,
+        position: index,
+      })),
+    );
+    if (actionsError) throw new Error(actionsError.message);
+
     return toGoal(goalRow, tierRows);
   }
 
@@ -244,6 +302,55 @@ export class SupabaseStore implements Store {
     }
   }
 
+  async listActions(): Promise<Action[]> {
+    const rows = unwrap(
+      await this.client
+        .from('actions')
+        .select('*')
+        .eq('archived', false)
+        .order('position', { ascending: true }),
+    ) as ActionRow[];
+    return rows.map(toAction);
+  }
+
+  async createAction(goalId: string, input: ActionInput): Promise<Action> {
+    const userId = await this.requireUserId();
+    const { count } = await this.client
+      .from('actions')
+      .select('id', { count: 'exact', head: true })
+      .eq('goal_id', goalId);
+    const row = unwrap(
+      await this.client
+        .from('actions')
+        .insert({
+          goal_id: goalId,
+          user_id: userId,
+          title: input.title,
+          pp: input.pp,
+          position: count ?? 0,
+        })
+        .select()
+        .single(),
+    ) as ActionRow;
+    return toAction(row);
+  }
+
+  async updateAction(id: string, patch: Partial<ActionInput> & { archived?: boolean }) {
+    const row: Record<string, unknown> = {};
+    if (patch.title !== undefined) row.title = patch.title;
+    if (patch.pp !== undefined) row.pp = patch.pp;
+    if (patch.archived !== undefined) row.archived = patch.archived;
+    const { error } = await this.client.from('actions').update(row).eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteAction(id: string) {
+    // Les réalisations passées gardent leurs PP (ON DELETE SET NULL côté SQL) :
+    // supprimer une action ne réécrit pas l'historique.
+    const { error } = await this.client.from('actions').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
   async listCheckins(): Promise<Checkin[]> {
     const rows = unwrap(
       await this.client.from('checkins').select('*').order('day', { ascending: true }),
@@ -251,13 +358,16 @@ export class SupabaseStore implements Store {
     return rows.map(toCheckin);
   }
 
-  async addCheckin(goalId: string, day: string): Promise<Checkin> {
+  async addCheckin(goalId: string, day: string, actionId: string, pp: number): Promise<Checkin> {
     const userId = await this.requireUserId();
     // upsert sur la contrainte unique : re-cliquer le même jour ne crée pas de doublon.
     const row = unwrap(
       await this.client
         .from('checkins')
-        .upsert({ goal_id: goalId, user_id: userId, day }, { onConflict: 'user_id,goal_id,day' })
+        .upsert(
+          { goal_id: goalId, user_id: userId, action_id: actionId, pp, day },
+          { onConflict: 'user_id,action_id,day' },
+        )
         .select()
         .single(),
     ) as CheckinRow;
@@ -293,11 +403,35 @@ export class SupabaseStore implements Store {
     if (error) throw new Error(error.message);
   }
 
+  async getSettings(): Promise<Settings> {
+    const userId = await this.requireUserId();
+    const { data, error } = await this.client
+      .from('profiles')
+      .select('daily_goal')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return { ...DEFAULT_SETTINGS };
+    return { dailyGoal: data.daily_goal ?? DEFAULT_SETTINGS.dailyGoal };
+  }
+
+  async updateSettings(patch: Partial<Settings>) {
+    const userId = await this.requireUserId();
+    const row: Record<string, unknown> = { user_id: userId };
+    if (patch.dailyGoal !== undefined) row.daily_goal = patch.dailyGoal;
+    const { error } = await this.client
+      .from('profiles')
+      .upsert(row, { onConflict: 'user_id' });
+    if (error) throw new Error(error.message);
+  }
+
   async exportAll(): Promise<Backup> {
     return {
       goals: await this.listGoals(),
+      actions: await this.listActions(),
       checkins: await this.listCheckins(),
       achievements: await this.listAchievements(),
+      settings: await this.getSettings(),
     };
   }
 
@@ -325,12 +459,44 @@ export class SupabaseStore implements Store {
         if (error) throw new Error(error.message);
       }
     }
+    // Les actions de la sauvegarde remplacent les deux génériques créées par
+    // createGoal, et reçoivent elles aussi de nouveaux ids.
+    const actionMap = new Map<string, string>();
+    const backupActions = (backup.actions ?? []).filter((a) => idMap.has(a.goalId));
+    if (backupActions.length > 0) {
+      const goalsWithActions = new Set(backupActions.map((a) => idMap.get(a.goalId) as string));
+      const { error: cleanError } = await this.client
+        .from('actions')
+        .delete()
+        .in('goal_id', [...goalsWithActions]);
+      if (cleanError) throw new Error(cleanError.message);
+
+      const created = unwrap(
+        await this.client
+          .from('actions')
+          .insert(
+            backupActions.map((a) => ({
+              goal_id: idMap.get(a.goalId),
+              user_id: userId,
+              title: a.title,
+              pp: a.pp,
+              position: a.position,
+              archived: a.archived,
+            })),
+          )
+          .select(),
+      ) as ActionRow[];
+      backupActions.forEach((a, i) => actionMap.set(a.id, created[i].id));
+    }
+
     const checkins = (backup.checkins ?? []).filter((c) => idMap.has(c.goalId));
     if (checkins.length > 0) {
       const { error } = await this.client.from('checkins').insert(
         checkins.map((c) => ({
           goal_id: idMap.get(c.goalId),
           user_id: userId,
+          action_id: c.actionId ? (actionMap.get(c.actionId) ?? null) : null,
+          pp: c.pp ?? 10,
           day: c.day,
           note: c.note ?? '',
           created_at: c.createdAt,
@@ -339,5 +505,6 @@ export class SupabaseStore implements Store {
       if (error) throw new Error(error.message);
     }
     await this.unlockAchievements((backup.achievements ?? []).map((a) => a.id));
+    if (backup.settings) await this.updateSettings(backup.settings);
   }
 }

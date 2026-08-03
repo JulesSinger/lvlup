@@ -87,10 +87,13 @@ create table if not exists public.checkins (
   user_id    uuid not null references auth.users (id) on delete cascade,
   goal_id    uuid not null references public.goals (id) on delete cascade,
   day        date not null,
+  action_id  uuid references public.actions (id) on delete set null,
+  pp         integer not null default 10 check (pp between 1 and 100),
   note       text not null default '',
   created_at timestamptz not null default now(),
-  -- Un seul check-in par objectif et par jour.
-  unique (user_id, goal_id, day)
+  -- Une seule réalisation par action et par jour. Contrainte UNIQUE (et non
+  -- index partiel) : Postgres n'infère pas un ON CONFLICT depuis un partiel.
+  constraint checkins_user_action_day_key unique (user_id, action_id, day)
 );
 
 create index if not exists checkins_user_day_idx on public.checkins (user_id, day);

@@ -256,40 +256,53 @@ check(
   (await page.locator('.goal').count()) === 3 && (await page.locator('.archived-row').count()) === 0,
 );
 
-// 9. Check-in quotidien, streak et trophées
+// 9. Actions du quotidien, anneau, streak et trophées
 await page.getByRole('button', { name: 'Accueil' }).click();
 await page.waitForSelector('.checkin-chips');
 check(
-  'Section check-in affichée avec un chip par objectif',
-  (await page.locator('.checkin-chip').count()) === 3,
+  'Deux actions génériques créées par objectif',
+  (await page.locator('.checkin-chip').count()) === 6,
   String(await page.locator('.checkin-chip').count()),
 );
 check(
+  'Anneau du jour affiché',
+  (await page.locator('.ring-goal').textContent()) === '/ 40 PP',
+  await page.locator('.ring-goal').textContent(),
+);
+check(
   'Streak à 1 (les validations du jour comptent)',
-  ((await page.locator('.stat-streak').textContent()) ?? '').includes('1'),
-  await page.locator('.stat-streak').textContent(),
+  ((await page.locator('.flame-count').textContent()) ?? '') === '1',
+  await page.locator('.flame-count').textContent(),
+);
+
+// « Un vrai effort » vaut 15 PP
+check(
+  'Première action : Un vrai effort · +15',
+  (await page.locator('.checkin-chip').first().textContent())?.includes('Un vrai effort'),
+  await page.locator('.checkin-chip').first().textContent(),
 );
 await page.locator('.checkin-chip').first().click();
 await page.waitForSelector('.ceremony');
 check(
-  'Trophée « Premier pas » célébré au premier check-in',
+  'Trophée « Premier pas » célébré à la première action',
   (await page.locator('.ceremony-rank').textContent()) === 'Premier pas',
   await page.locator('.ceremony-rank').textContent(),
 );
 await dismissCeremonies(page);
-await page.waitForTimeout(1100);
-check('Check-in marqué comme fait', await page.locator('.checkin-chip.done').isVisible());
+await page.waitForTimeout(1000);
+check('Action marquée comme faite', await page.locator('.checkin-chip.done').isVisible());
 check(
-  'PP passés à 135 (+10 du check-in)',
-  (await page.locator('.stat-pp').textContent()) === '135',
-  await page.locator('.stat-pp').textContent(),
+  'Anneau du jour à 140 PP (125 des paliers + 15 de l’action)',
+  (await page.locator('.ring-value').textContent()) === '140',
+  await page.locator('.ring-value').textContent(),
 );
 
-// Note libre optionnelle : l'éditeur s'ouvre après le check-in
-check('Éditeur de note ouvert après le check-in', await page.locator('.checkin-note input').isVisible());
+// Note libre optionnelle
+await page.locator('.checkin-chip.done .checkin-note-btn').click();
+await page.waitForSelector('.checkin-note input');
 await page.locator('.checkin-note input').fill('8 km ce matin, dur mais fait');
 await page.locator('.checkin-note input').press('Enter');
-await page.waitForTimeout(400);
+await page.waitForTimeout(500);
 check(
   'Note enregistrée (indicateur 📝 sur le chip)',
   (await page.locator('.checkin-chip.done .checkin-note-btn').textContent()) === '📝',
@@ -306,27 +319,85 @@ check(
 await page.getByRole('button', { name: 'Accueil' }).click();
 await page.waitForSelector('.checkin-chips');
 check(
-  'Récap « Cette semaine » : 1 check-in',
+  'Récap « Cette semaine » : 1 action',
   (await page.locator('.week-stats > div').nth(1).locator('.week-value').textContent()) === '1',
   await page.locator('.week-stats > div').nth(1).locator('.week-value').textContent(),
 );
 
-// Persistance du check-in après rechargement
+// Persistance après rechargement
 await page.reload();
 await page.waitForSelector('.checkin-chips');
 check(
-  'Check-in persistant après rechargement',
+  'Action persistante après rechargement',
   (await page.locator('.checkin-chip.done').count()) === 1,
 );
 
-// Annulation : re-cliquer le chip rend les PP
+// Annulation : re-cliquer rend les PP
 await page.locator('.checkin-chip.done').click();
-await page.waitForTimeout(1200);
+await page.waitForTimeout(1000);
 check(
-  "Annulation du check-in : les PP retombent à 125",
-  (await page.locator('.stat-pp').textContent()) === '125',
-  await page.locator('.stat-pp').textContent(),
+  'Annulation : les PP du jour retombent à 125',
+  (await page.locator('.ring-value').textContent()) === '125',
+  await page.locator('.ring-value').textContent(),
 );
+
+// Édition d'une action : renommer + changer les PP
+await page.getByRole('button', { name: 'Objectifs' }).click();
+await page.waitForSelector('.goal');
+await page.locator('.goal').first().locator('.goal-head').click();
+await page.waitForSelector('.action-editor');
+check(
+  'Éditeur d’actions présent dans la carte dépliée',
+  (await page.locator('.action-row').count()) === 2,
+  String(await page.locator('.action-row').count()),
+);
+await page.locator('.action-row').first().locator('.btn-ghost').first().click();
+await page.locator('.action-row-body input').fill('Sortie course');
+await page.locator('.action-row-body input').press('Enter');
+await page.waitForTimeout(500);
+check(
+  'Action renommée',
+  (await page.locator('.action-row-title').first().textContent()) === 'Sortie course',
+  await page.locator('.action-row-title').first().textContent(),
+);
+await page.getByRole('button', { name: 'Accueil' }).click();
+await page.waitForSelector('.checkin-chips');
+check(
+  'Le renommage se voit sur le hub',
+  (await page.locator('.checkin-chip').first().textContent())?.includes('Sortie course'),
+  await page.locator('.checkin-chip').first().textContent(),
+);
+
+// Réaction instantanée au clic : l'état bascule sans attendre le serveur,
+// et l'action faite le dit explicitement.
+await page.locator('.checkin-chip').first().click();
+await page.waitForTimeout(120);
+check(
+  'Le chip bascule immédiatement en « fait » (optimisme)',
+  await page.locator('.checkin-chip.done').first().isVisible(),
+);
+check(
+  'Le +PP s’envole au clic',
+  (await page.locator('.pp-fly').count()) === 1,
+  String(await page.locator('.pp-fly').count()),
+);
+check(
+  'L’action faite affiche « fait » et non ses PP',
+  ((await page.locator('.checkin-chip.done .checkin-mark').first().textContent()) ?? '').includes(
+    'fait',
+  ),
+  await page.locator('.checkin-chip.done .checkin-mark').first().textContent(),
+);
+await dismissCeremonies(page);
+await page.waitForTimeout(900);
+await page.locator('.checkin-chip.done').first().click();
+await page.waitForTimeout(150);
+check(
+  'L’annulation bascule aussi immédiatement',
+  (await page.locator('.checkin-chip.done').count()) === 0,
+  String(await page.locator('.checkin-chip.done').count()),
+);
+await page.waitForTimeout(600);
 
 // Salle des trophées
 await page.getByRole('button', { name: 'Trophées' }).click();
@@ -407,6 +478,8 @@ check(
 // iOS zoome sur tout champ dont la police fait moins de 16px : on vérifie que
 // le champ de note (le plus exposé, il s'ouvre après chaque check-in) est à 16px.
 await mobile.locator('.checkin-chip').first().click();
+await mobile.waitForSelector('.checkin-chip.done .checkin-note-btn');
+await mobile.locator('.checkin-chip.done .checkin-note-btn').first().click();
 await mobile.waitForSelector('.checkin-note input');
 check(
   'Champ de note à 16px sur mobile (pas de zoom iOS)',
@@ -432,12 +505,21 @@ check(
     return i.top >= 0 && i.bottom <= b.top;
   }),
 );
-check(
-  'Aucune animation permanente sur mobile',
-  (await mobile.evaluate(
-    () => document.getAnimations().filter((a) => a.playState === 'running').length,
-  )) === 0,
-);
+// Seule la flamme du streak a le droit de tourner en permanence : un transform
+// sur un élément, composité par le GPU. Tout le reste doit être coupé.
+{
+  const running = await mobile.evaluate(() =>
+    document
+      .getAnimations()
+      .filter((a) => a.playState === 'running')
+      .map((a) => (a.effect?.target instanceof Element ? a.effect.target.className : '?')),
+  );
+  check(
+    'Aucune animation permanente sur mobile hors la flamme',
+    running.every((c) => String(c).includes('flame')),
+    running.join(', ') || 'aucune',
+  );
+}
 
 await mobile.getByRole('button', { name: 'Objectifs' }).click();
 await mobile.waitForSelector('.goal');
