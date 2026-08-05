@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { getRank, suggestRanks } from '../lib/ranks';
+import { GOAL_TEMPLATES, type GoalTemplate } from '../lib/templates';
 import type { GoalInput, TierInput } from '../lib/types';
 import { RankBadge } from './RankBadge';
 
@@ -9,35 +10,18 @@ import { RankBadge } from './RankBadge';
  * nouveau venu devant un écran vide.
  */
 
-const STARTERS: { label: string; emoji: string; title: string; tiers: string[] }[] = [
-  {
-    label: 'Sport',
-    emoji: '🏃',
-    title: 'Courir un semi-marathon',
-    tiers: ['Courir 5 km sans m’arrêter', 'Courir 10 km', 'Courir 15 km', 'Courir un semi'],
-  },
-  {
-    label: 'Lecture',
-    emoji: '📚',
-    title: 'Me remettre à lire',
-    tiers: [
-      'Finir le livre commencé',
-      'Lire 1 livre entier',
-      'Lire 3 livres entiers',
-      'Lire 5 livres entiers',
-    ],
-  },
-  {
-    label: 'Écrans',
-    emoji: '📵',
-    title: "Réduire mon temps d'écran",
-    tiers: [
-      'Ne plus scroller sans intention',
-      "Ne plus m’endormir devant une vidéo",
-      "Plus d'écran après le travail",
-    ],
-  },
-];
+const STARTER_IDS = ['semi', 'lecture', 'ecrans'] as const;
+const STARTER_LABELS: Record<string, string> = {
+  semi: 'Sport',
+  lecture: 'Lecture',
+  ecrans: 'Écrans',
+};
+
+/** Les trois modèles d'accueil, puisés dans la bibliothèque commune. */
+const STARTERS = STARTER_IDS.map((id) => {
+  const t = GOAL_TEMPLATES.find((g) => g.id === id) as GoalTemplate;
+  return { label: STARTER_LABELS[id], emoji: t.emoji, title: t.title, tiers: t.tiers };
+});
 
 const SLIDES = [
   {

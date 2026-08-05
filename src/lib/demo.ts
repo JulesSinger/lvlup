@@ -7,11 +7,11 @@ export const DEMO_GOALS: (GoalInput & { tiers: TierInput[] })[] = [
     description: 'Passer de coureur du dimanche à finisher.',
     emoji: '🏃',
     tiers: [
-      { title: 'Courir 10 km', rank: 'bronze' },
-      { title: 'Courir 15 km', rank: 'argent' },
-      { title: 'Courir un semi-marathon', rank: 'or' },
-      { title: 'Courir 30 km', rank: 'diamant' },
-      { title: 'Courir un marathon', rank: 'challenger' },
+      { title: "Courir 5 km sans m'arrêter", rank: 'bronze' },
+      { title: 'Courir 10 km', rank: 'argent' },
+      { title: 'Courir 15 km', rank: 'or' },
+      { title: 'Courir 21,1 km', rank: 'diamant' },
+      { title: 'Courir 42,2 km', rank: 'challenger' },
     ],
   },
   {
@@ -19,9 +19,9 @@ export const DEMO_GOALS: (GoalInput & { tiers: TierInput[] })[] = [
     description: 'Reprendre la main sur mes soirées.',
     emoji: '📵',
     tiers: [
-      { title: 'Ne plus scroller sans intention', rank: 'bronze' },
-      { title: "Arrêter de m'endormir avec une vidéo YouTube", rank: 'or' },
-      { title: "Plus d'écran après le travail", rank: 'maitre' },
+      { title: "7 jours sous 3 h d'écran par jour", rank: 'bronze' },
+      { title: "30 jours sous 3 h d'écran par jour", rank: 'argent' },
+      { title: "30 jours sous 2 h d'écran par jour", rank: 'or' },
     ],
   },
   {
@@ -29,11 +29,11 @@ export const DEMO_GOALS: (GoalInput & { tiers: TierInput[] })[] = [
     description: 'Retrouver le réflexe de lire au lieu de scroller.',
     emoji: '📚',
     tiers: [
-      { title: 'Rattraper mon retard sur Sciences et Avenir', rank: 'fer' },
-      { title: "Finir le livre que j'avais commencé", rank: 'bronze' },
-      { title: 'Lire 1 nouveau livre entier', rank: 'or' },
-      { title: 'Lire 3 livres entiers', rank: 'diamant' },
-      { title: 'Lire 5 livres entiers', rank: 'grand-maitre' },
+      { title: '1 livre terminé', rank: 'bronze' },
+      { title: '3 livres terminés', rank: 'argent' },
+      { title: '6 livres terminés', rank: 'or' },
+      { title: '12 livres terminés', rank: 'diamant' },
+      { title: '20 livres terminés', rank: 'challenger' },
     ],
   },
 ];

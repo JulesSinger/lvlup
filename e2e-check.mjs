@@ -200,38 +200,117 @@ check(
 await page.getByRole('button', { name: 'Voir la courbe' }).click();
 await page.screenshot({ path: 'screens/historique.png', fullPage: true });
 
-// 6. Création d'un objectif avec un nombre de paliers différent
+// 6. Création : bibliothèque de modèles puis éditeur
 await page.getByRole('button', { name: 'Objectifs' }).click();
 await page.getByRole('button', { name: '+ Objectif' }).click();
-await page.waitForSelector('.modal');
-await page.locator('#goal-title').fill('Apprendre la guitare');
-await page.locator('#goal-desc').fill('Jouer devant des amis sans trembler.');
-const draftInputs = page.locator('.draft-tier input');
-await draftInputs.nth(0).fill('Faire sonner un accord propre');
-await draftInputs.nth(1).fill('Enchaîner 4 accords');
-await draftInputs.nth(2).fill('Jouer un morceau entier');
-// Les deux derniers paliers restent vides : ils doivent être ignorés.
-await page.locator('.draft-tier select').nth(0).selectOption('fer');
+await page.waitForSelector('.picker-grid');
+check(
+  'Bibliothèque de modèles ouverte',
+  (await page.locator('.picker-card').count()) >= 2,
+  String(await page.locator('.picker-card').count()),
+);
+check(
+  'Huit catégories proposées',
+  (await page.locator('.picker-tab').count()) === 8,
+  String(await page.locator('.picker-tab').count()),
+);
+await page.getByRole('button', { name: 'Apprendre' }).click();
+await page.waitForTimeout(200);
+await page.locator('.picker-card', { hasText: 'Apprendre un instrument' }).click();
+await page.waitForSelector('.preview-tiers');
+check(
+  'Aperçu du modèle : étapes et rangs automatiques',
+  (await page.locator('.preview-tiers li').count()) === 4,
+  String(await page.locator('.preview-tiers li').count()),
+);
+check(
+  'Échelle cohérente à 4 étapes : Bronze / Argent / Or / Challenger',
+  (await page.locator('.preview-tiers .rank-badge').allTextContents()).join(' · ') ===
+    'Bronze · Argent · Or · Challenger',
+  (await page.locator('.preview-tiers .rank-badge').allTextContents()).join(' · '),
+);
+check(
+  'Toutes les étapes du modèle sont mesurables (un chiffre ou un fait vérifiable)',
+  (await page.locator('.preview-tiers .preview-title').allTextContents()).every((t) =>
+    /\d|terminé|publié|devant du public|acceptée|signée/i.test(t),
+  ),
+  (await page.locator('.preview-tiers .preview-title').allTextContents()).join(' | '),
+);
+check(
+  'Aperçu du modèle : actions incluses',
+  (await page.locator('.preview-action').count()) === 2,
+  String(await page.locator('.preview-action').count()),
+);
+// Contrôle de l'échelle à 3 étapes sur un autre modèle
+await page.locator('.modal-foot .btn', { hasText: 'Retour' }).click();
+await page.waitForSelector('.picker-grid');
+await page.getByRole('button', { name: 'Esprit' }).click();
+await page.waitForTimeout(200);
+await page.locator('.picker-card', { hasText: 'Noter 3 gratitudes' }).click();
+await page.waitForSelector('.preview-tiers');
+check(
+  'Échelle cohérente à 3 étapes : Bronze / Argent / Or',
+  (await page.locator('.preview-tiers .rank-badge').allTextContents()).join(' · ') ===
+    'Bronze · Argent · Or',
+  (await page.locator('.preview-tiers .rank-badge').allTextContents()).join(' · '),
+);
+await page.locator('.modal-foot .btn', { hasText: 'Retour' }).click();
+await page.waitForSelector('.picker-grid');
+await page.getByRole('button', { name: 'Apprendre' }).click();
+await page.waitForTimeout(200);
+await page.locator('.picker-card', { hasText: 'Apprendre un instrument' }).click();
+await page.waitForSelector('.preview-tiers');
+await page.getByRole('button', { name: 'Choisir cet objectif' }).click();
+await page.waitForSelector('.modal #goal-title');
+check(
+  'Éditeur pré-rempli par le modèle',
+  (await page.locator('#goal-title').inputValue()) === 'Apprendre un instrument',
+  await page.locator('#goal-title').inputValue(),
+);
+check(
+  'Aucune liste de rangs à la création',
+  (await page.locator('.draft-tier select').count()) === 0,
+  String(await page.locator('.draft-tier select').count()),
+);
+check(
+  'Les rangs sont affichés en badges informatifs',
+  (await page.locator('.draft-tier .rank-badge').count()) === 4,
+  String(await page.locator('.draft-tier .rank-badge').count()),
+);
 await page.screenshot({ path: 'screens/creation.png' });
 await page.getByRole('button', { name: "Créer l'objectif" }).click();
+
+// La planification est elle-même célébrée
+await page.waitForSelector('.ceremony');
+check(
+  'Cérémonie « ascension tracée » à la création',
+  (await page.locator('.ceremony-eyebrow').textContent()) === 'Ascension tracée',
+  await page.locator('.ceremony-eyebrow').textContent(),
+);
+check(
+  'L’échelle des étapes se dessine dans la cérémonie',
+  (await page.locator('.ceremony-step-row').count()) === 4,
+  String(await page.locator('.ceremony-step-row').count()),
+);
+await dismissCeremonies(page);
 await page.waitForTimeout(400);
 check('4e objectif créé', (await page.locator('.goal').count()) === 4);
 check(
-  'Paliers vides ignorés (3 paliers retenus sur 5 champs)',
-  (await page.locator('.goal').nth(3).locator('.goal-count').textContent())?.includes('0/3'),
+  'Le modèle apporte ses propres actions',
+  (await page.locator('.goal').nth(3).locator('.goal-count').textContent())?.includes('0/4'),
   await page.locator('.goal').nth(3).locator('.goal-count').textContent(),
 );
 
 // 7. Modification d'un objectif
 await page.locator('.goal').nth(3).locator('.goal-actions button').first().click();
 await page.waitForSelector('.modal');
-await page.locator('#goal-title').fill('Apprendre la guitare folk');
+await page.locator('#goal-title').fill('Apprendre le piano');
 await page.getByRole('button', { name: 'Enregistrer' }).click();
 await page.waitForTimeout(300);
 check(
   'Objectif renommé',
   (await page.locator('.goal').nth(3).locator('.goal-title').textContent()) ===
-    'Apprendre la guitare folk',
+    'Apprendre le piano',
 );
 
 // 8. Suppression (les actions sont désormais ✎ / 📦 / 🗑)
@@ -529,6 +608,26 @@ await mobile.screenshot({ path: 'screens/mobile.png', fullPage: true });
 check('Rendu mobile sans débordement horizontal', await mobile.evaluate(
   () => document.documentElement.scrollWidth <= window.innerWidth + 1,
 ));
+
+// Mot de passe visible : l'écran d'auth n'apparaît qu'en mode Supabase, on le
+// vérifie donc sur un build de démonstration servi séparément si disponible.
+if (process.env.AUTH_BASE) {
+  const authPage = await context.newPage();
+  await authPage.goto(process.env.AUTH_BASE);
+  await authPage.getByRole('button', { name: 'Se connecter' }).first().click();
+  await authPage.waitForSelector('#password');
+  check(
+    'Mot de passe masqué par défaut',
+    (await authPage.locator('#password').getAttribute('type')) === 'password',
+  );
+  await authPage.locator('.password-toggle').click();
+  check(
+    'Le bouton œil rend le mot de passe visible',
+    (await authPage.locator('#password').getAttribute('type')) === 'text',
+    await authPage.locator('#password').getAttribute('type'),
+  );
+  await authPage.close();
+}
 
 check('Aucune erreur JavaScript', errors.length === 0, errors.join(' | '));
 

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Ceremony, type Celebration } from './components/Ceremony';
 import { GoalCard } from './components/GoalCard';
-import { GoalEditor } from './components/GoalEditor';
+import { GoalEditor, type GoalSeed } from './components/GoalEditor';
+import { GoalPicker } from './components/GoalPicker';
 import { Hub } from './components/Hub';
 import { Landing } from './components/Landing';
 import { Onboarding } from './components/Onboarding';
@@ -14,6 +15,7 @@ import { newlyUnlocked, unlockedAchievements } from './lib/achievements';
 import { DEMO_GOALS } from './lib/demo';
 import { goalProgress, ppForRank, profileRank, todayPP } from './lib/progress';
 import { getRank } from './lib/ranks';
+import type { GoalTemplate } from './lib/templates';
 import { playCheckinBlip, vibrate } from './lib/sound';
 import { computeStreak, dayString } from './lib/streak';
 import type {
@@ -53,7 +55,13 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [view, setView] = useState<View>('accueil');
-  const [editing, setEditing] = useState<{ goal: Goal | null } | null>(null);
+  const [editing, setEditing] = useState<{ goal: Goal | null; seed?: GoalSeed | null } | null>(
+    null,
+  );
+  /** Ouvre la bibliothèque de modèles avant l'éditeur. */
+  const [picking, setPicking] = useState(false);
+  /** Actions à créer avec le prochain objectif (venues d'un modèle). */
+  const [seedActions, setSeedActions] = useState<ActionInput[] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
   const [onboardingDone, setOnboardingDone] = useState(() => {
@@ -306,11 +314,33 @@ export default function App() {
       await store.updateGoal(target.id, input);
     } else {
       const created = await store.createGoal(input, tiers);
+      // Un modèle apporte ses propres actions : elles remplacent les deux
+      // génériques créées d'office.
+      if (seedActions && seedActions.length > 0) {
+        const generic = await store.listActions();
+        for (const a of generic.filter((a) => a.goalId === created.id)) {
+          await store.deleteAction(a.id);
+        }
+        for (const a of seedActions) await store.createAction(created.id, a);
+      }
       setExpanded((set) => new Set(set).add(created.id));
       setView('objectifs');
+      // Planifier est déjà un accomplissement : on le célèbre, sans PP —
+      // les points restent réservés à ce qu'on fait vraiment.
+      if (tiers.length > 0) {
+        setCelebrations([
+          {
+            kind: 'plan',
+            emoji: input.emoji,
+            goalTitle: input.title,
+            tiers: tiers.map((t) => ({ title: t.title, rank: getRank(t.rank) })),
+          },
+        ]);
+      }
     }
     await refresh();
     setEditing(null);
+    setSeedActions(null);
   }
 
   function toggleExpand(id: string) {
@@ -450,7 +480,7 @@ export default function App() {
         porte un rang. Valide-les un par un pour faire monter ton rang global.
       </p>
       <div style={{ display: 'flex', gap: 9, justifyContent: 'center', flexWrap: 'wrap' }}>
-        <button className="btn btn-primary" onClick={() => setEditing({ goal: null })}>
+        <button className="btn btn-primary" onClick={() => setPicking(true)}>
           Créer mon premier objectif
         </button>
         <button className="btn" onClick={loadDemo}>
@@ -555,7 +585,7 @@ export default function App() {
                 </button>
               )}
             </div>
-            <button className="btn btn-primary btn-sm" onClick={() => setEditing({ goal: null })}>
+            <button className="btn btn-primary btn-sm" onClick={() => setPicking(true)}>
               + Objectif
             </button>
           </div>
@@ -679,8 +709,40 @@ export default function App() {
         )}
       </main>
 
+      {picking && (
+        <GoalPicker
+          onCancel={() => setPicking(false)}
+          onScratch={() => {
+            setPicking(false);
+            setSeedActions(null);
+            setEditing({ goal: null, seed: null });
+          }}
+          onPick={(template: GoalTemplate) => {
+            setPicking(false);
+            setSeedActions(template.actions);
+            setEditing({
+              goal: null,
+              seed: {
+                title: template.title,
+                description: template.description,
+                emoji: template.emoji,
+                tiers: template.tiers,
+              },
+            });
+          }}
+        />
+      )}
+
       {editing && (
-        <GoalEditor goal={editing.goal} onCancel={() => setEditing(null)} onSave={saveGoal} />
+        <GoalEditor
+          goal={editing.goal}
+          seed={editing.seed}
+          onCancel={() => {
+            setEditing(null);
+            setSeedActions(null);
+          }}
+          onSave={saveGoal}
+        />
       )}
 
       {celebrations.length > 0 && (

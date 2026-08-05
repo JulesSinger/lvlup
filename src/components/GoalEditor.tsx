@@ -1,12 +1,34 @@
 import { useEffect, useState } from 'react';
-import { suggestRanks, type RankId } from '../lib/ranks';
+import { getRank, suggestRanks } from '../lib/ranks';
 import type { Goal, GoalInput, TierInput } from '../lib/types';
-import { RankSelect } from './RankBadge';
+import { RankBadge } from './RankBadge';
 
-const EMOJIS = ['🎯', '🏃', '📚', '📵', '💪', '🎸', '🧘', '💰', '🍳', '🌱', '🧠', '✈️'];
+const EMOJIS = [
+  // sport & corps
+  '🎯', '🏃', '🏅', '💪', '🚶', '🤸', '🏊', '🚲', '⚽', '🧗', '⚖️',
+  // santé & alimentation
+  '🥗', '💧', '😴', '🍳', '🍎', '🚭', '🥤', '🍫',
+  // esprit
+  '🧘', '📓', '🙏', '🧠', '🌱',
+  // argent
+  '💰', '📊', '🧾', '📈',
+  // apprendre & créer
+  '📚', '🗣️', '🎸', '💻', '✍️', '📷', '🎨', '🚀',
+  // vie
+  '🏠', '🧹', '👥', '📞', '💼', '✈️', '📱', '🐾',
+];
+
+/** Amorce d'un objectif venu d'un modèle, ou vide pour partir de zéro. */
+export interface GoalSeed {
+  title: string;
+  description: string;
+  emoji: string;
+  tiers: string[];
+}
 
 interface Props {
   goal: Goal | null;
+  seed?: GoalSeed | null;
   onCancel: () => void;
   onSave: (input: GoalInput, tiers: TierInput[]) => Promise<void>;
 }
@@ -14,22 +36,22 @@ interface Props {
 interface DraftTier {
   key: number;
   title: string;
-  rank: RankId;
 }
 
 let nextKey = 1;
 
-function emptyDrafts(count: number): DraftTier[] {
-  const ranks = suggestRanks(count);
-  return ranks.map((rank) => ({ key: nextKey++, title: '', rank }));
+function draftsFrom(titles: string[]): DraftTier[] {
+  return titles.map((title) => ({ key: nextKey++, title }));
 }
 
-export function GoalEditor({ goal, onCancel, onSave }: Props) {
+export function GoalEditor({ goal, seed, onCancel, onSave }: Props) {
   const isEdit = goal !== null;
-  const [title, setTitle] = useState(goal?.title ?? '');
-  const [description, setDescription] = useState(goal?.description ?? '');
-  const [emoji, setEmoji] = useState(goal?.emoji ?? '🎯');
-  const [drafts, setDrafts] = useState<DraftTier[]>(() => (isEdit ? [] : emptyDrafts(5)));
+  const [title, setTitle] = useState(goal?.title ?? seed?.title ?? '');
+  const [description, setDescription] = useState(goal?.description ?? seed?.description ?? '');
+  const [emoji, setEmoji] = useState(goal?.emoji ?? seed?.emoji ?? '🎯');
+  const [drafts, setDrafts] = useState<DraftTier[]>(() =>
+    isEdit ? [] : draftsFrom(seed?.tiers ?? ['', '', '']),
+  );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -41,17 +63,19 @@ export function GoalEditor({ goal, onCancel, onSave }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
 
+  // Les rangs ne sont plus choisis un par un : ils se répartissent tout seuls
+  // sur l'échelle selon le nombre d'étapes. Le premier test utilisateur a
+  // montré qu'afficher les dix rangs à la création donne l'impression qu'il
+  // faut tous les remplir — et décourage avant même de commencer.
+  const filled = drafts.filter((d) => d.title.trim().length > 0);
+  const ranks = suggestRanks(Math.max(filled.length, 1));
+
   function setDraft(key: number, patch: Partial<DraftTier>) {
     setDrafts((list) => list.map((d) => (d.key === key ? { ...d, ...patch } : d)));
   }
 
   function addDraft() {
-    setDrafts((list) => {
-      // On ne renumérote pas les rangs déjà choisis : le nouveau palier reprend
-      // simplement la suggestion correspondant à sa position.
-      const suggestion = suggestRanks(list.length + 1)[list.length];
-      return [...list, { key: nextKey++, title: '', rank: suggestion }];
-    });
+    setDrafts((list) => [...list, { key: nextKey++, title: '' }]);
   }
 
   function removeDraft(key: number) {
@@ -65,14 +89,13 @@ export function GoalEditor({ goal, onCancel, onSave }: Props) {
       setError('Donne un titre à ton objectif.');
       return;
     }
-    const tiers: TierInput[] = drafts
-      .map((d) => ({ title: d.title.trim(), rank: d.rank }))
-      .filter((t) => t.title.length > 0);
-
-    if (!isEdit && tiers.length === 0) {
-      setError('Ajoute au moins un palier — c’est le cœur du suivi.');
+    const kept = drafts.map((d) => d.title.trim()).filter((t) => t.length > 0);
+    if (!isEdit && kept.length === 0) {
+      setError('Ajoute au moins une étape — c’est le cœur du suivi.');
       return;
     }
+    const finalRanks = suggestRanks(kept.length);
+    const tiers: TierInput[] = kept.map((t, i) => ({ title: t, rank: finalRanks[i] }));
 
     setSaving(true);
     setError('');
@@ -82,6 +105,12 @@ export function GoalEditor({ goal, onCancel, onSave }: Props) {
       setError(err instanceof Error ? err.message : 'Enregistrement impossible.');
       setSaving(false);
     }
+  }
+
+  /** Rang qui sera attribué à la nième étape non vide (pour l'aperçu). */
+  function rankForIndex(index: number) {
+    const position = drafts.slice(0, index).filter((d) => d.title.trim().length > 0).length;
+    return getRank(ranks[Math.min(position, ranks.length - 1)]);
   }
 
   return (
@@ -147,10 +176,10 @@ export function GoalEditor({ goal, onCancel, onSave }: Props) {
 
           {!isEdit && (
             <div className="field">
-              <label>Paliers</label>
+              <label>Les étapes</label>
               <p className="field-hint" style={{ marginTop: 0, marginBottom: 10 }}>
-                Du plus accessible au plus ambitieux. Les rangs sont pré-remplis pour couvrir
-                l'échelle, mais tu choisis librement celui de chaque palier.
+                De la plus accessible à la plus ambitieuse. Mets-en autant que tu veux : deux
+                suffisent, et les rangs se répartissent tout seuls.
               </p>
               {drafts.map((draft, index) => (
                 <div className="draft-tier" key={draft.key}>
@@ -159,28 +188,30 @@ export function GoalEditor({ goal, onCancel, onSave }: Props) {
                     value={draft.title}
                     onChange={(e) => setDraft(draft.key, { title: e.target.value })}
                     placeholder={
-                      ['Courir 10 km', 'Courir 15 km', 'Semi-marathon', 'Courir 30 km', 'Marathon'][
-                        index
-                      ] ?? 'Prochain palier…'
+                      ['Courir 10 km', 'Semi-marathon', 'Marathon'][index] ?? 'Étape suivante…'
                     }
                   />
-                  <RankSelect value={draft.rank} onChange={(rank) => setDraft(draft.key, { rank })} />
+                  {draft.title.trim() ? (
+                    <RankBadge rank={rankForIndex(index)} />
+                  ) : (
+                    <span className="draft-rank-empty">—</span>
+                  )}
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
                     onClick={() => removeDraft(draft.key)}
-                    aria-label={`Supprimer le palier ${index + 1}`}
+                    aria-label={`Supprimer l'étape ${index + 1}`}
                   >
                     ✕
                   </button>
                 </div>
               ))}
               <button type="button" className="btn btn-sm" onClick={addDraft}>
-                + Ajouter un palier
+                + Ajouter une étape
               </button>
               <p className="field-hint">
-                Les paliers laissés vides sont ignorés. Tu pourras en ajouter ou en retirer à tout
-                moment.
+                Les étapes vides sont ignorées. Tu pourras ajuster les rangs plus tard, en
+                dépliant l'objectif.
               </p>
             </div>
           )}

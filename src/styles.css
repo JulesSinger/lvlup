@@ -2269,6 +2269,243 @@ textarea {
   margin-top: 16px;
 }
 
+/* ---------------------------------------------------- mot de passe visible */
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  padding-right: 44px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 15px;
+  line-height: 1;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  opacity: 0.7;
+}
+
+.password-toggle:hover {
+  opacity: 1;
+  background: var(--surface-2);
+}
+
+/* ------------------------------------------- bibliothèque d'objectifs */
+.modal-wide {
+  width: min(760px, 100%);
+}
+
+.picker-intro {
+  color: var(--text-dim);
+  font-size: 13.5px;
+  margin: 0 0 14px;
+}
+
+.picker-desc {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin: 0 0 16px;
+}
+
+.picker-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.picker-tab {
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 6px 13px;
+  font-size: 13px;
+}
+
+.picker-tab:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.picker-tab.active {
+  border-color: var(--accent);
+  background: rgba(242, 193, 78, 0.12);
+  color: var(--text);
+}
+
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.picker-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 14px 15px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(170deg, var(--surface), var(--bg-2));
+  color: var(--text);
+  transition: 0.15s;
+}
+
+.picker-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.picker-emoji {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.picker-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.picker-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.picker-meta {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+.picker-foot {
+  justify-content: space-between;
+}
+
+.picker-scratch-hint {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.preview-tiers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.preview-tiers li {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.preview-tiers li:last-child {
+  border-bottom: none;
+}
+
+.preview-index {
+  width: 21px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+}
+
+.preview-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.preview-action {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-2);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.preview-action b {
+  color: var(--accent);
+  font-size: 11.5px;
+}
+
+.draft-rank-empty {
+  width: 74px;
+  flex-shrink: 0;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+/* --------------------------------------------- cérémonie « plan tracé » */
+.ceremony-ladder {
+  list-style: none;
+  margin: 6px 0 4px;
+  padding: 0;
+  width: min(380px, 100%);
+  text-align: left;
+}
+
+.ceremony-step-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  opacity: 0;
+  animation: rise-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.ceremony-step-row:last-child {
+  border-bottom: none;
+}
+
+.ceremony-step-crest {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  clip-path: polygon(50% 0%, 100% 22%, 100% 68%, 50% 100%, 0% 68%, 0% 22%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+.ceremony-step-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+.ceremony-step-rank {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.ceremony.still .ceremony-step-row {
+  animation: none;
+  opacity: 1;
+}
+
 /* ------------------------------------------------------------ onboarding */
 .onboarding {
   min-height: 100vh;

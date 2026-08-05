@@ -52,16 +52,58 @@ export function rankByValue(value: number): Rank {
 }
 
 /**
- * Rangs proposés par défaut à la création d'un objectif de `count` paliers.
- * L'utilisateur reste libre de les changer un par un.
+ * Rangs proposés par défaut selon le nombre d'étapes.
+ *
+ * Une simple répartition linéaire donnait des échelles incohérentes : trois
+ * étapes produisaient Bronze / Émeraude / Challenger, ce qui n'a aucun sens —
+ * on n'atteint pas le sommet du classement en trois pas.
+ *
+ * Le principe retenu est explicite plutôt que calculé :
+ *  · la première étape reste toujours accessible (Bronze, ou Fer sur les
+ *    très longues échelles) ;
+ *  · le sommet monte avec l'ambition — une échelle courte plafonne à Or,
+ *    Challenger se mérite à partir de quatre étapes ;
+ *  · les rangs intermédiaires se remplissent du bas vers le haut.
+ *
+ * Chaque rang reste modifiable individuellement une fois l'objectif créé.
+ */
+const RANK_LADDERS: RankId[][] = [
+  [], // 0 étape
+  ['or'],
+  ['bronze', 'or'],
+  ['bronze', 'argent', 'or'],
+  ['bronze', 'argent', 'or', 'challenger'],
+  ['bronze', 'argent', 'or', 'diamant', 'challenger'],
+  ['bronze', 'argent', 'or', 'platine', 'diamant', 'challenger'],
+  ['bronze', 'argent', 'or', 'platine', 'emeraude', 'diamant', 'challenger'],
+  ['fer', 'bronze', 'argent', 'or', 'platine', 'emeraude', 'diamant', 'challenger'],
+  ['fer', 'bronze', 'argent', 'or', 'platine', 'emeraude', 'diamant', 'maitre', 'challenger'],
+  [
+    'fer',
+    'bronze',
+    'argent',
+    'or',
+    'platine',
+    'emeraude',
+    'diamant',
+    'maitre',
+    'grand-maitre',
+    'challenger',
+  ],
+];
+
+/**
+ * Rangs proposés par défaut à la création d'un objectif de `count` étapes.
+ * L'utilisateur reste libre de les changer un par un, plus tard.
  */
 export function suggestRanks(count: number): RankId[] {
   if (count <= 0) return [];
-  if (count === 1) return ['or'];
-  const first = 2; // Bronze
-  const last = RANKS.length; // Challenger
+  if (count < RANK_LADDERS.length) return [...RANK_LADDERS[count]];
+
+  // Au-delà de dix étapes, on étale l'échelle complète en répétant les rangs
+  // intermédiaires — la suite reste croissante, du plus bas au plus haut.
   return Array.from({ length: count }, (_, i) => {
-    const value = first + ((last - first) * i) / (count - 1);
-    return rankByValue(value).id;
+    const index = Math.round((i * (RANKS.length - 1)) / (count - 1));
+    return RANKS[index].id;
   });
 }
