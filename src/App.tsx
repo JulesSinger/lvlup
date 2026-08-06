@@ -6,11 +6,24 @@ import { GoalPicker } from './components/GoalPicker';
 import { Hub } from './components/Hub';
 import { Landing } from './components/Landing';
 import { Onboarding } from './components/Onboarding';
+import { PasswordRecovery } from './components/PasswordRecovery';
+import { SettingsPanel } from './components/SettingsPanel';
 import { Timeline } from './components/Timeline';
 import { Trophies } from './components/Trophies';
 import { ActionEditor } from './components/ActionEditor';
 import { store } from './data';
+import {
+  applyPending,
+  isNetworkError,
+  listPending,
+  onPendingChange,
+  queueAdd,
+  queueDelete,
+  PENDING_PREFIX,
+} from './data/outbox';
+import { flushOutbox } from './data/sync';
 import { DAILY_GOAL_LEVELS, DEFAULT_SETTINGS, type Settings, type UnlockedAchievement } from './data/store';
+import { timezoneOffsetMinutes } from './lib/push';
 import { newlyUnlocked, unlockedAchievements } from './lib/achievements';
 import { DEMO_GOALS } from './lib/demo';
 import { goalProgress, ppForRank, profileRank, todayPP } from './lib/progress';
@@ -64,6 +77,11 @@ export default function App() {
   const [seedActions, setSeedActions] = useState<ActionInput[] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
+  const [showSettings, setShowSettings] = useState(false);
+  /** Nombre de coches encore dans la file d'attente hors ligne. */
+  const [pendingCount, setPendingCount] = useState(() => listPending().length);
+  /** L'utilisateur arrive par un lien « mot de passe oublié ». */
+  const [recovering, setRecovering] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(() => {
     try {
       return localStorage.getItem(ONBOARDING_KEY) === '1';
@@ -118,7 +136,10 @@ export default function App() {
         nextAchievements = [...stored, ...fresh.map((id) => ({ id, unlockedAt: now }))];
       }
       setGoals(nextGoals);
-      setCheckins(nextCheckins);
+      // Les coches encore en file d'attente sont réappliquées par-dessus les
+      // données du serveur : un rafraîchissement ne doit jamais faire
+      // disparaître une action que l'utilisateur a bel et bien faite.
+      setCheckins(applyPending(nextCheckins));
       setActions(nextActions);
       setAchievements(nextAchievements);
       setSettings(nextSettings);
@@ -137,6 +158,14 @@ export default function App() {
     }
   }, []);
 
+  // --- File d'attente hors ligne ---------------------------------------
+  /** Vide ce qui attend d'être envoyé, puis resynchronise l'affichage. */
+  const sync = useCallback(async () => {
+    const result = await flushOutbox();
+    if (result.dropped.length > 0) setError(result.dropped[0]);
+    await refresh();
+  }, [refresh]);
+
   useEffect(() => {
     if (!user) {
       setGoals([]);
@@ -147,18 +176,44 @@ export default function App() {
       return;
     }
     setLoading(true);
-    void refresh();
-  }, [user, refresh]);
+    // `sync` plutôt que `refresh` : si une coche attend depuis la dernière
+    // session hors ligne, elle part avant qu'on affiche quoi que ce soit.
+    void sync();
+  }, [user, sync]);
 
   // Retour au premier plan (multi-appareils) : les données ont pu changer sur
-  // un autre appareil pendant que celui-ci dormait — on resynchronise.
+  // un autre appareil pendant que celui-ci dormait — on resynchronise, après
+  // avoir vidé ce qui attendait dans la file.
   useEffect(() => {
     function onVisible() {
-      if (document.visibilityState === 'visible' && user) void refresh();
+      if (document.visibilityState === 'visible' && user) void sync();
     }
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [user, refresh]);
+  }, [user, sync]);
+
+  useEffect(() => onPendingChange((ops) => setPendingCount(ops.length)), []);
+
+  useEffect(() => {
+    if (!user || user.isLocal) return;
+    // Au démarrage et dès que le réseau revient : on rattrape le retard.
+    const onOnline = () => void sync();
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [user, sync]);
+
+  // Le fuseau est réécrit à chaque ouverture : c'est ce qui garde le rappel à
+  // la bonne heure après un changement d'heure ou un déplacement.
+  useEffect(() => {
+    if (!user || user.isLocal || !settings.reminderEnabled) return;
+    const offset = timezoneOffsetMinutes();
+    if (offset === settings.tzOffset) return;
+    void store.updateSettings({ tzOffset: offset }).catch(() => {});
+    setSettings((s) => ({ ...s, tzOffset: offset }));
+  }, [user, settings.reminderEnabled, settings.tzOffset]);
+
+  // Lien « mot de passe oublié » : on intercepte avant tout le reste.
+  useEffect(() => store.onPasswordRecovery(() => setRecovering(true)), []);
 
   // Badge sur l'icône installée (PWA) : un point tant que le check-in du jour
   // n'est pas fait. Silencieusement ignoré là où l'API n'existe pas.
@@ -296,12 +351,51 @@ export default function App() {
     queue.push(...dayCelebrations(before, after, streakAfter));
     if (queue.length > 0) setCelebrations(queue);
 
-    void run(() => store.addCheckin(goal.id, day, action.id, action.pp));
+    void (async () => {
+      try {
+        await store.addCheckin(goal.id, day, action.id, action.pp);
+        await refresh();
+      } catch (err) {
+        if (isNetworkError(err)) {
+          // Hors ligne : la coche est rangée dans la file et reste affichée.
+          // Elle partira toute seule au retour du réseau.
+          const pendingId = queueAdd({
+            goalId: goal.id,
+            actionId: action.id,
+            day,
+            pp: action.pp,
+          });
+          setCheckins((prev) =>
+            prev.map((c) => (c.id === optimistic.id ? { ...c, id: pendingId } : c)),
+          );
+          return;
+        }
+        setError(err instanceof Error ? err.message : 'Opération impossible.');
+        await refresh();
+      }
+    })();
   }
 
   function unlogAction(checkin: Checkin) {
     setCheckins((prev) => prev.filter((c) => c.id !== checkin.id));
-    void run(() => store.deleteCheckin(checkin.id));
+    if (checkin.id.startsWith(PENDING_PREFIX)) {
+      // Cochée puis décochée hors ligne : les deux opérations s'annulent.
+      queueDelete(checkin.id);
+      return;
+    }
+    void (async () => {
+      try {
+        await store.deleteCheckin(checkin.id);
+        await refresh();
+      } catch (err) {
+        if (isNetworkError(err)) {
+          queueDelete(checkin.id);
+          return;
+        }
+        setError(err instanceof Error ? err.message : 'Opération impossible.');
+        await refresh();
+      }
+    })();
   }
 
   function saveCheckinNote(checkin: Checkin, note: string) {
@@ -449,6 +543,11 @@ export default function App() {
   }
 
   // --- Rendu ------------------------------------------------------------
+  // Le lien de récupération passe avant tout : tant qu'un nouveau mot de passe
+  // n'est pas choisi, la session ne servira qu'une fois.
+  if (recovering) {
+    return <PasswordRecovery onDone={() => setRecovering(false)} />;
+  }
   if (store.isRemote && !authReady) {
     return <div className="auth-screen">Chargement…</div>;
   }
@@ -585,11 +684,29 @@ export default function App() {
                 </button>
               )}
             </div>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setShowSettings(true)}
+              title="Réglages"
+              aria-label="Réglages"
+            >
+              ⚙
+            </button>
             <button className="btn btn-primary btn-sm" onClick={() => setPicking(true)}>
               + Objectif
             </button>
           </div>
         </header>
+
+        {pendingCount > 0 && (
+          <div className="notice info" role="status">
+            <strong>
+              {pendingCount} action{pendingCount > 1 ? 's' : ''} en attente d'envoi.
+            </strong>{' '}
+            Elles sont enregistrées sur cet appareil et partiront dès le retour du réseau — rien
+            n'est perdu.
+          </div>
+        )}
 
         {user?.isLocal && (
           <div className="notice info">
@@ -742,6 +859,22 @@ export default function App() {
             setSeedActions(null);
           }}
           onSave={saveGoal}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsPanel
+          user={user}
+          settings={settings}
+          onChange={(patch) => {
+            setSettings((s) => ({ ...s, ...patch }));
+            void store.updateSettings(patch).catch((err) => {
+              setError(err instanceof Error ? err.message : 'Réglage non enregistré.');
+            });
+          }}
+          onExport={exportJson}
+          onImport={importJson}
+          onClose={() => setShowSettings(false)}
         />
       )}
 

@@ -609,8 +609,47 @@ check('Rendu mobile sans débordement horizontal', await mobile.evaluate(
   () => document.documentElement.scrollWidth <= window.innerWidth + 1,
 ));
 
-// Mot de passe visible : l'écran d'auth n'apparaît qu'en mode Supabase, on le
-// vérifie donc sur un build de démonstration servi séparément si disponible.
+// --- Réglages ---------------------------------------------------------
+await page.getByRole('button', { name: 'Réglages' }).click();
+await page.waitForSelector('.settings-block');
+check('Le panneau de réglages s’ouvre', await page.locator('.settings-block').first().isVisible());
+check(
+  'Les quatre rythmes quotidiens sont proposés',
+  (await page.locator('.goal-level').count()) === 4,
+  String(await page.locator('.goal-level').count()),
+);
+{
+  // Changer de rythme doit être immédiat : c'est un réglage, pas un formulaire.
+  const before = await page.locator('.goal-level.active b').textContent();
+  await page.locator('.goal-level').last().click();
+  await page.waitForTimeout(200);
+  const after = await page.locator('.goal-level.active b').textContent();
+  check('Le rythme choisi est appliqué tout de suite', before !== after, `${before} → ${after}`);
+}
+check(
+  'Pas de réglage de rappel en mode local (il demande un compte)',
+  (await page.locator('.switch').count()) === 0,
+);
+await page.locator('.modal-foot').getByRole('button', { name: 'Fermer' }).click();
+await page.waitForTimeout(250);
+check('Le panneau se referme', (await page.locator('.settings-block').count()) === 0);
+
+// --- Service worker : les rappels reposent sur ces gestionnaires ---------
+{
+  const sw = await (await fetch(`${BASE}/sw.js`)).text();
+  check(
+    "Le service worker écoute l'arrivée d'une notification",
+    sw.includes("addEventListener('push'"),
+  );
+  check(
+    'Un clic sur la notification ramène vers l’app',
+    sw.includes("addEventListener('notificationclick'"),
+  );
+  check('Une notification est toujours affichée (exigence iOS)', sw.includes('showNotification'));
+}
+
+// Écran d'authentification : il n'apparaît qu'en mode Supabase, on le vérifie
+// donc sur un build de démonstration servi séparément si disponible.
 if (process.env.AUTH_BASE) {
   const authPage = await context.newPage();
   await authPage.goto(process.env.AUTH_BASE);
@@ -626,6 +665,22 @@ if (process.env.AUTH_BASE) {
     (await authPage.locator('#password').getAttribute('type')) === 'text',
     await authPage.locator('#password').getAttribute('type'),
   );
+
+  // Mot de passe oublié : accessible depuis la connexion, demande l'adresse
+  // seule, et sait revenir en arrière.
+  await authPage.getByRole('button', { name: 'Mot de passe oublié ?' }).click();
+  await authPage.waitForTimeout(200);
+  check(
+    'Le mot de passe oublié masque le champ mot de passe',
+    (await authPage.locator('#password').count()) === 0,
+  );
+  check(
+    'Le bouton d’envoi du lien est proposé',
+    await authPage.getByRole('button', { name: 'Envoyer le lien' }).isVisible(),
+  );
+  await authPage.getByRole('button', { name: 'Revenir à la connexion' }).click();
+  await authPage.waitForTimeout(200);
+  check('On peut revenir à la connexion', (await authPage.locator('#password').count()) === 1);
   await authPage.close();
 }
 

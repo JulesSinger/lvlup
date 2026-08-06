@@ -93,6 +93,30 @@ export class LocalStore implements Store {
   async signIn() {}
   async signOut() {}
 
+  // Sans compte, il n'y a pas de mot de passe à réinitialiser ni de serveur
+  // pour envoyer des notifications : ces méthodes existent pour respecter le
+  // contrat et disent clairement pourquoi elles ne font rien.
+  async resetPassword() {
+    throw new Error("Le mode local n'a pas de compte : rien à réinitialiser.");
+  }
+  async updatePassword() {
+    throw new Error("Le mode local n'a pas de mot de passe.");
+  }
+  onPasswordRecovery() {
+    return () => {};
+  }
+
+  async listPushDevices() {
+    return [];
+  }
+  async savePushDevice() {
+    throw new Error('Les rappels demandent un compte : connecte-toi pour les activer.');
+  }
+  async removePushDevice() {}
+  async sendTestPush(): Promise<{ sent: number; devices: number }> {
+    throw new Error('Les rappels demandent un compte.');
+  }
+
   async listGoals(): Promise<Goal[]> {
     const { goals } = read();
     return goals

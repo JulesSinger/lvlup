@@ -1,13 +1,13 @@
 /**
- * Service worker Zénith — offline de base.
+ * Service worker Zénith — offline de base + rappels push.
  *
- * Stratégie :
+ * Stratégie de cache :
  * - assets fingerprintés (/assets/…) : cache-first, ils sont immuables ;
  * - navigations : réseau d'abord, dernière version en cache en secours
  *   (l'app s'ouvre dans le métro, les données locales font le reste) ;
  * - tout le reste (Supabase, etc.) : jamais intercepté.
  */
-const CACHE = 'zenith-v1';
+const CACHE = 'zenith-v2';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -59,4 +59,58 @@ self.addEventListener('fetch', (event) => {
       })(),
     );
   }
+});
+
+/* =====================================================================
+ * Rappels push
+ *
+ * iOS n'affiche une notification que si le service worker en montre une
+ * pour CHAQUE message reçu — pas de push silencieux toléré. On garde donc
+ * un texte de repli si la charge utile est vide ou illisible.
+ * ===================================================================== */
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data ? event.data.text() : '' };
+  }
+
+  const title = payload.title || 'Zénith';
+  const options = {
+    body: payload.body || "Une action aujourd'hui, et la série continue.",
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    // Un même tag remplace la notification précédente au lieu d'empiler.
+    tag: payload.tag || 'zenith',
+    renotify: true,
+    data: { url: payload.url || '/' },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || '/', self.location.origin).href;
+
+  event.waitUntil(
+    (async () => {
+      const clientList = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      });
+      // Si l'app est déjà ouverte quelque part, on la ramène au premier plan
+      // plutôt que d'ouvrir un deuxième onglet.
+      for (const client of clientList) {
+        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+          await client.focus();
+          if ('navigate' in client && client.url !== target) await client.navigate(target);
+          return;
+        }
+      }
+      await self.clients.openWindow(target);
+    })(),
+  );
 });

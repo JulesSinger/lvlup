@@ -14,6 +14,8 @@ import { DEFAULT_ACTIONS } from '../lib/types';
 import {
   DEFAULT_SETTINGS,
   type Backup,
+  type PushDevice,
+  type PushDeviceInput,
   type Settings,
   type Store,
   type UnlockedAchievement,
@@ -176,6 +178,27 @@ export class SupabaseStore implements Store {
 
   async signOut() {
     await this.client.auth.signOut();
+  }
+
+  async resetPassword(email: string) {
+    // Supabase renvoie l'utilisateur sur l'app avec un jeton de récupération ;
+    // `onPasswordRecovery` prend alors le relais côté interface.
+    const { error } = await this.client.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/`,
+    });
+    if (error) throw new Error(error.message);
+  }
+
+  async updatePassword(password: string) {
+    const { error } = await this.client.auth.updateUser({ password });
+    if (error) throw new Error(error.message);
+  }
+
+  onPasswordRecovery(callback: () => void) {
+    const { data } = this.client.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') callback();
+    });
+    return () => data.subscription.unsubscribe();
   }
 
   async listGoals(): Promise<Goal[]> {
@@ -407,22 +430,83 @@ export class SupabaseStore implements Store {
     const userId = await this.requireUserId();
     const { data, error } = await this.client
       .from('profiles')
-      .select('daily_goal')
+      .select('daily_goal, reminder_enabled, reminder_time, tz_offset')
       .eq('user_id', userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) return { ...DEFAULT_SETTINGS };
-    return { dailyGoal: data.daily_goal ?? DEFAULT_SETTINGS.dailyGoal };
+    return {
+      dailyGoal: data.daily_goal ?? DEFAULT_SETTINGS.dailyGoal,
+      reminderEnabled: data.reminder_enabled ?? DEFAULT_SETTINGS.reminderEnabled,
+      reminderTime: data.reminder_time ?? DEFAULT_SETTINGS.reminderTime,
+      tzOffset: data.tz_offset ?? DEFAULT_SETTINGS.tzOffset,
+    };
   }
 
   async updateSettings(patch: Partial<Settings>) {
     const userId = await this.requireUserId();
     const row: Record<string, unknown> = { user_id: userId };
     if (patch.dailyGoal !== undefined) row.daily_goal = patch.dailyGoal;
+    if (patch.reminderEnabled !== undefined) row.reminder_enabled = patch.reminderEnabled;
+    if (patch.reminderTime !== undefined) row.reminder_time = patch.reminderTime;
+    if (patch.tzOffset !== undefined) row.tz_offset = patch.tzOffset;
     const { error } = await this.client
       .from('profiles')
       .upsert(row, { onConflict: 'user_id' });
     if (error) throw new Error(error.message);
+  }
+
+  async listPushDevices(): Promise<PushDevice[]> {
+    const rows = unwrap(
+      await this.client
+        .from('push_subscriptions')
+        .select('id, endpoint, label, created_at')
+        .order('created_at', { ascending: true }),
+    ) as { id: string; endpoint: string; label: string; created_at: string }[];
+    return rows.map((r) => ({
+      id: r.id,
+      endpoint: r.endpoint,
+      label: r.label || 'Appareil',
+      createdAt: r.created_at,
+    }));
+  }
+
+  async savePushDevice(input: PushDeviceInput) {
+    const userId = await this.requireUserId();
+    // `endpoint` est unique : ré-abonner le même appareil met à jour ses clés
+    // au lieu de créer un doublon qui recevrait la notification deux fois.
+    const { error } = await this.client.from('push_subscriptions').upsert(
+      {
+        user_id: userId,
+        endpoint: input.endpoint,
+        p256dh: input.p256dh,
+        auth: input.auth,
+        label: input.label,
+        failures: 0,
+      },
+      { onConflict: 'endpoint' },
+    );
+    if (error) throw new Error(error.message);
+  }
+
+  async removePushDevice(endpoint: string) {
+    const { error } = await this.client
+      .from('push_subscriptions')
+      .delete()
+      .eq('endpoint', endpoint);
+    if (error) throw new Error(error.message);
+  }
+
+  async sendTestPush(): Promise<{ sent: number; devices: number }> {
+    const { data, error } = await this.client.functions.invoke('send-reminders', {
+      body: { test: true },
+    });
+    if (error) {
+      throw new Error(
+        "L'envoi de test a échoué. Vérifie que la fonction « send-reminders » est déployée.",
+      );
+    }
+    return { sent: data?.sent ?? 0, devices: data?.devices ?? 0 };
   }
 
   async exportAll(): Promise<Backup> {

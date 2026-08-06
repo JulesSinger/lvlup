@@ -188,7 +188,10 @@ export function Hub({
                           </span>
                         )}
                         <span className="checkin-title">{action.title}</span>
-                        {log && !log.id.startsWith('optimiste-') && (
+                        {/* Une coche qui n'existe pas encore côté serveur
+                            (envoi en cours, ou en attente de réseau) n'a pas
+                            d'identifiant sur lequel accrocher une note. */}
+                        {log && !log.id.startsWith('optimiste-') && !log.id.startsWith('attente-') && (
                           <span
                             className="checkin-note-btn"
                             role="button"

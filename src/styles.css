@@ -3216,3 +3216,191 @@ textarea {
     width: 116px;
   }
 }
+
+/* ======================================================================
+ * Réglages — panneau, rappel quotidien
+ * ==================================================================== */
+.settings-block {
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+
+.settings-block:first-child {
+  border-top: none;
+  padding-top: 2px;
+}
+
+.settings-title {
+  font-family: 'Cinzel', 'Inter', serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin: 0 0 5px;
+}
+
+.settings-hint {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0 0 12px;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-ok {
+  color: var(--rank-emeraude, #5be08d);
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+
+.settings-problem {
+  color: #ff8f7f;
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+
+/* --- niveaux d'objectif quotidien, en cartes plutôt qu'en menu ------- */
+.goal-levels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 8px;
+}
+
+.goal-level {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  border-radius: 12px;
+  color: var(--text-dim);
+}
+
+.goal-level b {
+  color: var(--text);
+  font-size: 13.5px;
+}
+
+.goal-level span {
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.goal-level i {
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.goal-level.active {
+  border-color: var(--accent);
+  background: rgba(242, 193, 78, 0.1);
+  color: var(--text);
+}
+
+/* --- interrupteur du rappel ------------------------------------------ */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.switch input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.settings-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
+.settings-time input {
+  /* 16px minimum : en dessous, iOS zoome sur le champ à la sélection. */
+  font-size: 16px;
+  padding: 7px 10px;
+  width: auto;
+}
+
+.install-guide {
+  line-height: 1.55;
+}
+
+.install-steps {
+  margin: 10px 0 6px;
+  padding-left: 20px;
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+}
+
+.install-note {
+  display: block;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.device-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.device-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+
+.device-name {
+  font-size: 13px;
+}
+
+.settings-password {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.settings-password input {
+  flex: 1 1 200px;
+  font-size: 16px;
+}
+
+@media (max-width: 640px) {
+  .settings-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+}

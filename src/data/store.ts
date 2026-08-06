@@ -19,9 +19,39 @@ export interface UnlockedAchievement {
 export interface Settings {
   /** Cible de PP à atteindre chaque jour */
   dailyGoal: number;
+  /** Rappel quotidien par notification */
+  reminderEnabled: boolean;
+  /** Heure locale du rappel, format « HH:MM » */
+  reminderTime: string;
+  /**
+   * Décalage entre UTC et l'heure locale, en minutes. Réécrit à chaque
+   * ouverture de l'app : c'est ce qui permet au serveur d'envoyer le rappel
+   * à la bonne heure même après un changement d'heure ou un déplacement.
+   */
+  tzOffset: number;
 }
 
-export const DEFAULT_SETTINGS: Settings = { dailyGoal: 40 };
+export const DEFAULT_SETTINGS: Settings = {
+  dailyGoal: 40,
+  reminderEnabled: false,
+  reminderTime: '20:00',
+  tzOffset: 0,
+};
+
+/** Un navigateur abonné aux notifications (iPhone, Mac, Android…). */
+export interface PushDevice {
+  id: string;
+  endpoint: string;
+  label: string;
+  createdAt: string;
+}
+
+export interface PushDeviceInput {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  label: string;
+}
 
 /** Niveaux d'objectif quotidien proposés (à la Duolingo). */
 export const DAILY_GOAL_LEVELS: { label: string; pp: number; hint: string }[] = [
@@ -58,6 +88,15 @@ export interface Store {
   signUp(email: string, password: string): Promise<{ needsConfirmation: boolean }>;
   signIn(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
+  /** Envoie le mail de réinitialisation de mot de passe. */
+  resetPassword(email: string): Promise<void>;
+  /** Définit un nouveau mot de passe pour la session en cours. */
+  updatePassword(password: string): Promise<void>;
+  /**
+   * Prévient quand l'utilisateur arrive par un lien de récupération : l'app
+   * doit alors lui faire choisir un nouveau mot de passe avant toute chose.
+   */
+  onPasswordRecovery(callback: () => void): () => void;
 
   // --- Objectifs ---
   listGoals(): Promise<Goal[]>;
@@ -97,6 +136,15 @@ export interface Store {
   // --- Réglages ---
   getSettings(): Promise<Settings>;
   updateSettings(patch: Partial<Settings>): Promise<void>;
+
+  // --- Rappels push ---
+  listPushDevices(): Promise<PushDevice[]>;
+  /** Enregistre (ou met à jour) l'abonnement de ce navigateur. */
+  savePushDevice(input: PushDeviceInput): Promise<void>;
+  /** Retire un abonnement, par endpoint. */
+  removePushDevice(endpoint: string): Promise<void>;
+  /** Déclenche un envoi immédiat vers les appareils de ce compte. */
+  sendTestPush(): Promise<{ sent: number; devices: number }>;
 
   // --- Sauvegarde ---
   exportAll(): Promise<Backup>;
