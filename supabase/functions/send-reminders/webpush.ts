@@ -107,6 +107,28 @@ async function importVapidKey(publicKey: string, privateKey: string): Promise<Cr
   );
 }
 
+/**
+ * Normalise le sujet VAPID.
+ *
+ * La spécification veut une URI `mailto:` ou `https:`, mais l'erreur humaine
+ * la plus fréquente est d'y mettre une adresse e-mail nue — ou de coller la
+ * valeur avec ses guillemets. Refuser sèchement dans ces cas-là ne rend
+ * service à personne : on répare ce qui est réparable sans ambiguïté, et on
+ * n'échoue que sur ce qui est vraiment inutilisable.
+ */
+export function normalizeVapidSubject(raw: string): string {
+  const cleaned = raw.trim().replace(/^["']|["']$/g, '').trim();
+  if (/^(mailto:|https:)/i.test(cleaned)) return cleaned;
+  // Une adresse e-mail nue : on lui remet son schéma.
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleaned)) return `mailto:${cleaned}`;
+  // Un domaine ou une URL sans schéma.
+  if (/^www\.|^[^\s/]+\.[a-z]{2,}(\/|$)/i.test(cleaned)) return `https://${cleaned}`;
+  throw new Error(
+    `VAPID_SUBJECT inutilisable (« ${cleaned.slice(0, 24)} ») : mets une adresse e-mail ` +
+      'ou une URL, par exemple mailto:toi@exemple.fr',
+  );
+}
+
 /** En-tête `Authorization: vapid t=…, k=…` pour un endpoint donné. */
 export async function vapidHeader(
   endpoint: string,
@@ -115,9 +137,7 @@ export async function vapidHeader(
   privateKey: string,
   now = Date.now(),
 ): Promise<string> {
-  if (!/^(mailto:|https:)/.test(subject)) {
-    throw new Error("VAPID_SUBJECT doit commencer par « mailto: » ou « https: ».");
-  }
+  const normalizedSubject = normalizeVapidSubject(subject);
   const audience = new URL(endpoint).origin;
   const header = b64urlEncode(utf8(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
   const payload = b64urlEncode(
@@ -126,7 +146,7 @@ export async function vapidHeader(
         aud: audience,
         // 12 h : bien en deçà des 24 h maximum tolérées par les services de push.
         exp: Math.floor(now / 1000) + 12 * 3600,
-        sub: subject,
+        sub: normalizedSubject,
       }),
     ),
   );

@@ -77,14 +77,20 @@ curl -s -X POST 'https://<PROJET>.supabase.co/functions/v1/send-reminders' \
 Réponse attendue :
 
 ```json
-{"ok":true,"version":"2026-08-06.2",
- "config":{"vapidPublic":true,"vapidPrivate":true,"vapidSubject":true,
-           "serviceKey":true,"supabaseUrl":true},
- "vapidPublicPrefix":"BEl62iU"}
+{"ok":true,"version":"2026-08-06.3",
+ "config":{"vapidPublic":"ok","vapidPrivate":"ok","vapidSubject":"ok",
+           "serviceKey":"ok","supabaseUrl":"ok"},
+ "vapidSubject":"mailto:toi@exemple.fr",
+ "vapidPublicPrefix":"BE6yqH7X"}
 ```
 
-Tout ce qui n'est pas ça est déjà une réponse : `404` = fonction absente, un `false` dans
-`config` = secret oublié, une erreur CORS = déploiement sans `--no-verify-jwt`.
+Chaque entrée de `config` vaut `"ok"` ou décrit précisément le problème : `"absent"`,
+`"32 octets au lieu de 65"`, `"base64url illisible"`, ou le message d'erreur du sujet. Le
+ping **valide le format**, il ne se contente pas de constater que la variable existe — une
+clé tronquée ou un sujet sans `mailto:` sont des pannes garanties qui passaient autrement
+pour « tout est vert ».
+
+`404` = fonction absente. Une erreur CORS = déploiement sans `--no-verify-jwt`.
 
 ## 4. La clé publique dans le build
 
@@ -151,6 +157,7 @@ reste utile pour les cas qu'il ne peut pas voir.
 |---|---|
 | « La fonction n'a pas répondu… déployée avec --no-verify-jwt » | Soit elle n'est pas déployée, soit elle l'a été sans l'option : la requête préliminaire du navigateur est rejetée avant d'atteindre le code. Le `curl` de ping tranche en trois secondes. |
 | « il lui manque VAPID_… » | Le secret n'a pas été posé, ou il l'a été **après** le déploiement : `supabase functions deploy send-reminders --no-verify-jwt` à relancer pour que la fonction les relise. |
+| « VAPID_SUBJECT inutilisable » | La valeur n'est ni une adresse e-mail ni une URL. Une adresse nue (`toi@exemple.fr`) et les guillemets collés par erreur sont désormais réparés tout seuls ; le reste doit être corrigé. |
 | « La clé publique du build ne correspond pas à celle du serveur » | `VITE_VAPID_PUBLIC_KEY` et `VAPID_PUBLIC_KEY` viennent de deux paires différentes. Réaligne, redéploie, puis **désactive et réactive** l'interrupteur pour réabonner l'appareil. |
 | Le bloc affiche « Une étape avant, sur iPhone » | L'app tourne dans Safari, pas depuis l'icône de l'écran d'accueil. |
 | « Clé de notification absente du build » | `VITE_VAPID_PUBLIC_KEY` n'est pas dans les variables de **build** Cloudflare, ou le déploiement date d'avant son ajout. |

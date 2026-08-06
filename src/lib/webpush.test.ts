@@ -6,6 +6,7 @@ import {
   encryptPayload,
   hkdfExpand,
   hkdfExtract,
+  normalizeVapidSubject,
   vapidHeader,
 } from '../../supabase/functions/send-reminders/webpush.ts';
 
@@ -92,6 +93,29 @@ async function makeVapidKeys() {
   return { publicKey: b64urlEncode(raw), privateKey: jwk.d as string, verifyKey: pair.publicKey };
 }
 
+describe('normalizeVapidSubject', () => {
+  it('laisse intacte une valeur déjà correcte', () => {
+    expect(normalizeVapidSubject('mailto:jules@exemple.fr')).toBe('mailto:jules@exemple.fr');
+    expect(normalizeVapidSubject('https://zenith.app')).toBe('https://zenith.app');
+  });
+
+  it('répare les erreurs de saisie fréquentes', () => {
+    expect(normalizeVapidSubject('jules@exemple.fr')).toBe('mailto:jules@exemple.fr');
+    expect(normalizeVapidSubject('  mailto:jules@exemple.fr  ')).toBe('mailto:jules@exemple.fr');
+    // Valeur collée avec ses guillemets depuis l'interface de Supabase.
+    expect(normalizeVapidSubject('"mailto:jules@exemple.fr"')).toBe('mailto:jules@exemple.fr');
+    expect(normalizeVapidSubject("'jules@exemple.fr'")).toBe('mailto:jules@exemple.fr');
+    expect(normalizeVapidSubject('zenith.app')).toBe('https://zenith.app');
+    expect(normalizeVapidSubject('MAILTO:Jules@Exemple.fr')).toBe('MAILTO:Jules@Exemple.fr');
+  });
+
+  it('refuse ce qui n’est réparable en rien, en disant ce qu’il a reçu', () => {
+    expect(() => normalizeVapidSubject('')).toThrow(/inutilisable/);
+    expect(() => normalizeVapidSubject('jules')).toThrow(/inutilisable/);
+    expect(() => normalizeVapidSubject('coucou toi')).toThrow(/coucou toi/);
+  });
+});
+
 describe('VAPID', () => {
   it('produit un en-tête « vapid t=…, k=… » signé et vérifiable', async () => {
     const keys = await makeVapidKeys();
@@ -129,11 +153,19 @@ describe('VAPID', () => {
     expect(valid).toBe(true);
   });
 
-  it('rejette un sujet qui n’est ni mailto: ni https:', async () => {
+  it('accepte une adresse e-mail nue en lui remettant son schéma', async () => {
+    // Erreur humaine la plus fréquente : coller l'adresse sans « mailto: ».
+    // La refuser ne servait qu'à faire perdre du temps.
     const keys = await makeVapidKeys();
-    await expect(
-      vapidHeader('https://fcm.googleapis.com/x', 'jules@exemple.fr', keys.publicKey, keys.privateKey),
-    ).rejects.toThrow(/mailto/);
+    const header = await vapidHeader(
+      'https://fcm.googleapis.com/x',
+      'jules@exemple.fr',
+      keys.publicKey,
+      keys.privateKey,
+    );
+    const payload = header.split('.')[1];
+    const claims = JSON.parse(new TextDecoder().decode(b64urlDecode(payload)));
+    expect(claims.sub).toBe('mailto:jules@exemple.fr');
   });
 
   it('signale une clé privée de mauvaise taille plutôt que d’échouer plus loin', async () => {

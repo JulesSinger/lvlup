@@ -25,9 +25,9 @@
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { sendWebPush } from './webpush.ts';
+import { b64urlDecode, normalizeVapidSubject, sendWebPush } from './webpush.ts';
 
-const VERSION = '2026-08-06.2';
+const VERSION = '2026-08-06.3';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -229,16 +229,47 @@ Deno.serve(async (request) => {
   // Volontairement ouvert et sans secret : il ne renvoie que des booléens,
   // jamais une valeur de clé.
   if (body?.ping === true) {
+    // On ne se contente pas de vérifier que les secrets existent : un secret
+    // présent mais mal formé donnait exactement le même « tout est vert »,
+    // pour un échec garanti au premier envoi.
+    let subjectState = 'ok';
+    let normalizedSubject = '';
+    if (!VAPID_SUBJECT) {
+      subjectState = 'absent';
+    } else {
+      try {
+        normalizedSubject = normalizeVapidSubject(VAPID_SUBJECT);
+        if (normalizedSubject !== VAPID_SUBJECT.trim()) subjectState = 'corrigé';
+      } catch (error) {
+        subjectState = error instanceof Error ? error.message : 'invalide';
+      }
+    }
+
+    const keyState = (raw: string, expected: number, uncompressed: boolean) => {
+      if (!raw) return 'absent';
+      try {
+        const bytes = b64urlDecode(raw);
+        if (bytes.length !== expected) return `${bytes.length} octets au lieu de ${expected}`;
+        if (uncompressed && bytes[0] !== 0x04) return 'format compressé, non supporté';
+        return 'ok';
+      } catch {
+        return 'base64url illisible';
+      }
+    };
+
     return json({
       ok: true,
       version: VERSION,
       config: {
-        vapidPublic: VAPID_PUBLIC.length > 0,
-        vapidPrivate: VAPID_PRIVATE.length > 0,
-        vapidSubject: VAPID_SUBJECT.length > 0,
-        serviceKey: SERVICE_KEY.length > 0,
-        supabaseUrl: SUPABASE_URL.length > 0,
+        vapidPublic: keyState(VAPID_PUBLIC, 65, true),
+        vapidPrivate: keyState(VAPID_PRIVATE, 32, false),
+        vapidSubject: subjectState,
+        serviceKey: SERVICE_KEY.length > 0 ? 'ok' : 'absent',
+        supabaseUrl: SUPABASE_URL.length > 0 ? 'ok' : 'absent',
       },
+      // Le sujet n'est pas un secret : il est envoyé tel quel aux services de
+      // push. L'afficher évite de deviner ce qui a été collé.
+      vapidSubject: normalizedSubject,
       // Les 8 premiers caractères suffisent à vérifier que la clé publique du
       // serveur est bien celle qui est dans le build de l'app.
       vapidPublicPrefix: VAPID_PUBLIC.slice(0, 8),
