@@ -202,7 +202,7 @@ await page.screenshot({ path: 'screens/historique.png', fullPage: true });
 
 // 6. Création : bibliothèque de modèles puis éditeur
 await page.getByRole('button', { name: 'Objectifs' }).click();
-await page.getByRole('button', { name: '+ Objectif' }).click();
+await page.getByRole('button', { name: 'Nouvel objectif' }).click();
 await page.waitForSelector('.picker-grid');
 check(
   'Bibliothèque de modèles ouverte',
@@ -609,8 +609,26 @@ check('Rendu mobile sans débordement horizontal', await mobile.evaluate(
   () => document.documentElement.scrollWidth <= window.innerWidth + 1,
 ));
 
+// --- Barre du haut ----------------------------------------------------
+// Une seule porte vers les réglages, et rien d'autre : les raccourcis
+// import/export/déconnexion qui n'apparaissaient que sur téléphone créaient
+// deux vocabulaires pour une même chose.
+check(
+  'La barre du haut ne porte que Réglages et + Objectif',
+  (await page.locator('.topbar-actions .btn').count()) === 2,
+  String(await page.locator('.topbar-actions .btn').count()),
+);
+check(
+  'Plus de raccourcis en doublon dans la barre du haut',
+  (await page.locator('.topbar-mobile-actions').count()) === 0,
+);
+check(
+  'Le bouton Réglages porte son nom quand il y a la place',
+  await page.locator('.topbar-settings-label').isVisible(),
+);
+
 // --- Réglages ---------------------------------------------------------
-await page.getByRole('button', { name: 'Réglages' }).click();
+await page.locator('.topbar-settings').click();
 await page.waitForSelector('.settings-block');
 check('Le panneau de réglages s’ouvre', await page.locator('.settings-block').first().isVisible());
 check(
@@ -665,6 +683,27 @@ if (process.env.AUTH_BASE) {
     (await authPage.locator('#password').getAttribute('type')) === 'text',
     await authPage.locator('#password').getAttribute('type'),
   );
+  // Le bouton doit être DANS le champ : sans positionnement il retombait
+  // dessous, à l'air libre, et ne ressemblait plus à rien.
+  {
+    const placement = await authPage.evaluate(() => {
+      const input = document.querySelector('#password').getBoundingClientRect();
+      const eye = document.querySelector('.password-toggle').getBoundingClientRect();
+      return {
+        dedans:
+          eye.top >= input.top - 1 &&
+          eye.bottom <= input.bottom + 1 &&
+          eye.right <= input.right + 1 &&
+          eye.left > input.left,
+        ecart: Math.round(eye.top - input.top),
+      };
+    });
+    check(
+      "L'œil est posé dans le champ, pas en dessous",
+      placement.dedans,
+      `décalage vertical ${placement.ecart}px`,
+    );
+  }
 
   // Mot de passe oublié : accessible depuis la connexion, demande l'adresse
   // seule, et sait revenir en arrière.

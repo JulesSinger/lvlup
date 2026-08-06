@@ -256,12 +256,6 @@ textarea {
   padding: 0 8px;
 }
 
-.sidebar-foot-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-}
-
 /* ------------------------------------------------------------------- hub */
 .hub {
   display: flex;
@@ -1738,25 +1732,6 @@ textarea {
   padding: 8px 0;
 }
 
-.daily-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 8px 4px;
-}
-
-.daily-picker span {
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--text-faint);
-}
-
-.daily-picker select {
-  font-size: 12.5px;
-  padding: 6px 8px;
-}
-
 .ceremony-streak {
   display: flex;
   align-items: center;
@@ -3062,11 +3037,6 @@ textarea {
 }
 
 /* ------------------------------------------------- mobile : barre en bas */
-.topbar-mobile-actions {
-  display: none;
-  gap: 2px;
-}
-
 @media (max-width: 760px) {
   .layout {
     flex-direction: column;
@@ -3160,9 +3130,6 @@ textarea {
     grid-template-columns: 1fr;
   }
 
-  .topbar-mobile-actions {
-    display: flex;
-  }
 }
 
 @media (max-width: 620px) {
@@ -3403,4 +3370,100 @@ textarea {
     flex-direction: column;
     gap: 10px;
   }
+}
+
+/* ======================================================================
+ * Correctifs visuels — champ mot de passe, barre du haut
+ * ==================================================================== */
+
+/**
+ * Le bouton œil doit être DANS le champ. Sans positionnement, il retombait
+ * sous l'input (qui occupe 100 % de la largeur) et donnait l'impression d'un
+ * bouton égaré. On réserve la place à droite du texte pour qu'un mot de passe
+ * long ne passe jamais dessous.
+ */
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.password-field input {
+  padding-right: 44px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.password-toggle:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+/* ------------------------------------------------------- barre du haut */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Il y a de la place sur ordinateur : le bouton porte son nom et se touche
+   sans viser. L'icône seule ne survit que sur écran étroit. */
+.topbar-settings,
+.topbar-add {
+  padding: 9px 15px;
+  font-size: 14px;
+}
+
+.topbar-settings-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+@media (max-width: 760px) {
+  .topbar-settings-label {
+    display: none;
+  }
+  .topbar-settings {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+    height: 38px;
+  }
+  .topbar-settings-icon {
+    font-size: 18px;
+  }
+  .topbar-add {
+    height: 38px;
+    padding: 0 14px;
+  }
+}
+
+/* Le pied de sidebar n'a plus qu'une ligne d'identité et un accès aux
+   réglages : les boutons d'import/export vivent désormais dans le panneau. */
+.sidebar-settings {
+  justify-content: flex-start;
 }

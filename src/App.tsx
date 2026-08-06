@@ -22,7 +22,7 @@ import {
   PENDING_PREFIX,
 } from './data/outbox';
 import { flushOutbox } from './data/sync';
-import { DAILY_GOAL_LEVELS, DEFAULT_SETTINGS, type Settings, type UnlockedAchievement } from './data/store';
+import { DEFAULT_SETTINGS, type Settings, type UnlockedAchievement } from './data/store';
 import { timezoneOffsetMinutes } from './lib/push';
 import { newlyUnlocked, unlockedAchievements } from './lib/achievements';
 import { DEMO_GOALS } from './lib/demo';
@@ -625,75 +625,47 @@ export default function App() {
           ))}
         </nav>
 
+        {/* Le pied de sidebar ne garde que l'identité du compte : tout ce qui
+            se règle est passé derrière le bouton Réglages, pour qu'il n'y ait
+            qu'un seul endroit où chercher — et le même sur téléphone. */}
         <div className="sidebar-foot">
-          <label className="daily-picker">
-            <span>Objectif du jour</span>
-            <select
-              value={settings.dailyGoal}
-              onChange={(e) => {
-                const dailyGoal = Number(e.target.value);
-                setSettings((s) => ({ ...s, dailyGoal }));
-                void run(() => store.updateSettings({ dailyGoal }));
-              }}
-              aria-label="Objectif de PP quotidien"
-            >
-              {DAILY_GOAL_LEVELS.map((level) => (
-                <option key={level.pp} value={level.pp}>
-                  {level.label} · {level.pp} PP
-                </option>
-              ))}
-            </select>
-          </label>
-          {user && <div className="account" title={user.email}>{user.email}</div>}
-          <div className="sidebar-foot-actions">
-            <button className="btn btn-ghost btn-sm" onClick={exportJson}>
-              Exporter
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={importJson}>
-              Importer
-            </button>
-            {user && !user.isLocal && (
-              <button className="btn btn-ghost btn-sm" onClick={() => void store.signOut()}>
-                Déconnexion
-              </button>
-            )}
-          </div>
+          {user && (
+            <div className="account" title={user.email}>
+              {user.email}
+            </div>
+          )}
+          <button className="btn btn-ghost btn-sm sidebar-settings" onClick={() => setShowSettings(true)}>
+            ⚙ Réglages
+          </button>
         </div>
       </aside>
 
       <main className="main">
         <header className="topbar">
           <h1 className="page-title">{VIEWS.find((v) => v.id === view)?.label}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {/* Doublon des actions du pied de sidebar, visible uniquement sur mobile
-                où la sidebar devient une barre d'onglets sans pied. */}
-            <div className="topbar-mobile-actions">
-              <button className="btn btn-ghost btn-sm" onClick={exportJson} title="Exporter">
-                ⬇
-              </button>
-              <button className="btn btn-ghost btn-sm" onClick={importJson} title="Importer">
-                ⬆
-              </button>
-              {user && !user.isLocal && (
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => void store.signOut()}
-                  title="Déconnexion"
-                >
-                  ⎋
-                </button>
-              )}
-            </div>
+          {/* Une seule porte vers les réglages, la même sur tous les écrans :
+              sauvegardes, rappel, compte et rythme quotidien vivent tous
+              derrière ce bouton. Les raccourcis en doublon qui traînaient ici
+              sur téléphone donnaient deux vocabulaires pour une même chose. */}
+          <div className="topbar-actions">
             <button
-              className="btn btn-ghost btn-sm"
+              className="btn topbar-settings"
               onClick={() => setShowSettings(true)}
               title="Réglages"
               aria-label="Réglages"
             >
-              ⚙
+              <span className="topbar-settings-icon" aria-hidden="true">
+                ⚙
+              </span>
+              <span className="topbar-settings-label">Réglages</span>
             </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setPicking(true)}>
-              + Objectif
+            <button
+              className="btn btn-primary topbar-add"
+              onClick={() => setPicking(true)}
+              aria-label="Nouvel objectif"
+            >
+              <span aria-hidden="true">+</span>
+              <span className="topbar-add-label">Objectif</span>
             </button>
           </div>
         </header>
