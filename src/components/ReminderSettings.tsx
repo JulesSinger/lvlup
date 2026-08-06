@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { store } from '../data';
 import type { PushDevice, Settings } from '../data/store';
 import {
+  VAPID_PUBLIC_KEY,
   isIOS,
   pushStatus,
   subscribeToPush,
@@ -87,14 +88,36 @@ export function ReminderSettings({
     setProblem('');
     setMessage('');
     try {
-      const { sent, devices: count } = await store.sendTestPush();
+      const { sent } = await store.sendTestPush();
       setMessage(
-        sent > 0
-          ? `Envoyé sur ${sent} appareil${sent > 1 ? 's' : ''} — la notification arrive dans quelques secondes.`
-          : `Aucun envoi n'a abouti (${count} appareil${count > 1 ? 's' : ''} enregistré${count > 1 ? 's' : ''}).`,
+        `Envoyé sur ${sent} appareil${sent > 1 ? 's' : ''} — la notification arrive dans quelques secondes.`,
       );
     } catch (err) {
-      setProblem(err instanceof Error ? err.message : 'Test impossible.');
+      const raison = err instanceof Error ? err.message : 'Test impossible.';
+      // Un échec sans explication fait perdre une soirée. On interroge la
+      // fonction dans la foulée pour dire ce qui manque, précisément.
+      try {
+        const d = await store.pingPushFunction();
+        const manquants = [
+          !d.vapidPublic && 'VAPID_PUBLIC_KEY',
+          !d.vapidPrivate && 'VAPID_PRIVATE_KEY',
+          !d.vapidSubject && 'VAPID_SUBJECT',
+        ].filter(Boolean);
+        if (manquants.length > 0) {
+          setProblem(
+            `La fonction répond (version ${d.version}) mais il lui manque ${manquants.join(', ')}. ` +
+              'À définir dans Supabase → Edge Functions → Secrets.',
+          );
+        } else if (VAPID_PUBLIC_KEY && !VAPID_PUBLIC_KEY.startsWith(d.serverKeyPrefix)) {
+          setProblem(
+            "La clé publique du build ne correspond pas à celle du serveur : réabonne cet appareil après avoir aligné VITE_VAPID_PUBLIC_KEY sur la clé VAPID du serveur.",
+          );
+        } else {
+          setProblem(`${raison} (fonction joignable, version ${d.version})`);
+        }
+      } catch {
+        setProblem(raison);
+      }
     } finally {
       setBusy(false);
     }

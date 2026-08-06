@@ -1,33 +1,63 @@
 /**
  * Zénith — envoi des rappels quotidiens (Edge Function Supabase, Deno).
  *
- * Deux modes d'appel :
+ * Trois modes d'appel :
  *
- *  · CRON — `Authorization: Bearer <service_role_key>`, corps `{}`.
- *    Parcourt tous les profils dont le rappel est activé, garde ceux dont
- *    l'heure locale vient de passer, écarte ceux qui ont déjà agi
- *    aujourd'hui, et envoie une notification aux appareils restants.
+ *  · PING — corps `{"ping":true}`. Ne touche à rien, répond ce qui est
+ *    configuré. C'est le premier appel à faire quand quelque chose cloche :
+ *    il distingue « fonction pas déployée » de « fonction déployée mais mal
+ *    réglée », ce qu'un message d'erreur générique ne saura jamais dire.
  *
- *  · TEST — `Authorization: Bearer <jwt utilisateur>`, corps `{"test":true}`.
- *    Envoie immédiatement une notification à l'appelant, sans aucune des
- *    conditions ci-dessus. C'est le bouton « Tester » de l'app : il permet
- *    de vérifier toute la chaîne sans attendre 20 h.
+ *  · TEST — corps `{"test":true}` avec le jeton de l'utilisateur. Envoie
+ *    immédiatement une notification à ses appareils, sans condition. C'est le
+ *    bouton « Tester » de l'app.
  *
- * Variables d'environnement à définir (Supabase > Edge Functions > Secrets) :
- *   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (ex. mailto:toi@exemple.fr)
+ *  · CRON — corps `{}` avec la clé de service. Parcourt les profils dont
+ *    l'heure locale vient de passer, écarte ceux qui ont déjà agi, envoie aux
+ *    autres.
+ *
+ * Secrets à définir (Supabase > Edge Functions > Secrets) :
+ *   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:toi@exemple.fr)
  * SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont fournies automatiquement.
+ *
+ * À déployer avec --no-verify-jwt : la vérification est faite ici, ce qui
+ * permet à la requête préliminaire CORS (OPTIONS, sans jeton) de passer.
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import webpush from 'npm:web-push@3.6.7';
+import { sendWebPush } from './webpush.ts';
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const VAPID_PUBLIC = Deno.env.get('VAPID_PUBLIC_KEY')!;
-const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY')!;
-const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:zenith@example.com';
+const VERSION = '2026-08-06.2';
 
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const VAPID_PUBLIC = Deno.env.get('VAPID_PUBLIC_KEY') ?? '';
+const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY') ?? '';
+const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') ?? '';
+
+/**
+ * En-têtes CORS.
+ *
+ * Sans eux, l'appel depuis le navigateur échoue avant même d'arriver ici : le
+ * navigateur envoie d'abord un OPTIONS (parce que la requête porte un en-tête
+ * Authorization), et si cette requête préliminaire n'est pas acceptée, le POST
+ * n'est jamais émis. C'est exactement ce qui faisait échouer le bouton
+ * « Tester » quelle que soit la qualité du reste.
+ */
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, x-supabase-api-version',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
+};
+
+function json(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  });
+}
 
 /** Fenêtre de tir : le cron passe toutes les 5 min, on tolère un peu de retard. */
 const WINDOW_MINUTES = 9;
@@ -65,10 +95,7 @@ function parseTime(value: string): number {
   return h * 60 + m;
 }
 
-/**
- * L'heure du rappel vient-elle de passer ? On accepte la fenêtre
- * [heure, heure + WINDOW_MINUTES] et on gère le passage de minuit.
- */
+/** L'heure du rappel vient-elle de passer ? (gère le passage de minuit) */
 function isDue(nowMinutes: number, targetMinutes: number): boolean {
   const delta = (nowMinutes - targetMinutes + 1440) % 1440;
   return delta < WINDOW_MINUTES;
@@ -81,37 +108,35 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
 /** Envoie une notification, et nettoie l'abonnement s'il est mort. */
 async function push(sub: SubscriptionRow, payload: Record<string, unknown>) {
   try {
-    await webpush.sendNotification(
-      {
-        endpoint: sub.endpoint,
-        keys: { p256dh: sub.p256dh, auth: sub.auth },
-      },
-      JSON.stringify(payload),
-      { TTL: 3600, urgency: 'normal' },
-    );
+    const status = await sendWebPush({
+      subscription: { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
+      payload: JSON.stringify(payload),
+      vapid: { publicKey: VAPID_PUBLIC, privateKey: VAPID_PRIVATE, subject: VAPID_SUBJECT },
+      ttl: 3600,
+    });
+
+    if (status === 404 || status === 410) {
+      // Le navigateur a révoqué l'abonnement : il ne reviendra jamais.
+      await admin.from('push_subscriptions').delete().eq('id', sub.id);
+      return { ok: false, detail: `abonnement expiré (${status})` };
+    }
+    if (status >= 400) {
+      await admin
+        .from('push_subscriptions')
+        .update({ failures: 1 })
+        .eq('id', sub.id);
+      return { ok: false, detail: `le service de push a répondu ${status}` };
+    }
+
     await admin
       .from('push_subscriptions')
       .update({ last_sent_at: new Date().toISOString(), failures: 0 })
       .eq('id', sub.id);
-    return true;
+    return { ok: true, detail: `envoyé (${status})` };
   } catch (error) {
-    const status = (error as { statusCode?: number }).statusCode;
-    // 404 / 410 : le navigateur a révoqué l'abonnement, il ne reviendra pas.
-    if (status === 404 || status === 410) {
-      await admin.from('push_subscriptions').delete().eq('id', sub.id);
-    } else {
-      const { data } = await admin
-        .from('push_subscriptions')
-        .select('failures')
-        .eq('id', sub.id)
-        .maybeSingle();
-      await admin
-        .from('push_subscriptions')
-        .update({ failures: (data?.failures ?? 0) + 1 })
-        .eq('id', sub.id);
-    }
-    console.error('push failed', sub.endpoint.slice(0, 40), status, String(error));
-    return false;
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error('push failed', sub.endpoint.slice(0, 48), detail);
+    return { ok: false, detail };
   }
 }
 
@@ -124,10 +149,6 @@ async function hasActivityToday(userId: string, day: string): Promise<boolean> {
     .eq('day', day);
   if ((count ?? 0) > 0) return true;
 
-  // Un palier validé compte aussi. `completed_at` est en UTC : on compare sur
-  // une plage de 48 h autour du jour local, puis on affine côté JS serait
-  // superflu — la marge d'un jour suffit à ne jamais harceler quelqu'un qui
-  // vient de valider un palier.
   const { count: tierCount } = await admin
     .from('tiers')
     .select('id', { count: 'exact', head: true })
@@ -137,7 +158,7 @@ async function hasActivityToday(userId: string, day: string): Promise<boolean> {
   return (tierCount ?? 0) > 0;
 }
 
-/** Le streak est-il en jeu ? Sert à choisir le ton du message. */
+/** Longueur de la série en cours, pour choisir le ton du message. */
 async function streakLength(userId: string, day: string): Promise<number> {
   const { data } = await admin
     .from('checkins')
@@ -167,7 +188,7 @@ function messageFor(streak: number) {
   if (streak >= 7) {
     return {
       title: `🔥 ${streak} jours d'affilée`,
-      body: "Une action avant minuit et la série continue.",
+      body: 'Une action avant minuit et la série continue.',
     };
   }
   if (streak > 0) {
@@ -193,95 +214,165 @@ async function subscriptionsFor(userIds: string[]): Promise<SubscriptionRow[]> {
 }
 
 Deno.serve(async (request) => {
+  // La requête préliminaire du navigateur : elle doit réussir sans jeton.
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: CORS });
+  }
   if (request.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+    return json({ error: 'POST attendu', version: VERSION }, 405);
   }
 
-  const authHeader = request.headers.get('Authorization') ?? '';
-  const token = authHeader.replace(/^Bearer\s+/i, '');
-  const body = await request.json().catch(() => ({}));
+  const token = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 
-  // ---------------------------------------------------------------- test
-  if (body?.test === true) {
-    if (!token || token === SERVICE_KEY) {
-      return Response.json({ error: 'jwt utilisateur requis' }, { status: 401 });
-    }
-    const { data: userData } = await admin.auth.getUser(token);
-    const userId = userData.user?.id;
-    if (!userId) return Response.json({ error: 'session invalide' }, { status: 401 });
+  // ---------------------------------------------------------------- ping
+  // Volontairement ouvert et sans secret : il ne renvoie que des booléens,
+  // jamais une valeur de clé.
+  if (body?.ping === true) {
+    return json({
+      ok: true,
+      version: VERSION,
+      config: {
+        vapidPublic: VAPID_PUBLIC.length > 0,
+        vapidPrivate: VAPID_PRIVATE.length > 0,
+        vapidSubject: VAPID_SUBJECT.length > 0,
+        serviceKey: SERVICE_KEY.length > 0,
+        supabaseUrl: SUPABASE_URL.length > 0,
+      },
+      // Les 8 premiers caractères suffisent à vérifier que la clé publique du
+      // serveur est bien celle qui est dans le build de l'app.
+      vapidPublicPrefix: VAPID_PUBLIC.slice(0, 8),
+    });
+  }
 
-    const subs = await subscriptionsFor([userId]);
-    if (subs.length === 0) {
-      return Response.json({ error: 'aucun appareil abonné' }, { status: 404 });
+  const missing = [
+    !VAPID_PUBLIC && 'VAPID_PUBLIC_KEY',
+    !VAPID_PRIVATE && 'VAPID_PRIVATE_KEY',
+    !VAPID_SUBJECT && 'VAPID_SUBJECT',
+  ].filter(Boolean);
+  if (missing.length > 0) {
+    return json(
+      { error: `Secrets manquants : ${missing.join(', ')}`, version: VERSION },
+      500,
+    );
+  }
+
+  try {
+    // ---------------------------------------------------------------- test
+    if (body?.test === true) {
+      if (!token) return json({ error: 'Aucun jeton reçu.' }, 401);
+      if (token === SERVICE_KEY) {
+        return json({ error: 'Le mode test attend le jeton d’un utilisateur.' }, 401);
+      }
+      const { data: userData, error: userError } = await admin.auth.getUser(token);
+      const userId = userData?.user?.id;
+      if (!userId) {
+        return json({ error: `Session invalide : ${userError?.message ?? 'jeton refusé'}` }, 401);
+      }
+
+      const subs = await subscriptionsFor([userId]);
+      if (subs.length === 0) {
+        return json(
+          { error: "Aucun appareil abonné pour ce compte. Active d'abord l'interrupteur." },
+          404,
+        );
+      }
+
+      const results = [];
+      for (const sub of subs) {
+        results.push(
+          await push(sub, {
+            title: '✅ Les rappels fonctionnent',
+            body: "C'est exactement ce que tu recevras à l'heure choisie.",
+            tag: 'zenith-test',
+            url: '/',
+          }),
+        );
+      }
+      const sent = results.filter((r) => r.ok).length;
+      if (sent === 0) {
+        return json(
+          {
+            error: `Aucun envoi n'a abouti : ${results.map((r) => r.detail).join(' · ')}`,
+            devices: subs.length,
+            sent: 0,
+            version: VERSION,
+          },
+          502,
+        );
+      }
+      return json({ mode: 'test', devices: subs.length, sent, version: VERSION });
     }
-    let sent = 0;
+
+    // ---------------------------------------------------------------- cron
+    if (token !== SERVICE_KEY) {
+      return json({ error: 'Clé de service attendue pour le mode planifié.' }, 401);
+    }
+
+    const { data: profiles, error } = await admin
+      .from('profiles')
+      .select('user_id, reminder_enabled, reminder_time, tz_offset, last_reminder_day')
+      .eq('reminder_enabled', true);
+    if (error) return json({ error: error.message }, 500);
+
+    const now = new Date();
+    const due: { profile: ProfileRow; day: string }[] = [];
+    for (const profile of (profiles ?? []) as ProfileRow[]) {
+      const { day, minutes } = localNow(profile.tz_offset ?? 0, now);
+      if (profile.last_reminder_day === day) continue; // déjà prévenu aujourd'hui
+      if (!isDue(minutes, parseTime(profile.reminder_time))) continue;
+      due.push({ profile, day });
+    }
+    if (due.length === 0) {
+      return json({ mode: 'cron', candidates: 0, sent: 0, version: VERSION });
+    }
+
+    const subs = await subscriptionsFor(due.map((d) => d.profile.user_id));
+    const byUser = new Map<string, SubscriptionRow[]>();
     for (const sub of subs) {
-      const ok = await push(sub, {
-        title: '✅ Les rappels fonctionnent',
-        body: "C'est exactement ce que tu recevras à l'heure choisie.",
-        tag: 'zenith-test',
-        url: '/',
-      });
-      if (ok) sent += 1;
+      byUser.set(sub.user_id, [...(byUser.get(sub.user_id) ?? []), sub]);
     }
-    return Response.json({ mode: 'test', devices: subs.length, sent });
-  }
 
-  // ---------------------------------------------------------------- cron
-  if (token !== SERVICE_KEY) {
-    return Response.json({ error: 'non autorisé' }, { status: 401 });
-  }
+    let sent = 0;
+    let skipped = 0;
+    for (const { profile, day } of due) {
+      const devices = byUser.get(profile.user_id) ?? [];
+      if (devices.length === 0) continue;
 
-  const { data: profiles, error } = await admin
-    .from('profiles')
-    .select('user_id, reminder_enabled, reminder_time, tz_offset, last_reminder_day')
-    .eq('reminder_enabled', true);
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+      if (await hasActivityToday(profile.user_id, day)) {
+        // Journée déjà entamée : on ne dit rien. Un rappel inutile est la
+        // meilleure façon de faire couper les notifications.
+        skipped += 1;
+        await admin
+          .from('profiles')
+          .update({ last_reminder_day: day })
+          .eq('user_id', profile.user_id);
+        continue;
+      }
 
-  const now = new Date();
-  const due: { profile: ProfileRow; day: string }[] = [];
-  for (const profile of (profiles ?? []) as ProfileRow[]) {
-    const { day, minutes } = localNow(profile.tz_offset ?? 0, now);
-    if (profile.last_reminder_day === day) continue; // déjà prévenu aujourd'hui
-    if (!isDue(minutes, parseTime(profile.reminder_time))) continue;
-    due.push({ profile, day });
-  }
-  if (due.length === 0) return Response.json({ mode: 'cron', candidates: 0, sent: 0 });
-
-  const subs = await subscriptionsFor(due.map((d) => d.profile.user_id));
-  const byUser = new Map<string, SubscriptionRow[]>();
-  for (const sub of subs) {
-    byUser.set(sub.user_id, [...(byUser.get(sub.user_id) ?? []), sub]);
-  }
-
-  let sent = 0;
-  let skipped = 0;
-  for (const { profile, day } of due) {
-    const devices = byUser.get(profile.user_id) ?? [];
-    if (devices.length === 0) continue;
-
-    if (await hasActivityToday(profile.user_id, day)) {
-      // Journée déjà entamée : on ne dit rien. Un rappel inutile est la
-      // meilleure façon de faire couper les notifications.
-      skipped += 1;
+      const streak = await streakLength(profile.user_id, day);
+      const { title, body: text } = messageFor(streak);
+      for (const device of devices) {
+        const result = await push(device, {
+          title,
+          body: text,
+          tag: 'zenith-rappel',
+          url: '/',
+        });
+        if (result.ok) sent += 1;
+      }
       await admin
         .from('profiles')
         .update({ last_reminder_day: day })
         .eq('user_id', profile.user_id);
-      continue;
     }
 
-    const streak = await streakLength(profile.user_id, day);
-    const { title, body: text } = messageFor(streak);
-    for (const device of devices) {
-      const ok = await push(device, { title, body: text, tag: 'zenith-rappel', url: '/' });
-      if (ok) sent += 1;
-    }
-    await admin
-      .from('profiles')
-      .update({ last_reminder_day: day })
-      .eq('user_id', profile.user_id);
+    return json({ mode: 'cron', candidates: due.length, sent, skipped, version: VERSION });
+  } catch (error) {
+    // Une erreur non prévue doit remonter lisible plutôt que se transformer en
+    // « échec » anonyme côté app.
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error('send-reminders', detail);
+    return json({ error: detail, version: VERSION }, 500);
   }
-
-  return Response.json({ mode: 'cron', candidates: due.length, sent, skipped });
 });

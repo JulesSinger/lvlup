@@ -13,6 +13,7 @@ import {
   DEFAULT_SETTINGS,
   newId,
   type Backup,
+  type PushDiagnostic,
   type Settings,
   type Store,
   type UnlockedAchievement,
@@ -114,6 +115,9 @@ export class LocalStore implements Store {
   }
   async removePushDevice() {}
   async sendTestPush(): Promise<{ sent: number; devices: number }> {
+    throw new Error('Les rappels demandent un compte.');
+  }
+  async pingPushFunction(): Promise<PushDiagnostic> {
     throw new Error('Les rappels demandent un compte.');
   }
 

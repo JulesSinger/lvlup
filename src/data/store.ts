@@ -53,6 +53,17 @@ export interface PushDeviceInput {
   label: string;
 }
 
+/** État de la fonction d'envoi, pour diagnostiquer sans deviner. */
+export interface PushDiagnostic {
+  reachable: boolean;
+  version: string;
+  vapidPublic: boolean;
+  vapidPrivate: boolean;
+  vapidSubject: boolean;
+  /** Début de la clé publique côté serveur, à comparer avec celle du build */
+  serverKeyPrefix: string;
+}
+
 /** Niveaux d'objectif quotidien proposés (à la Duolingo). */
 export const DAILY_GOAL_LEVELS: { label: string; pp: number; hint: string }[] = [
   { label: 'Tranquille', pp: 20, hint: 'une action, ou deux petits pas' },
@@ -145,6 +156,8 @@ export interface Store {
   removePushDevice(endpoint: string): Promise<void>;
   /** Déclenche un envoi immédiat vers les appareils de ce compte. */
   sendTestPush(): Promise<{ sent: number; devices: number }>;
+  /** Interroge la fonction d'envoi : est-elle là, et bien configurée ? */
+  pingPushFunction(): Promise<PushDiagnostic>;
 
   // --- Sauvegarde ---
   exportAll(): Promise<Backup>;

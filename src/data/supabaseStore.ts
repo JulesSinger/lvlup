@@ -16,6 +16,7 @@ import {
   type Backup,
   type PushDevice,
   type PushDeviceInput,
+  type PushDiagnostic,
   type Settings,
   type Store,
   type UnlockedAchievement,
@@ -497,16 +498,48 @@ export class SupabaseStore implements Store {
     if (error) throw new Error(error.message);
   }
 
-  async sendTestPush(): Promise<{ sent: number; devices: number }> {
-    const { data, error } = await this.client.functions.invoke('send-reminders', {
-      body: { test: true },
-    });
-    if (error) {
-      throw new Error(
-        "L'envoi de test a échoué. Vérifie que la fonction « send-reminders » est déployée.",
-      );
+  /**
+   * Appelle l'Edge Function en remontant la VRAIE raison d'un échec.
+   *
+   * `functions.invoke` se contente d'un message générique ; le détail est dans
+   * la réponse HTTP, qu'il faut aller relire. Sans ça, « l'envoi a échoué »
+   * recouvre aussi bien une fonction absente qu'un secret oublié — et on
+   * cherche à l'aveugle.
+   */
+  private async callReminders(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const { data, error } = await this.client.functions.invoke('send-reminders', { body });
+    if (!error) return (data ?? {}) as Record<string, unknown>;
+
+    const response = (error as { context?: Response }).context;
+    if (response && typeof response.json === 'function') {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error ?? `La fonction a répondu ${response.status}.`);
     }
-    return { sent: data?.sent ?? 0, devices: data?.devices ?? 0 };
+    // Pas de réponse du tout : la requête n'a pas abouti. C'est soit une
+    // fonction non déployée, soit un refus avant même d'atteindre le code
+    // (vérification du jeton sur la requête préliminaire CORS).
+    throw new Error(
+      "La fonction « send-reminders » n'a pas répondu. Vérifie qu'elle est déployée, " +
+        'et déployée avec l’option --no-verify-jwt.',
+    );
+  }
+
+  async sendTestPush(): Promise<{ sent: number; devices: number }> {
+    const data = await this.callReminders({ test: true });
+    return { sent: Number(data.sent ?? 0), devices: Number(data.devices ?? 0) };
+  }
+
+  async pingPushFunction(): Promise<PushDiagnostic> {
+    const data = await this.callReminders({ ping: true });
+    const config = (data.config ?? {}) as Record<string, boolean>;
+    return {
+      reachable: true,
+      version: String(data.version ?? '?'),
+      vapidPublic: Boolean(config.vapidPublic),
+      vapidPrivate: Boolean(config.vapidPrivate),
+      vapidSubject: Boolean(config.vapidSubject),
+      serverKeyPrefix: String(data.vapidPublicPrefix ?? ''),
+    };
   }
 
   async exportAll(): Promise<Backup> {
