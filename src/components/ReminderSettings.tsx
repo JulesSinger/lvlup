@@ -174,6 +174,15 @@ export function ReminderSettings({
         </div>
       )}
 
+      {status.availability === 'no-sw' && (
+        <div className="notice info">
+          Le service worker n'est pas enregistré, donc les rappels ne peuvent pas être configurés
+          ici. C'est le cas en développement (<code>npm run dev</code>) : il n'est enregistré que
+          sur l'app construite. Teste avec <code>npm run preview</code>, ou sur la version
+          déployée.
+        </div>
+      )}
+
       {status.availability === 'no-key' && (
         <div className="notice info">
           La clé publique des notifications manque dans ce build (

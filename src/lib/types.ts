@@ -9,13 +9,25 @@ import type { RankId } from './ranks';
  * validerait le premier au bout de deux sorties de 5 km — et valider un palier
  * trop tôt dévalorise la cérémonie, qui est le cœur émotionnel de l'app.
  */
-export type TierKind = 'jalon' | 'compte' | 'cumul' | 'serie' | 'performance' | 'mesure';
+/**
+ * Les six natures de palier.
+ *
+ * Déclarées comme un tableau et non comme une simple union : un test compare
+ * cette liste au CHECK de la base. Sans lui, les deux avaient silencieusement
+ * divergé — `compte` existait côté TypeScript et manquait côté SQL, si bien
+ * que toute création d'objectif comportant un palier en jours était refusée
+ * par Postgres, alors que le code compilait et que tous les tests passaient.
+ */
+export const TIER_KINDS = ['jalon', 'compte', 'cumul', 'serie', 'performance', 'mesure'] as const;
+export type TierKind = (typeof TIER_KINDS)[number];
 
 /** Sens de progression, pour les performances et les mesures. */
-export type Direction = 'hausse' | 'baisse';
+export const DIRECTIONS = ['hausse', 'baisse'] as const;
+export type Direction = (typeof DIRECTIONS)[number];
 
 /** Cible absolue (« atteindre 75 kg ») ou relative au premier relevé. */
-export type TargetMode = 'absolu' | 'delta';
+export const TARGET_MODES = ['absolu', 'delta'] as const;
+export type TargetMode = (typeof TARGET_MODES)[number];
 
 export interface Tier {
   id: string;

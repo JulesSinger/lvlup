@@ -10,7 +10,7 @@ import type {
   Tier,
   TierInput,
 } from '../lib/types';
-import { DEFAULT_ACTIONS } from '../lib/types';
+import { DEFAULT_ACTIONS, JALON } from '../lib/types';
 import {
   DEFAULT_SETTINGS,
   type Backup,
@@ -130,7 +130,35 @@ function toTier(row: TierRow): Tier {
   };
 }
 
-/** Colonnes de comptage d'un palier, à partir de ce que l'éditeur a saisi. */
+/**
+ * Toutes les colonnes de comptage, systématiquement, valeurs par défaut
+ * comprises.
+ *
+ * Indispensable pour une insertion en lot : PostgREST prend l'union des clés
+ * de toutes les lignes envoyées et met **null** dans celles qui manquent
+ * — la valeur par défaut de la colonne ne s'applique pas. Un objectif mêlant
+ * des paliers comptables et des jalons (« Épargner 500 € » puis « 3 mois de
+ * dépenses de côté ») envoyait donc `kind` pour les uns et rien pour l'autre,
+ * et Postgres refusait le lot entier :
+ *     null value in column "kind" of relation "tiers" violates not-null
+ * Un objectif entièrement fait de jalons passait, lui, sans rien dire :
+ * aucune ligne ne portait la clé, la colonne gardait son défaut.
+ */
+export function tierColumnsFull(input: Partial<TierInput>): Record<string, unknown> {
+  return {
+    kind: input.kind ?? JALON.kind,
+    target: input.target ?? JALON.target,
+    unit: input.unit ?? JALON.unit,
+    direction: input.direction ?? JALON.direction,
+    mode: input.mode ?? JALON.mode,
+    sources: input.sources ?? JALON.sources,
+  };
+}
+
+/**
+ * Colonnes réellement modifiées, pour une mise à jour.
+ * Ici l'omission est le sens voulu : ne pas toucher à ce qu'on n'a pas édité.
+ */
 function tierColumns(input: Partial<TierInput>): Record<string, unknown> {
   const row: Record<string, unknown> = {};
   if (input.kind !== undefined) row.kind = input.kind;
@@ -283,7 +311,7 @@ export class SupabaseStore implements Store {
               title: t.title,
               rank: t.rank,
               position: index,
-              ...tierColumns(t),
+              ...tierColumnsFull(t),
             })),
           )
           .select(),
@@ -338,7 +366,7 @@ export class SupabaseStore implements Store {
           title: input.title,
           rank: input.rank,
           position: count ?? 0,
-          ...tierColumns(input),
+          ...tierColumnsFull(input),
         })
         .select()
         .single(),

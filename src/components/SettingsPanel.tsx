@@ -127,7 +127,16 @@ export function SettingsPanel({
               {passwordDone && <p className="settings-ok">{passwordDone}</p>}
               {passwordError && <p className="settings-problem">{passwordError}</p>}
               <div className="settings-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => void store.signOut()}>
+                {/* Refermer avant de partir : sans ça, le panneau restait
+                    ouvert par-dessus l'écran de connexion, puis accueillait la
+                    session suivante — y compris une inscription toute neuve. */}
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    onClose();
+                    void store.signOut();
+                  }}
+                >
                   Déconnexion
                 </button>
               </div>

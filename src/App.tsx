@@ -25,6 +25,7 @@ import { flushOutbox } from './data/sync';
 import { DEFAULT_SETTINGS, type Settings, type UnlockedAchievement } from './data/store';
 import { timezoneOffsetMinutes } from './lib/push';
 import { newlyUnlocked, unlockedAchievements } from './lib/achievements';
+import { adoptLegacyOnboarding, hasOnboarded, markOnboarded } from './lib/onboarding';
 import { isCountable, tierProgress } from './lib/counters';
 import { tapValue } from './lib/quantities';
 import { DEMO_GOALS } from './lib/demo';
@@ -56,8 +57,6 @@ const VIEWS: { id: View; label: string; icon: string }[] = [
 /** Emplacements réservés des prochains sprints — visibles mais inactifs. */
 const SOON: { label: string; icon: string }[] = [{ label: 'Amis', icon: '⚔' }];
 
-/** Marqueur local : l'onboarding a déjà été vu (ou passé) sur cet appareil. */
-const ONBOARDING_KEY = 'zenith.onboarded';
 
 export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -84,21 +83,21 @@ export default function App() {
   const [pendingCount, setPendingCount] = useState(() => listPending().length);
   /** L'utilisateur arrive par un lien « mot de passe oublié ». */
   const [recovering, setRecovering] = useState(false);
-  const [onboardingDone, setOnboardingDone] = useState(() => {
-    try {
-      return localStorage.getItem(ONBOARDING_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
+  /**
+   * Identifiant de l'utilisateur qui a déjà vu l'accompagnement.
+   *
+   * Porté par l'utilisateur et non par l'appareil : un compte tout neuf créé
+   * dans un navigateur déjà servi doit voir l'accompagnement, sinon il arrive
+   * sur un écran vide sans savoir ce qu'est un palier — et c'est exactement la
+   * personne à qui il était destiné.
+   */
+  const [onboardedId, setOnboardedId] = useState<string | null>(null);
+  const onboardingDone = user !== null && onboardedId === user.id;
 
   function finishOnboarding() {
-    try {
-      localStorage.setItem(ONBOARDING_KEY, '1');
-    } catch {
-      // localStorage indisponible : l'onboarding se represente, tant pis.
-    }
-    setOnboardingDone(true);
+    if (!user) return;
+    markOnboarded(user.id);
+    setOnboardedId(user.id);
   }
 
   useEffect(() => {
@@ -205,6 +204,21 @@ export default function App() {
     if (result.dropped.length > 0) setError(result.dropped[0]);
     await refresh();
   }, [refresh]);
+
+  // Changement d'utilisateur : tout ce qui est à l'écran appartenait à la
+  // session précédente. Sans ce ménage, on se connectait et le panneau de
+  // réglages était déjà ouvert — celui d'où on venait de se déconnecter.
+  useEffect(() => {
+    setShowSettings(false);
+    setEditing(null);
+    setPicking(false);
+    setSeedActions(null);
+    setCelebrations([]);
+    setExpanded(new Set());
+    setView('accueil');
+    setError('');
+    setOnboardedId(user ? (adoptLegacyOnboarding(user.id) || hasOnboarded(user.id) ? user.id : null) : null);
+  }, [user]);
 
   useEffect(() => {
     if (!user) {

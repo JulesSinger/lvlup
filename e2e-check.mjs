@@ -1728,6 +1728,63 @@ if (process.env.AUTH_BASE) {
   await fresh.close();
 }
 
+// --- L'accompagnement appartient à l'utilisateur, pas au navigateur -------
+// Le marqueur était global à l'appareil : un compte tout neuf créé dans un
+// navigateur déjà servi sautait l'accompagnement et atterrissait sur un écran
+// vide, sans savoir ce qu'est un palier.
+{
+  const fresh = await browser.newContext({ viewport: { width: 1100, height: 900 } });
+  const op = await fresh.newPage();
+  op.on('pageerror', (e) => errors.push(e.message));
+
+  await op.goto(BASE);
+  await op.waitForSelector('.onboarding-card');
+  check('Première visite : l’accompagnement s’affiche', await op.locator('.onboarding-card').isVisible());
+  await op.getByRole('button', { name: 'Passer' }).click();
+  await op.waitForSelector('.empty');
+  check(
+    'Le passer écrit un marqueur portant l’identifiant de l’utilisateur',
+    (await op.evaluate(() => localStorage.getItem('zenith.onboarded.local'))) === '1',
+    await op.evaluate(() => JSON.stringify(Object.keys(localStorage).filter((k) => k.startsWith('zenith.onboarded')))),
+  );
+  await op.reload();
+  await op.waitForSelector('.empty');
+  check(
+    'Et il ne se represente plus au rechargement',
+    (await op.locator('.onboarding-card').count()) === 0,
+  );
+
+  // Le marqueur d'un autre compte ne doit rien faire pour celui-ci.
+  await op.evaluate(() => {
+    localStorage.clear();
+    localStorage.setItem('zenith.onboarded.autre-utilisateur', '1');
+  });
+  await op.reload();
+  await op.waitForSelector('.onboarding-card');
+  check(
+    'Le marqueur du voisin ne saute pas l’accompagnement',
+    await op.locator('.onboarding-card').isVisible(),
+  );
+
+  // L'ancien marqueur global est récupéré une fois, puis effacé.
+  await op.evaluate(() => {
+    localStorage.clear();
+    localStorage.setItem('zenith.onboarded', '1');
+  });
+  await op.reload();
+  await op.waitForSelector('.empty');
+  check(
+    'L’ancien marqueur global est encore honoré',
+    (await op.locator('.onboarding-card').count()) === 0,
+  );
+  check(
+    'Mais il est converti puis effacé, pour ne servir qu’une fois',
+    (await op.evaluate(() => localStorage.getItem('zenith.onboarded'))) === null &&
+      (await op.evaluate(() => localStorage.getItem('zenith.onboarded.local'))) === '1',
+  );
+  await fresh.close();
+}
+
 check('Aucune erreur JavaScript', errors.length === 0, errors.join(' | '));
 
 await browser.close();

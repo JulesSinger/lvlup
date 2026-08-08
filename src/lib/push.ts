@@ -21,7 +21,8 @@ export type PushAvailability =
   | 'ok' // on peut demander l'autorisation
   | 'needs-install' // iOS, mais l'app n'est pas sur l'écran d'accueil
   | 'unsupported' // navigateur sans Web Push
-  | 'no-key'; // VITE_VAPID_PUBLIC_KEY absente du build
+  | 'no-key' // VITE_VAPID_PUBLIC_KEY absente du build
+  | 'no-sw'; // service worker pas enregistré (c'est le cas en `npm run dev`)
 
 export interface PushStatus {
   availability: PushAvailability;
@@ -85,14 +86,56 @@ export async function pushStatus(): Promise<PushStatus> {
     };
   }
 
+  const registration = await readyRegistration();
+  if (!registration) {
+    return {
+      availability: 'no-sw',
+      permission: Notification.permission,
+      subscribed: false,
+      standalone,
+    };
+  }
+
   let subscribed = false;
   try {
-    const registration = await navigator.serviceWorker.ready;
     subscribed = (await registration.pushManager.getSubscription()) !== null;
   } catch {
     subscribed = false;
   }
   return { availability: 'ok', permission: Notification.permission, subscribed, standalone };
+}
+
+/**
+ * Enregistrement du service worker, sans attente infinie.
+ *
+ * `navigator.serviceWorker.ready` ne se résout **jamais** tant qu'aucun
+ * service worker n'est enregistré pour cette portée — et elle ne rejette pas
+ * non plus. Le `await` restait donc en suspens pour toujours, `status`
+ * gardait sa valeur initiale `null`, et le composant retournait `null` : tout
+ * le bloc des rappels disparaissait de l'écran des réglages **sans un mot**.
+ *
+ * C'est exactement ce qui arrive en développement, où le service worker n'est
+ * enregistré qu'en production (`import.meta.env.PROD` dans `main.tsx`) : on
+ * cherche un réglage qui n'existe pas, sans savoir qu'il attend seulement un
+ * `npm run preview`.
+ *
+ * Le délai est un filet supplémentaire : un enregistrement existant mais
+ * bloqué en installation ne doit pas faire disparaître l'interface non plus.
+ */
+export async function readyRegistration(
+  timeoutMs = 3000,
+): Promise<ServiceWorkerRegistration | null> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return null;
+  try {
+    const existing = await navigator.serviceWorker.getRegistration();
+    if (!existing) return null;
+    return await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+  } catch {
+    return null;
+  }
 }
 
 /** Clé VAPID base64url → Uint8Array, format attendu par `subscribe()`. */
@@ -164,7 +207,12 @@ export async function subscribeToPush(): Promise<PushSubscriptionPayload> {
     );
   }
 
-  const registration = await navigator.serviceWorker.ready;
+  const registration = await readyRegistration();
+  if (!registration) {
+    throw new Error(
+      "Le service worker n'est pas enregistré : les rappels demandent l'app construite (npm run preview) ou déployée.",
+    );
+  }
   const existing = await registration.pushManager.getSubscription();
   const subscription =
     existing ??
@@ -185,7 +233,12 @@ export async function subscribeToPush(): Promise<PushSubscriptionPayload> {
 /** Désabonne ce navigateur. Renvoie l'endpoint retiré, ou null. */
 export async function unsubscribeFromPush(): Promise<string | null> {
   if (!supported()) return null;
-  const registration = await navigator.serviceWorker.ready;
+  const registration = await readyRegistration();
+  if (!registration) {
+    throw new Error(
+      "Le service worker n'est pas enregistré : les rappels demandent l'app construite (npm run preview) ou déployée.",
+    );
+  }
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) return null;
   const { endpoint } = subscription;
