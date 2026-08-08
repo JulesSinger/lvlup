@@ -11,6 +11,8 @@ interface JournalEntry {
   title: string;
   goalLabel: string;
   note?: string;
+  /** Réalisation sans action, notée une fois : elle porte son propre titre. */
+  oneOff?: boolean;
   rankColor?: string;
   rankId?: Goal['tiers'][number]['rank'];
 }
@@ -40,9 +42,12 @@ export function Timeline({ goals, checkins }: { goals: Goal[]; checkins: Checkin
           key: `checkin-${c.id}`,
           date: new Date(`${c.day}T12:00:00`),
           kind: 'checkin' as const,
-          title: c.note ? c.note : 'Check-in',
+          // Un geste ponctuel porte son propre nom : c'est tout ce qui en
+          // restera dans six mois, on ne peut pas l'écrire « Check-in ».
+          title: c.title !== null ? c.title : c.note ? c.note : 'Check-in',
           goalLabel: `${goal.emoji} ${goal.title}`,
           note: c.note,
+          oneOff: c.title !== null,
         };
       })
       .filter((e): e is NonNullable<typeof e> => e !== null),
@@ -80,7 +85,7 @@ export function Timeline({ goals, checkins }: { goals: Goal[]; checkins: Checkin
               {entry.kind === 'tier' && entry.rankId ? (
                 <RankBadge rank={getRank(entry.rankId)} />
               ) : (
-                <span className="entry-kind">check-in</span>
+                <span className="entry-kind">{entry.oneOff ? 'geste ponctuel' : 'check-in'}</span>
               )}
             </div>
           </div>

@@ -60,6 +60,7 @@ interface CheckinRow {
   note: string | null;
   created_at: string;
   value: number | string | null;
+  title: string | null;
 }
 
 /** Postgres renvoie `numeric` en texte pour préserver la précision. */
@@ -80,6 +81,7 @@ function toCheckin(row: CheckinRow): Checkin {
     note: row.note ?? '',
     createdAt: row.created_at,
     value: toNumber(row.value),
+    title: row.title ?? null,
   };
 }
 
@@ -479,6 +481,28 @@ export class SupabaseStore implements Store {
     return toCheckin(row);
   }
 
+  async addOneOff(goalId: string, day: string, title: string, pp: number): Promise<Checkin> {
+    const userId = await this.requireUserId();
+    // Insertion simple et non upsert : la contrainte d'unicité porte sur
+    // (user, action, jour), et une action nulle est distincte de toute autre.
+    // Deux gestes ponctuels le même jour sont donc parfaitement légitimes.
+    const row = unwrap(
+      await this.client
+        .from('checkins')
+        .insert({
+          goal_id: goalId,
+          user_id: userId,
+          action_id: null,
+          pp,
+          day,
+          title: title.trim(),
+        })
+        .select()
+        .single(),
+    ) as CheckinRow;
+    return toCheckin(row);
+  }
+
   async updateCheckin(id: string, patch: { note?: string; value?: number | null }) {
     const row: Record<string, unknown> = {};
     if (patch.note !== undefined) row.note = patch.note;
@@ -708,6 +732,7 @@ export class SupabaseStore implements Store {
           day: c.day,
           note: c.note ?? '',
           value: c.value ?? null,
+          title: c.title ?? null,
           created_at: c.createdAt,
         })),
       );

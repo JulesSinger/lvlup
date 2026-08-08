@@ -184,3 +184,69 @@ sprint est déployable seul, l'app reste en ligne en permanence.
 
 Les check-ins existants deviennent des actions génériques (« Séance ») avec leurs
 10 PP — aucun historique perdu, aucune courbe cassée, aucun trophée reperdu.
+
+---
+
+## 7. Le geste ponctuel — ce qui n'entre pas dans une case à cocher
+
+*Ajouté après un retour de Jules : « j'ai regardé un tuto YouTube sur comment tenir
+un budget, c'est une action liée à mon objectif que j'aimerais noter dans l'app,
+mais c'est pas quelque chose que je vais refaire régulièrement. »*
+
+### Le trou
+
+L'app ne connaissait qu'une seule forme de réalisation : **cocher une action**. Or
+une action est une promesse de répétition — elle revient tous les soirs, elle
+nourrit un palier, elle finit par mesurer une régularité. Beaucoup de vrais pas
+vers un objectif ne sont pas répétables : ouvrir un compte d'épargne, regarder un
+tuto, acheter les chaussures, prendre le rendez-vous. Les créer comme actions
+polluerait la liste du lendemain d'une case qu'on ne recochera jamais — et une
+liste où traînent des cases mortes est une liste qu'on cesse de lire.
+
+### La forme retenue
+
+Une **réalisation sans action**, qui porte son propre titre. Techniquement :
+`checkin.actionId = null` et `checkin.title = "…"`. Aucun nouveau modèle de
+données, aucune nouvelle typologie d'objectif, une seule colonne ajoutée.
+
+Trois règles l'empêchent de devenir un déversoir :
+
+1. **Il n'apparaît jamais comme une case à cocher le lendemain.** Il n'a pas
+   d'action derrière : rien à re-proposer. Il vit sur sa journée et il y reste.
+2. **Il ne nourrit aucun palier comptable.** `feedingCheckins` l'écarte avant même
+   de regarder les sources. Sinon « 30 jours sans écran » se validerait en notant
+   trente fois « j'y ai pensé », et le rang que ce palier donne ne mesurerait plus
+   rien.
+3. **PP fixes et modestes** (`ONE_OFF_PP = 10`, contre 15 pour un vrai effort).
+   On ne choisit pas soi-même combien un geste rapporte — c'est la porte ouverte à
+   l'inflation.
+
+Ce qu'il **fait** en revanche, et c'est tout l'intérêt : il compte pour la journée
+(anneau, streak global, streak de l'objectif) et il remplit sa case dans la grille.
+Regarder un tuto de budget un mardi soir *est* une journée où on s'est occupé de
+son objectif. Le nier reviendrait à dire que seule la répétition compte.
+
+### Dans l'interface
+
+- Une pastille `+ Autre chose` en fin de liste, en pointillés et sans PP annoncés :
+  une porte, pas une tâche.
+- Une barre de saisie en ligne, 80 caractères, Entrée pour valider, Échap pour
+  refermer sans rien écrire.
+- La pastille du geste est **verte mais pointillée**, préfixée `✦`, marquée
+  « noté » et non « fait » — rien n'a été coché, et un ✓ laisserait croire à une
+  case de plus. Elle n'est pas barrée pour la même raison.
+- Re-cliquer annule : la seule sortie de secours d'une faute de frappe.
+- Dans le journal, l'entrée porte le titre du geste et l'étiquette
+  « geste ponctuel ». Six mois plus tard, « Check-in » n'aurait rien dit.
+- Dans la grille d'habitudes, le détail du jour l'annonce `✦ Tuto sur la gestion
+  de budget`. En revanche il **disparaît dès qu'on filtre sur une action** : il
+  n'appartient à aucune, et le montrer sous le filtre « Course » ferait croire
+  qu'on a couru ce jour-là.
+
+### Hors ligne
+
+La file d'attente le connaît, avec une exception : le dédoublonnage habituel
+(« deux fois la même action le même jour ») ne s'applique pas. Deux gestes
+ponctuels le même jour sont deux choses différentes ; les confondre en effacerait
+un, ce qui est exactement le bug impardonnable d'un traqueur. Ils se reconnaissent
+au couple (titre, jour) au moment de la reprise.

@@ -28,11 +28,14 @@ export type PendingOp =
       /** Identifiant de l'opération, sert aussi d'id provisoire au check-in */
       id: string;
       goalId: string;
-      actionId: string;
+      /** `null` pour un geste ponctuel : il n'a pas d'action derrière. */
+      actionId: string | null;
       day: string;
       pp: number;
       /** Quantité relevée, pour une action quantifiée cochée hors ligne */
       value: number | null;
+      /** Titre d'un geste ponctuel ; `null` pour une coche ordinaire */
+      title: string | null;
       at: number;
     }
   | {
@@ -85,19 +88,32 @@ function newOpId(): string {
 /** Range une coche à envoyer plus tard. Renvoie l'id provisoire du check-in. */
 export function queueAdd(input: {
   goalId: string;
-  actionId: string;
+  actionId: string | null;
   day: string;
   pp: number;
   value?: number | null;
+  title?: string | null;
 }): string {
   const id = newOpId();
   const ops = read();
   // Une coche annulée puis recochée hors ligne : la suppression en attente
-  // disparaît, les deux s'annulent.
-  const filtered = ops.filter(
-    (op) => !(op.kind === 'add' && op.actionId === input.actionId && op.day === input.day),
-  );
-  filtered.push({ kind: 'add', id, ...input, value: input.value ?? null, at: Date.now() });
+  // disparaît, les deux s'annulent. Un geste ponctuel n'entre pas dans ce
+  // dédoublonnage : il n'a pas d'action, et plusieurs le même jour sont
+  // parfaitement légitimes — les confondre en effacerait un.
+  const filtered =
+    input.actionId === null
+      ? ops
+      : ops.filter(
+          (op) => !(op.kind === 'add' && op.actionId === input.actionId && op.day === input.day),
+        );
+  filtered.push({
+    kind: 'add',
+    id,
+    ...input,
+    value: input.value ?? null,
+    title: input.title ?? null,
+    at: Date.now(),
+  });
   write(filtered);
   return `${PENDING_PREFIX}${id}`;
 }
@@ -143,8 +159,12 @@ export function applyPending(serverCheckins: Checkin[], ops: PendingOp[] = read(
   for (const op of ops) {
     if (op.kind !== 'add') continue;
     // Si le serveur a finalement la ligne (envoi réussi entre-temps), on ne
-    // la double pas.
-    const already = result.some((c) => c.actionId === op.actionId && c.day === op.day);
+    // la double pas. Un geste ponctuel n'a pas d'action pour l'identifier :
+    // on le reconnaît à son titre et à son jour.
+    const already =
+      op.actionId === null
+        ? result.some((c) => c.title === op.title && c.day === op.day)
+        : result.some((c) => c.actionId === op.actionId && c.day === op.day);
     if (already) continue;
     result = [
       ...result,
@@ -157,6 +177,7 @@ export function applyPending(serverCheckins: Checkin[], ops: PendingOp[] = read(
         note: '',
         createdAt: new Date(op.at).toISOString(),
         value: op.value ?? null,
+        title: op.title ?? null,
       },
     ];
   }

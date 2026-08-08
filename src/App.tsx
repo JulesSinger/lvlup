@@ -34,6 +34,7 @@ import { getRank } from './lib/ranks';
 import type { GoalTemplate } from './lib/templates';
 import { playCheckinBlip, vibrate } from './lib/sound';
 import { computeStreak, dayString } from './lib/streak';
+import { ONE_OFF_PP } from './lib/types';
 import type {
   Action,
   ActionInput,
@@ -395,6 +396,7 @@ export default function App() {
       note: '',
       createdAt: new Date().toISOString(),
       value,
+      title: null,
     };
     const nextCheckins = [...checkins, optimistic];
     // L'affichage bascule immédiatement : sur mobile l'aller-retour serveur
@@ -435,6 +437,76 @@ export default function App() {
             day,
             pp: action.pp,
             value,
+          });
+          setCheckins((prev) =>
+            prev.map((c) => (c.id === optimistic.id ? { ...c, id: pendingId } : c)),
+          );
+          return;
+        }
+        setError(err instanceof Error ? err.message : 'Opération impossible.');
+        await refresh();
+      }
+    })();
+  }
+
+  /**
+   * Un geste ponctuel : un vrai pas vers l'objectif, mais pas une habitude.
+   *
+   * Il rapporte des PP fixes et nourrit le streak — on a bien fait quelque
+   * chose ce jour-là. Il ne fait monter aucun palier (`feedingCheckins` l'écarte)
+   * et ne reviendra pas demain sous forme de case à cocher : il n'a pas
+   * d'action derrière. C'est tout ce qui l'empêche de devenir un déversoir.
+   */
+  function logOneOff(goal: Goal, title: string, day: string = dayString()) {
+    const clean = title.trim();
+    if (!clean) return;
+    playCheckinBlip();
+    vibrate(20);
+    const isToday = day === dayString();
+    const optimistic: Checkin = {
+      id: `optimiste-ponctuel-${Date.now()}`,
+      goalId: goal.id,
+      actionId: null,
+      pp: ONE_OFF_PP,
+      day,
+      note: '',
+      createdAt: new Date().toISOString(),
+      value: null,
+      title: clean,
+    };
+    const nextCheckins = [...checkins, optimistic];
+    setCheckins(nextCheckins);
+
+    const queue: Celebration[] = [];
+    const alreadyOwned = new Set(achievements.map((a) => a.id));
+    for (const t of newlyUnlocked({ goals, checkins }, { goals, checkins: nextCheckins })) {
+      if (!alreadyOwned.has(t.id)) {
+        queue.push({ kind: 'trophy', icon: t.icon, name: t.name, desc: t.desc });
+      }
+    }
+    if (isToday) {
+      queue.push(
+        ...dayCelebrations(
+          todayPP(goals, checkins),
+          todayPP(goals, nextCheckins),
+          computeStreak(goals, nextCheckins).current,
+        ),
+      );
+    }
+    if (queue.length > 0) setCelebrations(queue);
+
+    void (async () => {
+      try {
+        await store.addOneOff(goal.id, day, clean, ONE_OFF_PP);
+        await refresh();
+      } catch (err) {
+        if (isNetworkError(err)) {
+          const pendingId = queueAdd({
+            goalId: goal.id,
+            actionId: null,
+            day,
+            pp: ONE_OFF_PP,
+            title: clean,
           });
           setCheckins((prev) =>
             prev.map((c) => (c.id === optimistic.id ? { ...c, id: pendingId } : c)),
@@ -860,6 +932,7 @@ export default function App() {
               checkins={checkins}
               dailyGoal={settings.dailyGoal}
               onLogAction={logAction}
+              onLogOneOff={logOneOff}
               onUnlogAction={unlogAction}
               onSaveNote={saveCheckinNote}
               onSaveValue={saveCheckinValue}

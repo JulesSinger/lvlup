@@ -5,6 +5,7 @@ import { needsInput, parseAmount, tapValue } from '../lib/quantities';
 import { goalProgress, history, ppForRank, relativeDate, todayPP, weekStats } from '../lib/progress';
 import { getRank } from '../lib/ranks';
 import { computeStreak, dayString } from '../lib/streak';
+import { ONE_OFF_PP } from '../lib/types';
 import type { Action, Checkin, Goal, Tier } from '../lib/types';
 import { DailyRing } from './DailyRing';
 import { ProfileHeader } from './ProfileHeader';
@@ -21,6 +22,7 @@ export function Hub({
   checkins,
   dailyGoal,
   onLogAction,
+  onLogOneOff,
   onUnlogAction,
   onSaveNote,
   onSaveValue,
@@ -32,6 +34,7 @@ export function Hub({
   checkins: Checkin[];
   dailyGoal: number;
   onLogAction: (goal: Goal, action: Action, day?: string, value?: number | null) => void;
+  onLogOneOff: (goal: Goal, title: string, day?: string) => void;
   onUnlogAction: (checkin: Checkin) => void;
   onSaveNote: (checkin: Checkin, note: string) => void;
   onSaveValue: (checkin: Checkin, value: number) => void;
@@ -103,6 +106,19 @@ export function Hub({
     setNoteDraft(checkin.note ?? '');
   }
 
+  /** Objectif pour lequel on est en train d'écrire un geste ponctuel. */
+  const [oneOffFor, setOneOffFor] = useState<Goal | null>(null);
+  const [oneOffDraft, setOneOffDraft] = useState('');
+
+  function submitOneOff() {
+    if (!oneOffFor) return;
+    const title = oneOffDraft.trim();
+    if (!title) return;
+    onLogOneOff(oneOffFor, title, viewDay);
+    setOneOffFor(null);
+    setOneOffDraft('');
+  }
+
   function openValue(goal: Goal, action: Action, checkin: Checkin | null) {
     setNoteFor(null);
     setValueFor({ goal, action, checkinId: checkin?.id ?? null });
@@ -127,9 +143,12 @@ export function Hub({
     setValueFor(null);
   }
 
-  // Changer de jour ferme la saisie : elle porte sur une journée précise, et
-  // la laisser ouverte ferait enregistrer la valeur sur le mauvais jour.
-  useEffect(() => setValueFor(null), [viewDay]);
+  // Changer de jour ferme les saisies : elles portent sur une journée précise,
+  // et les laisser ouvertes ferait enregistrer sur le mauvais jour.
+  useEffect(() => {
+    setValueFor(null);
+    setOneOffFor(null);
+  }, [viewDay]);
 
   function saveNote(close: boolean) {
     if (noteCheckin && noteDraft.trim() !== (noteCheckin.note ?? '')) {
@@ -416,7 +435,80 @@ export function Hub({
                       </button>
                     );
                   })}
+
+                  {/* Les gestes ponctuels du jour, s'il y en a. Ce sont des
+                      réalisations comme les autres : elles appartiennent à
+                      cette journée-là et disparaîtront d'elles-mêmes demain,
+                      sans jamais devenir une case à cocher. Re-cliquer annule,
+                      ce qui donne l'annulation d'une faute de frappe. */}
+                  {dayLogs
+                    .filter((c) => c.goalId === goal.id && c.title !== null)
+                    .map((log) => (
+                      <button
+                        key={log.id}
+                        className="checkin-chip done oneoff"
+                        title="Geste ponctuel · re-cliquer annule"
+                        onClick={() => onUnlogAction(log)}
+                      >
+                        <span className="checkin-title">{log.title}</span>
+                        {/* « noté », pas « fait » : rien n'a été coché ici, et
+                            un ✓ laisserait croire à une case de plus. */}
+                        <span className="checkin-mark">noté</span>
+                      </button>
+                    ))}
+
+                  {/* Un pas ponctuel vers l'objectif — regarder un tuto,
+                      ouvrir le compte d'épargne. Un « + », pas une case :
+                      rien de nouveau à cocher tous les soirs. */}
+                  <button
+                    className="checkin-chip add-oneoff"
+                    title={`Noter un geste ponctuel pour « ${goal.title} »`}
+                    aria-label={`Noter un geste ponctuel pour ${goal.title}`}
+                    onClick={() => {
+                      setValueFor(null);
+                      setNoteFor(null);
+                      setOneOffFor((g) => (g?.id === goal.id ? null : goal));
+                      setOneOffDraft('');
+                    }}
+                  >
+                    <span aria-hidden="true">+</span>
+                    <span className="checkin-title">Autre chose</span>
+                  </button>
                 </div>
+
+                {oneOffFor?.id === goal.id && (
+                  <div className="checkin-note oneoff-bar">
+                    <span className="checkin-note-label" aria-hidden="true">
+                      ✦
+                    </span>
+                    <input
+                      autoFocus
+                      ref={(el) => el?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                      value={oneOffDraft}
+                      onChange={(e) => setOneOffDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          submitOneOff();
+                        }
+                        if (e.key === 'Escape') setOneOffFor(null);
+                      }}
+                      maxLength={80}
+                      placeholder="Ce que tu as fait une fois : « tuto sur la gestion de budget »"
+                      aria-label={`Geste ponctuel pour ${goal.title}`}
+                    />
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={submitOneOff}
+                      disabled={!oneOffDraft.trim()}
+                    >
+                      Noter · +{ONE_OFF_PP} PP
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setOneOffFor(null)}>
+                      Annuler
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}

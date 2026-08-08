@@ -127,6 +127,7 @@ describe('les actions nourrissent bien les paliers', () => {
       note: '',
       createdAt: `${day}T09:00:00.000Z`,
       value: null,
+      title: null,
     }));
     const p = tierProgress(tier, actions, checkins, '2026-08-08');
     expect(p?.current).toBe(10);

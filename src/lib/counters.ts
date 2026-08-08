@@ -67,6 +67,14 @@ export function feedingCheckins(
   const byId = new Map(actions.map((a) => [a.id, a]));
   return checkins.filter((c) => {
     if (c.goalId !== tier.goalId) return false;
+    // Un geste ponctuel ne compte dans aucun palier : « 30 jours réussis »
+    // compte des jours d'habitude, et regarder un tuto n'en est pas un. Il
+    // rapporte des PP et nourrit le streak — c'est vrai, on a fait quelque
+    // chose ce jour-là — mais il ne fait pas monter une marche.
+    //
+    // C'est ce qui le distingue d'une réalisation dont l'action a été
+    // supprimée : celle-là n'a pas de titre, et garde ses droits acquis.
+    if (c.title !== null) return false;
     if (sources.size > 0) return c.actionId !== null && sources.has(c.actionId);
     return feedsByDefault(tier, c.actionId ? byId.get(c.actionId) : undefined);
   });

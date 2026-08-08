@@ -52,6 +52,7 @@ function checkin(day: string, patch: Partial<Checkin> = {}): Checkin {
     note: '',
     createdAt: `${day}T20:00:00.000Z`,
     value: null,
+    title: null,
     ...patch,
   };
 }
@@ -171,6 +172,15 @@ describe('filtrer sur une action', () => {
     expect(goalHeatmap(goal(), list, { today: TODAY }).active).toBe(3);
   });
 
+  it('un geste ponctuel disparaît dès qu’on filtre sur une action', () => {
+    // Il n'appartient à aucune action : le montrer sous le filtre « a1 »
+    // ferait croire qu'on a fait a1 ce jour-là.
+    const avec = [...list, checkin('2026-08-06', { actionId: null, title: 'tuto budget' })];
+    expect(goalHeatmap(goal(), avec, { today: TODAY, actionId: 'a1' }).active).toBe(2);
+    expect(cell(goalHeatmap(goal(), avec, { today: TODAY, actionId: 'a1' }), '2026-08-06')?.level)
+      .toBe(0);
+  });
+
   it('la règle des deux jours suit le filtre', () => {
     const recent = [
       checkin('2026-08-06', { actionId: 'a1' }),
@@ -261,6 +271,25 @@ describe('streak d’un objectif', () => {
 
   it('vaut zéro sans aucune réalisation', () => {
     expect(goalStreak(goal(), [], TODAY)).toBe(0);
+  });
+
+  /**
+   * L'autre moitié du contrat des gestes ponctuels : ils ne font monter aucun
+   * palier, mais ils ont bien eu lieu. Regarder un tuto de budget un mardi soir
+   * est une journée où on s'est occupé de son objectif — la grille et la
+   * flamme doivent le dire, sinon noter le geste n'apporte rien.
+   */
+  it('un geste ponctuel tient le streak et remplit sa case', () => {
+    const list = [
+      checkin('2026-08-06', { actionId: 'a1' }),
+      checkin('2026-08-07', { actionId: null, title: 'tuto sur la gestion de budget', pp: 10 }),
+    ];
+    expect(goalStreak(goal(), list, TODAY)).toBe(2);
+    const map = goalHeatmap(goal(), list, { today: TODAY });
+    expect(cell(map, '2026-08-07')?.count).toBe(1);
+    expect(cell(map, '2026-08-07')?.level).toBeGreaterThan(0);
+    // Et il écarte la règle des deux jours : hier n'est pas vide.
+    expect(missedYesterday(goal(), list, TODAY)).toBeNull();
   });
 });
 

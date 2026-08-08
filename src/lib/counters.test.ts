@@ -57,6 +57,7 @@ function checkin(day: string, patch: Partial<Checkin> = {}): Checkin {
     note: '',
     createdAt: `${day}T08:00:00.000Z`,
     value: null,
+    title: null,
     ...patch,
   };
 }
@@ -134,6 +135,27 @@ describe('quelles réalisations alimentent un palier', () => {
     // ou introuvable, et ses PP d'origine restent acquis.
     const t = tier({ kind: 'compte', target: 3 });
     expect(feedingCheckins(t, [checkin('2026-05-01', { actionId: null })], [])).toHaveLength(1);
+  });
+
+  /**
+   * La garde la plus importante des gestes ponctuels. Sans elle, « 30 jours
+   * sans écran » se validerait en notant trente fois « j'y ai pensé » : le
+   * palier ne mesurerait plus rien, et le rang qu'il donne non plus.
+   */
+  it('un geste ponctuel n’alimente aucun palier, quelle que soit sa nature', () => {
+    const ponctuel = checkin('2026-05-01', { actionId: null, title: 'tuto budget', pp: 10 });
+    for (const kind of ['compte', 'cumul', 'serie', 'performance', 'mesure'] as TierKind[]) {
+      const t = tier({ kind, target: 3, unit: 'jours' });
+      expect(feedingCheckins(t, [ponctuel], []), kind).toHaveLength(0);
+    }
+  });
+
+  it('même désigné comme source, un geste ponctuel ne compte pas', () => {
+    // Il n'a pas d'action : il ne peut appartenir à aucune liste de sources.
+    // Le test verrouille le fait que l'exclusion passe *avant* les sources.
+    const t = tier({ kind: 'compte', target: 3, sources: ['a1'] });
+    const ponctuel = checkin('2026-05-01', { actionId: null, title: 'un pas de côté' });
+    expect(feedingCheckins(t, [ponctuel], [])).toHaveLength(0);
   });
 });
 

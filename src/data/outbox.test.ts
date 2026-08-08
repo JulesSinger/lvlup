@@ -41,6 +41,7 @@ function serverCheckin(id: string, actionId: string, day: string, pp = 15): Chec
     note: '',
     createdAt: `${day}T08:00:00.000Z`,
     value: null,
+    title: null,
   };
 }
 
@@ -60,6 +61,15 @@ describe('mise en file', () => {
     queueAdd({ goalId: 'g1', actionId: 'a1', day: '2026-05-20', pp: 15 });
     queueAdd({ goalId: 'g1', actionId: 'a1', day: '2026-05-20', pp: 15 });
     expect(listPending()).toHaveLength(1);
+  });
+
+  it('garde deux gestes ponctuels du même jour : ce ne sont pas des doublons', () => {
+    // Le dédoublonnage protège des doubles appuis sur *une* case à cocher.
+    // Deux gestes ponctuels le même jour sont deux choses différentes ; les
+    // confondre en effacerait un, ce qui est exactement le bug impardonnable.
+    queueAdd({ goalId: 'g1', actionId: null, day: '2026-05-20', pp: 10, title: 'tuto budget' });
+    queueAdd({ goalId: 'g1', actionId: null, day: '2026-05-20', pp: 10, title: 'compte épargne' });
+    expect(listPending()).toHaveLength(2);
   });
 
   it('cocher puis décocher hors ligne annule les deux opérations', () => {
@@ -116,6 +126,20 @@ describe('applyPending', () => {
   it('laisse les données intactes quand la file est vide', () => {
     const server = [serverCheckin('c1', 'a1', '2026-05-20')];
     expect(applyPending(server)).toBe(server);
+  });
+
+  it('rejoue un geste ponctuel avec son titre', () => {
+    queueAdd({ goalId: 'g1', actionId: null, day: '2026-05-20', pp: 10, title: 'tuto budget' });
+    const result = applyPending([]);
+    expect(result[0]).toMatchObject({ actionId: null, title: 'tuto budget', pp: 10 });
+  });
+
+  it('ne double pas un geste ponctuel que le serveur a fini par enregistrer', () => {
+    queueAdd({ goalId: 'g1', actionId: null, day: '2026-05-20', pp: 10, title: 'tuto budget' });
+    const server = { ...serverCheckin('c1', 'a1', '2026-05-20', 10), actionId: null, title: 'tuto budget' };
+    const result = applyPending([server]);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('c1');
   });
 
   it('retire une opération traitée sans toucher aux autres', () => {

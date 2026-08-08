@@ -342,8 +342,13 @@ await page.getByRole('button', { name: 'Accueil' }).click();
 await page.waitForSelector('.checkin-chips');
 check(
   'Deux actions génériques créées par objectif',
-  (await page.locator('.checkin-chip').count()) === 6,
-  String(await page.locator('.checkin-chip').count()),
+  (await page.locator('.checkin-chip:not(.add-oneoff)').count()) === 6,
+  String(await page.locator('.checkin-chip:not(.add-oneoff)').count()),
+);
+check(
+  'Une porte « Autre chose » par objectif, et une seule',
+  (await page.locator('.checkin-chip.add-oneoff').count()) === 3,
+  String(await page.locator('.checkin-chip.add-oneoff').count()),
 );
 check(
   'Anneau du jour affiché',
@@ -479,6 +484,110 @@ check(
   String(await page.locator('.checkin-chip.done').count()),
 );
 await page.waitForTimeout(600);
+
+// 9 bis. Gestes ponctuels — un pas vers l'objectif qui ne se refera pas
+// « J'ai regardé un tuto sur la gestion de budget » : ça compte pour la
+// journée, ça n'a rien à faire dans la liste des cases à cocher de demain.
+const ppAvant = Number(await page.locator('.ring-value').textContent());
+await page.locator('.checkin-chip.add-oneoff').first().click();
+await page.waitForSelector('.oneoff-bar input');
+check(
+  'La barre de saisie ponctuelle s’ouvre sans quitter le hub',
+  await page.locator('.oneoff-bar input').isVisible(),
+);
+check(
+  'Le bouton annonce ce que ça rapporte',
+  ((await page.locator('.oneoff-bar .btn-primary').textContent()) ?? '').includes('+10 PP'),
+  await page.locator('.oneoff-bar .btn-primary').textContent(),
+);
+// Échap referme sans rien enregistrer : une porte ouverte par erreur ne
+// doit pas coûter une ligne d'historique.
+await page.locator('.oneoff-bar input').press('Escape');
+await page.waitForTimeout(200);
+check(
+  'Échap referme la barre sans rien noter',
+  (await page.locator('.oneoff-bar').count()) === 0 &&
+    (await page.locator('.checkin-chip.oneoff').count()) === 0,
+);
+
+await page.locator('.checkin-chip.add-oneoff').first().click();
+await page.waitForSelector('.oneoff-bar input');
+await page.locator('.oneoff-bar input').fill('Tuto sur la gestion de budget');
+await page.locator('.oneoff-bar input').press('Enter');
+await page.waitForTimeout(1000);
+await dismissCeremonies(page);
+await page.waitForTimeout(300);
+check(
+  'Le geste ponctuel apparaît, nommé, sur la journée',
+  ((await page.locator('.checkin-chip.oneoff .checkin-title').first().textContent()) ?? '').includes(
+    'Tuto sur la gestion de budget',
+  ),
+  await page.locator('.checkin-chip.oneoff .checkin-title').first().textContent(),
+);
+check(
+  'Il rapporte ses 10 PP fixes',
+  Number(await page.locator('.ring-value').textContent()) === ppAvant + 10,
+  `${ppAvant} → ${await page.locator('.ring-value').textContent()}`,
+);
+check(
+  'Il n’est pas barré : rien n’a été coché',
+  (await page
+    .locator('.checkin-chip.oneoff .checkin-title')
+    .first()
+    .evaluate((el) => getComputedStyle(el).textDecorationLine)) === 'none',
+);
+check(
+  'Le geste ponctuel ne déborde pas de sa carte',
+  await page.evaluate(() => {
+    const chip = document.querySelector('.checkin-chip.oneoff');
+    const card = chip?.closest('.today-goal');
+    if (!chip || !card) return false;
+    const a = chip.getBoundingClientRect();
+    const b = card.getBoundingClientRect();
+    return a.right <= b.right + 1 && a.left >= b.left - 1;
+  }),
+);
+
+// La règle qui empêche tout de dériver : demain, ce n'est pas une case.
+await page.reload();
+await page.waitForSelector('.checkin-chips');
+check(
+  'Après rechargement, il reste un geste et pas une action de plus',
+  (await page.locator('.checkin-chip.oneoff').count()) === 1 &&
+    (await page.locator('.checkin-chip:not(.add-oneoff):not(.oneoff)').count()) === 6,
+  `${await page.locator('.checkin-chip.oneoff').count()} / ${await page.locator('.checkin-chip:not(.add-oneoff):not(.oneoff)').count()}`,
+);
+// Le journal doit le nommer : dans six mois, « Check-in » ne dira rien.
+await page.getByRole('button', { name: 'Historique' }).click();
+await page.waitForSelector('.entry');
+check(
+  'Le journal nomme le geste et le distingue d’une coche',
+  (await page.locator('.entry-checkin .entry-title').first().textContent()) ===
+    'Tuto sur la gestion de budget' &&
+    (await page.locator('.entry-checkin .entry-kind').first().textContent()) === 'geste ponctuel',
+  `${await page.locator('.entry-checkin .entry-title').first().textContent()} / ${await page.locator('.entry-checkin .entry-kind').first().textContent()}`,
+);
+
+// Aucun palier ne bouge : sinon « 30 jours sans écran » se validerait en
+// notant trente fois « j'y ai pensé ».
+await page.getByRole('button', { name: 'Objectifs' }).click();
+await page.waitForSelector('.goal');
+check(
+  'Aucun palier ne monte grâce à un geste ponctuel',
+  ((await page.locator('.goal-count').first().textContent()) ?? '').includes('2/6'),
+  await page.locator('.goal-count').first().textContent(),
+);
+await page.getByRole('button', { name: 'Accueil' }).click();
+await page.waitForSelector('.checkin-chips');
+// Re-cliquer annule : c'est la seule sortie de secours d'une faute de frappe.
+await page.locator('.checkin-chip.oneoff').first().click();
+await page.waitForTimeout(900);
+check(
+  'Re-cliquer annule le geste et rend les PP',
+  (await page.locator('.checkin-chip.oneoff').count()) === 0 &&
+    Number(await page.locator('.ring-value').textContent()) === ppAvant,
+  await page.locator('.ring-value').textContent(),
+);
 
 // Salle des trophées
 await page.getByRole('button', { name: 'Trophées' }).click();

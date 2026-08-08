@@ -89,6 +89,9 @@ export function Heatmap({
     if (done.length === 0) return 'rien ce jour-là';
     return done
       .map((c) => {
+        // Un geste ponctuel n'a pas d'action : il porte son propre nom, et la
+        // grille est le seul endroit où on pourra le relire des mois plus tard.
+        if (c.title !== null) return `✦ ${c.title}`;
         // L'action a pu être supprimée depuis : le check-in survit, son nom non.
         const action = actions.find((a) => a.id === c.actionId);
         const name = action?.title ?? 'action supprimée';

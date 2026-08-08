@@ -2567,6 +2567,58 @@ textarea {
   color: #8ee39c;
 }
 
+/* ------------------------------------------------------ gestes ponctuels */
+/* Un geste ponctuel n'a jamais été une case à cocher : il ne peut donc pas
+   être « barré ». Il garde le vert du fait, perd le trait, et prend une
+   étoile discrète — la marque de ce qui n'arrivera qu'une fois. */
+.checkin-chip.oneoff {
+  border-style: dashed;
+}
+
+.checkin-chip.oneoff .checkin-title {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+
+.checkin-chip.oneoff .checkin-title::before {
+  content: '✦';
+  margin-right: 6px;
+  color: var(--accent);
+  font-size: 11px;
+  vertical-align: 1px;
+}
+
+/* Le « + Autre chose » ne doit jamais ressembler à une action de plus à
+   faire ce soir : pas de fond plein, pas de PP annoncés, juste une porte. */
+.checkin-chip.add-oneoff {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--border);
+  color: var(--text-faint);
+}
+
+.checkin-chip.add-oneoff:hover {
+  color: var(--text-dim);
+  border-color: var(--border-strong);
+}
+
+.checkin-chip.add-oneoff .checkin-title {
+  font-size: 13px;
+}
+
+/* La barre de saisie : mêmes règles que la note, mais elle doit pouvoir
+   passer à la ligne sur mobile plutôt que d'écraser le champ de texte. */
+.oneoff-bar {
+  flex-wrap: wrap;
+}
+
+.oneoff-bar input {
+  /* Sans min-width: 0, un flex item ne descend pas sous la largeur de son
+     contenu — le champ pousserait la carte au lieu de rétrécir. */
+  min-width: 0;
+  flex: 1 1 180px;
+}
+
 .checkin-value input {
   flex: 0 1 130px;
   font-variant-numeric: tabular-nums;

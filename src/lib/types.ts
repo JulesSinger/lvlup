@@ -155,7 +155,28 @@ export interface Checkin {
   createdAt: string;
   /** Quantité relevée ce jour-là : 8 (km), 30 (min), 78.1 (kg). */
   value: number | null;
+  /**
+   * Titre d'un **geste ponctuel** — une réalisation sans action derrière.
+   *
+   * « J'ai regardé un tuto sur comment tenir un budget » : c'est un vrai pas
+   * vers l'objectif, mais pas une habitude. Sans ça, les deux seules options
+   * étaient de créer une action permanente qu'on ne cochera jamais plus, ce
+   * qui pollue l'écran du soir pour toujours, ou de ne rien noter — et la
+   * grille affiche alors une case vide un jour où on a vraiment avancé.
+   *
+   * `null` pour une réalisation ordinaire : c'est l'action qui la nomme. Ce
+   * champ est aussi ce qui distingue un geste ponctuel d'une réalisation dont
+   * l'action a été supprimée — la première ne compte jamais dans un palier,
+   * la seconde garde ses droits acquis.
+   */
+  title: string | null;
 }
+
+/**
+ * PP d'un geste ponctuel. Fixes, et volontairement modestes : dès qu'on peut
+ * choisir, on peut farmer. Il rapporte ce que rapporte un petit pas.
+ */
+export const ONE_OFF_PP = 10;
 
 export interface AppUser {
   id: string;

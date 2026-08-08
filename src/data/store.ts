@@ -141,6 +141,14 @@ export interface Store {
     pp: number,
     value?: number | null,
   ): Promise<Checkin>;
+  /**
+   * Enregistre un **geste ponctuel** : un vrai pas vers l'objectif, mais pas
+   * une habitude. Sans action derrière, donc sans case à cocher le lendemain.
+   * Plusieurs par jour sont permis — la contrainte d'unicité porte sur
+   * (utilisateur, action, jour), et Postgres traite les actions nulles comme
+   * distinctes.
+   */
+  addOneOff(goalId: string, day: string, title: string, pp: number): Promise<Checkin>;
   /** Ajoute ou modifie la note libre, ou la quantité relevée. */
   updateCheckin(id: string, patch: { note?: string; value?: number | null }): Promise<void>;
   deleteCheckin(id: string): Promise<void>;

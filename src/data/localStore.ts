@@ -52,6 +52,7 @@ function read(): Snapshot {
             actionId: c.actionId ?? null,
             pp: typeof c.pp === 'number' ? c.pp : 10,
             value: typeof c.value === 'number' ? c.value : null,
+            title: typeof c.title === 'string' ? c.title : null,
           }))
         : [],
       achievements: Array.isArray(parsed.achievements) ? parsed.achievements : [],
@@ -335,6 +336,27 @@ export class LocalStore implements Store {
       note: '',
       createdAt: new Date().toISOString(),
       value,
+      title: null,
+    };
+    snapshot.checkins.push(checkin);
+    write(snapshot);
+    return checkin;
+  }
+
+  async addOneOff(goalId: string, day: string, title: string, pp: number): Promise<Checkin> {
+    const snapshot = read();
+    const checkin: Checkin = {
+      id: newId(),
+      goalId,
+      // Pas d'action : c'est précisément ce qui l'empêche de revenir demain
+      // sous forme de case à cocher.
+      actionId: null,
+      pp,
+      day,
+      note: '',
+      createdAt: new Date().toISOString(),
+      value: null,
+      title: title.trim(),
     };
     snapshot.checkins.push(checkin);
     write(snapshot);
