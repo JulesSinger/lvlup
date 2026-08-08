@@ -3,8 +3,11 @@ import { store } from '../data';
 
 type Mode = 'signin' | 'signup' | 'forgot';
 
-export function AuthScreen({ onBack }: { onBack?: () => void } = {}) {
-  const [mode, setMode] = useState<Mode>('signin');
+export function AuthScreen({
+  onBack,
+  initialMode = 'signin',
+}: { onBack?: () => void; initialMode?: Mode } = {}) {
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');

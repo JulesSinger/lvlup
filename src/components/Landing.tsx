@@ -52,12 +52,14 @@ function useReveal() {
 }
 
 export function Landing() {
-  const [showAuth, setShowAuth] = useState(false);
+  /** `null` = on est encore sur la présentation. Sinon, le formulaire demandé. */
+  const [auth, setAuth] = useState<'signin' | 'signup' | null>(null);
   const root = useReveal();
 
-  if (showAuth) return <AuthScreen onBack={() => setShowAuth(false)} />;
+  if (auth) return <AuthScreen initialMode={auth} onBack={() => setAuth(null)} />;
 
-  const start = () => setShowAuth(true);
+  const signUp = () => setAuth('signup');
+  const signIn = () => setAuth('signin');
 
   return (
     <div className="lp" ref={root}>
@@ -71,13 +73,13 @@ export function Landing() {
         {/* Deux libellés : le long sur ordinateur, le court sur téléphone. Un
             seul jeu de mots ne peut pas tenir sur 320 px sans se replier. */}
         <div className="lp-nav-actions">
-          <button className="btn btn-sm" onClick={start} aria-label="Se connecter">
+          <button className="btn btn-sm" onClick={signIn} aria-label="Se connecter">
             <span className="lp-wide">Se connecter</span>
             <span className="lp-narrow">Connexion</span>
           </button>
           <button
             className="btn btn-primary btn-sm"
-            onClick={start}
+            onClick={signUp}
             aria-label="Créer mon compte"
           >
             <span className="lp-wide">Créer mon compte</span>
@@ -101,7 +103,7 @@ export function Landing() {
           monter d'un rang — et ton rang ne redescend jamais.
         </p>
         <div className="lp-cta-row" data-reveal>
-          <button className="btn btn-primary lp-cta" onClick={start}>
+          <button className="btn btn-primary lp-cta" onClick={signUp}>
             Commencer — c'est gratuit
           </button>
           <a className="lp-cta-ghost" href="#comment">
@@ -283,7 +285,7 @@ export function Landing() {
       {/* --------------------------------------------------- appel final */}
       <section className="lp-final" data-reveal>
         <h2 className="lp-final-title">Les grands objectifs se gagnent une étape à la fois.</h2>
-        <button className="btn btn-primary lp-cta" onClick={start}>
+        <button className="btn btn-primary lp-cta" onClick={signUp}>
           Créer mon compte
         </button>
         <p className="lp-note">

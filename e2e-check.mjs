@@ -782,7 +782,49 @@ check('Le panneau se referme', (await page.locator('.settings-block').count()) =
 if (process.env.AUTH_BASE) {
   const authPage = await context.newPage();
   await authPage.goto(process.env.AUTH_BASE);
-  await authPage.getByRole('button', { name: 'Se connecter' }).first().click();
+
+  // Chaque bouton de la présentation doit ouvrir le formulaire qu'il annonce.
+  // « Créer mon compte » qui tombait sur la connexion obligeait à recliquer
+  // sur « En créer un » — sur le tout premier écran, avant même le compte.
+  await authPage.waitForSelector('.lp-hero');
+  for (const [libelle, attendu] of [
+    ['Créer mon compte', 'Créer mon compte'],
+    ['Commencer — c’est gratuit', 'Créer mon compte'],
+    ['Se connecter', 'Se connecter'],
+  ]) {
+    await authPage
+      .getByRole('button', { name: libelle.replace('’', "'"), exact: true })
+      .first()
+      .click();
+    await authPage.waitForSelector('.auth-card');
+    check(
+      `« ${libelle} » ouvre le bon formulaire`,
+      (await authPage.locator('.auth-card .btn-primary').textContent()) === attendu,
+      await authPage.locator('.auth-card .btn-primary').textContent(),
+    );
+    await authPage.getByRole('button', { name: 'Revenir à la présentation' }).click();
+    await authPage.waitForSelector('.lp-hero');
+  }
+  // L'appel final en bas de page mène là aussi à l'inscription.
+  await authPage.locator('.lp-final .lp-cta').click();
+  await authPage.waitForSelector('.auth-card');
+  check(
+    'L’appel final de la page mène aussi à l’inscription',
+    (await authPage.locator('.auth-card .btn-primary').textContent()) === 'Créer mon compte',
+    await authPage.locator('.auth-card .btn-primary').textContent(),
+  );
+  check(
+    'Le champ mot de passe demande d’en choisir un, pas d’en retrouver un',
+    (await authPage.locator('#password').getAttribute('autocomplete')) === 'new-password',
+    await authPage.locator('#password').getAttribute('autocomplete'),
+  );
+  await authPage.getByRole('button', { name: 'Se connecter' }).click();
+  await authPage.waitForTimeout(150);
+  check(
+    'Depuis l’inscription, on rejoint la connexion sans repasser par la présentation',
+    (await authPage.locator('.auth-card .btn-primary').textContent()) === 'Se connecter',
+    await authPage.locator('.auth-card .btn-primary').textContent(),
+  );
   await authPage.waitForSelector('#password');
   check(
     'Mot de passe masqué par défaut',
