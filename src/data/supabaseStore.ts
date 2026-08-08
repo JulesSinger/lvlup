@@ -42,6 +42,12 @@ interface TierRow {
   position: number;
   completed_at: string | null;
   created_at: string;
+  kind: string | null;
+  target: number | string | null;
+  unit: string | null;
+  direction: string | null;
+  mode: string | null;
+  sources: string[] | null;
 }
 
 interface CheckinRow {
@@ -53,6 +59,14 @@ interface CheckinRow {
   day: string;
   note: string | null;
   created_at: string;
+  value: number | string | null;
+}
+
+/** Postgres renvoie `numeric` en texte pour préserver la précision. */
+function toNumber(value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function toCheckin(row: CheckinRow): Checkin {
@@ -65,6 +79,7 @@ function toCheckin(row: CheckinRow): Checkin {
     day: row.day,
     note: row.note ?? '',
     createdAt: row.created_at,
+    value: toNumber(row.value),
   };
 }
 
@@ -77,6 +92,9 @@ interface ActionRow {
   position: number;
   archived: boolean;
   created_at: string;
+  unit: string | null;
+  default_value: number | string | null;
+  is_measure: boolean | null;
 }
 
 function toAction(row: ActionRow): Action {
@@ -88,6 +106,9 @@ function toAction(row: ActionRow): Action {
     position: row.position,
     archived: row.archived,
     createdAt: row.created_at,
+    unit: row.unit ?? '',
+    defaultValue: toNumber(row.default_value),
+    isMeasure: row.is_measure ?? false,
   };
 }
 
@@ -100,7 +121,25 @@ function toTier(row: TierRow): Tier {
     position: row.position,
     completedAt: row.completed_at,
     createdAt: row.created_at,
+    kind: (row.kind as Tier['kind']) ?? 'jalon',
+    target: toNumber(row.target),
+    unit: row.unit ?? '',
+    direction: (row.direction as Tier['direction']) ?? 'hausse',
+    mode: (row.mode as Tier['mode']) ?? 'absolu',
+    sources: row.sources ?? [],
   };
+}
+
+/** Colonnes de comptage d'un palier, à partir de ce que l'éditeur a saisi. */
+function tierColumns(input: Partial<TierInput>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (input.kind !== undefined) row.kind = input.kind;
+  if (input.target !== undefined) row.target = input.target;
+  if (input.unit !== undefined) row.unit = input.unit;
+  if (input.direction !== undefined) row.direction = input.direction;
+  if (input.mode !== undefined) row.mode = input.mode;
+  if (input.sources !== undefined) row.sources = input.sources;
+  return row;
 }
 
 function toGoal(row: GoalRow, tiers: TierRow[]): Goal {
@@ -244,6 +283,7 @@ export class SupabaseStore implements Store {
               title: t.title,
               rank: t.rank,
               position: index,
+              ...tierColumns(t),
             })),
           )
           .select(),
@@ -298,6 +338,7 @@ export class SupabaseStore implements Store {
           title: input.title,
           rank: input.rank,
           position: count ?? 0,
+          ...tierColumns(input),
         })
         .select()
         .single(),
@@ -306,7 +347,7 @@ export class SupabaseStore implements Store {
   }
 
   async updateTier(id: string, patch: Partial<TierInput> & { completedAt?: string | null }) {
-    const row: Record<string, unknown> = {};
+    const row: Record<string, unknown> = { ...tierColumns(patch) };
     if (patch.title !== undefined) row.title = patch.title;
     if (patch.rank !== undefined) row.rank = patch.rank;
     if (patch.completedAt !== undefined) row.completed_at = patch.completedAt;
@@ -352,6 +393,9 @@ export class SupabaseStore implements Store {
           title: input.title,
           pp: input.pp,
           position: count ?? 0,
+          unit: input.unit ?? '',
+          default_value: input.defaultValue ?? null,
+          is_measure: input.isMeasure ?? false,
         })
         .select()
         .single(),
@@ -364,6 +408,9 @@ export class SupabaseStore implements Store {
     if (patch.title !== undefined) row.title = patch.title;
     if (patch.pp !== undefined) row.pp = patch.pp;
     if (patch.archived !== undefined) row.archived = patch.archived;
+    if (patch.unit !== undefined) row.unit = patch.unit;
+    if (patch.defaultValue !== undefined) row.default_value = patch.defaultValue;
+    if (patch.isMeasure !== undefined) row.is_measure = patch.isMeasure;
     const { error } = await this.client.from('actions').update(row).eq('id', id);
     if (error) throw new Error(error.message);
   }
@@ -382,14 +429,20 @@ export class SupabaseStore implements Store {
     return rows.map(toCheckin);
   }
 
-  async addCheckin(goalId: string, day: string, actionId: string, pp: number): Promise<Checkin> {
+  async addCheckin(
+    goalId: string,
+    day: string,
+    actionId: string,
+    pp: number,
+    value: number | null = null,
+  ): Promise<Checkin> {
     const userId = await this.requireUserId();
     // upsert sur la contrainte unique : re-cliquer le même jour ne crée pas de doublon.
     const row = unwrap(
       await this.client
         .from('checkins')
         .upsert(
-          { goal_id: goalId, user_id: userId, action_id: actionId, pp, day },
+          { goal_id: goalId, user_id: userId, action_id: actionId, pp, day, value },
           { onConflict: 'user_id,action_id,day' },
         )
         .select()
@@ -398,9 +451,10 @@ export class SupabaseStore implements Store {
     return toCheckin(row);
   }
 
-  async updateCheckin(id: string, patch: { note?: string }) {
+  async updateCheckin(id: string, patch: { note?: string; value?: number | null }) {
     const row: Record<string, unknown> = {};
     if (patch.note !== undefined) row.note = patch.note;
+    if (patch.value !== undefined) row.value = patch.value;
     const { error } = await this.client.from('checkins').update(row).eq('id', id);
     if (error) throw new Error(error.message);
   }
@@ -571,6 +625,12 @@ export class SupabaseStore implements Store {
           rank: t.rank,
           position: index,
           completed_at: t.completedAt,
+          kind: t.kind ?? 'jalon',
+          target: t.target ?? null,
+          unit: t.unit ?? '',
+          direction: t.direction ?? 'hausse',
+          mode: t.mode ?? 'absolu',
+          sources: [],
         }));
         const { error } = await this.client.from('tiers').insert(rows);
         if (error) throw new Error(error.message);
@@ -599,6 +659,9 @@ export class SupabaseStore implements Store {
               pp: a.pp,
               position: a.position,
               archived: a.archived,
+              unit: a.unit ?? '',
+              default_value: a.defaultValue ?? null,
+              is_measure: a.isMeasure ?? false,
             })),
           )
           .select(),
@@ -616,6 +679,7 @@ export class SupabaseStore implements Store {
           pp: c.pp ?? 10,
           day: c.day,
           note: c.note ?? '',
+          value: c.value ?? null,
           created_at: c.createdAt,
         })),
       );

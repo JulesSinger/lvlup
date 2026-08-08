@@ -155,7 +155,7 @@ export function Landing() {
             {EXAMPLE.tiers.map((t, i) => {
               const rank = getRank(['bronze', 'argent', 'or', 'challenger'][i] as 'bronze');
               return (
-                <li key={t} style={{ ['--d' as string]: `${i * 0.09}s` }}>
+                <li key={t.title} style={{ ['--d' as string]: `${i * 0.09}s` }}>
                   <span
                     className="lp-step-crest"
                     style={{
@@ -163,7 +163,7 @@ export function Landing() {
                     }}
                     aria-hidden="true"
                   />
-                  <span className="lp-step-title">{t}</span>
+                  <span className="lp-step-title">{t.title}</span>
                   <span className="lp-step-rank" style={{ color: rank.color2 }}>
                     {rank.label}
                   </span>

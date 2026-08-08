@@ -25,6 +25,8 @@ import { flushOutbox } from './data/sync';
 import { DEFAULT_SETTINGS, type Settings, type UnlockedAchievement } from './data/store';
 import { timezoneOffsetMinutes } from './lib/push';
 import { newlyUnlocked, unlockedAchievements } from './lib/achievements';
+import { isCountable, tierProgress } from './lib/counters';
+import { tapValue } from './lib/quantities';
 import { DEMO_GOALS } from './lib/demo';
 import { goalProgress, ppForRank, profileRank, todayPP } from './lib/progress';
 import { getRank } from './lib/ranks';
@@ -135,11 +137,49 @@ export default function App() {
         const now = new Date().toISOString();
         nextAchievements = [...stored, ...fresh.map((id) => ({ id, unlockedAt: now }))];
       }
-      setGoals(nextGoals);
       // Les coches encore en file d'attente sont réappliquées par-dessus les
       // données du serveur : un rafraîchissement ne doit jamais faire
       // disparaître une action que l'utilisateur a bel et bien faite.
-      setCheckins(applyPending(nextCheckins));
+      const merged = applyPending(nextCheckins);
+
+      /*
+       * Rattrapage silencieux des paliers déjà atteints.
+       *
+       * La validation automatique part au clic — c'est ce qui permet la
+       * cérémonie au bon moment. Mais une coche peut arriver autrement : d'un
+       * autre appareil, d'un import de sauvegarde, ou de la file d'attente
+       * vidée au retour du réseau. Sans ce filet, on tomberait sur une barre
+       * pleine à côté d'un palier non validé — l'app aurait l'air de ne pas
+       * savoir compter.
+       *
+       * Aucune cérémonie ici, volontairement : on ne fête pas une victoire
+       * qu'on découvre en rechargeant une sauvegarde de l'an dernier.
+       */
+      const late = nextGoals
+        .filter((g) => !g.archived)
+        .flatMap((g) =>
+          g.tiers.filter(
+            (t) =>
+              !t.completedAt &&
+              isCountable(t) &&
+              tierProgress(t, nextActions, merged)?.reached === true,
+          ),
+        );
+      let goalsToShow = nextGoals;
+      if (late.length > 0) {
+        const now = new Date().toISOString();
+        const ids = new Set(late.map((t) => t.id));
+        goalsToShow = nextGoals.map((g) => ({
+          ...g,
+          tiers: g.tiers.map((t) => (ids.has(t.id) ? { ...t, completedAt: now } : t)),
+        }));
+        await Promise.all(
+          late.map((t) => store.updateTier(t.id, { completedAt: now }).catch(() => {})),
+        );
+      }
+
+      setGoals(goalsToShow);
+      setCheckins(merged);
       setActions(nextActions);
       setAchievements(nextAchievements);
       setSettings(nextSettings);
@@ -318,19 +358,29 @@ export default function App() {
     return [{ kind: 'day', earned: after, goal: settings.dailyGoal, streak: streakAfter }];
   }
 
-  /** Enregistre une action faite aujourd'hui : PP, streak, trophées, journée. */
-  function logAction(goal: Goal, action: Action) {
+  /**
+   * Enregistre une action : PP, streak, trophées, journée.
+   * `day` permet de rattraper un oubli — la coche part alors sur le jour
+   * concerné, et non sur aujourd'hui.
+   */
+  function logAction(
+    goal: Goal,
+    action: Action,
+    day: string = dayString(),
+    value: number | null = tapValue(action),
+  ) {
     playCheckinBlip();
     vibrate(20);
-    const day = dayString();
+    const isToday = day === dayString();
     const optimistic: Checkin = {
-      id: `optimiste-${action.id}`,
+      id: `optimiste-${action.id}-${day}`,
       goalId: goal.id,
       actionId: action.id,
       pp: action.pp,
       day,
       note: '',
       createdAt: new Date().toISOString(),
+      value,
     };
     const nextCheckins = [...checkins, optimistic];
     // L'affichage bascule immédiatement : sur mobile l'aller-retour serveur
@@ -341,19 +391,25 @@ export default function App() {
     const after = todayPP(goals, nextCheckins);
     const streakAfter = computeStreak(goals, nextCheckins).current;
 
-    const queue: Celebration[] = [];
+    const { goalsAfter, queue } = reachedCelebrations(checkins, nextCheckins);
+
     const alreadyOwned = new Set(achievements.map((a) => a.id));
-    for (const t of newlyUnlocked({ goals, checkins }, { goals, checkins: nextCheckins })) {
+    for (const t of newlyUnlocked(
+      { goals, checkins },
+      { goals: goalsAfter, checkins: nextCheckins },
+    )) {
       if (!alreadyOwned.has(t.id)) {
         queue.push({ kind: 'trophy', icon: t.icon, name: t.name, desc: t.desc });
       }
     }
-    queue.push(...dayCelebrations(before, after, streakAfter));
+    // La cérémonie de journée bouclée ne se rejoue pas pour un jour passé :
+    // ce serait une fausse joie, et l'anneau du jour n'a pas bougé.
+    if (isToday) queue.push(...dayCelebrations(before, after, streakAfter));
     if (queue.length > 0) setCelebrations(queue);
 
     void (async () => {
       try {
-        await store.addCheckin(goal.id, day, action.id, action.pp);
+        await store.addCheckin(goal.id, day, action.id, action.pp, value);
         await refresh();
       } catch (err) {
         if (isNetworkError(err)) {
@@ -364,6 +420,7 @@ export default function App() {
             actionId: action.id,
             day,
             pp: action.pp,
+            value,
           });
           setCheckins((prev) =>
             prev.map((c) => (c.id === optimistic.id ? { ...c, id: pendingId } : c)),
@@ -400,6 +457,77 @@ export default function App() {
 
   function saveCheckinNote(checkin: Checkin, note: string) {
     void run(() => store.updateCheckin(checkin.id, { note }));
+  }
+
+  /**
+   * Correction d'une quantité déjà enregistrée.
+   *
+   * Une correction peut faire franchir sa cible à un palier — corriger « 5 km »
+   * en « 12 km » achève le cumul aussi bien qu'une nouvelle sortie. On rejoue
+   * donc la même détection que sur une coche, sur les données corrigées.
+   */
+  function saveCheckinValue(checkin: Checkin, value: number) {
+    const nextCheckins = checkins.map((c) => (c.id === checkin.id ? { ...c, value } : c));
+    setCheckins(nextCheckins);
+    const { queue } = reachedCelebrations(checkins, nextCheckins);
+    if (queue.length > 0) setCelebrations(queue);
+    void run(() => store.updateCheckin(checkin.id, { value }));
+  }
+
+  /**
+   * Le moment que tout ce sprint construit.
+   *
+   * Un palier comptable qui atteint sa cible se valide seul, et la cérémonie
+   * part au clic. Ce soir-là, on coche sa case comme les vingt-neuf soirs
+   * précédents, et l'écran explose. La validation est écrite immédiatement
+   * dans l'état local pour que le palier se coche sous les yeux, sans attendre
+   * l'aller-retour serveur.
+   */
+  function reachedCelebrations(
+    before: Checkin[],
+    after: Checkin[],
+  ): { goalsAfter: Goal[]; queue: Celebration[] } {
+    const reached = activeGoals.flatMap((g) =>
+      g.tiers
+        .filter(
+          (t) =>
+            !t.completedAt &&
+            isCountable(t) &&
+            !tierProgress(t, actions, before)?.reached &&
+            tierProgress(t, actions, after)?.reached,
+        )
+        .map((tier) => ({ goal: g, tier })),
+    );
+    if (reached.length === 0) return { goalsAfter: goals, queue: [] };
+
+    const now = new Date().toISOString();
+    const wonIds = new Set(reached.map((r) => r.tier.id));
+    const goalsAfter = goals.map((g) => ({
+      ...g,
+      tiers: g.tiers.map((t) => (wonIds.has(t.id) ? { ...t, completedAt: now } : t)),
+    }));
+    setGoals(goalsAfter);
+
+    const queue: Celebration[] = [];
+    const rankBefore = profileRank(goals);
+    const rankAfter = profileRank(goalsAfter);
+    for (const { goal: g, tier } of reached) {
+      const rank = getRank(tier.rank);
+      const updated = goalsAfter.find((x) => x.id === g.id);
+      queue.push({
+        kind: 'tier',
+        rank,
+        tierTitle: tier.title,
+        goalTitle: g.title,
+        pp: ppForRank(rank),
+        goalComplete: updated ? goalProgress(updated).complete : false,
+      });
+      void store.updateTier(tier.id, { completedAt: now });
+    }
+    if (rankAfter.rank && (!rankBefore.rank || rankAfter.rank.value > rankBefore.rank.value)) {
+      queue.push({ kind: 'profile', rank: rankAfter.rank, previous: rankBefore.rank });
+    }
+    return { goalsAfter, queue };
   }
 
   async function saveGoal(input: GoalInput, tiers: TierInput[]) {
@@ -720,6 +848,7 @@ export default function App() {
               onLogAction={logAction}
               onUnlogAction={unlogAction}
               onSaveNote={saveCheckinNote}
+              onSaveValue={saveCheckinValue}
               onValidateTier={validateTier}
               onGoToGoals={() => setView('objectifs')}
             />
@@ -752,6 +881,8 @@ export default function App() {
                     }}
                     onDeleteTier={(tierId) => run(() => store.deleteTier(tierId))}
                     onMoveTier={async (tierId, direction) => moveTier(goal, tierId, direction)}
+                    actions={actions}
+                    checkins={checkins}
                     actionEditor={
                       <ActionEditor
                         actions={actions.filter((a) => a.goalId === goal.id)}

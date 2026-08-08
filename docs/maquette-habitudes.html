@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zénith — maquette habitudes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0e14; --bg-2:#11151f; --surface:#161b27; --surface-2:#1c2232;
+  --border:#262e40; --border-strong:#36405a;
+  --text:#e8ecf4; --text-dim:#97a1b8; --text-faint:#6a748c;
+  --accent:#f2c14e; --flame:#ff9d4d; --success:#3fb950; --danger:#e5484d;
+  --radius:14px; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; padding:28px 20px 80px;
+  background:
+    radial-gradient(1100px 620px at 15% -10%, #1b2440 0%, transparent 60%),
+    radial-gradient(900px 560px at 90% 0%, #241d3a 0%, transparent 55%),
+    var(--bg);
+  color:var(--text);
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:980px;margin:0 auto}
+h1{font-family:'Cinzel',serif;font-size:27px;letter-spacing:.01em;margin:0 0 6px}
+.lede{color:var(--text-dim);margin:0 0 34px;max-width:70ch}
+h2{font-size:15px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);
+   margin:44px 0 6px;font-weight:700}
+.note{color:var(--text-faint);font-size:13px;margin:0 0 16px;max-width:74ch;line-height:1.55}
+.note b{color:var(--text-dim);font-weight:600}
+
+/* ---------- carte ---------- */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+      padding:16px 18px;margin-bottom:14px}
+.card-head{display:flex;align-items:flex-start;gap:11px;margin-bottom:12px}
+.emoji{font-size:22px;line-height:1.15}
+.card-main{flex:1;min-width:0}
+.card-title{font-size:15px;font-weight:650;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.card-sub{font-size:12.5px;color:var(--text-faint);margin-top:2px}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;
+       font-size:11px;font-weight:700;letter-spacing:.04em}
+.crest{width:11px;height:13px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.pill{padding:2px 9px;border-radius:999px;background:var(--bg-2);border:1px solid var(--border);
+      font-size:11px;color:var(--text-dim);font-weight:600;letter-spacing:.03em}
+.pill.maint{color:var(--success);border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.1)}
+
+/* ---------- grille ---------- */
+.grid-wrap{display:flex;gap:7px;align-items:flex-start}
+.dowcol{display:grid;grid-auto-rows:var(--cs);gap:var(--gp);padding-top:15px}
+.dow{font-size:9px;color:var(--text-faint);display:flex;align-items:center;
+     line-height:1;width:9px}
+.grid-scroll{overflow-x:auto;scrollbar-width:thin;min-width:0}
+.months{display:flex;height:15px;font-size:9.5px;color:var(--text-faint);letter-spacing:.04em}
+/* `justify-content: start` est indispensable : sans lui les colonnes implicites
+   se partagent la largeur restante et la grille se disloque. */
+.grid{display:grid;grid-auto-flow:column;gap:var(--gp);
+      grid-template-rows:repeat(7,var(--cs));grid-auto-columns:var(--cs);
+      justify-content:start;width:max-content}
+.grid-wrap{--cs:14px;--gp:3px}
+.cell{border-radius:3px;background:var(--bg-2);border:1px solid rgba(255,255,255,.045)}
+.cell.off{background:transparent;border-color:transparent}
+.cell.today{outline:1.5px solid var(--accent);outline-offset:1px}
+/* le seul repère de l'app : hier est vide et aujourd'hui ne l'est pas encore */
+.cell.warn{border:1.5px dashed var(--flame)}
+
+.foot{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px;
+      font-size:11.5px;color:var(--text-faint)}
+.foot b{color:var(--text);font-variant-numeric:tabular-nums}
+.spacer{flex:1}
+.btn{padding:7px 14px;border-radius:9px;border:1px solid var(--border-strong);
+     background:var(--bg-2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer}
+.btn.p{background:linear-gradient(180deg,#f2c14e,#d9a520);border-color:#c8992c;color:#2b2000}
+.legend{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--text-faint)}
+.legend .cell{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+/* ---------- variantes ---------- */
+.opt{border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px;
+     background:var(--bg-2)}
+.opt-head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+.opt-name{font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.opt-verdict{font-size:11.5px;color:var(--text-faint)}
+.good{color:var(--success)}
+.bad{color:var(--flame)}
+.grid-wrap.xs{--cs:8px;--gp:2px}
+.grid-wrap.xs .cell{border-radius:2px}
+.grid-wrap.lg{--cs:26px;--gp:5px}
+.grid-wrap.lg .cell{border-radius:6px}
+.strip{display:flex;gap:4px;flex-wrap:wrap}
+
+/* ---------- téléphone ---------- */
+.phone{width:390px;max-width:100%;border:1px solid var(--border-strong);border-radius:22px;
+       padding:14px;background:var(--bg);box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.two{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>La mémoire d'une habitude</h1>
+<p class="lede">
+  Maquette, pas du code. Trois géométries à comparer, la carte telle qu'elle serait, et la règle
+  des deux jours en action. La couleur d'une grille est celle du rang de l'objectif — chaque
+  habitude a sa teinte, et cette teinte veut dire quelque chose.
+</p>
+
+<h2>1 · La carte, telle qu'elle serait</h2>
+<p class="note">
+  Douze semaines, dans la carte repliée, sous la barre de paliers. <b>Aucun nouveau modèle de
+  données</b> : une case est allumée dès qu'une action de cet objectif a été cochée ce jour-là,
+  et son intensité vient des PP gagnés. Rien avant la création de l'objectif — pas de mois de
+  gris en guise de bilan d'échec le premier jour.
+</p>
+<div id="cards"></div>
+
+<h2>2 · Les trois géométries</h2>
+<p class="note">
+  Même habitude, même données. La question n'est pas laquelle est la plus jolie mais
+  <b>laquelle tient sur un téléphone sans mentir</b>.
+</p>
+<div id="options"></div>
+
+<h2>3 · La règle des deux jours</h2>
+<p class="note">
+  Ta capture affiche « Never fail twice in a row » comme un sous-titre décoratif. Ici c'est une
+  vraie règle : <b>hier est entouré d'orange, une seule fois</b>, quand il est resté vide et
+  qu'aujourd'hui ne l'est pas encore. Rater un jour est du bruit, en rater deux est un signal —
+  c'est le seul moment où l'app prend la parole.
+</p>
+<div id="rule"></div>
+
+<h2>4 · Sur téléphone</h2>
+<p class="note">
+  390 px de large. Des cases de 14 px, sept lignes, douze semaines : ça tient sans réduire ni
+  faire défiler. Une année pleine, à la même échelle, demanderait des cases de 4 px.
+</p>
+<div class="two">
+  <div class="phone" id="phone"></div>
+  <div style="flex:1;min-width:260px">
+    <p class="note" style="margin-top:6px">
+      <b>Ce qui ne change pas :</b> le geste du soir. Les mêmes pastilles dans « Aujourd'hui »,
+      la même coche, le même streak, la même file d'attente hors ligne. Toute la nouveauté est
+      de la <b>restitution</b> — c'est le signe qu'on n'a pas ajouté de complexité, seulement
+      de la mémoire.
+    </p>
+    <p class="note">
+      <b>Ce qu'on n'ajoute pas :</b> pas de fréquence configurable (« 3 fois par semaine »),
+      pas de rappel par habitude, pas d'entrée de navigation « Habitudes », pas de second
+      modèle de données.
+    </p>
+  </div>
+</div>
+
+</div>
+
+<script>
+const DOW = ['L','M','M','J','V','S','D'];
+const MONTHS = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+
+const today = new Date(); today.setHours(12,0,0,0);
+const key = d => d.toISOString().slice(0,10);
+const shift = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+
+/** Lundi de la semaine de `d`. */
+function monday(d){ const x=new Date(d); const w=(x.getDay()+6)%7; x.setDate(x.getDate()-w); return x; }
+
+/**
+ * Historique plausible : une habitude tenue avec des trous, pas une ligne parfaite —
+ * une grille sans aucun trou ne ressemble à la vie de personne.
+ */
+function history(days, density, seed){
+  const out = new Map(); let s = seed;
+  const rnd = () => (s = (s*1103515245+12345) % 2147483648) / 2147483648;
+  for(let i=days;i>=0;i--){
+    const d = shift(today,-i);
+    // la régularité s'installe : plus dense à mesure qu'on approche d'aujourd'hui
+    const p = density * (0.55 + 0.45*(1-i/days));
+    if(rnd() < p) out.set(key(d), 1 + Math.floor(rnd()*3));
+  }
+  return out;
+}
+
+function grid({ start, end, data, color, cell='', warnDay=null, showMonths=true }){
+  const first = monday(start);
+  const cols = Math.ceil((end - first)/(7*86400000)) + 1;
+  const el = document.createElement('div');
+  el.className = 'grid-wrap' + (cell ? ' ' + cell : '');
+
+  const dowcol = document.createElement('div');
+  dowcol.className = 'dowcol';
+  DOW.forEach((l,i) => {
+    const s = document.createElement('span');
+    s.className = 'dow';
+    s.textContent = i % 2 === 0 ? l : '';
+    dowcol.appendChild(s);
+  });
+  el.appendChild(dowcol);
+
+  const scroll = document.createElement('div');
+  scroll.className = 'grid-scroll';
+
+  const cw = cell==='xs' ? 10 : cell==='lg' ? 31 : 17;
+  if(showMonths){
+    const months = document.createElement('div');
+    months.className = 'months';
+    let last = -1;
+    for(let c=0;c<cols;c++){
+      const d = shift(first, c*7);
+      const span = document.createElement('span');
+      span.style.width = cw+'px'; span.style.flex='0 0 auto';
+      if(d.getMonth() !== last && d.getDate() <= 7){ span.textContent = MONTHS[d.getMonth()]; last = d.getMonth(); }
+      months.appendChild(span);
+    }
+    scroll.appendChild(months);
+  }
+
+  const g = document.createElement('div');
+  g.className = 'grid';
+  for(let c=0;c<cols;c++){
+    for(let r=0;r<7;r++){
+      const d = shift(first, c*7+r);
+      const b = document.createElement('span');
+      b.className = 'cell';
+      if(d < start || d > end){ b.classList.add('off'); }
+      else {
+        const v = data.get(key(d));
+        if(v){
+          b.style.background = color;
+          b.style.opacity = [0,.42,.7,1][v];
+          b.style.borderColor = 'transparent';
+        }
+        if(key(d) === key(today)) b.classList.add('today');
+        if(warnDay && key(d) === warnDay) b.classList.add('warn');
+        b.title = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+      }
+      g.appendChild(b);
+    }
+  }
+  scroll.appendChild(g);
+  el.appendChild(scroll);
+  return el;
+}
+
+function streakOf(data){
+  let n = 0;
+  // la journée en cours ne casse rien tant qu'elle n'est pas finie
+  for(let i = data.has(key(today)) ? 0 : 1; ; i++){
+    if(!data.get(key(shift(today,-i)))) break;
+    n++;
+  }
+  return n;
+}
+
+const HABITS = [
+  { emoji:'💅', title:'Arrêter de me ronger les ongles', rank:'Émeraude',
+    c:'#1f9d55', c2:'#5be08d', target:90, unit:'jours', d:0.86, seed:7, age:112,
+    next:'90 jours sans me ronger les ongles' },
+  { emoji:'🧘', title:'Méditer', rank:'Or', c:'#c8992c', c2:'#f0cf5e',
+    target:100, unit:'jours', d:0.7, seed:23, age:150, maint:true },
+];
+
+const cards = document.getElementById('cards');
+HABITS.forEach(h => {
+  const start = shift(today,-h.age);
+  const data = history(h.age, h.d, h.seed);
+  const done = data.size;
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="card-head">
+      <span class="emoji">${h.emoji}</span>
+      <div class="card-main">
+        <div class="card-title">${h.title}
+          <span class="badge" style="background:linear-gradient(150deg,${h.c2},${h.c});color:#04210f">
+            <span class="crest" style="background:rgba(0,0,0,.25)"></span>${h.rank}</span>
+          ${h.maint ? '<span class="pill maint">Entretien</span>'
+                    : `<span class="pill">${done} / ${h.target} ${h.unit}</span>`}
+        </div>
+        <div class="card-sub">${h.maint
+          ? 'Tous les paliers validés — on ne finit pas une habitude, on l’entretient.'
+          : 'Prochain palier : ' + h.next}</div>
+      </div>
+    </div>`;
+  card.appendChild(grid({ start, end: today, data, color: h.c2 }));
+  const foot = document.createElement('div');
+  foot.className = 'foot';
+  foot.innerHTML = `
+    <span>🔥 <b>${streakOf(data)}</b> jours d'affilée</span>
+    <span><b>${done}</b> jours au total</span>
+    <span class="spacer"></span>
+    <span class="legend">moins
+      <span class="cell" style="background:${h.c2};opacity:.42;border-color:transparent"></span>
+      <span class="cell" style="background:${h.c2};opacity:.7;border-color:transparent"></span>
+      <span class="cell" style="background:${h.c2};border-color:transparent"></span>plus</span>`;
+  card.appendChild(foot);
+  cards.appendChild(card);
+});
+
+const REF = HABITS[0];
+const refData = history(370, REF.d, REF.seed);
+const OPTIONS = [
+  { name:'Année pleine', days:364, cell:'xs',
+    v:'<span class="bad">✕</span> 7 px ici, 4 px sur un téléphone. Et en janvier, une année de gris.' },
+  { name:'12 semaines', days:83, cell:'',
+    v:'<span class="good">✓</span> Tient sur un téléphone, garde les jours de semaine lisibles. Recommandé.' },
+  { name:'30 derniers jours', days:29, cell:'lg',
+    v:'<span class="bad">✕</span> Très lisible, mais on perd les motifs (« je saute toujours le dimanche »).' },
+];
+const opts = document.getElementById('options');
+OPTIONS.forEach(o => {
+  const box = document.createElement('div');
+  box.className = 'opt';
+  box.innerHTML = `<div class="opt-head"><span class="opt-name">${o.name}</span>
+    <span class="opt-verdict">${o.v}</span></div>`;
+  box.appendChild(grid({ start: shift(today,-o.days), end: today, data: refData,
+                         color: REF.c2, cell: o.cell, showMonths: o.cell!=='lg' }));
+  opts.appendChild(box);
+});
+
+// --- règle des deux jours : hier vide, aujourd'hui pas encore fait -------
+const ruleData = history(83, 0.85, 5);
+ruleData.delete(key(shift(today,-1)));
+ruleData.delete(key(today));
+const rule = document.createElement('div');
+rule.className = 'card';
+rule.innerHTML = `
+  <div class="card-head">
+    <span class="emoji">🤞</span>
+    <div class="card-main">
+      <div class="card-title">Arrêter de me craquer les doigts</div>
+      <div class="card-sub" style="color:var(--flame)">
+        Hier est resté vide. Une fois n'est rien — deux fois de suite, c'est autre chose.</div>
+    </div>
+  </div>`;
+rule.appendChild(grid({ start: shift(today,-83), end: today, data: ruleData,
+                        color:'#8cc4ff', warnDay: key(shift(today,-1)) }));
+const rf = document.createElement('div');
+rf.className = 'foot';
+rf.innerHTML = `<span>🔥 <b>0</b> jour d'affilée</span><span class="spacer"></span>
+  <button class="btn">Je l'ai fait hier</button><button class="btn p">Cocher aujourd'hui</button>`;
+rule.appendChild(rf);
+document.getElementById('rule').appendChild(rule);
+
+// --- téléphone ----------------------------------------------------------
+const ph = document.getElementById('phone');
+const phData = history(83, 0.8, 11);
+const phCard = document.createElement('div');
+phCard.className = 'card';
+phCard.style.marginBottom = '0';
+phCard.innerHTML = `
+  <div class="card-head">
+    <span class="emoji">💧</span>
+    <div class="card-main">
+      <div class="card-title">Boire 1,5 L d'eau
+        <span class="badge" style="background:linear-gradient(150deg,#8cc4ff,#3f7fd6);color:#04152b">
+          <span class="crest" style="background:rgba(0,0,0,.25)"></span>Diamant</span>
+      </div>
+      <div class="card-sub">Prochain palier : 120 jours</div>
+    </div>
+  </div>`;
+phCard.appendChild(grid({ start: shift(today,-83), end: today, data: phData, color:'#8cc4ff' }));
+const pf = document.createElement('div');
+pf.className = 'foot';
+pf.innerHTML = `<span>🔥 <b>${streakOf(phData)}</b> jours</span><span><b>${phData.size}</b> au total</span>`;
+phCard.appendChild(pf);
+ph.appendChild(phCard);
+</script>
+</body>
+</html>

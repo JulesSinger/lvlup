@@ -134,9 +134,15 @@ export interface Store {
    * Enregistre une action faite aujourd'hui. Une seule fois par action et par
    * jour ; `day` au format YYYY-MM-DD. Les PP sont figés à l'enregistrement.
    */
-  addCheckin(goalId: string, day: string, actionId: string, pp: number): Promise<Checkin>;
-  /** Ajoute ou modifie la note libre d'une réalisation. */
-  updateCheckin(id: string, patch: { note?: string }): Promise<void>;
+  addCheckin(
+    goalId: string,
+    day: string,
+    actionId: string,
+    pp: number,
+    value?: number | null,
+  ): Promise<Checkin>;
+  /** Ajoute ou modifie la note libre, ou la quantité relevée. */
+  updateCheckin(id: string, patch: { note?: string; value?: number | null }): Promise<void>;
   deleteCheckin(id: string): Promise<void>;
 
   // --- Trophées (acquis pour toujours) ---

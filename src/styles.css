@@ -700,14 +700,329 @@ textarea {
   font-size: 12px;
   color: var(--text-faint);
   margin-top: 7px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Plus de troncature : elle coupait le compteur, donc la seule information
+     de la ligne qui dise où on en est. Deux lignes valent mieux qu'un « … ». */
 }
 
 .goal-next-line strong {
   color: var(--text-dim);
   font-weight: 550;
+}
+
+.goal-next-count b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.goal-state {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.goal-state.done {
+  color: var(--success);
+}
+
+/* On ne finit pas une habitude : tous les paliers tombés mais la coche
+   continue. « Accompli » serait un contresens, et sortirait de l'écran une
+   chose qu'on fait encore tous les jours. */
+.goal-state.maint {
+  color: var(--success);
+  background: rgba(63, 185, 80, 0.1);
+  border: 1px solid rgba(63, 185, 80, 0.4);
+}
+
+/* ====================================================================
+ * La grille des jours — la mémoire d'un objectif
+ * ==================================================================== */
+
+.heat {
+  --cell: 13px;
+  --gap: 3px;
+  display: grid;
+  gap: 7px;
+  /* Posée sous l'en-tête, sur toute la largeur de la carte : dans la colonne
+     du titre elle partageait la place avec les boutons d'action et se faisait
+     couper sur téléphone — en masquant la colonne d'aujourd'hui, la seule
+     qu'on regarde vraiment. */
+  padding: 0 14px 14px 15px;
+}
+
+.heat-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  /* Élément de grille : sans `min-width: 0`, sa largeur minimale vaut celle de
+     son contenu. En vue année (371 px de colonnes), la carte s'élargissait au
+     lieu de laisser la grille défiler — et débordait de l'écran sur
+     téléphone, en emportant le bouton de bascule avec elle. */
+  min-width: 0;
+}
+
+/* Filtrer par action répond à une autre question que la grille entière : non
+   plus « est-ce que je m'y suis mis » mais « laquelle je ne fais jamais ». */
+.heat-filter {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.heat-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.heat-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* La pastille active prend la teinte de la grille : le lien entre le filtre
+   et ce qu'on regarde n'a pas besoin d'être expliqué. */
+.heat-chip.on {
+  color: var(--heat);
+  border-color: var(--heat);
+  background: color-mix(in srgb, var(--heat) 14%, transparent);
+}
+
+.heat-dow {
+  display: grid;
+  grid-auto-rows: var(--cell);
+  gap: var(--gap);
+  padding-top: 14px;
+  font-size: 8.5px;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+.heat-dow span {
+  display: flex;
+  align-items: center;
+  width: 7px;
+}
+
+.heat-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 1px;
+}
+
+.heat-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.heat-months {
+  display: flex;
+  height: 14px;
+  font-size: 9px;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+}
+
+.heat-months span {
+  flex: 0 0 calc(var(--cell) + var(--gap));
+  /* `min-width: auto` est la valeur par défaut d'un élément flex : chaque
+     étiquette s'élargissait à la taille de son texte et poussait les
+     suivantes, si bien que « juin » finissait au-dessus d'août. Le texte doit
+     déborder de sa colonne sans jamais la déplacer. */
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* `justify-content: start` n'est pas décoratif : sans lui, les colonnes
+   implicites se partagent la largeur restante et la grille se disloque. */
+.heat-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, var(--cell));
+  grid-auto-columns: var(--cell);
+  justify-content: start;
+  gap: var(--gap);
+  width: max-content;
+}
+
+.heat-cell {
+  border-radius: 3px;
+  /* Un jour sans rien doit se VOIR comme une case vide, pas comme un trou.
+     À `--bg-2` sur la surface d'une carte, l'écart était de deux points de
+     luminosité : la grille se lisait comme des carrés flottants séparés par
+     du vide, au lieu d'un calendrier avec des cases remplies et des cases
+     vides. C'est le vide qui donne son sens au plein. */
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--border);
+}
+
+/* Avant la création de l'objectif, ou après aujourd'hui.
+   Ces jours ne comptent pas — on n'a rien à s'y reprocher, l'objectif
+   n'existait pas. Mais les effacer complètement cassait la lecture : sur un
+   objectif créé aujourd'hui, la grille devenait quatre-vingt-trois trous et
+   une case, ce qui ressemble à un bug plutôt qu'à un choix. Ils gardent donc
+   un contour, assez léger pour qu'aucun œil ne les confonde avec un jour
+   manqué, assez présent pour que la grille reste une grille. */
+.heat-cell.ghost {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+.heat-cell[data-level='1'] {
+  background: var(--heat);
+  border-color: transparent;
+  /* 0,42 passait sous le seuil de lisibilité sur les rangs pâles (Argent,
+     Fer) : la case allumée devenait indiscernable de la case vide. */
+  opacity: 0.55;
+}
+
+.heat-cell[data-level='2'] {
+  background: var(--heat);
+  border-color: transparent;
+  opacity: 0.78;
+}
+
+.heat-cell[data-level='3'] {
+  background: var(--heat);
+  border-color: transparent;
+}
+
+/* Anneaux dessinés à l'INTÉRIEUR de la case, jamais en `outline`.
+   `.heat-scroll` défile horizontalement, et `overflow-x: auto` force aussi le
+   rognage vertical : un contour posé autour de la case se faisait couper en
+   bas sur la dernière ligne, et sur les bords à gauche et à droite. Un
+   `box-shadow: inset` reste dans la boîte, donc il ne peut pas être rogné. */
+.heat-cell.today {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.heat-cell:not(.ghost) {
+  cursor: pointer;
+}
+
+/* Le jour dont on lit le détail juste en dessous. Déclaré après `.today`
+   pour l'emporter quand c'est aujourd'hui qu'on regarde. */
+.heat-cell.picked {
+  box-shadow: inset 0 0 0 1.5px var(--text);
+  border-color: var(--text);
+}
+
+/* Le focus clavier va sur le conteneur de défilement, pas sur la grille :
+   posé sur la grille, il serait rogné par ce même conteneur. */
+.heat-scroll:has(.heat-grid:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 5px;
+}
+
+.heat-grid:focus-visible {
+  outline: none;
+}
+
+/* Cinquante-trois colonnes ne tiennent pas à 13 px : l'année réduit la case
+   plutôt que de forcer un défilement, qui priverait la vue longue de sa seule
+   raison d'être — tout voir d'un coup. */
+.heat.year {
+  --cell: 6px;
+  --gap: 1px;
+}
+
+.heat.year .heat-cell {
+  border-radius: 2px;
+}
+
+/* Douze mois sur cinquante-trois colonnes : environ trente pixels par
+   étiquette. On réduit pour qu'elles ne se chevauchent pas. */
+.heat.year .heat-months {
+  font-size: 8px;
+}
+
+.heat-foot {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* La grille dit « je m'y suis mis ». Cette ligne dit quoi — sans quoi une
+   case ment par omission dès qu'un objectif a plusieurs actions. Toujours
+   affichée, pour que le clic ne fasse pas sauter la carte. */
+.heat-detail {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  min-height: 16px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-dim);
+}
+
+/* Le streak de CET objectif — la flamme du profil, elle, est globale. */
+.heat-streak {
+  color: var(--flame);
+}
+
+.heat-streak b {
+  color: var(--flame);
+  font-variant-numeric: tabular-nums;
+}
+
+.heat-zoom {
+  flex-shrink: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.heat-zoom:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.heat-detail b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.heat-hint {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* La règle des deux jours. Un seul repère, sur hier, une seule fois — jamais
+   deux jours de suite. C'est le seul endroit où la grille prend la parole. */
+.heat-cell.warn {
+  border: 1.5px dashed var(--flame);
+  background: rgba(255, 157, 77, 0.08);
+}
+
+@media (max-width: 620px) {
+  .heat {
+    --cell: 12px;
+    padding: 0 12px 12px 13px;
+  }
+
 }
 
 .goal:hover {
@@ -925,6 +1240,10 @@ textarea {
 
 .modal {
   width: min(620px, 100%);
+  /* Élément de grille : sans ça, `min-width: auto` vaut la largeur
+     min-content du contenu, et le panneau déborde de l'écran sur
+     téléphone au lieu de faire défiler ce qui doit défiler. */
+  min-width: 0;
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
@@ -1015,6 +1334,217 @@ textarea {
 .draft-tier select {
   width: 138px;
   flex-shrink: 0;
+}
+
+/* Le badge de rang change de largeur selon le mot (« Or » contre
+   « Challenger ») : sans colonne fixe, les champs de saisie se décalent
+   ligne après ligne et l'échelle semble bancale. */
+/* 112 px : la largeur naturelle du plus long badge, « Challenger ». En
+   dessous, il déborde de sa colonne et décale son champ de saisie — le
+   défaut visible d'une échelle qui monte jusqu'en haut. */
+.draft-tier .rank-badge,
+.draft-tier .draft-rank-empty {
+  flex: 0 0 112px;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.draft-rank-empty {
+  text-align: center;
+  color: var(--text-faint);
+}
+
+/* ====================================================================
+ * Bibliothèque de modèles
+ * ==================================================================== */
+
+.modal-wide {
+  width: min(760px, 100%);
+}
+
+.picker-intro,
+.picker-desc {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* Onglets de catégorie : une seule ligne qui défile plutôt que huit boutons
+   qui passent à la ligne et poussent la grille hors de l'écran. */
+.picker-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.picker-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.picker-tab {
+  flex: 0 0 auto;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  white-space: nowrap;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.picker-tab:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.picker-tab.active {
+  background: rgba(201, 162, 39, 0.16);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
+  gap: 9px;
+}
+
+.picker-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 13px;
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  transition:
+    border-color 0.15s ease,
+    transform 0.12s ease,
+    background 0.15s ease;
+}
+
+.picker-card:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+  transform: translateY(-1px);
+}
+
+.picker-emoji {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.picker-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.picker-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.picker-meta {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.picker-foot {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.picker-scratch-hint {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+/* ---------------------------------------------- aperçu d'un modèle ----- */
+/* Les étapes étaient rendues en liste brute : puces natives, numéro collé au
+   titre (« 15 pompes » lu comme « 15 pompes ») et badge par-dessus le texte. */
+.preview-tiers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.preview-tiers li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.preview-index {
+  flex: 0 0 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+}
+
+.preview-tiers .rank-badge {
+  flex-shrink: 0;
+}
+
+.preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.preview-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.preview-action b {
+  color: var(--accent);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 620px) {
+  .picker-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ------------------------------------------------------------- timeline */
@@ -1340,6 +1870,53 @@ textarea {
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+/* L'échelle qui se dessine à la création d'un objectif : les marches
+   apparaissent une à une, du bas vers le haut. C'est la seule cérémonie sans
+   PP — planifier est déjà un accomplissement, mais on ne paye pas pour une
+   intention. */
+.ceremony-ladder {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  width: min(420px, 100%);
+}
+
+.ceremony-step-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 13px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  animation: rise-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ceremony-step-crest {
+  width: 13px;
+  height: 15px;
+  flex-shrink: 0;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+.ceremony-step-title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+.ceremony-step-rank {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
 }
 
 .ceremony-steps {
@@ -1714,6 +2291,77 @@ textarea {
   font-size: 13.5px;
 }
 
+/* Ce qu'un appui va enregistrer, rappelé à côté du nom : « 8 km ». Sans ça,
+   la valeur habituelle est un réglage invisible qu'on oublie avoir posé. */
+.action-row-unit {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.action-row-wrap {
+  border-bottom: 1px solid var(--border);
+}
+
+.action-row-wrap:last-of-type {
+  border-bottom: none;
+}
+
+.action-row-wrap .action-row {
+  border-bottom: none;
+}
+
+/* Le panneau « quantifier » : replié par défaut, parce que la très grande
+   majorité des actions se cochent et rien de plus. */
+.action-quant {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 13px;
+  margin-bottom: 9px;
+  border-radius: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  animation: rise-in 0.2s ease both;
+}
+
+.action-quant-natures {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.action-quant-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  line-height: 1.45;
+}
+
+.action-quant-fields {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.action-quant-fields label {
+  display: grid;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.action-quant-fields input {
+  width: 130px;
+  font-size: 13px;
+  background: var(--bg);
+}
+
 .action-add {
   display: flex;
   gap: 8px;
@@ -1898,6 +2546,35 @@ textarea {
   flex: 1;
   font-size: 13.5px;
   background: var(--bg);
+}
+
+/* La quantité annoncée sur la pastille : « 8 km ». C'est elle qui permet de
+   ne jamais ouvrir de clavier pour une sortie ordinaire — on sait ce que
+   l'appui va enregistrer avant d'appuyer. */
+.checkin-amount {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.checkin-chip.done .checkin-amount {
+  background: rgba(63, 185, 80, 0.16);
+  color: #8ee39c;
+}
+
+.checkin-value input {
+  flex: 0 1 130px;
+  font-variant-numeric: tabular-nums;
+}
+
+.checkin-value-unit {
+  font-size: 12.5px;
+  color: var(--text-faint);
 }
 
 .streak-banner {
@@ -3182,6 +3859,12 @@ textarea {
   .draft-tier select {
     width: 116px;
   }
+  /* Sur un écran étroit, la colonne fixe du badge mangerait le champ de
+     saisie : on la laisse se réduire à ce que le mot demande. */
+  .draft-tier .rank-badge,
+  .draft-tier .draft-rank-empty {
+    flex: 0 0 auto;
+  }
 }
 
 /* ======================================================================
@@ -3466,4 +4149,297 @@ textarea {
    réglages : les boutons d'import/export vivent désormais dans le panneau. */
 .sidebar-settings {
   justify-content: flex-start;
+}
+
+/* ======================================================================
+ * Revenir sur les jours précédents
+ * ==================================================================== */
+
+/**
+ * Une seule ligne, et seulement les jours où il y a eu un oubli.
+ *
+ * L'app ne prend la parole que quand une journée récente est restée
+ * entièrement vide : c'est le seul cas où elle sait quelque chose que
+ * l'utilisateur a probablement oublié. Le reste du temps, revenir en arrière
+ * passe par les flèches de la section et n'occupe aucune place.
+ */
+.forgotten {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 15px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: rgba(242, 193, 78, 0.05);
+}
+
+.forgotten-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.forgotten-text b {
+  color: var(--text);
+}
+
+/* --------------------------------------------- navigation dans le jour */
+.day-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.day-nav h2 {
+  min-width: 8.5ch;
+}
+
+.day-arrow {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-2);
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.day-arrow:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.day-arrow:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+/**
+ * Quand on n'est plus sur aujourd'hui, ça doit se voir sans avoir à lire :
+ * cocher le mauvais jour sans s'en rendre compte est le piège classique de
+ * ce genre de navigation.
+ */
+.hub-section.past-day {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.hub-section.past-day .day-nav h2 {
+  color: var(--accent);
+}
+
+.day-back {
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .forgotten {
+    gap: 8px;
+  }
+  .forgotten-text {
+    flex: 1 1 100%;
+  }
+  .day-nav h2 {
+    min-width: 0;
+  }
+}
+
+/* ======================================================================
+ * Avancée d'un palier comptable
+ * ==================================================================== */
+
+/**
+ * La barre qui reliait le geste du jour à la marche qu'il fait monter.
+ * Rien ne s'affiche pour un jalon : une barre à zéro sur « Passer le permis »
+ * serait un reproche permanent plutôt qu'une information.
+ */
+.meter {
+  display: grid;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.meter-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.meter-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.meter-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.meter-count b {
+  color: var(--text);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ce que la coche du soir va ajouter — le lien explicite entre les deux. */
+.meter-pending {
+  color: var(--accent);
+}
+
+.meter-latest {
+  color: var(--text-dim);
+}
+
+/* « en une seule fois » : la barre d'une performance n'est pas un total. */
+.meter-scope {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* Le record d'une série reste affiché même quand le compteur est retombé :
+   ce qui a été tenu n'est jamais effacé. */
+.meter-best {
+  white-space: nowrap;
+  color: var(--flame);
+}
+
+.meter.compact {
+  margin-top: 5px;
+}
+
+.meter.compact .meter-bar {
+  height: 4px;
+}
+
+/* ====================================================================
+ * Comptage d'un palier, et courbe d'une mesure
+ * ==================================================================== */
+
+/* Un bouton d'outil resté enfoncé : le panneau qu'il ouvre est visible. */
+.btn.btn-ghost.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.tier-counter {
+  display: grid;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 10px 12px 12px;
+  border-radius: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  animation: rise-in 0.2s ease both;
+}
+
+.tier-counter-kinds {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tier-counter-hint,
+.tier-counter-foot {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
+.tier-counter-foot {
+  padding-top: 2px;
+  border-top: 1px solid var(--border);
+}
+
+.tier-counter-fields {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tier-counter-fields label {
+  display: grid;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.tier-counter-fields input {
+  width: 116px;
+  font-size: 13px;
+  background: var(--bg);
+}
+
+.tier-counter-fields select {
+  width: auto;
+  min-width: 168px;
+  font-size: 13px;
+  background: var(--bg);
+}
+
+/* La courbe d'une mesure : cadrée sur l'amplitude des relevés, jamais sur
+   zéro — un poids tracé depuis 0 kg est une ligne plate. */
+.measure-chart {
+  margin-top: 8px;
+  display: grid;
+  gap: 3px;
+}
+
+.measure-chart svg {
+  display: block;
+  border-radius: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.measure-foot {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* Chaque légende porte le trait qu'elle nomme : on lit la courbe sans avoir
+   à deviner lequel des deux pointillés est la cible. */
+.measure-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.measure-legend::before {
+  content: '';
+  width: 14px;
+  border-top: 1px dashed #2c3550;
+}
+
+.measure-legend.goal::before {
+  border-top-color: #3fb950;
+}
+
+.measure-legend.goal {
+  color: var(--success);
+}
+
+@media (max-width: 620px) {
+  .meter-foot {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
 }

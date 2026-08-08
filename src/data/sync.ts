@@ -40,7 +40,7 @@ async function run(): Promise<FlushResult> {
       if (op.kind === 'add') {
         // `addCheckin` est un upsert : rejouer deux fois la même coche ne
         // crée pas de doublon.
-        await store.addCheckin(op.goalId, op.day, op.actionId, op.pp);
+        await store.addCheckin(op.goalId, op.day, op.actionId, op.pp, op.value);
       } else {
         await store.deleteCheckin(op.checkinId);
       }

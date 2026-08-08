@@ -32,7 +32,16 @@ globalThis.localStorage = {
 } as Storage;
 
 function serverCheckin(id: string, actionId: string, day: string, pp = 15): Checkin {
-  return { id, goalId: 'g1', actionId, pp, day, note: '', createdAt: `${day}T08:00:00.000Z` };
+  return {
+    id,
+    goalId: 'g1',
+    actionId,
+    pp,
+    day,
+    note: '',
+    createdAt: `${day}T08:00:00.000Z`,
+    value: null,
+  };
 }
 
 beforeEach(() => {

@@ -12,7 +12,7 @@ import {
 } from './progress';
 import { getRank } from './ranks';
 import type { RankId } from './ranks';
-import type { Checkin, Goal, Tier } from './types';
+import { JALON, type Checkin, type Goal, type Tier } from './types';
 
 /**
  * Ces fonctions décident du rang affiché et des points gagnés. Deux règles
@@ -33,6 +33,7 @@ function tier(rank: RankId, completedAt: string | null, position = 0): Tier {
     position,
     completedAt,
     createdAt: '2026-01-01T00:00:00.000Z',
+    ...JALON,
   };
 }
 
@@ -59,6 +60,7 @@ function checkin(day: string, pp = 10, goalId = 'g1'): Checkin {
     day,
     note: '',
     createdAt: `${day}T08:00:00.000Z`,
+    value: null,
   };
 }
 

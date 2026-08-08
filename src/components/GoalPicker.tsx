@@ -8,6 +8,9 @@ import { RankBadge } from './RankBadge';
  * de zéro. La page blanche n'est plus le point de départ mais une porte de
  * sortie pour ceux qui savent déjà ce qu'ils veulent.
  */
+/** Onglet transversal : il filtre sur une forme, pas sur un domaine. */
+const HABITS = 'Habitudes';
+
 export function GoalPicker({
   onPick,
   onScratch,
@@ -17,7 +20,16 @@ export function GoalPicker({
   onScratch: () => void;
   onCancel: () => void;
 }) {
-  const [category, setCategory] = useState<string>(TEMPLATE_CATEGORIES[0]);
+  /**
+   * « Habitudes » est un onglet, pas une catégorie.
+   *
+   * Une habitude n'est pas un domaine de vie — méditer relève de l'esprit,
+   * arrêter de fumer relève de l'arrêt, boire de l'eau relève de la santé, et
+   * les trois sont des habitudes. Cet onglet traverse donc les huit domaines
+   * au lieu de s'ajouter à eux : aucun modèle n'est dupliqué, aucune catégorie
+   * n'est vidée.
+   */
+  const [category, setCategory] = useState<string>(HABITS);
   const [preview, setPreview] = useState<GoalTemplate | null>(null);
 
   useEffect(() => {
@@ -31,7 +43,10 @@ export function GoalPicker({
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel, preview]);
 
-  const shown = GOAL_TEMPLATES.filter((t) => t.category === category);
+  const shown =
+    category === HABITS
+      ? GOAL_TEMPLATES.filter((t) => t.habit)
+      : GOAL_TEMPLATES.filter((t) => t.category === category);
 
   if (preview) {
     const ranks = suggestRanks(preview.tiers.length);
@@ -52,10 +67,10 @@ export function GoalPicker({
             <div className="field">
               <label>Les étapes</label>
               <ul className="preview-tiers">
-                {preview.tiers.map((title, i) => (
-                  <li key={title}>
+                {preview.tiers.map((tier, i) => (
+                  <li key={tier.title}>
                     <span className="preview-index">{i + 1}</span>
-                    <span className="preview-title">{title}</span>
+                    <span className="preview-title">{tier.title}</span>
                     <RankBadge rank={getRank(ranks[i])} />
                   </li>
                 ))}
@@ -101,11 +116,13 @@ export function GoalPicker({
 
         <div className="modal-body">
           <p className="picker-intro">
-            Choisis un objectif tout prêt — étapes et actions incluses, modifiables ensuite.
+            {category === HABITS
+              ? 'Une habitude se tient au jour le jour, elle ne se termine pas — l’app la suit avec une grille de jours plutôt qu’une ligne d’arrivée.'
+              : 'Choisis un objectif tout prêt — étapes et actions incluses, modifiables ensuite.'}
           </p>
 
           <div className="picker-tabs">
-            {TEMPLATE_CATEGORIES.map((c) => (
+            {[HABITS, ...TEMPLATE_CATEGORIES].map((c) => (
               <button
                 key={c}
                 className={`picker-tab${c === category ? ' active' : ''}`}

@@ -31,6 +31,8 @@ export type PendingOp =
       actionId: string;
       day: string;
       pp: number;
+      /** Quantité relevée, pour une action quantifiée cochée hors ligne */
+      value: number | null;
       at: number;
     }
   | {
@@ -86,6 +88,7 @@ export function queueAdd(input: {
   actionId: string;
   day: string;
   pp: number;
+  value?: number | null;
 }): string {
   const id = newOpId();
   const ops = read();
@@ -94,7 +97,7 @@ export function queueAdd(input: {
   const filtered = ops.filter(
     (op) => !(op.kind === 'add' && op.actionId === input.actionId && op.day === input.day),
   );
-  filtered.push({ kind: 'add', id, ...input, at: Date.now() });
+  filtered.push({ kind: 'add', id, ...input, value: input.value ?? null, at: Date.now() });
   write(filtered);
   return `${PENDING_PREFIX}${id}`;
 }
@@ -153,6 +156,7 @@ export function applyPending(serverCheckins: Checkin[], ops: PendingOp[] = read(
         day: op.day,
         note: '',
         createdAt: new Date(op.at).toISOString(),
+        value: op.value ?? null,
       },
     ];
   }

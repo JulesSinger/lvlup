@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getRank, suggestRanks } from '../lib/ranks';
+import type { TierSpec } from '../lib/templates';
 import type { Goal, GoalInput, TierInput } from '../lib/types';
 import { RankBadge } from './RankBadge';
 
@@ -23,7 +24,7 @@ export interface GoalSeed {
   title: string;
   description: string;
   emoji: string;
-  tiers: string[];
+  tiers: TierSpec[];
 }
 
 interface Props {
@@ -36,12 +37,22 @@ interface Props {
 interface DraftTier {
   key: number;
   title: string;
+  /**
+   * Comment ce palier se compte, hérité du modèle.
+   *
+   * On le conserve même si l'intitulé est retouché : renommer « 30 jours sans
+   * écran » en « 30 jours sans écran le soir » ne change pas le fait que ça se
+   * compte en jours. Un palier écrit de zéro reste un jalon — l'éditeur ne
+   * demande pas encore de le qualifier, ce serait un formulaire de plus avant
+   * la première victoire.
+   */
+  spec?: Omit<TierSpec, 'title'>;
 }
 
 let nextKey = 1;
 
-function draftsFrom(titles: string[]): DraftTier[] {
-  return titles.map((title) => ({ key: nextKey++, title }));
+function draftsFrom(tiers: TierSpec[]): DraftTier[] {
+  return tiers.map(({ title, ...spec }) => ({ key: nextKey++, title, spec }));
 }
 
 export function GoalEditor({ goal, seed, onCancel, onSave }: Props) {
@@ -50,7 +61,7 @@ export function GoalEditor({ goal, seed, onCancel, onSave }: Props) {
   const [description, setDescription] = useState(goal?.description ?? seed?.description ?? '');
   const [emoji, setEmoji] = useState(goal?.emoji ?? seed?.emoji ?? '🎯');
   const [drafts, setDrafts] = useState<DraftTier[]>(() =>
-    isEdit ? [] : draftsFrom(seed?.tiers ?? ['', '', '']),
+    isEdit ? [] : draftsFrom(seed?.tiers ?? [{ title: '' }, { title: '' }, { title: '' }]),
   );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -89,13 +100,19 @@ export function GoalEditor({ goal, seed, onCancel, onSave }: Props) {
       setError('Donne un titre à ton objectif.');
       return;
     }
-    const kept = drafts.map((d) => d.title.trim()).filter((t) => t.length > 0);
+    const kept = drafts
+      .map((d) => ({ ...d, title: d.title.trim() }))
+      .filter((d) => d.title.length > 0);
     if (!isEdit && kept.length === 0) {
       setError('Ajoute au moins une étape — c’est le cœur du suivi.');
       return;
     }
     const finalRanks = suggestRanks(kept.length);
-    const tiers: TierInput[] = kept.map((t, i) => ({ title: t, rank: finalRanks[i] }));
+    const tiers: TierInput[] = kept.map((d, i) => ({
+      title: d.title,
+      rank: finalRanks[i],
+      ...d.spec,
+    }));
 
     setSaving(true);
     setError('');

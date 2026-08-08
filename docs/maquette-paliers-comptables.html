@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zénith — paliers comptables (maquette)</title>
+    <style>
+      :root {
+        --bg: #0b0e14;
+        --bg-2: #11151f;
+        --surface: #161b27;
+        --surface-2: #1c2232;
+        --border: #262e40;
+        --border-strong: #36405a;
+        --text: #e8ecf4;
+        --text-dim: #97a1b8;
+        --text-faint: #6a748c;
+        --accent: #f2c14e;
+        --accent-ink: #2b2000;
+        --flame: #ff9d4d;
+        --radius: 14px;
+        --radius-sm: 9px;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 32px 20px 80px;
+        background:
+          radial-gradient(1100px 620px at 15% -10%, #1b2440 0%, transparent 60%),
+          radial-gradient(900px 560px at 90% 0%, #241d3a 0%, transparent 55%),
+          var(--bg);
+        color: var(--text);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 15px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap { max-width: 960px; margin: 0 auto; display: grid; gap: 38px; }
+      h1 { font-size: 24px; letter-spacing: 0.02em; margin: 0 0 4px; }
+      h2 {
+        font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em;
+        color: var(--accent); margin: 0 0 12px; font-weight: 700;
+      }
+      .lede { color: var(--text-dim); margin: 0 0 8px; max-width: 62ch; }
+      .card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 20px 22px;
+      }
+      .note { color: var(--text-faint); font-size: 12.5px; margin: 10px 0 0; max-width: 68ch; }
+
+      /* ---------- palier comptable ---------- */
+      .tier {
+        display: grid; gap: 9px; padding: 14px 0;
+        border-top: 1px solid var(--border);
+      }
+      .tier:first-of-type { border-top: none; }
+      .tier-head { display: flex; align-items: center; gap: 10px; }
+      .tier-num {
+        width: 22px; height: 22px; display: grid; place-items: center;
+        border-radius: 50%; background: var(--bg-2); border: 1px solid var(--border);
+        font-size: 11px; color: var(--text-faint); flex: none;
+      }
+      .tier-title { flex: 1; font-size: 14.5px; }
+      .badge {
+        font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+        text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
+      }
+      .bar {
+        height: 8px; border-radius: 999px; background: var(--bg-2);
+        overflow: hidden; border: 1px solid var(--border);
+      }
+      .bar span { display: block; height: 100%; border-radius: 999px; }
+      .tier-foot {
+        display: flex; justify-content: space-between; gap: 12px;
+        font-size: 12.5px; color: var(--text-dim);
+      }
+      .count { font-variant-numeric: tabular-nums; }
+      .count b { color: var(--text); font-size: 14px; }
+      .done .tier-title { color: var(--text-dim); text-decoration: line-through; }
+
+      /* ---------- chips d'action ---------- */
+      .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+      .chip {
+        display: inline-flex; align-items: center; gap: 8px;
+        border: 1px solid var(--border); background: var(--bg-2);
+        border-radius: 999px; padding: 9px 14px; font-size: 13.5px;
+      }
+      .chip .pp { color: var(--accent); font-weight: 700; font-size: 12.5px; }
+      .chip.done { border-color: rgba(63, 185, 80, 0.4); background: rgba(63, 185, 80, 0.08); }
+      .chip.done .pp { color: #5be08d; }
+      .chip .qty {
+        background: var(--surface-2); border: 1px solid var(--border-strong);
+        border-radius: 999px; padding: 2px 9px; font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      .feeds {
+        font-size: 11.5px; color: var(--text-faint); margin: 6px 0 0; display: block;
+      }
+
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+      @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+
+      .best {
+        display: inline-flex; align-items: center; gap: 5px;
+        font-size: 11.5px; color: var(--flame);
+      }
+      .kinds { display: grid; gap: 10px; }
+      .kind {
+        display: grid; grid-template-columns: 120px 1fr; gap: 14px;
+        padding: 11px 0; border-top: 1px solid var(--border); font-size: 13.5px;
+      }
+      .kind:first-child { border-top: none; }
+      .kind b { color: var(--accent); font-size: 12.5px; letter-spacing: 0.04em; }
+      .kind span { color: var(--text-dim); }
+      code {
+        background: var(--bg-2); border: 1px solid var(--border);
+        border-radius: 5px; padding: 1px 5px; font-size: 12.5px;
+      }
+
+      /* ---------- rattrapage ---------- */
+      .catchup {
+        border: 1px dashed var(--border-strong); border-radius: var(--radius);
+        padding: 13px 15px; background: rgba(242, 193, 78, 0.035);
+      }
+      .catchup-head {
+        display: flex; align-items: center; gap: 10px;
+        flex-wrap: wrap; margin-bottom: 10px;
+      }
+      .catchup-day { font-size: 13px; font-weight: 600; }
+      .catchup-ask { font-size: 12.5px; color: var(--text-dim); flex: 1; }
+      .ignore {
+        border: 1px solid var(--border); background: none; color: var(--text-faint);
+        border-radius: 999px; padding: 4px 11px; font-size: 12px;
+      }
+      .chip.ghost { opacity: 0.72; border-style: dashed; }
+      .chip.measure { border-color: var(--border-strong); background: var(--surface-2); }
+
+      /* ---------- courbe de mesure ---------- */
+      .curve {
+        width: 100%; height: 130px; margin-top: 18px; display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>Paliers comptables — maquette</h1>
+        <p class="lede">
+          Ce que voit quelqu'un dont l'objectif est « Reprendre le contrôle des écrans », avec
+          le palier « 30 jours sans écran avant minuit » et l'action quotidienne qui l'alimente.
+        </p>
+      </header>
+
+      <!-- ============================================= la carte d'objectif -->
+      <section>
+        <h2>Sur la carte d'objectif</h2>
+        <div class="card">
+          <div style="display:flex;align-items:center;gap:11px;margin-bottom:14px">
+            <span style="font-size:22px">📱</span>
+            <strong style="font-size:16px">Reprendre le contrôle des écrans</strong>
+            <span class="badge" style="margin-left:auto;background:linear-gradient(150deg,#cd8b52,#a2643a);color:#fff">Bronze</span>
+          </div>
+
+          <div class="tier done">
+            <div class="tier-head">
+              <span class="tier-num" style="background:linear-gradient(150deg,#cd8b52,#a2643a);color:#fff;border-color:transparent">✓</span>
+              <span class="tier-title">7 jours sans écran avant minuit</span>
+              <span class="badge" style="background:linear-gradient(150deg,#cd8b52,#a2643a);color:#fff">Bronze</span>
+            </div>
+            <div class="bar"><span style="width:100%;background:linear-gradient(90deg,#a2643a,#cd8b52)"></span></div>
+            <div class="tier-foot">
+              <span class="count"><b>7</b> / 7 jours</span>
+              <span>validé le 28 juillet</span>
+            </div>
+          </div>
+
+          <div class="tier">
+            <div class="tier-head">
+              <span class="tier-num">2</span>
+              <span class="tier-title">30 jours sans écran avant minuit</span>
+              <span class="badge" style="background:linear-gradient(150deg,#c3cbd3,#8a949e);color:#1b1f24">Argent</span>
+            </div>
+            <div class="bar"><span style="width:60%;background:linear-gradient(90deg,#8a949e,#c3cbd3)"></span></div>
+            <div class="tier-foot">
+              <span class="count"><b>18</b> / 30 jours · <span style="color:var(--accent)">+1 ce soir</span></span>
+              <span class="best">🔥 meilleure série : 11 jours</span>
+            </div>
+          </div>
+
+          <div class="tier">
+            <div class="tier-head">
+              <span class="tier-num">3</span>
+              <span class="tier-title">90 jours sans écran avant minuit</span>
+              <span class="badge" style="background:linear-gradient(150deg,#f0cf5e,#c8992c);color:#2b2000">Or</span>
+            </div>
+            <div class="bar"><span style="width:20%;background:linear-gradient(90deg,#c8992c,#f0cf5e)"></span></div>
+            <div class="tier-foot">
+              <span class="count"><b>18</b> / 90 jours</span>
+              <span>~ le 12 novembre à ce rythme</span>
+            </div>
+          </div>
+
+          <p class="note">
+            La barre est la seule chose qui manquait : l'action était cochée tous les soirs, mais
+            le palier n'en savait rien. « +1 ce soir » relie explicitement le geste du jour à la
+            marche qu'il fait monter.
+          </p>
+        </div>
+      </section>
+
+      <!-- ================================================= actions du jour -->
+      <section>
+        <h2>Sur le hub, section « Aujourd'hui »</h2>
+        <div class="card">
+          <div style="font-size:13px;color:var(--text-dim);margin-bottom:9px">📱 Reprendre le contrôle des écrans</div>
+          <div class="chips">
+            <span class="chip done">Écran coupé avant minuit <span class="pp">✓ fait</span></span>
+          </div>
+          <span class="feeds">↳ 19 / 30 jours vers <b style="color:var(--text-dim)">Argent</b></span>
+
+          <div style="font-size:13px;color:var(--text-dim);margin:18px 0 9px">🏃 Courir un marathon</div>
+          <div class="chips">
+            <span class="chip">Sortie course <span class="qty">8 km</span> <span class="pp">+15</span></span>
+            <span class="chip">Renforcement <span class="pp">+10</span></span>
+          </div>
+          <span class="feeds">↳ la sortie ajoute ses kilomètres au palier « 100 km ce mois » (62 / 100)</span>
+
+          <p class="note">
+            Une action quantifiée reste un seul geste : toucher la pastille l'enregistre avec sa
+            valeur habituelle (8 km). La pastille « 8 km » sert à ajuster quand la sortie est plus
+            longue — elle n'est jamais un passage obligé.
+          </p>
+        </div>
+      </section>
+
+      <!-- ==================================================== le rattrapage -->
+      <section>
+        <h2>Rattraper un oubli</h2>
+        <div class="card">
+          <div class="catchup">
+            <div class="catchup-head">
+              <span class="catchup-day">Hier · mercredi 5</span>
+              <span class="catchup-ask">Rien de coché. Un oubli ?</span>
+              <button class="ignore">Non, rien fait</button>
+            </div>
+            <div class="chips">
+              <span class="chip ghost">Écran coupé avant minuit <span class="pp">+15</span></span>
+              <span class="chip ghost">Lecture 20 min <span class="pp">+10</span></span>
+            </div>
+          </div>
+
+          <div style="font-size:13px;color:var(--text-dim);margin:20px 0 9px">Aujourd'hui</div>
+          <div class="chips">
+            <span class="chip">Écran coupé avant minuit <span class="pp">+15</span></span>
+            <span class="chip">Lecture 20 min <span class="pp">+10</span></span>
+          </div>
+
+          <p class="note">
+            La bande n'apparaît que si un jour récent est resté vide, et disparaît dès qu'on l'a
+            traitée. Pas de calendrier à fouiller — la question est posée une fois, au moment où
+            l'on peut encore y répondre honnêtement. Fenêtre : hier et avant-hier.
+          </p>
+          <p class="note">
+            Ce que ça répare tout seul : le streak est recalculé depuis l'historique, jamais
+            stocké. Cocher hier remet donc la série d'aplomb, gels compris, sans une ligne de
+            logique supplémentaire.
+          </p>
+        </div>
+      </section>
+
+      <!-- ======================================================= la mesure -->
+      <section>
+        <h2>Un palier de type mesure</h2>
+        <div class="card">
+          <div style="display:flex;align-items:center;gap:11px;margin-bottom:16px">
+            <span style="font-size:22px">⚖️</span>
+            <strong style="font-size:16px">Retrouver mon poids de forme</strong>
+          </div>
+
+          <div class="tier">
+            <div class="tier-head">
+              <span class="tier-num">1</span>
+              <span class="tier-title">Perdre 2 kg</span>
+              <span class="badge" style="background:linear-gradient(150deg,#cd8b52,#a2643a);color:#fff">Bronze</span>
+            </div>
+            <div class="bar"><span style="width:100%;background:linear-gradient(90deg,#a2643a,#cd8b52)"></span></div>
+            <div class="tier-foot">
+              <span class="count"><b>−2,4</b> kg</span>
+              <span style="color:#5be08d">atteint le 22 juillet — acquis pour de bon</span>
+            </div>
+          </div>
+
+          <div class="tier">
+            <div class="tier-head">
+              <span class="tier-num">2</span>
+              <span class="tier-title">Perdre 5 kg</span>
+              <span class="badge" style="background:linear-gradient(150deg,#c3cbd3,#8a949e);color:#1b1f24">Argent</span>
+            </div>
+            <div class="bar"><span style="width:38%;background:linear-gradient(90deg,#8a949e,#c3cbd3)"></span></div>
+            <div class="tier-foot">
+              <span class="count"><b>−1,9</b> / −5 kg <span style="color:var(--text-faint)">· 78,1 kg aujourd'hui</span></span>
+              <span style="color:var(--text-faint)">départ 80,0 kg</span>
+            </div>
+          </div>
+
+          <svg class="curve" viewBox="0 0 620 130" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#f2c14e" stop-opacity="0.22" />
+                <stop offset="1" stop-color="#f2c14e" stop-opacity="0" />
+              </linearGradient>
+            </defs>
+            <line x1="0" y1="104" x2="620" y2="104" stroke="#36405a" stroke-dasharray="4 5" />
+            <text x="6" y="98" fill="#6a748c" font-size="11">cible 75,0</text>
+            <path
+              d="M0,18 L62,26 L124,20 L186,38 L248,34 L310,52 L372,48 L434,44 L496,62 L558,58 L620,66 L620,130 L0,130 Z"
+              fill="url(#fill)" />
+            <path
+              d="M0,18 L62,26 L124,20 L186,38 L248,34 L310,52 L372,48 L434,44 L496,62 L558,58 L620,66"
+              fill="none" stroke="#f2c14e" stroke-width="2.5" stroke-linejoin="round" />
+            <circle cx="620" cy="66" r="4.5" fill="#f2c14e" />
+          </svg>
+          <div class="tier-foot" style="margin-top:6px">
+            <span style="color:var(--text-faint);font-size:12px">10 mai</span>
+            <span style="color:var(--text-faint);font-size:12px">aujourd'hui</span>
+          </div>
+
+          <div class="chips" style="margin-top:16px">
+            <span class="chip measure">⚖️ Se peser <span class="qty">78,1 kg</span></span>
+          </div>
+          <span class="feeds">↳ un relevé, pas un effort : il entretient la série mais rapporte peu de PP</span>
+
+          <p class="note">
+            La courbe remonte parfois, et c'est normal. C'est là que la règle de la maison rend
+            un service inattendu : le palier « Perdre 2 kg » a été touché le 22 juillet, il est
+            gagné <b>pour toujours</b>. Reprendre deux kilos ne le reprend pas. Aucune app de
+            poids ne dit ça.
+          </p>
+        </div>
+      </section>
+
+      <!-- ================================================ les quatre types -->
+      <section>
+        <h2>Les quatre natures de palier</h2>
+        <div class="card kinds">
+          <div class="kind">
+            <b>JALON</b>
+            <span>
+              Fait ou pas fait, on coche à la main. <code>Courir un semi-marathon</code>,
+              <code>Passer le permis</code>. C'est le comportement actuel, il ne bouge pas.
+            </span>
+          </div>
+          <div class="kind">
+            <b>CUMUL</b>
+            <span>
+              Une cible qu'on remplit peu à peu. <code>30 jours sans écran</code>,
+              <code>100 km ce mois</code>, <code>50 séances</code>. Un jour manqué ne retire
+              rien : on reprend là où on s'était arrêté.
+            </span>
+          </div>
+          <div class="kind">
+            <b>SÉRIE</b>
+            <span>
+              Consécutif, quand c'est le sens même du palier — <code>30 jours sans fumer</code>.
+              Le compteur peut retomber, mais la meilleure série reste affichée : ce qui a été
+              tenu n'est jamais effacé.
+            </span>
+          </div>
+          <div class="kind">
+            <b>PERFORMANCE</b>
+            <span>
+              Un seuil atteint en une fois. <code>Courir 10 km d'une traite</code>,
+              <code>Nager 1 km sans pause</code>. La meilleure valeur d'une seule séance
+              compte, pas la somme.
+            </span>
+          </div>
+          <p class="note">
+            Cette distinction n'est pas cosmétique : <code>Courir 10 km</code> et
+            <code>Courir 100 km</code> s'écrivent pareil mais ne se comptent pas du tout de la
+            même façon. Un modèle unique « compteur » aurait transformé le premier en cumul et
+            l'aurait validé au bout de deux sorties de 5 km.
+          </p>
+        </div>
+      </section>
+
+      <!-- ============================================ le moment de bascule -->
+      <section>
+        <h2>Le moment qu'on construit</h2>
+        <div class="grid2">
+          <div class="card">
+            <div style="font-size:12px;color:var(--text-faint);margin-bottom:10px">La veille</div>
+            <div class="bar"><span style="width:96.7%;background:linear-gradient(90deg,#8a949e,#c3cbd3)"></span></div>
+            <div class="tier-foot" style="margin-top:9px">
+              <span class="count"><b>29</b> / 30 jours</span>
+              <span style="color:var(--accent)">plus qu'un</span>
+            </div>
+          </div>
+          <div class="card" style="border-color:var(--accent);box-shadow:0 0 40px rgba(242,193,78,0.15)">
+            <div style="font-size:12px;color:var(--accent);margin-bottom:10px">Ce soir, au clic</div>
+            <div class="bar"><span style="width:100%;background:linear-gradient(90deg,#c3cbd3,#f2c14e)"></span></div>
+            <div class="tier-foot" style="margin-top:9px">
+              <span class="count"><b>30</b> / 30 jours</span>
+              <span style="color:var(--accent)">→ cérémonie Argent</span>
+            </div>
+          </div>
+        </div>
+        <p class="note">
+          Le palier se valide tout seul quand le compte y est : la cérémonie part au moment du
+          clic, sans qu'on ait à aller cocher quoi que ce soit ailleurs. C'est là que la boucle
+          se referme — le geste du soir devient visiblement la dernière marche.
+        </p>
+      </section>
+    </div>
+  </body>
+</html>

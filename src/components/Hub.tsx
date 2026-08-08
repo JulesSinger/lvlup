@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { catchupDays, catchupLabel, ignoreDay, shiftDay } from '../lib/catchup';
+import { formatAmount, isCountable } from '../lib/counters';
+import { needsInput, parseAmount, tapValue } from '../lib/quantities';
 import { goalProgress, history, ppForRank, relativeDate, todayPP, weekStats } from '../lib/progress';
 import { getRank } from '../lib/ranks';
 import { computeStreak, dayString } from '../lib/streak';
@@ -6,6 +9,7 @@ import type { Action, Checkin, Goal, Tier } from '../lib/types';
 import { DailyRing } from './DailyRing';
 import { ProfileHeader } from './ProfileHeader';
 import { RankBadge } from './RankBadge';
+import { TierMeter } from './TierMeter';
 
 /**
  * Écran d'accueil — le hub. L'anneau du jour au premier plan (le quotidien),
@@ -19,6 +23,7 @@ export function Hub({
   onLogAction,
   onUnlogAction,
   onSaveNote,
+  onSaveValue,
   onValidateTier,
   onGoToGoals,
 }: {
@@ -26,29 +31,105 @@ export function Hub({
   actions: Action[];
   checkins: Checkin[];
   dailyGoal: number;
-  onLogAction: (goal: Goal, action: Action) => void;
+  onLogAction: (goal: Goal, action: Action, day?: string, value?: number | null) => void;
   onUnlogAction: (checkin: Checkin) => void;
   onSaveNote: (checkin: Checkin, note: string) => void;
+  onSaveValue: (checkin: Checkin, value: number) => void;
   onValidateTier: (goal: Goal, tier: Tier) => void;
   onGoToGoals: () => void;
 }) {
   const active = goals.filter((g) => !g.archived);
   const today = dayString();
-  const todayLogs = checkins.filter((c) => c.day === today);
+
+  /**
+   * Jour affiché par la section « Aujourd'hui ».
+   *
+   * Seule cette section est datée. L'anneau, la flamme, le rang et les stats
+   * décrivent le présent et n'auraient aucun sens rapportés à mercredi
+   * dernier : faire basculer tout le hub obligerait soit à afficher six blocs
+   * qui mentent, soit à faire de l'archéologie sur un streak passé.
+   */
+  const [viewDay, setViewDay] = useState(today);
+  const onToday = viewDay === today;
+
+  /** Jours écartés à la main pendant cette session (réponse immédiate au clic). */
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
+  const past = catchupDays(goals, actions, checkins, today);
+  /** Le plus ancien jour encore modifiable ; `today` s'il n'y en a aucun. */
+  const oldest = past.length > 0 ? past[past.length - 1].day : today;
+  /** Le jour resté vide sur lequel l'app prend la parole, s'il y en a un. */
+  const forgotten = past.find((d) => d.asks && !dismissed.has(d.day));
+
+  // Garde-fou du parcours daté : passer minuit ou revenir au premier plan
+  // ramène toujours sur aujourd'hui. Sans ça, on coche le mauvais jour des
+  // heures plus tard sans s'en apercevoir.
+  useEffect(() => setViewDay(today), [today]);
+  useEffect(() => {
+    function backToToday() {
+      if (document.visibilityState === 'visible') setViewDay(dayString());
+    }
+    document.addEventListener('visibilitychange', backToToday);
+    return () => document.removeEventListener('visibilitychange', backToToday);
+  }, []);
+
+  const dayLogs = checkins.filter((c) => c.day === viewDay);
   const logByAction = new Map(
-    todayLogs.filter((c) => c.actionId).map((c) => [c.actionId as string, c]),
+    dayLogs.filter((c) => c.actionId).map((c) => [c.actionId as string, c]),
   );
 
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
   /** Actions dont le « +PP » est en train de s'envoler (retiré après l'anim). */
   const [flying, setFlying] = useState<Set<string>>(new Set());
-  const noteCheckin = noteFor ? todayLogs.find((c) => c.id === noteFor) : undefined;
+  const noteCheckin = noteFor ? dayLogs.find((c) => c.id === noteFor) : undefined;
+
+  /**
+   * Saisie d'une quantité, en cours.
+   *
+   * Deux cas seulement, et jamais sur le chemin de l'appui ordinaire :
+   *  · un relevé (se peser), où la saisie *est* le geste ;
+   *  · une correction, quand la sortie du jour n'a pas fait les 8 km habituels.
+   */
+  const [valueFor, setValueFor] = useState<{
+    goal: Goal;
+    action: Action;
+    checkinId: string | null;
+  } | null>(null);
+  const [valueDraft, setValueDraft] = useState('');
 
   function openNote(checkin: Checkin) {
     setNoteFor(checkin.id);
     setNoteDraft(checkin.note ?? '');
   }
+
+  function openValue(goal: Goal, action: Action, checkin: Checkin | null) {
+    setNoteFor(null);
+    setValueFor({ goal, action, checkinId: checkin?.id ?? null });
+    setValueDraft(
+      checkin?.value !== null && checkin?.value !== undefined
+        ? String(checkin.value).replace('.', ',')
+        : action.isMeasure
+          ? ''
+          : String(action.defaultValue ?? '').replace('.', ','),
+    );
+  }
+
+  function submitValue() {
+    if (!valueFor) return;
+    const value = parseAmount(valueDraft);
+    if (value === null) return;
+    const existing = valueFor.checkinId
+      ? dayLogs.find((c) => c.id === valueFor.checkinId)
+      : undefined;
+    if (existing) onSaveValue(existing, value);
+    else onLogAction(valueFor.goal, valueFor.action, viewDay, value);
+    setValueFor(null);
+  }
+
+  // Changer de jour ferme la saisie : elle porte sur une journée précise, et
+  // la laisser ouverte ferait enregistrer la valeur sur le mauvais jour.
+  useEffect(() => setValueFor(null), [viewDay]);
 
   function saveNote(close: boolean) {
     if (noteCheckin && noteDraft.trim() !== (noteCheckin.note ?? '')) {
@@ -68,7 +149,7 @@ export function Hub({
     .map(({ goal, progress }) => ({ goal, tier: progress.next as Tier }))
     .sort((a, b) => getRank(a.tier.rank).value - getRank(b.tier.rank).value);
 
-  const recent = history(goals).slice(0, 4);
+  const recentTiers = history(goals).slice(0, 4);
   const week = weekStats(goals, checkins, 0);
   const lastWeek = weekStats(goals, checkins, -1);
 
@@ -129,14 +210,65 @@ export function Hub({
         </div>
       </section>
 
+      {/* ---------- une seule ligne, et seulement s'il y a eu un oubli ----------
+          L'app ne prend la parole que quand une journée récente est restée
+          entièrement vide : c'est le seul cas où elle sait quelque chose que
+          l'utilisateur a probablement oublié. Le reste du temps, revenir en
+          arrière se fait par les flèches de la section, sans rien occuper. */}
+      {forgotten && onToday && (
+        <div className="forgotten" role="status">
+          <span className="forgotten-text">
+            <b>{catchupLabel(forgotten.day, today)}</b> — rien de coché. Un oubli ?
+          </span>
+          <button className="btn btn-sm" onClick={() => setViewDay(forgotten.day)}>
+            Compléter
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => {
+              ignoreDay(forgotten.day, today);
+              setDismissed((set) => new Set(set).add(forgotten.day));
+            }}
+          >
+            Rien fait
+          </button>
+        </div>
+      )}
+
       {/* ---------- actions du jour ---------- */}
       {active.length > 0 && (
-        <section className="hub-section">
+        <section className={`hub-section${onToday ? '' : ' past-day'}`}>
           <div className="hub-section-head">
-            <h2>Aujourd'hui</h2>
-            <span className="hub-section-hint">
-              coche ce que tu as fait — chaque action nourrit son objectif
-            </span>
+            <div className="day-nav">
+              <button
+                className="day-arrow"
+                onClick={() => setViewDay(shiftDay(viewDay, -1))}
+                disabled={viewDay <= oldest}
+                aria-label="Jour précédent"
+                title="Jour précédent"
+              >
+                ◂
+              </button>
+              <h2>{onToday ? "Aujourd'hui" : catchupLabel(viewDay, today)}</h2>
+              <button
+                className="day-arrow"
+                onClick={() => setViewDay(shiftDay(viewDay, 1))}
+                disabled={onToday}
+                aria-label="Jour suivant"
+                title="Jour suivant"
+              >
+                ▸
+              </button>
+            </div>
+            {onToday ? (
+              <span className="hub-section-hint">
+                coche ce que tu as fait — chaque action nourrit son objectif
+              </span>
+            ) : (
+              <button className="btn btn-sm day-back" onClick={() => setViewDay(today)}>
+                Revenir à aujourd'hui
+              </button>
+            )}
           </div>
 
           {active.map((goal) => {
@@ -150,6 +282,20 @@ export function Hub({
                 <div className="checkin-chips">
                   {goalActions.map((action) => {
                     const log = logByAction.get(action.id);
+                    const quantified = action.unit.trim() !== '';
+                    /** Une coche pas encore confirmée par le serveur n'a pas d'id à éditer. */
+                    const settled =
+                      log && !log.id.startsWith('optimiste-') && !log.id.startsWith('attente-');
+                    // Ce que l'appui va enregistrer, ou ce qu'il a enregistré.
+                    const amount = log
+                      ? typeof log.value === 'number'
+                        ? formatAmount(log.value, action.unit)
+                        : null
+                      : action.isMeasure
+                        ? null
+                        : typeof action.defaultValue === 'number'
+                          ? formatAmount(action.defaultValue, action.unit)
+                          : null;
                     return (
                       <button
                         key={action.id}
@@ -158,40 +304,85 @@ export function Hub({
                         title={
                           log
                             ? log.note
-                              ? `« ${log.note} » — fait aujourd'hui · re-cliquer annule`
-                              : "Fait aujourd'hui · re-cliquer annule"
-                            : `${action.title} · +${action.pp} PP`
+                              ? `« ${log.note} » — fait · re-cliquer annule`
+                              : 'Fait · re-cliquer annule'
+                            : action.isMeasure
+                              ? `${action.title} · noter la valeur du jour`
+                              : amount
+                                ? `${action.title} · ${amount} · +${action.pp} PP`
+                                : `${action.title} · +${action.pp} PP`
                         }
                         onClick={() => {
                           if (log) {
                             onUnlogAction(log);
                             if (noteFor === log.id) setNoteFor(null);
-                          } else {
-                            onLogAction(goal, action);
-                            // Le « +PP » s'envole une fois, puis disparaît.
-                            setFlying((prev) => new Set(prev).add(action.id));
-                            window.setTimeout(
-                              () =>
-                                setFlying((prev) => {
-                                  const next = new Set(prev);
-                                  next.delete(action.id);
-                                  return next;
-                                }),
-                              900,
-                            );
+                            if (valueFor?.checkinId === log.id) setValueFor(null);
+                            return;
                           }
+                          // Un relevé n'a pas de valeur habituelle qui ait du
+                          // sens : la saisie est le geste, on l'ouvre au lieu
+                          // d'enregistrer un zéro qui ne veut rien dire.
+                          if (needsInput(action)) {
+                            openValue(goal, action, null);
+                            return;
+                          }
+                          onLogAction(goal, action, viewDay, tapValue(action));
+                          // Le « +PP » s'envole une fois, puis disparaît. La
+                          // clé porte le jour : la même action peut être
+                          // cochée sur deux journées différentes.
+                          const key = `${viewDay}-${action.id}`;
+                          setFlying((prev) => new Set(prev).add(key));
+                          window.setTimeout(
+                            () =>
+                              setFlying((prev) => {
+                                const next = new Set(prev);
+                                next.delete(key);
+                                return next;
+                              }),
+                            900,
+                          );
                         }}
                       >
-                        {flying.has(action.id) && (
+                        {flying.has(`${viewDay}-${action.id}`) && (
                           <span className="pp-fly" aria-hidden="true">
                             +{action.pp}
                           </span>
                         )}
                         <span className="checkin-title">{action.title}</span>
+
+                        {/* La quantité que l'appui enregistre, annoncée avant
+                            le clic : c'est ce qui permet de ne jamais ouvrir
+                            de clavier pour une sortie ordinaire. */}
+                        {amount && <span className="checkin-amount">{amount}</span>}
+
+                        {/* Ajuster : une correction, jamais un passage obligé. */}
+                        {settled && quantified && log && (
+                          <span
+                            className="checkin-note-btn"
+                            role="button"
+                            tabIndex={0}
+                            title={`Ajuster la quantité (${action.unit})`}
+                            aria-label={`Ajuster la quantité de ${action.title}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openValue(goal, action, log);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openValue(goal, action, log);
+                              }
+                            }}
+                          >
+                            #
+                          </span>
+                        )}
+
                         {/* Une coche qui n'existe pas encore côté serveur
                             (envoi en cours, ou en attente de réseau) n'a pas
                             d'identifiant sur lequel accrocher une note. */}
-                        {log && !log.id.startsWith('optimiste-') && !log.id.startsWith('attente-') && (
+                        {settled && log && (
                           <span
                             className="checkin-note-btn"
                             role="button"
@@ -229,6 +420,41 @@ export function Hub({
               </div>
             );
           })}
+
+          {valueFor && (
+            <div className="checkin-note checkin-value">
+              <span className="checkin-note-label" aria-hidden="true">
+                #
+              </span>
+              <input
+                autoFocus
+                inputMode="decimal"
+                ref={(el) => el?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                value={valueDraft}
+                onChange={(e) => setValueDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitValue();
+                  }
+                  if (e.key === 'Escape') setValueFor(null);
+                }}
+                placeholder={valueFor.action.isMeasure ? '78,4' : '8'}
+                aria-label={`Quantité pour ${valueFor.action.title}, en ${valueFor.action.unit}`}
+              />
+              <span className="checkin-value-unit">{valueFor.action.unit}</span>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={submitValue}
+                disabled={parseAmount(valueDraft) === null}
+              >
+                Enregistrer
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setValueFor(null)}>
+                Annuler
+              </button>
+            </div>
+          )}
 
           {noteCheckin && (
             <div className="checkin-note">
@@ -289,15 +515,23 @@ export function Hub({
                     <span className="next-body">
                       <span className="next-title">{tier.title}</span>
                       <span className="next-goal">{goal.title}</span>
+                      {/* Le lien entre le geste du soir et la marche qu'il
+                          fait monter. Rien ne s'affiche pour un jalon. */}
+                      <TierMeter tier={tier} actions={actions} checkins={checkins} compact />
                     </span>
                     <RankBadge rank={rank} />
-                    <button
-                      className="btn btn-sm next-validate"
-                      onClick={() => onValidateTier(goal, tier)}
-                      title={`Valider « ${tier.title} » (+${ppForRank(rank)} PP)`}
-                    >
-                      Valider · +{ppForRank(rank)} PP
-                    </button>
+                    {/* Un palier comptable se valide tout seul en atteignant
+                        sa cible : proposer le bouton reviendrait à proposer de
+                        tricher. */}
+                    {!isCountable(tier) && (
+                      <button
+                        className="btn btn-sm next-validate"
+                        onClick={() => onValidateTier(goal, tier)}
+                        title={`Valider « ${tier.title} » (+${ppForRank(rank)} PP)`}
+                      >
+                        Valider · +{ppForRank(rank)} PP
+                      </button>
+                    )}
                   </li>
                 );
               })}
@@ -343,13 +577,13 @@ export function Hub({
             <div className="hub-section-head">
               <h2>Paliers récents</h2>
             </div>
-            {recent.length === 0 ? (
+            {recentTiers.length === 0 ? (
               <div className="hub-empty">
                 <p>Tes validations de paliers apparaîtront ici.</p>
               </div>
             ) : (
               <ul className="activity-list">
-                {recent.map(({ tier, goal, date }) => {
+                {recentTiers.map(({ tier, goal, date }) => {
                   const rank = getRank(tier.rank);
                   return (
                     <li key={tier.id} className="activity-item">

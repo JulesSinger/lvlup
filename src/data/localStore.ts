@@ -8,7 +8,7 @@ import type {
   Tier,
   TierInput,
 } from '../lib/types';
-import { DEFAULT_ACTIONS } from '../lib/types';
+import { DEFAULT_ACTIONS, JALON } from '../lib/types';
 import {
   DEFAULT_SETTINGS,
   newId,
@@ -51,6 +51,7 @@ function read(): Snapshot {
             note: c.note ?? '',
             actionId: c.actionId ?? null,
             pp: typeof c.pp === 'number' ? c.pp : 10,
+            value: typeof c.value === 'number' ? c.value : null,
           }))
         : [],
       achievements: Array.isArray(parsed.achievements) ? parsed.achievements : [],
@@ -70,6 +71,18 @@ function write(snapshot: Snapshot) {
 }
 
 const LOCAL_USER: AppUser = { id: 'local', email: 'Mode local', isLocal: true };
+
+/** Champs de comptage effectivement fournis, pour ne pas écraser les défauts. */
+function countingFields(input: Partial<TierInput>) {
+  const out: Record<string, unknown> = {};
+  if (input.kind !== undefined) out.kind = input.kind;
+  if (input.target !== undefined) out.target = input.target;
+  if (input.unit !== undefined) out.unit = input.unit;
+  if (input.direction !== undefined) out.direction = input.direction;
+  if (input.mode !== undefined) out.mode = input.mode;
+  if (input.sources !== undefined) out.sources = input.sources;
+  return out;
+}
 
 /**
  * Stockage dans le navigateur. Aucun compte, aucun serveur : les données
@@ -149,6 +162,8 @@ export class LocalStore implements Store {
         position: index,
         completedAt: null,
         createdAt: now,
+        ...JALON,
+        ...countingFields(t),
       })),
     };
     snapshot.goals.push(goal);
@@ -163,6 +178,9 @@ export class LocalStore implements Store {
         position: index,
         archived: false,
         createdAt: now,
+        unit: a.unit ?? '',
+        defaultValue: a.defaultValue ?? null,
+        isMeasure: a.isMeasure ?? false,
       });
     });
     write(snapshot);
@@ -199,6 +217,8 @@ export class LocalStore implements Store {
       position: goal.tiers.length,
       completedAt: null,
       createdAt: new Date().toISOString(),
+      ...JALON,
+      ...countingFields(input),
     };
     goal.tiers.push(tier);
     write(snapshot);
@@ -259,6 +279,9 @@ export class LocalStore implements Store {
       position: siblings.length,
       archived: false,
       createdAt: new Date().toISOString(),
+      unit: input.unit ?? '',
+      defaultValue: input.defaultValue ?? null,
+      isMeasure: input.isMeasure ?? false,
     };
     snapshot.actions.push(action);
     write(snapshot);
@@ -287,10 +310,22 @@ export class LocalStore implements Store {
     return read().checkins.slice();
   }
 
-  async addCheckin(goalId: string, day: string, actionId: string, pp: number): Promise<Checkin> {
+  async addCheckin(
+    goalId: string,
+    day: string,
+    actionId: string,
+    pp: number,
+    value: number | null = null,
+  ): Promise<Checkin> {
     const snapshot = read();
     const existing = snapshot.checkins.find((c) => c.actionId === actionId && c.day === day);
-    if (existing) return existing;
+    if (existing) {
+      if (value !== null && existing.value !== value) {
+        existing.value = value;
+        write(snapshot);
+      }
+      return existing;
+    }
     const checkin: Checkin = {
       id: newId(),
       goalId,
@@ -299,17 +334,19 @@ export class LocalStore implements Store {
       day,
       note: '',
       createdAt: new Date().toISOString(),
+      value,
     };
     snapshot.checkins.push(checkin);
     write(snapshot);
     return checkin;
   }
 
-  async updateCheckin(id: string, patch: { note?: string }) {
+  async updateCheckin(id: string, patch: { note?: string; value?: number | null }) {
     const snapshot = read();
     const checkin = snapshot.checkins.find((c) => c.id === id);
     if (!checkin) return;
     if (patch.note !== undefined) checkin.note = patch.note;
+    if (patch.value !== undefined) checkin.value = patch.value;
     write(snapshot);
   }
 

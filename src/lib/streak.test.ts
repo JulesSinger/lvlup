@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { activityDays, computeStreak, dayString } from './streak';
-import type { Checkin, Goal } from './types';
+import { JALON, type Checkin, type Goal } from './types';
 
 /**
  * Le streak est la donnée à laquelle on tient le plus — c'est elle qui donne
@@ -20,6 +20,7 @@ function checkin(day: string, pp = 10): Checkin {
     day,
     note: '',
     createdAt: `${day}T08:00:00.000Z`,
+    value: null,
   };
 }
 
@@ -50,6 +51,7 @@ function goalWithTier(completedAt: string | null): Goal {
         position: 0,
         completedAt,
         createdAt: '2026-01-01T00:00:00.000Z',
+        ...JALON,
       },
     ],
   };

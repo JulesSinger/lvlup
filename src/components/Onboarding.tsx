@@ -65,7 +65,9 @@ export function Onboarding({
     const clean = title.trim() || current.title;
     onFinish(
       { title: clean, description: '', emoji: current.emoji },
-      current.tiers.map((t, i) => ({ title: t, rank: ranks[i] })),
+      // Le modèle transmet sa nature de comptage : sans ça, le premier
+      // objectif de l'utilisateur naîtrait avec des paliers muets.
+      current.tiers.map((t, i) => ({ ...t, rank: ranks[i] })),
     );
   }
 
@@ -111,8 +113,8 @@ export function Onboarding({
 
             <ul className="starter-preview">
               {current.tiers.map((t, i) => (
-                <li key={t}>
-                  <span className="starter-preview-title">{t}</span>
+                <li key={t.title}>
+                  <span className="starter-preview-title">{t.title}</span>
                   <RankBadge rank={getRank(ranks[i])} />
                 </li>
               ))}
