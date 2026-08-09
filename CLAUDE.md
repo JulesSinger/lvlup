@@ -74,17 +74,16 @@ cette étape produit un `net::ERR_CONNECTION_REFUSED` qui ressemble à un bug de
 
 ```bash
 npm run build && npm run preview &            # sert dist/ sur :4173
-npm run check                                 # ~205 vérifications
+npm run check                                 # ~187 vérifications
 
 npm run build:auth && npm run preview:auth &  # sert dist-auth/ sur :4174
-npm run check:auth                            # 217 : exige les DEUX serveurs
+npm run check:auth                            # ~199 : exige les DEUX serveurs
 ```
 
 `check:auth` rejoue tout `check` puis ajoute le parcours avec comptes. C'est lui qui couvre le
 chemin Supabase — à lancer dès qu'on touche à un store.
 
-Tout doit passer, tous les jours de la semaine — l'échec du dimanche est corrigé
-(journal, §8).
+**Un échec est attendu le dimanche** : voir le journal, §8.
 
 ---
 
@@ -148,6 +147,29 @@ docs/                études, maquettes, notes de sprint
 Aucun fichier du socle n'est modifié en chemin. Si tu te retrouves à en éditer un, c'est le
 signe qu'une pièce appartient au socle et devrait y être remontée.
 
+### Le garde-fou : `src/modules/conventions.test.ts`
+
+Ces règles ne sont pas seulement écrites ici, elles sont **vérifiées à chaque `npm run test`**.
+Une convention qu'aucun test ne contrôle ne survit pas à trois agents : elle est lue, comprise
+à moitié, puis contournée par commodité.
+
+Le test parcourt `src/modules/*` et exige de chacun : un `module.ts` dont l'`id` égale le nom
+du dossier, une inscription au registre, un contrat de stockage avec ses **deux**
+implémentations, un dossier `styles/` importé depuis `styles.css`, au moins un test unitaire,
+une suite de bout en bout, des classes CSS préfixées, et **aucun import venant d'un autre
+module**. Il vérifie aussi que le socle n'importe jamais depuis un module et que `styles.css`
+ne contient que des `@import`.
+
+**Ce fichier est la version exécutable du présent document.** Quand une règle change, elle
+change aux deux endroits — sinon l'un des deux ment.
+
+Deux mécanismes y rendent la dette visible plutôt que tacite :
+
+- les listes `LEGACY` nomment les modules antérieurs à une règle. **Un nouveau module n'y
+  entre jamais** : elles ne peuvent que se vider ;
+- `PLAFOND_IMPORTS_MODULE_DANS_APP` empêche `App.tsx` de se coupler davantage aux modules
+  qu'aujourd'hui. On peut l'abaisser en extrayant du code, jamais l'augmenter. Objectif : 0.
+
 ### Ce qui reste à faire
 
 Le plan complet est décrit dans **`docs/architecture-modules.md`**. Lis-le avant tout travail
@@ -209,11 +231,11 @@ silencieusement les données existantes :
 
 | Clé | Fichier | Ce qu'on perdrait |
 |---|---|---|
-| `zenith.outbox.v1` | `modules/objectifs/data/outbox.ts` | **les coches en attente d'envoi** — le bug impardonnable |
-| `palier.v1` | `core/data/localSnapshot.ts` | toutes les données du mode local |
-| `zenith.onboarded*` | `core/lib/onboarding.ts` | l'onboarding se rejoue à chaque ouverture |
-| `zenith.catchup.ignores` | `modules/objectifs/lib/catchup.ts` | les rattrapages déjà écartés reviennent |
-| `zenith.muted` | `core/lib/sound.ts` | le réglage du son |
+| `zenith.outbox.v1` | `data/outbox.ts` | **les coches en attente d'envoi** — le bug impardonnable |
+| `palier.v1` | `data/localStore.ts` | toutes les données du mode local |
+| `zenith.onboarded*` | `lib/onboarding.ts` | l'onboarding se rejoue à chaque ouverture |
+| `zenith.catchup.ignores` | `lib/catchup.ts` | les rattrapages déjà écartés reviennent |
+| `zenith.muted` | `lib/sound.ts` | le réglage du son |
 | `zenith-v2` (cache) | `public/sw.js` | rien de grave, mais aucun gain |
 
 `palier.v1` porte d'ailleurs encore le nom du tout premier prototype : la preuve qu'une clé de
@@ -229,7 +251,7 @@ libellé.** Les tags de notification (`zenith-rappel`) et le titre poussé par
 
 Le code est en anglais (identifiants, types, noms de fichiers). **Les commentaires, la
 documentation et l'interface sont en français.** Les commentaires expliquent *pourquoi*, pas
-*quoi* — le style existant dans `src/modules/objectifs/lib/types.ts` est la référence : quand une décision est
+*quoi* — le style existant dans `src/lib/types.ts` est la référence : quand une décision est
 contre-intuitive, elle est justifiée en toutes lettres.
 
 ### Base de données
@@ -261,7 +283,7 @@ Une contrainte `CHECK` en base qui énumère des valeurs doit avoir son pendant 
 déclaré **en tableau `as const`**, et un test qui compare les deux. Ce n'est pas de la
 paranoïa : la divergence s'est déjà produite (`compte` présent côté TS, absent du CHECK), le
 code compilait, les tests passaient, et toute création d'objectif concernée était refusée par
-Postgres. Voir `TIER_KINDS` dans `src/modules/objectifs/lib/types.ts` et `src/modules/objectifs/lib/schema.test.ts`.
+Postgres. Voir `TIER_KINDS` dans `src/lib/types.ts` et `src/lib/schema.test.ts`.
 
 ### Style
 
@@ -362,8 +384,8 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 
 | Date | Décision | Pourquoi |
 |---|---|---|
-| 2026-08-09 | L'échec e2e du dimanche est corrigé : le jeu d'essai fait naître un objectif **dans** la fenêtre | La vérification s'appuyait sur les jours à venir de la semaine en cours — inexistants le dimanche. Elle testait donc autre chose que son intitulé six jours sur sept |
-| 2026-08-09 | Un élément absent doit faire tomber **une** ligne, jamais emporter la suite du fichier | `locator.evaluate()` sur un locator vide attend 30 s puis lève : le dimanche, tout ce qui suivait cette ligne — dont le parcours avec comptes — n'était pas vérifié du tout |
+| 2026-08-09 | Les conventions entre modules sont **vérifiées par un test**, pas seulement écrites | Trois agents sans mémoire partagée ne tiennent pas une règle qui ne casse rien quand on l'enfreint |
+| 2026-08-09 | La dette est **nommée** (listes `LEGACY`, plafond d'imports) plutôt que tacite | Une exemption visible se résorbe ; une exception silencieuse devient la norme |
 | 2026-08-09 | Astra s'alimentera par **import du relevé CSV**, jamais par synchro bancaire | Les API DSP2 sont fermées aux particuliers (agrément + certificat eIDAS à 2 000–10 000 €/an) et les intermédiaires gratuits ont fermé. Voir `docs/etude-budget-solutions.md` |
 | 2026-08-09 | Le renommage des surfaces publiques (titre, manifeste, page d'accueil) est **reporté** | Tant qu'Atlas n'a qu'un module, afficher « Atlas » à la place de « Zénith » n'apprendrait rien à personne. À faire quand Astra rend le hub visible |
 | 2026-08-09 | Sauvegarde v5 : une section par module, sous son nom technique | Le format à plat promouvait les champs d'un seul module au rang de format d'échange |
@@ -373,6 +395,7 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 | 2026-08-09 | Le blob local `palier.v1` est lu et écrit **par section** | Le socle ne connaît que `settings` ; sans lecture-modification-écriture il écraserait les sections des modules |
 | 2026-08-09 | Un client Supabase unique, partagé (`core/data/supabaseClient.ts`) | Un `createClient` par module ferait diverger l'état d'authentification entre eux |
 | 2026-08-09 | La sauvegarde est assemblée dans `App.tsx`, pas dans un store | C'est le seul endroit qui connaît tous les modules — en attendant le registre de l'étape 4 |
+| 2026-08-09 | Un contrôle e2e (« Rien n'est dessiné avant la création de l'objectif ») échoue **tous les dimanches** | La grille finit le dimanche de la semaine en cours : ce jour-là il n'existe aucune case hors période. Antérieur au découpage, à corriger à part |
 | 2026-08-09 | `AppUser` remonte dans `core/lib/types.ts` | C'est un type du socle ; le laisser côté objectifs forçait un composant de `core/` à importer depuis un module |
 | 2026-08-09 | Le dossier d'un module porte son **nom technique** (`modules/objectifs/`), jamais sa marque | `modules/zenith/`, créé par erreur à l'étape 1, contredisait la règle qu'il venait d'illustrer |
 | 2026-08-09 | `styles.css` découpé par tranches contiguës, ordre des `@import` figé | Une découpe sémantique aurait réordonné la cascade ; ici la concaténation redonne l'original à l'octet près (md5 vérifié) |
