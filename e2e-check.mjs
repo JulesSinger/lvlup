@@ -1561,16 +1561,26 @@ if (process.env.AUTH_BASE) {
     const snap = JSON.parse(localStorage.getItem('palier.v1'));
     const day = (n) => { const d = new Date(Date.now() - n * 86400000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
     const old = new Date(Date.now() - 100 * 86400000).toISOString();
-    const mk = (id, title, targets, allDone, gapYesterday) => {
-      const g = { id, title, description: '', emoji: '💅', position: 0, archived: false, createdAt: old,
+    const iso = (n) => new Date(Date.now() - n * 86400000).toISOString();
+    // `bornDaysAgo` place la naissance de l'objectif DANS la fenêtre de douze
+    // semaines, ce qui garantit des cases « avant la création » quel que soit
+    // le jour de la semaine. Sans ça, les seules cases hors période étaient
+    // les jours à venir de la semaine en cours — et il n'y en a aucun le
+    // dimanche, où la vérification correspondante mourait.
+    const mk = (id, title, targets, allDone, gapYesterday, bornDaysAgo = 100) => {
+      const born = bornDaysAgo === 100 ? old : iso(bornDaysAgo);
+      const g = { id, title, description: '', emoji: '💅', position: 0, archived: false, createdAt: born,
         tiers: targets.map((t, i) => ({ id: id + 't' + i, goalId: id, title: `${t} jours réussis`,
           rank: ['bronze','argent','or'][i], position: i,
-          completedAt: allDone || i === 0 ? old : null, createdAt: old,
+          completedAt: allDone || i === 0 ? born : null, createdAt: born,
           kind: 'compte', target: t, unit: 'jours', direction: 'hausse', mode: 'absolu', sources: [] })) };
       const a = { id: id + 'a', goalId: id, title: 'Journée tenue', pp: 10, position: 0,
-        archived: false, createdAt: old, unit: '', defaultValue: null, isMeasure: false };
+        archived: false, createdAt: born, unit: '', defaultValue: null, isMeasure: false };
       const ck = [];
-      for (let n = 60; n >= (gapYesterday ? 2 : 0); n -= 2) {
+      // Aucune coche avant la naissance : une grille qui montrerait de
+      // l'activité avant la création de l'objectif mentirait.
+      const debut = Math.min(60, bornDaysAgo - 1);
+      for (let n = debut; n >= (gapYesterday ? 2 : 0); n -= 2) {
         ck.push({ id: id + 'c' + n, goalId: id, actionId: a.id, pp: 10, day: day(n), note: '',
           createdAt: `${day(n)}T20:00:00.000Z`, value: null });
       }
@@ -1578,7 +1588,9 @@ if (process.env.AUTH_BASE) {
     };
     const A = mk('hb1', 'Arrêter de me ronger les ongles', [7, 30, 90], false, false);
     const B = mk('hb2', 'Méditer tous les jours', [7, 30, 90], true, false);
-    const C = mk('hb3', 'Arrêter de me craquer les doigts', [7, 30, 90], false, true);
+    // Celui-ci est né il y a quarante jours : c'est lui qui porte les cases
+    // fantômes que la grille doit dessiner sans les confondre avec un oubli.
+    const C = mk('hb3', 'Arrêter de me craquer les doigts', [7, 30, 90], false, true, 40);
     snap.goals = [A.g, B.g, C.g];
     snap.actions = [A.a, B.a, C.a];
     snap.checkins = [...A.ck, ...B.ck, ...C.ck];
@@ -1611,10 +1623,19 @@ if (process.env.AUTH_BASE) {
       `${Math.round(heat.width)} px dans ${Math.round(card.width)} px`,
     );
   }
-  check(
-    'Rien n’est dessiné avant la création de l’objectif',
-    (await hp.locator('.heat').first().locator('.heat-cell.ghost').count()) > 0,
-  );
+  {
+    // Sur l'objectif né il y a quarante jours — donc à l'intérieur de la
+    // fenêtre. L'ancienne version interrogeait la première grille, née bien
+    // avant la fenêtre : ses seules cases hors période étaient les jours à
+    // venir de la semaine en cours, et il n'y en a aucun le dimanche.
+    const jeune = hp.locator('.goal', { hasText: 'craquer les doigts' }).locator('.heat');
+    const ghosts = await jeune.locator('.heat-cell.ghost').count();
+    check(
+      'Rien n’est dessiné avant la création de l’objectif',
+      ghosts > 0,
+      `${ghosts} cases hors période`,
+    );
+  }
   check(
     'Aujourd’hui est repéré, une seule fois par grille',
     (await hp.locator('.heat').first().locator('.heat-cell.today').count()) === 1,
@@ -1772,20 +1793,27 @@ if (process.env.AUTH_BASE) {
     // effacer complètement faisait d'une grille neuve quatre-vingt-trois trous
     // et une case, ce qui ressemble à un bug. Ils gardent un contour, plus
     // léger que celui d'un jour réellement manqué.
-    const ghost = hp.locator('.heat-cell.ghost').first();
-    const ghostBorder = await ghost.evaluate((el) => getComputedStyle(el).borderTopColor);
-    const emptyBorder = await empty.evaluate((el) => getComputedStyle(el).borderTopColor);
-    check(
-      'Les jours d’avant la création gardent un contour',
-      ghostBorder !== 'rgba(0, 0, 0, 0)' && ghostBorder !== 'transparent',
-      ghostBorder,
-    );
-    check(
-      'Mais on ne les confond pas avec un jour manqué',
-      ghostBorder !== emptyBorder &&
-        (await ghost.evaluate((el) => getComputedStyle(el).backgroundColor)) === 'rgba(0, 0, 0, 0)',
-      `${ghostBorder} contre ${emptyBorder}`,
-    );
+    // Une case fantôme absente doit faire tomber CETTE ligne, pas emporter la
+    // suite du fichier : `evaluate()` sur un locator vide attend trente
+    // secondes puis lève, et tout ce qui vient après reste non vérifié.
+    const ghosts = await hp.locator('.heat-cell.ghost').count();
+    check('La grille comporte des jours hors période à dessiner', ghosts > 0, `${ghosts} cases`);
+    if (ghosts > 0) {
+      const ghost = hp.locator('.heat-cell.ghost').first();
+      const ghostBorder = await ghost.evaluate((el) => getComputedStyle(el).borderTopColor);
+      const emptyBorder = await empty.evaluate((el) => getComputedStyle(el).borderTopColor);
+      check(
+        'Les jours d’avant la création gardent un contour',
+        ghostBorder !== 'rgba(0, 0, 0, 0)' && ghostBorder !== 'transparent',
+        ghostBorder,
+      );
+      check(
+        'Mais on ne les confond pas avec un jour manqué',
+        ghostBorder !== emptyBorder &&
+          (await ghost.evaluate((el) => getComputedStyle(el).backgroundColor)) === 'rgba(0, 0, 0, 0)',
+        `${ghostBorder} contre ${emptyBorder}`,
+      );
+    }
   }
   await fresh.close();
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { shiftDay } from './catchup';
 import { goalHeatmap, goalState, goalStreak, missedYesterday, mondayOf } from './heatmap';
 import { JALON } from './types';
 import type { Checkin, Goal, Tier } from './types';
@@ -103,6 +104,36 @@ describe('ce qui n’est pas dessiné', () => {
   it('un jour sans rien reste à zéro, sans marque particulière', () => {
     const map = goalHeatmap(goal(), [checkin('2026-08-04')], { weeks: 12, today: TODAY });
     expect(cell(map, '2026-08-05')?.level).toBe(0);
+  });
+
+  /**
+   * Le dimanche, la grille finit sur aujourd'hui : il n'existe aucun jour à
+   * venir, donc aucune case hors période — sauf si l'objectif est né dans la
+   * fenêtre. Une vérification de bout en bout s'appuyait sur les seuls jours
+   * à venir et mourait donc un jour sur sept. L'invariant réel est ici.
+   */
+  it('un objectif né dans la fenêtre a des cases fantômes, quel que soit le jour de la semaine', () => {
+    // Une semaine entière de « aujourd'hui », du lundi au dimanche.
+    const semaine = [
+      '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06',
+      '2026-08-07', '2026-08-08', '2026-08-09',
+    ];
+    for (const today of semaine) {
+      const g = goal({ createdAt: `${shiftDay(today, -40)}T09:00:00.000Z` });
+      const map = goalHeatmap(g, [], { weeks: 12, today });
+      const fantomes = map.cells.filter((c) => !c.inRange).length;
+      expect(fantomes, `aujourd'hui = ${today}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('un objectif plus vieux que la fenêtre n’a de cases fantômes que les jours à venir', () => {
+    // Et le dimanche, il n'en a aucune : c'est le fait qui piégeait le test
+    // de bout en bout, écrit ici noir sur blanc plutôt que subi.
+    const vieux = goal({ createdAt: '2026-01-01T09:00:00.000Z' });
+    const dimanche = goalHeatmap(vieux, [], { weeks: 12, today: '2026-08-09' });
+    expect(dimanche.cells.filter((c) => !c.inRange)).toHaveLength(0);
+    const mercredi = goalHeatmap(vieux, [], { weeks: 12, today: '2026-08-05' });
+    expect(mercredi.cells.filter((c) => !c.inRange)).toHaveLength(4);
   });
 });
 
