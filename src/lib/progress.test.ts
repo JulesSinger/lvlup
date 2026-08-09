@@ -61,6 +61,7 @@ function checkin(day: string, pp = 10, goalId = 'g1'): Checkin {
     note: '',
     createdAt: `${day}T08:00:00.000Z`,
     value: null,
+    title: null,
   };
 }
 

@@ -69,6 +69,7 @@ function checkin(day: string, patch: Partial<Checkin> = {}): Checkin {
     note: '',
     createdAt: `${day}T08:00:00.000Z`,
     value: null,
+    title: null,
     ...patch,
   };
 }

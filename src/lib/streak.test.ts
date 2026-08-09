@@ -21,6 +21,7 @@ function checkin(day: string, pp = 10): Checkin {
     note: '',
     createdAt: `${day}T08:00:00.000Z`,
     value: null,
+    title: null,
   };
 }
 
