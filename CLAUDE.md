@@ -67,6 +67,24 @@ npm run lint       # oxlint
 
 `npm run test` et `npm run check` doivent passer avant tout commit. Pas d'exception.
 
+### Lancer les vérifications de bout en bout
+
+**`npm run check` ne démarre aucun serveur** : il attend que le build soit déjà servi. Oublier
+cette étape produit un `net::ERR_CONNECTION_REFUSED` qui ressemble à un bug de l'app.
+
+```bash
+npm run build && npm run preview &            # sert dist/ sur :4173
+npm run check                                 # ~187 vérifications
+
+npm run build:auth && npm run preview:auth &  # sert dist-auth/ sur :4174
+npm run check:auth                            # ~199 : exige les DEUX serveurs
+```
+
+`check:auth` rejoue tout `check` puis ajoute le parcours avec comptes. C'est lui qui couvre le
+chemin Supabase — à lancer dès qu'on touche à un store.
+
+**Un échec est attendu le dimanche** : voir le journal, §8.
+
 ---
 
 ## 3. Architecture — état actuel et cible
@@ -316,6 +334,25 @@ documentation : elle peut avoir pris du retard.
 
 Tests verts → journal mis à jour → commit.
 
+### Si la session tourne dans le nuage (Cowork « dans le cloud »)
+
+Le dossier est alors atteint par un pont, depuis une VM Linux, et trois choses coincent :
+
+1. **`node_modules` est installé pour macOS.** `npm run test`, `build` et `check` échouent sur
+   un module natif introuvable (`@rollup/rollup-darwin-arm64`), et la VM n'a pas de réseau
+   pour installer les binaires Linux. **Ne réinstalle pas les dépendances dans le dossier
+   monté** : ça casserait l'installation locale. Copie le projet (sans `node_modules`, `.git`
+   ni `dist`) dans le conteneur de la session, fais-y `npm ci`, et lance les vérifications
+   là-bas. Puis compare les empreintes des fichiers source de part et d'autre pour t'assurer
+   que ce qui a été testé est bien ce qui a été livré.
+2. **Rien ne peut être supprimé** dans le dossier monté. Pour retirer un fichier, le déplacer
+   dans un dossier `_to_delete/` à la racine et le signaler à Jules, qui le videra.
+3. **Chaque commande git y laisse un verrou** (`.git/index.lock`) qu'elle ne peut pas
+   effacer. Déplacer les `.git/*.lock` dans `_to_delete/` après chaque commit, sinon git
+   finira par refuser de travailler.
+
+Une session lancée « sur votre ordinateur » n'a aucun de ces trois problèmes.
+
 ---
 
 ## 8. Journal des décisions
@@ -324,6 +361,7 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 
 | Date | Décision | Pourquoi |
 |---|---|---|
+| 2026-08-09 | Astra s'alimentera par **import du relevé CSV**, jamais par synchro bancaire | Les API DSP2 sont fermées aux particuliers (agrément + certificat eIDAS à 2 000–10 000 €/an) et les intermédiaires gratuits ont fermé. Voir `docs/etude-budget-solutions.md` |
 | 2026-08-09 | Le renommage des surfaces publiques (titre, manifeste, page d'accueil) est **reporté** | Tant qu'Atlas n'a qu'un module, afficher « Atlas » à la place de « Zénith » n'apprendrait rien à personne. À faire quand Astra rend le hub visible |
 | 2026-08-09 | Sauvegarde v5 : une section par module, sous son nom technique | Le format à plat promouvait les champs d'un seul module au rang de format d'échange |
 | 2026-08-09 | C'est au module de relire son ancien format (`fromLegacyBackup`) | Le socle n'a pas à connaître le vocabulaire de chaque domaine |
@@ -347,6 +385,10 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 ---
 
 ## 9. Documentation à jour ou périmée
+
+À lire avant de construire **Astra** : `docs/etude-budget-solutions.md` (pourquoi un module
+plutôt qu'une app ou un tableur, et pourquoi l'import CSV plutôt que la synchro bancaire) puis
+`docs/architecture-modules.md` §5 (le modèle de données envisagé).
 
 `docs/` contient des études de fond (habitudes, paliers comptables, quotidien, gamification)
 qui restent valables, et des notes de sprint qui **ont vieilli** : `docs/prochains-sprints.md`

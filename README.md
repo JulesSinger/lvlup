@@ -1,4 +1,19 @@
-# Zénith
+# Atlas
+
+Un hub personnel, un module par domaine de la vie.
+
+| Module | Nom affiché | Domaine | État |
+|---|---|---|---|
+| `objectifs` | **Zénith** | suivi d'objectifs par paliers | en production |
+| `budget` | **Astra** | dépenses et budget mensuel | à construire |
+
+**Pour travailler sur ce dépôt, lis d'abord [`CLAUDE.md`](CLAUDE.md)** : il porte les
+conventions, les invariants à ne pas casser et le journal des décisions. Ce README décrit
+l'application ; `CLAUDE.md` décrit comment y toucher, et fait foi en cas de contradiction.
+
+---
+
+## Zénith — le module objectifs
 
 Suivi d'objectifs par paliers, où chaque palier vaut un rang à décrocher (Fer → Challenger).
 
@@ -23,9 +38,25 @@ Autres commandes :
 
 ```bash
 npm run build      # build de production dans dist/
+npm run test       # tests unitaires (vitest)
 npm run preview    # sert le build sur http://localhost:4173
-npm run check      # 17 vérifications de bout en bout (Playwright) sur le build
+npm run check      # ~190 vérifications de bout en bout (Playwright) sur le build
 ```
+
+**`npm run check` ne démarre aucun serveur** : il attend que le build soit déjà servi. La
+séquence complète est donc :
+
+```bash
+npm run build && npm run preview &      # sert dist/ sur :4173
+npm run check
+
+# et pour le parcours avec comptes, qui exige les deux serveurs à la fois :
+npm run build:auth && npm run preview:auth &   # sert dist-auth/ sur :4174
+npm run check:auth
+```
+
+Sans le serveur, l'échec ressemble à un bug de l'app — `net::ERR_CONNECTION_REFUSED` sur
+`http://localhost:4173/` — alors qu'il ne manque qu'un `npm run preview`.
 
 ---
 
@@ -128,24 +159,29 @@ espace, sans que tu aies quoi que ce soit à faire.
 
 ```
 src/
-  lib/
-    ranks.ts         Échelle des 10 rangs (couleurs, valeurs, suggestions)
-    types.ts         Goal, Tier, AppUser
-    progress.ts      Rang d'un objectif, rang de profil, historique, dates
-    demo.ts          Exemples chargeables en un clic
-  data/
-    store.ts         Contrat de stockage — le seul point de contact de l'UI
-    localStore.ts    Implémentation navigateur (localStorage)
-    supabaseStore.ts Implémentation Postgres + auth
-    index.ts         Choisit l'implémentation selon les variables d'environnement
-  components/        ProfileHeader, GoalCard, GoalEditor, Timeline, AuthScreen, RankBadge
-supabase/schema.sql  Tables + policies Row Level Security
-e2e-check.mjs        Vérifications de bout en bout du parcours principal
+  App.tsx              Coquille de l'app (porte encore l'écran de Zénith)
+  styles.css           Uniquement des @import, dans un ordre qui fait la cascade
+  modules/index.ts     Le registre : la liste des modules actifs
+  core/                Le socle, commun à tous les modules
+    components/        AuthScreen, PasswordRecovery, ReminderSettings, SettingsPanel
+    data/              coreStore (comptes, réglages, notifications) + ses deux
+                       implémentations, la sauvegarde, le client Supabase partagé
+    lib/               module.ts (ce qu'un module déclare), push, sound, types
+    styles/            Le style commun
+  modules/objectifs/   Le module Zénith
+    module.ts          Sa déclaration : id technique, nom affiché, accès aux données
+    components/  data/  lib/  styles/
+supabase/schema.sql    Tables + policies Row Level Security
+e2e-check.mjs          Vérifications de bout en bout du parcours principal
 ```
 
-Le point important est `src/data/` : **toute** l'interface passe par l'interface `Store` et ignore
-où vivent les données. C'est ce qui permet de démarrer seul en local aujourd'hui et de basculer en
-multi-utilisateur en renseignant deux variables, sans toucher à un seul composant.
+Le point important est la **séparation socle / module**. Chaque module apporte son contrat de
+stockage et ses deux implémentations — locale et Supabase — et ne touche à aucun fichier du
+socle. Aucun composant ne connaît Supabase ni `localStorage` : c'est ce qui permet de démarrer
+seul en local et de basculer en multi-utilisateur en renseignant deux variables.
+
+Le détail du découpage, et la marche à suivre pour ajouter un module, sont dans
+[`CLAUDE.md`](CLAUDE.md) et [`docs/architecture-modules.md`](docs/architecture-modules.md).
 
 ### Règles de calcul
 
