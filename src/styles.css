@@ -20,37 +20,37 @@
 @import './core/styles/navigation.css';
 
 /* --- Zénith : l'écran principal -------------------------------------- */
-@import './modules/zenith/styles/hub.css';
+@import './modules/objectifs/styles/hub.css';
 
 @import './core/styles/buttons.css';
 
 /* --- Zénith : rangs, profil, objectifs ------------------------------- */
-@import './modules/zenith/styles/ranks.css';
+@import './modules/objectifs/styles/ranks.css';
 @import './core/styles/profile.css';
-@import './modules/zenith/styles/goals.css';
-@import './modules/zenith/styles/heatmap.css';
-@import './modules/zenith/styles/ladder.css';
+@import './modules/objectifs/styles/goals.css';
+@import './modules/objectifs/styles/heatmap.css';
+@import './modules/objectifs/styles/ladder.css';
 
 @import './core/styles/modal.css';
 
-@import './modules/zenith/styles/templates.css';
+@import './modules/objectifs/styles/templates.css';
 
 @import './core/styles/states.css';
 @import './core/styles/auth.css';
 
 /* --- Zénith : célébration et geste quotidien ------------------------- */
-@import './modules/zenith/styles/ceremony.css';
-@import './modules/zenith/styles/daily.css';
+@import './modules/objectifs/styles/ceremony.css';
+@import './modules/objectifs/styles/daily.css';
 
 /* --- surfaces publiques et réglages ---------------------------------- */
 @import './core/styles/landing.css';
 @import './core/styles/onboarding.css';
 
-@import './modules/zenith/styles/charts.css';
+@import './modules/objectifs/styles/charts.css';
 
 @import './core/styles/mobile.css';
 @import './core/styles/settings.css';
 
 /* --- Zénith : rattrapage et comptage des paliers --------------------- */
-@import './modules/zenith/styles/catchup.css';
-@import './modules/zenith/styles/counters.css';
+@import './modules/objectifs/styles/catchup.css';
+@import './modules/objectifs/styles/counters.css';

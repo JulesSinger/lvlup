@@ -73,27 +73,31 @@ npm run lint       # oxlint
 
 ### État actuel
 
-**Étape 1 du plan faite : le style est découpé.** `src/core/styles/` et
-`src/modules/zenith/styles/` existent donc déjà — mais *uniquement pour le CSS*. Les
-composants, la logique et l'accès aux données sont encore à plat (étapes 2 et 3).
+**Étapes 1 et 2 du plan faites.** Le style, les composants et la logique métier sont répartis
+entre `core/` et `modules/objectifs/`. **`src/data/` n'a pas bougé** : il porte encore le
+contrat unique `Store`, qui mêle socle et domaine. Le scinder est l'étape 3 — le déplacer
+avant aurait produit un `core/` qui dépend d'un module.
 
 ```
 src/
   App.tsx            ~40 Ko — coquille + logique de célébration + trophées
+  main.tsx
   styles.css         56 lignes — uniquement des @import, plus aucune règle
-  core/styles/       11 fichiers — socle commun (variables, mise en page,
-                     boutons, fenêtres, écrans publics, réglages)
-  modules/zenith/styles/
-                     11 fichiers — style propre au module objectifs
-  components/        22 composants à plat, tous domaines confondus
-  data/
+  core/
+    components/      AuthScreen, PasswordRecovery, ReminderSettings, SettingsPanel
+    lib/             types (AppUser), push, sound, confetti, onboarding
+    styles/          11 fichiers — socle commun
+  modules/objectifs/
+    components/      18 composants — Hub, GoalCard, Heatmap, Ceremony, Landing…
+    lib/             ranks, progress, streak, counters, templates, types… + tests
+    styles/          11 fichiers — style propre au module
+  data/              ⚠ transitoire — à scinder à l'étape 3
     store.ts         interface Store — contrat unique interface ↔ stockage
     localStore.ts    implémentation navigateur (localStorage)
     supabaseStore.ts implémentation Postgres + auth
     index.ts         choisit l'implémentation selon les variables d'env
     outbox.ts        file d'attente hors-ligne
     sync.ts          vidage de la file à la reconnexion
-  lib/               logique métier pure + ses tests
 supabase/
   schema.sql         tables de base + politiques RLS
   migration-N-*.sql  migrations numérotées séquentiellement
@@ -283,6 +287,9 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 
 | Date | Décision | Pourquoi |
 |---|---|---|
+| 2026-08-09 | Un contrôle e2e (« Rien n'est dessiné avant la création de l'objectif ») échoue **tous les dimanches** | La grille finit le dimanche de la semaine en cours : ce jour-là il n'existe aucune case hors période. Antérieur au découpage, à corriger à part |
+| 2026-08-09 | `AppUser` remonte dans `core/lib/types.ts` | C'est un type du socle ; le laisser côté objectifs forçait un composant de `core/` à importer depuis un module |
+| 2026-08-09 | Le dossier d'un module porte son **nom technique** (`modules/objectifs/`), jamais sa marque | `modules/zenith/`, créé par erreur à l'étape 1, contredisait la règle qu'il venait d'illustrer |
 | 2026-08-09 | `styles.css` découpé par tranches contiguës, ordre des `@import` figé | Une découpe sémantique aurait réordonné la cascade ; ici la concaténation redonne l'original à l'octet près (md5 vérifié) |
 | 2026-08-09 | Les clés de stockage (`zenith.outbox.v1`, `palier.v1`…) ne suivent **pas** le renommage | Une clé est un identifiant, pas un libellé : la renommer efface les données des utilisateurs existants |
 | 2026-08-09 | Nom technique (`objectifs`) séparé du nom affiché (`Zénith`) | Pour qu'un changement de marque ne devienne jamais une migration de base |

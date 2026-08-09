@@ -1,4 +1,4 @@
-import type { Checkin } from '../lib/types';
+import type { Checkin } from '../modules/objectifs/lib/types';
 
 /**
  * File d'attente hors ligne.

@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Ceremony, type Celebration } from './components/Ceremony';
-import { GoalCard } from './components/GoalCard';
-import { GoalEditor, type GoalSeed } from './components/GoalEditor';
-import { GoalPicker } from './components/GoalPicker';
-import { Hub } from './components/Hub';
-import { Landing } from './components/Landing';
-import { Onboarding } from './components/Onboarding';
-import { PasswordRecovery } from './components/PasswordRecovery';
-import { SettingsPanel } from './components/SettingsPanel';
-import { Timeline } from './components/Timeline';
-import { Trophies } from './components/Trophies';
-import { ActionEditor } from './components/ActionEditor';
+import { Ceremony, type Celebration } from './modules/objectifs/components/Ceremony';
+import { GoalCard } from './modules/objectifs/components/GoalCard';
+import { GoalEditor, type GoalSeed } from './modules/objectifs/components/GoalEditor';
+import { GoalPicker } from './modules/objectifs/components/GoalPicker';
+import { Hub } from './modules/objectifs/components/Hub';
+import { Landing } from './modules/objectifs/components/Landing';
+import { Onboarding } from './modules/objectifs/components/Onboarding';
+import { PasswordRecovery } from './core/components/PasswordRecovery';
+import { SettingsPanel } from './core/components/SettingsPanel';
+import { Timeline } from './modules/objectifs/components/Timeline';
+import { Trophies } from './modules/objectifs/components/Trophies';
+import { ActionEditor } from './modules/objectifs/components/ActionEditor';
 import { store } from './data';
 import {
   applyPending,
@@ -23,18 +23,18 @@ import {
 } from './data/outbox';
 import { flushOutbox } from './data/sync';
 import { DEFAULT_SETTINGS, type Settings, type UnlockedAchievement } from './data/store';
-import { timezoneOffsetMinutes } from './lib/push';
-import { newlyUnlocked, unlockedAchievements } from './lib/achievements';
-import { adoptLegacyOnboarding, hasOnboarded, markOnboarded } from './lib/onboarding';
-import { isCountable, tierProgress } from './lib/counters';
-import { tapValue } from './lib/quantities';
-import { DEMO_GOALS } from './lib/demo';
-import { goalProgress, ppForRank, profileRank, todayPP } from './lib/progress';
-import { getRank } from './lib/ranks';
-import type { GoalTemplate } from './lib/templates';
-import { playCheckinBlip, vibrate } from './lib/sound';
-import { computeStreak, dayString } from './lib/streak';
-import { ONE_OFF_PP } from './lib/types';
+import { timezoneOffsetMinutes } from './core/lib/push';
+import { newlyUnlocked, unlockedAchievements } from './modules/objectifs/lib/achievements';
+import { adoptLegacyOnboarding, hasOnboarded, markOnboarded } from './core/lib/onboarding';
+import { isCountable, tierProgress } from './modules/objectifs/lib/counters';
+import { tapValue } from './modules/objectifs/lib/quantities';
+import { DEMO_GOALS } from './modules/objectifs/lib/demo';
+import { goalProgress, ppForRank, profileRank, todayPP } from './modules/objectifs/lib/progress';
+import { getRank } from './modules/objectifs/lib/ranks';
+import type { GoalTemplate } from './modules/objectifs/lib/templates';
+import { playCheckinBlip, vibrate } from './core/lib/sound';
+import { computeStreak, dayString } from './modules/objectifs/lib/streak';
+import { ONE_OFF_PP } from './modules/objectifs/lib/types';
 import type {
   Action,
   ActionInput,
@@ -44,7 +44,7 @@ import type {
   GoalInput,
   Tier,
   TierInput,
-} from './lib/types';
+} from './modules/objectifs/lib/types';
 
 type View = 'accueil' | 'objectifs' | 'historique' | 'trophees';
 

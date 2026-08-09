@@ -178,9 +178,6 @@ export interface Checkin {
  */
 export const ONE_OFF_PP = 10;
 
-export interface AppUser {
-  id: string;
-  email: string;
-  /** true quand les données vivent seulement dans ce navigateur */
-  isLocal: boolean;
-}
+// AppUser vit désormais dans le socle ; réexporté ici le temps que
+// `src/data/` soit scindé (étape 3), pour ne rien casser en chemin.
+export type { AppUser } from '../../../core/lib/types';

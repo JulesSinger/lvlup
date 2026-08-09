@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { store } from '../data';
-import type { PushDevice, Settings } from '../data/store';
+import { store } from '../../data';
+import type { PushDevice, Settings } from '../../data/store';
 import {
   VAPID_PUBLIC_KEY,
   isIOS,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { store } from '../data';
-import { DAILY_GOAL_LEVELS, type Settings } from '../data/store';
+import { store } from '../../data';
+import { DAILY_GOAL_LEVELS, type Settings } from '../../data/store';
 import type { AppUser } from '../lib/types';
 import { ReminderSettings } from './ReminderSettings';
 

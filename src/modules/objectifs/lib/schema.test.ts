@@ -23,7 +23,7 @@ import { DIRECTIONS, TARGET_MODES, TIER_KINDS } from './types';
  * la lettre près, sans avoir besoin d'une base.
  */
 
-const SQL_DIR = new URL('../../supabase', import.meta.url).pathname;
+const SQL_DIR = new URL('../../../../supabase', import.meta.url).pathname;
 
 /** Contenu de tous les fichiers SQL, dans l'ordre où on les exécute. */
 function sqlFiles(): { name: string; body: string }[] {

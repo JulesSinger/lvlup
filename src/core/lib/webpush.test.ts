@@ -8,7 +8,7 @@ import {
   hkdfExtract,
   normalizeVapidSubject,
   vapidHeader,
-} from '../../supabase/functions/send-reminders/webpush.ts';
+} from '../../../supabase/functions/send-reminders/webpush.ts';
 
 /**
  * Le chiffrement Web Push est écrit à la main : sans test, c'est le genre de

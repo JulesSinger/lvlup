@@ -1,4 +1,4 @@
-import type { UnlockedAchievement } from '../data/store';
+import type { UnlockedAchievement } from '../../../data/store';
 import { ACHIEVEMENTS } from '../lib/achievements';
 import { formatDate } from '../lib/progress';
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getRank } from '../lib/ranks';
 import { GOAL_TEMPLATES } from '../lib/templates';
-import { AuthScreen } from './AuthScreen';
+import { AuthScreen } from '../../../core/components/AuthScreen';
 
 /**
  * Page d'accueil publique — ce que voit quelqu'un qui reçoit le lien.

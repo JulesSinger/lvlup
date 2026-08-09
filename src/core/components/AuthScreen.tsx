@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { store } from '../data';
+import { store } from '../../data';
 
 type Mode = 'signin' | 'signup' | 'forgot';
 

@@ -7,8 +7,8 @@ import type {
   GoalInput,
   Tier,
   TierInput,
-} from '../lib/types';
-import { DEFAULT_ACTIONS, JALON } from '../lib/types';
+} from '../modules/objectifs/lib/types';
+import { DEFAULT_ACTIONS, JALON } from '../modules/objectifs/lib/types';
 import {
   DEFAULT_SETTINGS,
   newId,

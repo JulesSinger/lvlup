@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { burst, prefersReducedMotion } from '../lib/confetti';
+import { burst, prefersReducedMotion } from '../../../core/lib/confetti';
 import type { Rank } from '../lib/ranks';
-import { isMuted, playRankUpFanfare, playTierChime, setMuted, vibrate } from '../lib/sound';
+import { isMuted, playRankUpFanfare, playTierChime, setMuted, vibrate } from '../../../core/lib/sound';
 
 /**
  * Un événement à célébrer. Les cérémonies s'enchaînent : valider un palier qui

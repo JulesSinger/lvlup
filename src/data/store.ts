@@ -7,7 +7,7 @@ import type {
   GoalInput,
   Tier,
   TierInput,
-} from '../lib/types';
+} from '../modules/objectifs/lib/types';
 
 /** Trophée débloqué, définitivement acquis (jamais re-verrouillé). */
 export interface UnlockedAchievement {

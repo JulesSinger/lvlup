@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { store } from '../data';
+import { store } from '../../data';
 
 /**
  * Écran affiché quand on arrive par le lien « mot de passe oublié ».

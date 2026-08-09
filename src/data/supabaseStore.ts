@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { RankId } from '../lib/ranks';
+import type { RankId } from '../modules/objectifs/lib/ranks';
 import type {
   Action,
   ActionInput,
@@ -9,8 +9,8 @@ import type {
   GoalInput,
   Tier,
   TierInput,
-} from '../lib/types';
-import { DEFAULT_ACTIONS, JALON } from '../lib/types';
+} from '../modules/objectifs/lib/types';
+import { DEFAULT_ACTIONS, JALON } from '../modules/objectifs/lib/types';
 import {
   DEFAULT_SETTINGS,
   type Backup,
