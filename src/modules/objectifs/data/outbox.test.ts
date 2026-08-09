@@ -9,7 +9,7 @@ import {
   queueDelete,
   removeOp,
 } from './outbox';
-import type { Checkin } from '../modules/objectifs/lib/types';
+import type { Checkin } from '../lib/types';
 
 /**
  * La file d'attente existe pour une seule raison : ne jamais perdre une action

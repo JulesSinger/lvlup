@@ -11,7 +11,8 @@ import { SettingsPanel } from './core/components/SettingsPanel';
 import { Timeline } from './modules/objectifs/components/Timeline';
 import { Trophies } from './modules/objectifs/components/Trophies';
 import { ActionEditor } from './modules/objectifs/components/ActionEditor';
-import { store } from './data';
+import { coreStore } from './core/data';
+import { goalsStore } from './modules/objectifs/data';
 import {
   applyPending,
   isNetworkError,
@@ -20,9 +21,10 @@ import {
   queueAdd,
   queueDelete,
   PENDING_PREFIX,
-} from './data/outbox';
-import { flushOutbox } from './data/sync';
-import { DEFAULT_SETTINGS, type Settings, type UnlockedAchievement } from './data/store';
+} from './modules/objectifs/data/outbox';
+import { flushOutbox } from './modules/objectifs/data/sync';
+import { DEFAULT_SETTINGS, type Settings } from './core/data/coreStore';
+import type { UnlockedAchievement } from './modules/objectifs/data/goalsStore';
 import { timezoneOffsetMinutes } from './core/lib/push';
 import { newlyUnlocked, unlockedAchievements } from './modules/objectifs/lib/achievements';
 import { adoptLegacyOnboarding, hasOnboarded, markOnboarded } from './core/lib/onboarding';
@@ -102,7 +104,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    const unsubscribe = store.onUserChange((next) => {
+    const unsubscribe = coreStore.onUserChange((next) => {
       setUser(next);
       setAuthReady(true);
     });
@@ -120,11 +122,11 @@ export default function App() {
   const refresh = useCallback(async (retry = true): Promise<void> => {
     try {
       const [nextGoals, nextCheckins, nextActions, stored, nextSettings] = await Promise.all([
-        store.listGoals(),
-        store.listCheckins(),
-        store.listActions(),
-        store.listAchievements(),
-        store.getSettings(),
+        goalsStore.listGoals(),
+        goalsStore.listCheckins(),
+        goalsStore.listActions(),
+        goalsStore.listAchievements(),
+        coreStore.getSettings(),
       ]);
       // Un trophée dont la condition est remplie devient acquis pour toujours,
       // même si l'action qui l'a rempli est annulée plus tard.
@@ -133,7 +135,7 @@ export default function App() {
       const known = new Set(stored.map((a) => a.id));
       const fresh = [...computed].filter((id) => !known.has(id));
       if (fresh.length > 0) {
-        await store.unlockAchievements(fresh);
+        await goalsStore.unlockAchievements(fresh);
         const now = new Date().toISOString();
         nextAchievements = [...stored, ...fresh.map((id) => ({ id, unlockedAt: now }))];
       }
@@ -174,7 +176,7 @@ export default function App() {
           tiers: g.tiers.map((t) => (ids.has(t.id) ? { ...t, completedAt: now } : t)),
         }));
         await Promise.all(
-          late.map((t) => store.updateTier(t.id, { completedAt: now }).catch(() => {})),
+          late.map((t) => goalsStore.updateTier(t.id, { completedAt: now }).catch(() => {})),
         );
       }
 
@@ -188,7 +190,7 @@ export default function App() {
       // Au réveil de l'app (surtout sur téléphone), la première requête peut
       // partir pendant le rafraîchissement du jeton et être rejetée. On
       // réessaie une fois avant d'afficher quoi que ce soit d'inquiétant.
-      if (retry && store.isRemote) {
+      if (retry && coreStore.isRemote) {
         await new Promise((resolve) => setTimeout(resolve, 1200));
         return refresh(false);
       }
@@ -263,12 +265,12 @@ export default function App() {
     if (!user || user.isLocal || !settings.reminderEnabled) return;
     const offset = timezoneOffsetMinutes();
     if (offset === settings.tzOffset) return;
-    void store.updateSettings({ tzOffset: offset }).catch(() => {});
+    void coreStore.updateSettings({ tzOffset: offset }).catch(() => {});
     setSettings((s) => ({ ...s, tzOffset: offset }));
   }, [user, settings.reminderEnabled, settings.tzOffset]);
 
   // Lien « mot de passe oublié » : on intercepte avant tout le reste.
-  useEffect(() => store.onPasswordRecovery(() => setRecovering(true)), []);
+  useEffect(() => coreStore.onPasswordRecovery(() => setRecovering(true)), []);
 
   // Badge sur l'icône installée (PWA) : un point tant que le check-in du jour
   // n'est pas fait. Silencieusement ignoré là où l'API n'existe pas.
@@ -361,7 +363,7 @@ export default function App() {
   /** Validation directe d'un palier (depuis le hub ou une carte d'objectif). */
   function validateTier(goal: Goal, tier: Tier) {
     celebrateTier(goal, tier);
-    void run(() => store.updateTier(tier.id, { completedAt: new Date().toISOString() }));
+    void run(() => goalsStore.updateTier(tier.id, { completedAt: new Date().toISOString() }));
   }
 
   /**
@@ -425,7 +427,7 @@ export default function App() {
 
     void (async () => {
       try {
-        await store.addCheckin(goal.id, day, action.id, action.pp, value);
+        await goalsStore.addCheckin(goal.id, day, action.id, action.pp, value);
         await refresh();
       } catch (err) {
         if (isNetworkError(err)) {
@@ -497,7 +499,7 @@ export default function App() {
 
     void (async () => {
       try {
-        await store.addOneOff(goal.id, day, clean, ONE_OFF_PP);
+        await goalsStore.addOneOff(goal.id, day, clean, ONE_OFF_PP);
         await refresh();
       } catch (err) {
         if (isNetworkError(err)) {
@@ -528,7 +530,7 @@ export default function App() {
     }
     void (async () => {
       try {
-        await store.deleteCheckin(checkin.id);
+        await goalsStore.deleteCheckin(checkin.id);
         await refresh();
       } catch (err) {
         if (isNetworkError(err)) {
@@ -542,7 +544,7 @@ export default function App() {
   }
 
   function saveCheckinNote(checkin: Checkin, note: string) {
-    void run(() => store.updateCheckin(checkin.id, { note }));
+    void run(() => goalsStore.updateCheckin(checkin.id, { note }));
   }
 
   /**
@@ -557,7 +559,7 @@ export default function App() {
     setCheckins(nextCheckins);
     const { queue } = reachedCelebrations(checkins, nextCheckins);
     if (queue.length > 0) setCelebrations(queue);
-    void run(() => store.updateCheckin(checkin.id, { value }));
+    void run(() => goalsStore.updateCheckin(checkin.id, { value }));
   }
 
   /**
@@ -608,7 +610,7 @@ export default function App() {
         pp: ppForRank(rank),
         goalComplete: updated ? goalProgress(updated).complete : false,
       });
-      void store.updateTier(tier.id, { completedAt: now });
+      void goalsStore.updateTier(tier.id, { completedAt: now });
     }
     if (rankAfter.rank && (!rankBefore.rank || rankAfter.rank.value > rankBefore.rank.value)) {
       queue.push({ kind: 'profile', rank: rankAfter.rank, previous: rankBefore.rank });
@@ -619,17 +621,17 @@ export default function App() {
   async function saveGoal(input: GoalInput, tiers: TierInput[]) {
     const target = editing?.goal;
     if (target) {
-      await store.updateGoal(target.id, input);
+      await goalsStore.updateGoal(target.id, input);
     } else {
-      const created = await store.createGoal(input, tiers);
+      const created = await goalsStore.createGoal(input, tiers);
       // Un modèle apporte ses propres actions : elles remplacent les deux
       // génériques créées d'office.
       if (seedActions && seedActions.length > 0) {
-        const generic = await store.listActions();
+        const generic = await goalsStore.listActions();
         for (const a of generic.filter((a) => a.goalId === created.id)) {
-          await store.deleteAction(a.id);
+          await goalsStore.deleteAction(a.id);
         }
-        for (const a of seedActions) await store.createAction(created.id, a);
+        for (const a of seedActions) await goalsStore.createAction(created.id, a);
       }
       setExpanded((set) => new Set(set).add(created.id));
       setView('objectifs');
@@ -661,17 +663,17 @@ export default function App() {
   }
 
   function archiveGoal(goal: Goal) {
-    void run(() => store.updateGoal(goal.id, { archived: true }));
+    void run(() => goalsStore.updateGoal(goal.id, { archived: true }));
   }
 
   function restoreGoal(goal: Goal) {
-    void run(() => store.updateGoal(goal.id, { archived: false }));
+    void run(() => goalsStore.updateGoal(goal.id, { archived: false }));
   }
 
   function deleteGoal(goal: Goal) {
     const label = `Supprimer « ${goal.title} » et ses ${goal.tiers.length} palier(s) ? Cette action est définitive.`;
     if (!window.confirm(label)) return;
-    void run(() => store.deleteGoal(goal.id));
+    void run(() => goalsStore.deleteGoal(goal.id));
   }
 
   function moveTier(goal: Goal, tierId: string, direction: -1 | 1) {
@@ -680,11 +682,12 @@ export default function App() {
     const to = from + direction;
     if (from === -1 || to < 0 || to >= ids.length) return;
     [ids[from], ids[to]] = [ids[to], ids[from]];
-    void run(() => store.reorderTiers(goal.id, ids));
+    void run(() => goalsStore.reorderTiers(goal.id, ids));
   }
 
   async function exportJson() {
-    const backup = await store.exportAll();
+    const backup = await goalsStore.exportData();
+    const settings = await coreStore.getSettings();
     const blob = new Blob(
       [
         JSON.stringify(
@@ -694,7 +697,7 @@ export default function App() {
             actions: backup.actions,
             checkins: backup.checkins,
             achievements: backup.achievements,
-            settings: backup.settings,
+            settings,
           },
           null,
           2,
@@ -729,15 +732,15 @@ export default function App() {
         if (!window.confirm('Importer cette sauvegarde ? Elle remplacera tes objectifs actuels.'))
           return;
         // Les sauvegardes plus anciennes n'ont ni check-ins (v1) ni trophées (v2).
-        await run(() =>
-          store.importAll({
+        await run(async () => {
+          await goalsStore.importData({
             goals: parsed.goals as Goal[],
             actions: Array.isArray(parsed.actions) ? parsed.actions : [],
             checkins: Array.isArray(parsed.checkins) ? parsed.checkins : [],
             achievements: Array.isArray(parsed.achievements) ? parsed.achievements : [],
-            settings: parsed.settings,
-          }),
-        );
+          });
+          if (parsed.settings) await coreStore.updateSettings(parsed.settings);
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Import impossible.');
       }
@@ -748,7 +751,7 @@ export default function App() {
   function loadDemo() {
     void run(async () => {
       for (const demo of DEMO_GOALS) {
-        await store.createGoal(
+        await goalsStore.createGoal(
           { title: demo.title, description: demo.description, emoji: demo.emoji },
           demo.tiers,
         );
@@ -762,10 +765,10 @@ export default function App() {
   if (recovering) {
     return <PasswordRecovery onDone={() => setRecovering(false)} />;
   }
-  if (store.isRemote && !authReady) {
+  if (coreStore.isRemote && !authReady) {
     return <div className="auth-screen">Chargement…</div>;
   }
-  if (store.isRemote && !user) {
+  if (coreStore.isRemote && !user) {
     return <Landing />;
   }
 
@@ -777,7 +780,7 @@ export default function App() {
         onFinish={(input, tiers) => {
           finishOnboarding();
           void run(async () => {
-            const created = await store.createGoal(input, tiers);
+            const created = await goalsStore.createGoal(input, tiers);
             setExpanded((set) => new Set(set).add(created.id));
           });
         }}
@@ -958,15 +961,15 @@ export default function App() {
                     onEdit={() => setEditing({ goal })}
                     onArchive={() => archiveGoal(goal)}
                     onDelete={() => deleteGoal(goal)}
-                    onAddTier={(input) => run(() => store.createTier(goal.id, input))}
+                    onAddTier={(input) => run(() => goalsStore.createTier(goal.id, input))}
                     onUpdateTier={(tierId, patch) => {
                       if (patch.completedAt) {
                         const tier = goal.tiers.find((t) => t.id === tierId);
                         if (tier) celebrateTier(goal, tier);
                       }
-                      return run(() => store.updateTier(tierId, patch));
+                      return run(() => goalsStore.updateTier(tierId, patch));
                     }}
-                    onDeleteTier={(tierId) => run(() => store.deleteTier(tierId))}
+                    onDeleteTier={(tierId) => run(() => goalsStore.deleteTier(tierId))}
                     onMoveTier={async (tierId, direction) => moveTier(goal, tierId, direction)}
                     actions={actions}
                     checkins={checkins}
@@ -974,10 +977,10 @@ export default function App() {
                       <ActionEditor
                         actions={actions.filter((a) => a.goalId === goal.id)}
                         onCreate={(input: ActionInput) =>
-                          run(() => store.createAction(goal.id, input))
+                          run(() => goalsStore.createAction(goal.id, input))
                         }
-                        onUpdate={(id, patch) => run(() => store.updateAction(id, patch))}
-                        onDelete={(id) => run(() => store.deleteAction(id))}
+                        onUpdate={(id, patch) => run(() => goalsStore.updateAction(id, patch))}
+                        onDelete={(id) => run(() => goalsStore.deleteAction(id))}
                       />
                     }
                   />
@@ -1058,7 +1061,7 @@ export default function App() {
           settings={settings}
           onChange={(patch) => {
             setSettings((s) => ({ ...s, ...patch }));
-            void store.updateSettings(patch).catch((err) => {
+            void coreStore.updateSettings(patch).catch((err) => {
               setError(err instanceof Error ? err.message : 'Réglage non enregistré.');
             });
           }}

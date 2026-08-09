@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { store } from '../../data';
-import type { PushDevice, Settings } from '../../data/store';
+import { coreStore } from '../data';
+import type { PushDevice, Settings } from '../data/coreStore';
 import {
   VAPID_PUBLIC_KEY,
   isIOS,
@@ -36,7 +36,7 @@ export function ReminderSettings({
   const reload = useCallback(async () => {
     setStatus(await pushStatus());
     try {
-      setDevices(await store.listPushDevices());
+      setDevices(await coreStore.listPushDevices());
     } catch {
       setDevices([]);
     }
@@ -52,7 +52,7 @@ export function ReminderSettings({
     setMessage('');
     try {
       const subscription = await subscribeToPush();
-      await store.savePushDevice(subscription);
+      await coreStore.savePushDevice(subscription);
       onChange({
         reminderEnabled: true,
         reminderTime: settings.reminderTime,
@@ -73,7 +73,7 @@ export function ReminderSettings({
     setMessage('');
     try {
       const endpoint = await unsubscribeFromPush();
-      if (endpoint) await store.removePushDevice(endpoint);
+      if (endpoint) await coreStore.removePushDevice(endpoint);
       onChange({ reminderEnabled: false });
       await reload();
     } catch (err) {
@@ -88,7 +88,7 @@ export function ReminderSettings({
     setProblem('');
     setMessage('');
     try {
-      const { sent } = await store.sendTestPush();
+      const { sent } = await coreStore.sendTestPush();
       setMessage(
         `Envoyé sur ${sent} appareil${sent > 1 ? 's' : ''} — la notification arrive dans quelques secondes.`,
       );
@@ -97,7 +97,7 @@ export function ReminderSettings({
       // Un échec sans explication fait perdre une soirée. On interroge la
       // fonction dans la foulée pour dire ce qui manque, précisément.
       try {
-        const d = await store.pingPushFunction();
+        const d = await coreStore.pingPushFunction();
         const manquants = [
           !d.vapidPublic && 'VAPID_PUBLIC_KEY',
           !d.vapidPrivate && 'VAPID_PRIVATE_KEY',
@@ -126,7 +126,7 @@ export function ReminderSettings({
   async function forget(device: PushDevice) {
     setBusy(true);
     try {
-      await store.removePushDevice(device.endpoint);
+      await coreStore.removePushDevice(device.endpoint);
       await reload();
     } finally {
       setBusy(false);

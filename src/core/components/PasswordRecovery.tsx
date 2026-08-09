@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { store } from '../../data';
+import { coreStore } from '../data';
 
 /**
  * Écran affiché quand on arrive par le lien « mot de passe oublié ».
@@ -29,7 +29,7 @@ export function PasswordRecovery({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setError('');
     try {
-      await store.updatePassword(password);
+      await coreStore.updatePassword(password);
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Modification impossible.');

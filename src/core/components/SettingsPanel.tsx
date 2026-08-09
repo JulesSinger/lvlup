@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { store } from '../../data';
-import { DAILY_GOAL_LEVELS, type Settings } from '../../data/store';
+import { coreStore } from '../data';
+import { DAILY_GOAL_LEVELS, type Settings } from '../data/coreStore';
 import type { AppUser } from '../lib/types';
 import { ReminderSettings } from './ReminderSettings';
 
@@ -48,7 +48,7 @@ export function SettingsPanel({
     setPasswordError('');
     setPasswordDone('');
     try {
-      await store.updatePassword(password);
+      await coreStore.updatePassword(password);
       setPassword('');
       setPasswordDone('Mot de passe mis à jour.');
     } catch (err) {
@@ -134,7 +134,7 @@ export function SettingsPanel({
                   className="btn btn-ghost btn-sm"
                   onClick={() => {
                     onClose();
-                    void store.signOut();
+                    void coreStore.signOut();
                   }}
                 >
                   Déconnexion

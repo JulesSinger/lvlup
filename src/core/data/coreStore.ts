@@ -1,19 +1,4 @@
-import type {
-  Action,
-  ActionInput,
-  AppUser,
-  Checkin,
-  Goal,
-  GoalInput,
-  Tier,
-  TierInput,
-} from '../modules/objectifs/lib/types';
-
-/** Trophée débloqué, définitivement acquis (jamais re-verrouillé). */
-export interface UnlockedAchievement {
-  id: string;
-  unlockedAt: string;
-}
+import type { AppUser } from '../lib/types';
 
 /** Réglages du compte, synchronisés entre appareils. */
 export interface Settings {
@@ -72,23 +57,15 @@ export const DAILY_GOAL_LEVELS: { label: string; pp: number; hint: string }[] = 
   { label: 'Intense', pp: 120, hint: 'plusieurs objectifs chaque jour' },
 ];
 
-/** Sauvegarde complète (export/import). La v1 ne contenait que les objectifs. */
-export interface Backup {
-  goals: Goal[];
-  actions: Action[];
-  checkins: Checkin[];
-  achievements: UnlockedAchievement[];
-  settings?: Settings;
-}
-
 /**
- * Contrat unique entre l'interface et le stockage.
+ * Contrat du socle : ce qui ne dépend d'aucun module.
  *
- * Toute l'application passe par ce contrat et ignore où vivent réellement les
- * données. Passer du navigateur à une base Postgres partagée revient donc à
- * changer d'implémentation, sans toucher à un seul composant.
+ * Comptes, réglages et notifications valent pour toute l'application. Les
+ * données d'un domaine — objectifs, budget — relèvent du contrat de leur
+ * module, pas de celui-ci. C'est cette séparation qui permet d'ajouter un
+ * module sans faire grossir les implémentations existantes.
  */
-export interface Store {
+export interface CoreStore {
   /** true si les données sont sur un serveur (comptes réels, multi-appareils) */
   readonly isRemote: boolean;
 
@@ -109,55 +86,6 @@ export interface Store {
    */
   onPasswordRecovery(callback: () => void): () => void;
 
-  // --- Objectifs ---
-  listGoals(): Promise<Goal[]>;
-  createGoal(input: GoalInput, tiers: TierInput[]): Promise<Goal>;
-  updateGoal(id: string, patch: Partial<GoalInput> & { archived?: boolean }): Promise<void>;
-  deleteGoal(id: string): Promise<void>;
-
-  // --- Paliers ---
-  createTier(goalId: string, input: TierInput): Promise<Tier>;
-  updateTier(id: string, patch: Partial<TierInput> & { completedAt?: string | null }): Promise<void>;
-  deleteTier(id: string): Promise<void>;
-  /** `orderedIds` donne la nouvelle position de chaque palier de l'objectif */
-  reorderTiers(goalId: string, orderedIds: string[]): Promise<void>;
-
-  // --- Actions du quotidien ---
-  listActions(): Promise<Action[]>;
-  createAction(goalId: string, input: ActionInput): Promise<Action>;
-  updateAction(id: string, patch: Partial<ActionInput> & { archived?: boolean }): Promise<void>;
-  deleteAction(id: string): Promise<void>;
-
-  // --- Réalisations quotidiennes ---
-  listCheckins(): Promise<Checkin[]>;
-  /**
-   * Enregistre une action faite aujourd'hui. Une seule fois par action et par
-   * jour ; `day` au format YYYY-MM-DD. Les PP sont figés à l'enregistrement.
-   */
-  addCheckin(
-    goalId: string,
-    day: string,
-    actionId: string,
-    pp: number,
-    value?: number | null,
-  ): Promise<Checkin>;
-  /**
-   * Enregistre un **geste ponctuel** : un vrai pas vers l'objectif, mais pas
-   * une habitude. Sans action derrière, donc sans case à cocher le lendemain.
-   * Plusieurs par jour sont permis — la contrainte d'unicité porte sur
-   * (utilisateur, action, jour), et Postgres traite les actions nulles comme
-   * distinctes.
-   */
-  addOneOff(goalId: string, day: string, title: string, pp: number): Promise<Checkin>;
-  /** Ajoute ou modifie la note libre, ou la quantité relevée. */
-  updateCheckin(id: string, patch: { note?: string; value?: number | null }): Promise<void>;
-  deleteCheckin(id: string): Promise<void>;
-
-  // --- Trophées (acquis pour toujours) ---
-  listAchievements(): Promise<UnlockedAchievement[]>;
-  /** Idempotent : les ids déjà débloqués sont ignorés. */
-  unlockAchievements(ids: string[]): Promise<void>;
-
   // --- Réglages ---
   getSettings(): Promise<Settings>;
   updateSettings(patch: Partial<Settings>): Promise<void>;
@@ -172,10 +100,6 @@ export interface Store {
   sendTestPush(): Promise<{ sent: number; devices: number }>;
   /** Interroge la fonction d'envoi : est-elle là, et bien configurée ? */
   pingPushFunction(): Promise<PushDiagnostic>;
-
-  // --- Sauvegarde ---
-  exportAll(): Promise<Backup>;
-  importAll(backup: Backup): Promise<void>;
 }
 
 export function newId(): string {

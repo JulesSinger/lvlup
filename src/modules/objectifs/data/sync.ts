@@ -1,4 +1,4 @@
-import { store } from './index';
+import { goalsStore } from './index';
 import { isNetworkError, listPending, removeOp } from './outbox';
 
 /**
@@ -40,13 +40,13 @@ async function run(): Promise<FlushResult> {
       if (op.kind === 'add' && op.actionId === null) {
         // Geste ponctuel : pas d'action, donc pas d'upsert possible. Le
         // dédoublonnage se fait en amont, dans `applyPending`.
-        await store.addOneOff(op.goalId, op.day, op.title ?? '', op.pp);
+        await goalsStore.addOneOff(op.goalId, op.day, op.title ?? '', op.pp);
       } else if (op.kind === 'add') {
         // `addCheckin` est un upsert : rejouer deux fois la même coche ne
         // crée pas de doublon.
-        await store.addCheckin(op.goalId, op.day, op.actionId as string, op.pp, op.value);
+        await goalsStore.addCheckin(op.goalId, op.day, op.actionId as string, op.pp, op.value);
       } else {
-        await store.deleteCheckin(op.checkinId);
+        await goalsStore.deleteCheckin(op.checkinId);
       }
       removeOp(op.id);
       sent += 1;

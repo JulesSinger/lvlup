@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { tierColumnsFull } from './supabaseStore';
-import { JALON } from '../modules/objectifs/lib/types';
+import { tierColumnsFull } from './supabaseGoals';
+import { JALON } from '../lib/types';
 
 /**
  * Une insertion en lot n'accepte pas des lignes de formes différentes.

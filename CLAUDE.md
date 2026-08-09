@@ -73,31 +73,36 @@ npm run lint       # oxlint
 
 ### État actuel
 
-**Étapes 1 et 2 du plan faites.** Le style, les composants et la logique métier sont répartis
-entre `core/` et `modules/objectifs/`. **`src/data/` n'a pas bougé** : il porte encore le
-contrat unique `Store`, qui mêle socle et domaine. Le scinder est l'étape 3 — le déplacer
-avant aurait produit un `core/` qui dépend d'un module.
+**Étapes 1 à 3 du plan faites.** `src/data/` n'existe plus : tout vit dans `core/` ou dans un
+module. Restent l'étape 4 (registre de modules, `App.tsx` réduit à une coquille) et l'étape 5
+(sauvegarde versionnée) avant de construire Astra.
 
 ```
 src/
-  App.tsx            ~40 Ko — coquille + logique de célébration + trophées
+  App.tsx            ~40 Ko — coquille, célébrations, trophées, et l'assemblage
+                     de la sauvegarde (à confier au registre, étape 4)
   main.tsx
   styles.css         56 lignes — uniquement des @import, plus aucune règle
   core/
     components/      AuthScreen, PasswordRecovery, ReminderSettings, SettingsPanel
+    data/
+      coreStore.ts      contrat du socle : comptes, réglages, notifications
+      localCore.ts      implémentation navigateur
+      supabaseCore.ts   implémentation Supabase
+      localSnapshot.ts  le blob `palier.v1`, lu et écrit par section
+      supabaseClient.ts client unique + helpers partagés
+      index.ts          bascule locale/Supabase ; seul lecteur des variables d'env
     lib/             types (AppUser), push, sound, confetti, onboarding
     styles/          11 fichiers — socle commun
   modules/objectifs/
     components/      18 composants — Hub, GoalCard, Heatmap, Ceremony, Landing…
+    data/
+      goalsStore.ts     contrat du module + GoalsBackup
+      localGoals.ts, supabaseGoals.ts, index.ts
+      outbox.ts         file d'attente hors-ligne (encore propre au domaine)
+      sync.ts           vidage de la file à la reconnexion
     lib/             ranks, progress, streak, counters, templates, types… + tests
     styles/          11 fichiers — style propre au module
-  data/              ⚠ transitoire — à scinder à l'étape 3
-    store.ts         interface Store — contrat unique interface ↔ stockage
-    localStore.ts    implémentation navigateur (localStorage)
-    supabaseStore.ts implémentation Postgres + auth
-    index.ts         choisit l'implémentation selon les variables d'env
-    outbox.ts        file d'attente hors-ligne
-    sync.ts          vidage de la file à la reconnexion
 supabase/
   schema.sql         tables de base + politiques RLS
   migration-N-*.sql  migrations numérotées séquentiellement
@@ -105,19 +110,25 @@ supabase/
 docs/                études, maquettes, notes de sprint
 ```
 
-### Cible : `src/core/` + `src/modules/<module>/`
+### Ce qui reste à faire
 
-Le plan de découpage est décrit dans **`docs/architecture-modules.md`**. Lis-le avant tout
-travail structurel.
+Le plan complet est décrit dans **`docs/architecture-modules.md`**. Lis-le avant tout travail
+structurel, et vérifie l'arborescence réelle avant d'écrire un chemin.
 
-**Tant que la migration n'est pas faite, `src/modules/` n'existe pas — ne le cherche pas et
-n'invente pas de chemins.** Consulte l'arborescence réelle avant d'écrire.
+### La règle qui tient tout : les contrats de stockage
 
-### La règle qui tient tout : l'interface `Store`
+`core/data/coreStore.ts` et `modules/<module>/data/<module>Store.ts` sont les **seuls** points
+de contact entre l'interface et le stockage. Aucun composant ne connaît Supabase ni
+`localStorage`. C'est ce qui permet à l'app de tourner sans compte en local et de basculer en
+multi-utilisateur avec deux variables d'environnement.
 
-`src/data/store.ts` est le **seul** point de contact entre l'interface et le stockage. Aucun
-composant ne connaît Supabase ni `localStorage`. C'est ce qui permet à l'app de tourner sans
-compte en local et de basculer en multi-utilisateur avec deux variables d'environnement.
+**Un module apporte son contrat et ses deux implémentations ; il ne touche à aucun fichier du
+socle.** C'est tout l'intérêt de la scission : ajouter Astra ne fera grossir aucun fichier
+existant.
+
+**Le sens des dépendances est à sens unique.** Un module importe depuis `core/` ; `core/`
+n'importe jamais depuis un module. Si tu as besoin de l'inverse, c'est que le type ou la
+fonction concernée appartient au socle — remonte-la, comme `AppUser` l'a été.
 
 **Cette propriété ne doit jamais être cassée.** Un `import { createClient } from
 '@supabase/supabase-js'` dans un composant est un défaut à corriger, pas un raccourci.
@@ -234,11 +245,13 @@ mais c'est un changement à vérifier à l'œil, pas un simple rangement.
 
 ## 6. Points sensibles à ne pas casser
 
-- **File d'attente hors-ligne** (`data/outbox.ts`, `data/sync.ts`). Une coche prise sans
-  réseau est mise de côté et rejouée. Règle : une *erreur réseau* interrompt le vidage et
-  garde la suite ; une *erreur serveur* retire l'opération, qui ne réussira jamais et
-  bloquerait la file. Toute écriture d'un nouveau module qui peut se faire en mobilité doit
-  passer par cette file.
+- **File d'attente hors-ligne** (`modules/objectifs/data/outbox.ts` et `sync.ts`). Une coche
+  prise sans réseau est mise de côté et rejouée. Règle : une *erreur réseau* interrompt le
+  vidage et garde la suite ; une *erreur serveur* retire l'opération, qui ne réussira jamais
+  et bloquerait la file. ⚠ Elle est encore **écrite pour le domaine objectifs** (ses
+  opérations parlent de check-ins). Le jour où Astra devra écrire en mobilité, il faudra la
+  généraliser dans `core/` plutôt que la dupliquer — la clé `zenith.outbox.v1`, elle, ne
+  bouge pas.
 - **Variables d'environnement Vite = variables de *build*.** Elles sont figées dans le
   JavaScript à la compilation. Sur Cloudflare, elles vont dans *Settings → Build*, pas dans
   *Settings → Variables and Secrets*. Mal placées, le build réussit et le site déployé
@@ -246,8 +259,12 @@ mais c'est un changement à vérifier à l'œil, pas un simple rangement.
 - **Les PP sont figés à l'enregistrement** dans les check-ins. Renommer ou revaloriser une
   action ne réécrit pas l'historique.
 - **Le rang d'un objectif est celui du palier le plus élevé**, pas du dernier validé.
-- **`exportAll` / `importAll` doivent couvrir tout nouveau module.** Un module absent de la
-  sauvegarde est un module dont les données sont perdues le jour d'une restauration.
+- **La sauvegarde doit couvrir tout nouveau module.** Chaque module expose `exportData` /
+  `importData` ; `App.tsx` assemble les sections et y ajoute les réglages du socle. Le fichier
+  produit garde le format v4 à plat (`goals`, `actions`, `checkins`, `achievements`,
+  `settings`) — le passage à un format versionné par module est l'étape 5, et il devra rester
+  capable de relire les anciens fichiers. **Un module absent de la sauvegarde est un module
+  dont les données sont perdues le jour d'une restauration.**
 - **`.env` n'est jamais commité** (déjà couvert par `.gitignore`). La clé `anon` est publique
   par conception ; c'est le RLS qui protège, jamais le secret de cette clé.
 
@@ -287,6 +304,10 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 
 | Date | Décision | Pourquoi |
 |---|---|---|
+| 2026-08-09 | `Store` scindé en `CoreStore` + `GoalsStore`, deux implémentations chacun | Le contrat unique aurait doublé de taille à chaque module, et les deux implémentations avec lui |
+| 2026-08-09 | Le blob local `palier.v1` est lu et écrit **par section** | Le socle ne connaît que `settings` ; sans lecture-modification-écriture il écraserait les sections des modules |
+| 2026-08-09 | Un client Supabase unique, partagé (`core/data/supabaseClient.ts`) | Un `createClient` par module ferait diverger l'état d'authentification entre eux |
+| 2026-08-09 | La sauvegarde est assemblée dans `App.tsx`, pas dans un store | C'est le seul endroit qui connaît tous les modules — en attendant le registre de l'étape 4 |
 | 2026-08-09 | Un contrôle e2e (« Rien n'est dessiné avant la création de l'objectif ») échoue **tous les dimanches** | La grille finit le dimanche de la semaine en cours : ce jour-là il n'existe aucune case hors période. Antérieur au découpage, à corriger à part |
 | 2026-08-09 | `AppUser` remonte dans `core/lib/types.ts` | C'est un type du socle ; le laisser côté objectifs forçait un composant de `core/` à importer depuis un module |
 | 2026-08-09 | Le dossier d'un module porte son **nom technique** (`modules/objectifs/`), jamais sa marque | `modules/zenith/`, créé par erreur à l'étape 1, contredisait la règle qu'il venait d'illustrer |

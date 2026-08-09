@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { store } from '../../data';
+import { coreStore } from '../data';
 
 type Mode = 'signin' | 'signup' | 'forgot';
 
@@ -28,13 +28,13 @@ export function AuthScreen({
     setInfo('');
     try {
       if (mode === 'signup') {
-        const { needsConfirmation } = await store.signUp(email.trim(), password);
+        const { needsConfirmation } = await coreStore.signUp(email.trim(), password);
         if (needsConfirmation) {
           setInfo('Compte créé. Confirme ton adresse via l’e-mail reçu, puis connecte-toi.');
           setMode('signin');
         }
       } else if (mode === 'forgot') {
-        await store.resetPassword(email.trim());
+        await coreStore.resetPassword(email.trim());
         // Message volontairement neutre : il ne dit pas si l'adresse existe,
         // ce qui éviterait à quiconque de tester des adresses au hasard.
         setInfo(
@@ -42,7 +42,7 @@ export function AuthScreen({
         );
         setMode('signin');
       } else {
-        await store.signIn(email.trim(), password);
+        await coreStore.signIn(email.trim(), password);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connexion impossible.');

@@ -1,26 +1,18 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { RankId } from '../modules/objectifs/lib/ranks';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { RankId } from '../lib/ranks';
 import type {
   Action,
   ActionInput,
-  AppUser,
   Checkin,
   Goal,
   GoalInput,
   Tier,
   TierInput,
-} from '../modules/objectifs/lib/types';
-import { DEFAULT_ACTIONS, JALON } from '../modules/objectifs/lib/types';
-import {
-  DEFAULT_SETTINGS,
-  type Backup,
-  type PushDevice,
-  type PushDeviceInput,
-  type PushDiagnostic,
-  type Settings,
-  type Store,
-  type UnlockedAchievement,
-} from './store';
+} from '../lib/types';
+import { DEFAULT_ACTIONS, JALON } from '../lib/types';
+
+import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
+import type { GoalsBackup, GoalsStore, UnlockedAchievement } from './goalsStore';
 
 interface GoalRow {
   id: string;
@@ -188,88 +180,18 @@ function toGoal(row: GoalRow, tiers: TierRow[]): Goal {
   };
 }
 
-function unwrap<T>(result: { data: T | null; error: { message: string } | null }): T {
-  if (result.error) throw new Error(result.error.message);
-  return result.data as T;
-}
-
-/**
- * Stockage sur Supabase : Postgres hébergé + authentification par e-mail.
- * Chaque utilisateur ne voit que ses propres lignes, garanti côté serveur par
- * les policies Row Level Security de `supabase/schema.sql`.
- */
-export class SupabaseStore implements Store {
-  readonly isRemote = true;
+/** Objectifs stockés sur Supabase, protégés par le Row Level Security. */
+export class SupabaseGoals implements GoalsStore {
   private client: SupabaseClient;
 
   constructor(url: string, anonKey: string) {
-    this.client = createClient(url, anonKey);
+    this.client = getClient(url, anonKey);
   }
 
-  private async requireUserId(): Promise<string> {
-    const { data } = await this.client.auth.getUser();
-    if (!data.user) throw new Error('Session expirée, reconnecte-toi.');
-    return data.user.id;
+  private requireUserId(): Promise<string> {
+    return requireUserId(this.client);
   }
 
-  async getUser(): Promise<AppUser | null> {
-    const { data } = await this.client.auth.getUser();
-    if (!data.user) return null;
-    return { id: data.user.id, email: data.user.email ?? '', isLocal: false };
-  }
-
-  onUserChange(callback: (user: AppUser | null) => void) {
-    // On s'appuie uniquement sur onAuthStateChange : l'événement INITIAL_SESSION
-    // arrive une fois la session restaurée (et le jeton rafraîchi si besoin).
-    // L'ancien appel parallèle à getUser() créait une course : sur un appareil
-    // au jeton expiré, sa réponse « null » pouvait arriver APRÈS la session
-    // restaurée et l'écraser — d'où des écrans vides au réveil de l'app.
-    const { data } = this.client.auth.onAuthStateChange((_event, session) => {
-      callback(
-        session?.user
-          ? { id: session.user.id, email: session.user.email ?? '', isLocal: false }
-          : null,
-      );
-    });
-    return () => data.subscription.unsubscribe();
-  }
-
-  async signUp(email: string, password: string) {
-    const { data, error } = await this.client.auth.signUp({ email, password });
-    if (error) throw new Error(error.message);
-    // Sans session renvoyée, Supabase attend une confirmation par e-mail.
-    return { needsConfirmation: !data.session };
-  }
-
-  async signIn(email: string, password: string) {
-    const { error } = await this.client.auth.signInWithPassword({ email, password });
-    if (error) throw new Error(error.message);
-  }
-
-  async signOut() {
-    await this.client.auth.signOut();
-  }
-
-  async resetPassword(email: string) {
-    // Supabase renvoie l'utilisateur sur l'app avec un jeton de récupération ;
-    // `onPasswordRecovery` prend alors le relais côté interface.
-    const { error } = await this.client.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/`,
-    });
-    if (error) throw new Error(error.message);
-  }
-
-  async updatePassword(password: string) {
-    const { error } = await this.client.auth.updateUser({ password });
-    if (error) throw new Error(error.message);
-  }
-
-  onPasswordRecovery(callback: () => void) {
-    const { data } = this.client.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') callback();
-    });
-    return () => data.subscription.unsubscribe();
-  }
 
   async listGoals(): Promise<Goal[]> {
     const goals = unwrap(
@@ -280,6 +202,7 @@ export class SupabaseStore implements Store {
     ) as TierRow[];
     return goals.map((g) => toGoal(g, tiers));
   }
+
 
   async createGoal(input: GoalInput, tiers: TierInput[]): Promise<Goal> {
     const userId = await this.requireUserId();
@@ -336,6 +259,7 @@ export class SupabaseStore implements Store {
     return toGoal(goalRow, tierRows);
   }
 
+
   async updateGoal(id: string, patch: Partial<GoalInput> & { archived?: boolean }) {
     const row: Record<string, unknown> = {};
     if (patch.title !== undefined) row.title = patch.title;
@@ -346,11 +270,13 @@ export class SupabaseStore implements Store {
     if (error) throw new Error(error.message);
   }
 
+
   async deleteGoal(id: string) {
     // Les paliers partent avec l'objectif grâce au ON DELETE CASCADE du schéma.
     const { error } = await this.client.from('goals').delete().eq('id', id);
     if (error) throw new Error(error.message);
   }
+
 
   async createTier(goalId: string, input: TierInput): Promise<Tier> {
     const userId = await this.requireUserId();
@@ -376,6 +302,7 @@ export class SupabaseStore implements Store {
     return toTier(row);
   }
 
+
   async updateTier(id: string, patch: Partial<TierInput> & { completedAt?: string | null }) {
     const row: Record<string, unknown> = { ...tierColumns(patch) };
     if (patch.title !== undefined) row.title = patch.title;
@@ -385,10 +312,12 @@ export class SupabaseStore implements Store {
     if (error) throw new Error(error.message);
   }
 
+
   async deleteTier(id: string) {
     const { error } = await this.client.from('tiers').delete().eq('id', id);
     if (error) throw new Error(error.message);
   }
+
 
   async reorderTiers(_goalId: string, orderedIds: string[]) {
     for (let i = 0; i < orderedIds.length; i++) {
@@ -396,6 +325,7 @@ export class SupabaseStore implements Store {
       if (error) throw new Error(error.message);
     }
   }
+
 
   async listActions(): Promise<Action[]> {
     const rows = unwrap(
@@ -407,6 +337,7 @@ export class SupabaseStore implements Store {
     ) as ActionRow[];
     return rows.map(toAction);
   }
+
 
   async createAction(goalId: string, input: ActionInput): Promise<Action> {
     const userId = await this.requireUserId();
@@ -433,6 +364,7 @@ export class SupabaseStore implements Store {
     return toAction(row);
   }
 
+
   async updateAction(id: string, patch: Partial<ActionInput> & { archived?: boolean }) {
     const row: Record<string, unknown> = {};
     if (patch.title !== undefined) row.title = patch.title;
@@ -445,6 +377,7 @@ export class SupabaseStore implements Store {
     if (error) throw new Error(error.message);
   }
 
+
   async deleteAction(id: string) {
     // Les réalisations passées gardent leurs PP (ON DELETE SET NULL côté SQL) :
     // supprimer une action ne réécrit pas l'historique.
@@ -452,12 +385,14 @@ export class SupabaseStore implements Store {
     if (error) throw new Error(error.message);
   }
 
+
   async listCheckins(): Promise<Checkin[]> {
     const rows = unwrap(
       await this.client.from('checkins').select('*').order('day', { ascending: true }),
     ) as CheckinRow[];
     return rows.map(toCheckin);
   }
+
 
   async addCheckin(
     goalId: string,
@@ -481,6 +416,7 @@ export class SupabaseStore implements Store {
     return toCheckin(row);
   }
 
+
   async addOneOff(goalId: string, day: string, title: string, pp: number): Promise<Checkin> {
     const userId = await this.requireUserId();
     // Insertion simple et non upsert : la contrainte d'unicité porte sur
@@ -503,6 +439,7 @@ export class SupabaseStore implements Store {
     return toCheckin(row);
   }
 
+
   async updateCheckin(id: string, patch: { note?: string; value?: number | null }) {
     const row: Record<string, unknown> = {};
     if (patch.note !== undefined) row.note = patch.note;
@@ -511,10 +448,12 @@ export class SupabaseStore implements Store {
     if (error) throw new Error(error.message);
   }
 
+
   async deleteCheckin(id: string) {
     const { error } = await this.client.from('checkins').delete().eq('id', id);
     if (error) throw new Error(error.message);
   }
+
 
   async listAchievements(): Promise<UnlockedAchievement[]> {
     const rows = unwrap(
@@ -522,6 +461,7 @@ export class SupabaseStore implements Store {
     ) as { achievement_id: string; unlocked_at: string }[];
     return rows.map((r) => ({ id: r.achievement_id, unlockedAt: r.unlocked_at }));
   }
+
 
   async unlockAchievements(ids: string[]) {
     if (ids.length === 0) return;
@@ -533,132 +473,17 @@ export class SupabaseStore implements Store {
     if (error) throw new Error(error.message);
   }
 
-  async getSettings(): Promise<Settings> {
-    const userId = await this.requireUserId();
-    const { data, error } = await this.client
-      .from('profiles')
-      .select('daily_goal, reminder_enabled, reminder_time, tz_offset')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!data) return { ...DEFAULT_SETTINGS };
-    return {
-      dailyGoal: data.daily_goal ?? DEFAULT_SETTINGS.dailyGoal,
-      reminderEnabled: data.reminder_enabled ?? DEFAULT_SETTINGS.reminderEnabled,
-      reminderTime: data.reminder_time ?? DEFAULT_SETTINGS.reminderTime,
-      tzOffset: data.tz_offset ?? DEFAULT_SETTINGS.tzOffset,
-    };
-  }
-
-  async updateSettings(patch: Partial<Settings>) {
-    const userId = await this.requireUserId();
-    const row: Record<string, unknown> = { user_id: userId };
-    if (patch.dailyGoal !== undefined) row.daily_goal = patch.dailyGoal;
-    if (patch.reminderEnabled !== undefined) row.reminder_enabled = patch.reminderEnabled;
-    if (patch.reminderTime !== undefined) row.reminder_time = patch.reminderTime;
-    if (patch.tzOffset !== undefined) row.tz_offset = patch.tzOffset;
-    const { error } = await this.client
-      .from('profiles')
-      .upsert(row, { onConflict: 'user_id' });
-    if (error) throw new Error(error.message);
-  }
-
-  async listPushDevices(): Promise<PushDevice[]> {
-    const rows = unwrap(
-      await this.client
-        .from('push_subscriptions')
-        .select('id, endpoint, label, created_at')
-        .order('created_at', { ascending: true }),
-    ) as { id: string; endpoint: string; label: string; created_at: string }[];
-    return rows.map((r) => ({
-      id: r.id,
-      endpoint: r.endpoint,
-      label: r.label || 'Appareil',
-      createdAt: r.created_at,
-    }));
-  }
-
-  async savePushDevice(input: PushDeviceInput) {
-    const userId = await this.requireUserId();
-    // `endpoint` est unique : ré-abonner le même appareil met à jour ses clés
-    // au lieu de créer un doublon qui recevrait la notification deux fois.
-    const { error } = await this.client.from('push_subscriptions').upsert(
-      {
-        user_id: userId,
-        endpoint: input.endpoint,
-        p256dh: input.p256dh,
-        auth: input.auth,
-        label: input.label,
-        failures: 0,
-      },
-      { onConflict: 'endpoint' },
-    );
-    if (error) throw new Error(error.message);
-  }
-
-  async removePushDevice(endpoint: string) {
-    const { error } = await this.client
-      .from('push_subscriptions')
-      .delete()
-      .eq('endpoint', endpoint);
-    if (error) throw new Error(error.message);
-  }
-
-  /**
-   * Appelle l'Edge Function en remontant la VRAIE raison d'un échec.
-   *
-   * `functions.invoke` se contente d'un message générique ; le détail est dans
-   * la réponse HTTP, qu'il faut aller relire. Sans ça, « l'envoi a échoué »
-   * recouvre aussi bien une fonction absente qu'un secret oublié — et on
-   * cherche à l'aveugle.
-   */
-  private async callReminders(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const { data, error } = await this.client.functions.invoke('send-reminders', { body });
-    if (!error) return (data ?? {}) as Record<string, unknown>;
-
-    const response = (error as { context?: Response }).context;
-    if (response && typeof response.json === 'function') {
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-      throw new Error(payload?.error ?? `La fonction a répondu ${response.status}.`);
-    }
-    // Pas de réponse du tout : la requête n'a pas abouti. C'est soit une
-    // fonction non déployée, soit un refus avant même d'atteindre le code
-    // (vérification du jeton sur la requête préliminaire CORS).
-    throw new Error(
-      "La fonction « send-reminders » n'a pas répondu. Vérifie qu'elle est déployée, " +
-        'et déployée avec l’option --no-verify-jwt.',
-    );
-  }
-
-  async sendTestPush(): Promise<{ sent: number; devices: number }> {
-    const data = await this.callReminders({ test: true });
-    return { sent: Number(data.sent ?? 0), devices: Number(data.devices ?? 0) };
-  }
-
-  async pingPushFunction(): Promise<PushDiagnostic> {
-    const data = await this.callReminders({ ping: true });
-    const config = (data.config ?? {}) as Record<string, boolean>;
-    return {
-      reachable: true,
-      version: String(data.version ?? '?'),
-      vapidPublic: Boolean(config.vapidPublic),
-      vapidPrivate: Boolean(config.vapidPrivate),
-      vapidSubject: Boolean(config.vapidSubject),
-      serverKeyPrefix: String(data.vapidPublicPrefix ?? ''),
-    };
-  }
-
-  async exportAll(): Promise<Backup> {
+  async exportData(): Promise<GoalsBackup> {
     return {
       goals: await this.listGoals(),
       actions: await this.listActions(),
       checkins: await this.listCheckins(),
       achievements: await this.listAchievements(),
-      settings: await this.getSettings(),
     };
   }
 
-  async importAll(backup: Backup) {
+
+  async importData(backup: GoalsBackup) {
     const userId = await this.requireUserId();
     // Les objectifs reçoivent de nouveaux ids côté serveur : on garde la
     // correspondance ancien → nouveau pour rebrancher les check-ins.
@@ -739,6 +564,5 @@ export class SupabaseStore implements Store {
       if (error) throw new Error(error.message);
     }
     await this.unlockAchievements((backup.achievements ?? []).map((a) => a.id));
-    if (backup.settings) await this.updateSettings(backup.settings);
   }
 }

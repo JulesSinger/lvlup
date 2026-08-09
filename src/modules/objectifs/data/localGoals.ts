@@ -1,77 +1,37 @@
-import type {
-  Action,
-  ActionInput,
-  AppUser,
-  Checkin,
-  Goal,
-  GoalInput,
-  Tier,
-  TierInput,
-} from '../modules/objectifs/lib/types';
-import { DEFAULT_ACTIONS, JALON } from '../modules/objectifs/lib/types';
-import {
-  DEFAULT_SETTINGS,
-  newId,
-  type Backup,
-  type PushDiagnostic,
-  type Settings,
-  type Store,
-  type UnlockedAchievement,
-} from './store';
+import { newId } from '../../../core/data/coreStore';
+import { readRaw, writeRaw } from '../../../core/data/localSnapshot';
+import type { Action, ActionInput, Checkin, Goal, GoalInput, Tier, TierInput } from '../lib/types';
+import { DEFAULT_ACTIONS, JALON } from '../lib/types';
+import type { GoalsBackup, GoalsStore, UnlockedAchievement } from './goalsStore';
 
-const KEY = 'palier.v1';
+interface Snapshot extends GoalsBackup {}
 
-interface Snapshot {
-  goals: Goal[];
-  actions: Action[];
-  checkins: Checkin[];
-  achievements: UnlockedAchievement[];
-  settings: Settings;
-}
-
+/**
+ * Lecture des seules sections du module, avec la remise à niveau des
+ * sauvegardes antérieures : ni note, ni action, ni PP figés à l'époque.
+ */
 function read(): Snapshot {
-  const empty: Snapshot = {
-    goals: [],
-    actions: [],
-    checkins: [],
-    achievements: [],
-    settings: { ...DEFAULT_SETTINGS },
+  const raw = readRaw();
+  const checkins = Array.isArray(raw.checkins) ? (raw.checkins as Checkin[]) : [];
+  return {
+    goals: Array.isArray(raw.goals) ? (raw.goals as Goal[]) : [],
+    actions: Array.isArray(raw.actions) ? (raw.actions as Action[]) : [],
+    checkins: checkins.map((c) => ({
+      ...c,
+      note: c.note ?? '',
+      actionId: c.actionId ?? null,
+      pp: typeof c.pp === 'number' ? c.pp : 10,
+      value: typeof c.value === 'number' ? c.value : null,
+      title: typeof c.title === 'string' ? c.title : null,
+    })),
+    achievements: Array.isArray(raw.achievements) ? (raw.achievements as UnlockedAchievement[]) : [],
   };
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return empty;
-    const parsed = JSON.parse(raw) as Partial<Snapshot>;
-    return {
-      goals: Array.isArray(parsed.goals) ? parsed.goals : [],
-      actions: Array.isArray(parsed.actions) ? parsed.actions : [],
-      // Sauvegardes antérieures : ni note, ni action, ni PP figés.
-      checkins: Array.isArray(parsed.checkins)
-        ? parsed.checkins.map((c) => ({
-            ...c,
-            note: c.note ?? '',
-            actionId: c.actionId ?? null,
-            pp: typeof c.pp === 'number' ? c.pp : 10,
-            value: typeof c.value === 'number' ? c.value : null,
-            title: typeof c.title === 'string' ? c.title : null,
-          }))
-        : [],
-      achievements: Array.isArray(parsed.achievements) ? parsed.achievements : [],
-      settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
-    };
-  } catch {
-    return empty;
-  }
 }
 
+/** Écriture par fusion : les sections des autres modules sont préservées. */
 function write(snapshot: Snapshot) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(snapshot));
-  } catch (error) {
-    console.error('Sauvegarde locale impossible', error);
-  }
+  writeRaw({ ...readRaw(), ...snapshot });
 }
-
-const LOCAL_USER: AppUser = { id: 'local', email: 'Mode local', isLocal: true };
 
 /** Champs de comptage effectivement fournis, pour ne pas écraser les défauts. */
 function countingFields(input: Partial<TierInput>) {
@@ -85,55 +45,8 @@ function countingFields(input: Partial<TierInput>) {
   return out;
 }
 
-/**
- * Stockage dans le navigateur. Aucun compte, aucun serveur : les données
- * restent sur cet appareil. Sert de mode « démarrage immédiat » et de repli
- * quand Supabase n'est pas configuré.
- */
-export class LocalStore implements Store {
-  readonly isRemote = false;
-
-  async getUser() {
-    return LOCAL_USER;
-  }
-
-  onUserChange(callback: (user: AppUser | null) => void) {
-    callback(LOCAL_USER);
-    return () => {};
-  }
-
-  async signUp() {
-    return { needsConfirmation: false };
-  }
-  async signIn() {}
-  async signOut() {}
-
-  // Sans compte, il n'y a pas de mot de passe à réinitialiser ni de serveur
-  // pour envoyer des notifications : ces méthodes existent pour respecter le
-  // contrat et disent clairement pourquoi elles ne font rien.
-  async resetPassword() {
-    throw new Error("Le mode local n'a pas de compte : rien à réinitialiser.");
-  }
-  async updatePassword() {
-    throw new Error("Le mode local n'a pas de mot de passe.");
-  }
-  onPasswordRecovery() {
-    return () => {};
-  }
-
-  async listPushDevices() {
-    return [];
-  }
-  async savePushDevice() {
-    throw new Error('Les rappels demandent un compte : connecte-toi pour les activer.');
-  }
-  async removePushDevice() {}
-  async sendTestPush(): Promise<{ sent: number; devices: number }> {
-    throw new Error('Les rappels demandent un compte.');
-  }
-  async pingPushFunction(): Promise<PushDiagnostic> {
-    throw new Error('Les rappels demandent un compte.');
-  }
+/** Objectifs stockés dans le navigateur, sans compte ni serveur. */
+export class LocalGoals implements GoalsStore {
 
   async listGoals(): Promise<Goal[]> {
     const { goals } = read();
@@ -142,6 +55,7 @@ export class LocalStore implements Store {
       .sort((a, b) => a.position - b.position)
       .map((g) => ({ ...g, tiers: g.tiers.slice().sort((a, b) => a.position - b.position) }));
   }
+
 
   async createGoal(input: GoalInput, tiers: TierInput[]): Promise<Goal> {
     const snapshot = read();
@@ -188,6 +102,7 @@ export class LocalStore implements Store {
     return goal;
   }
 
+
   async updateGoal(id: string, patch: Partial<GoalInput> & { archived?: boolean }) {
     const snapshot = read();
     const goal = snapshot.goals.find((g) => g.id === id);
@@ -195,6 +110,7 @@ export class LocalStore implements Store {
     Object.assign(goal, patch);
     write(snapshot);
   }
+
 
   async deleteGoal(id: string) {
     const snapshot = read();
@@ -205,6 +121,7 @@ export class LocalStore implements Store {
     snapshot.checkins = snapshot.checkins.filter((c) => c.goalId !== id);
     write(snapshot);
   }
+
 
   async createTier(goalId: string, input: TierInput): Promise<Tier> {
     const snapshot = read();
@@ -226,6 +143,7 @@ export class LocalStore implements Store {
     return tier;
   }
 
+
   async updateTier(id: string, patch: Partial<TierInput> & { completedAt?: string | null }) {
     const snapshot = read();
     for (const goal of snapshot.goals) {
@@ -237,6 +155,7 @@ export class LocalStore implements Store {
       }
     }
   }
+
 
   async deleteTier(id: string) {
     const snapshot = read();
@@ -251,6 +170,7 @@ export class LocalStore implements Store {
     }
   }
 
+
   async reorderTiers(goalId: string, orderedIds: string[]) {
     const snapshot = read();
     const goal = snapshot.goals.find((g) => g.id === goalId);
@@ -263,11 +183,13 @@ export class LocalStore implements Store {
     write(snapshot);
   }
 
+
   async listActions(): Promise<Action[]> {
     return read()
       .actions.filter((a) => !a.archived)
       .sort((a, b) => a.position - b.position);
   }
+
 
   async createAction(goalId: string, input: ActionInput): Promise<Action> {
     const snapshot = read();
@@ -289,6 +211,7 @@ export class LocalStore implements Store {
     return action;
   }
 
+
   async updateAction(id: string, patch: Partial<ActionInput> & { archived?: boolean }) {
     const snapshot = read();
     const action = snapshot.actions.find((a) => a.id === id);
@@ -296,6 +219,7 @@ export class LocalStore implements Store {
     Object.assign(action, patch);
     write(snapshot);
   }
+
 
   async deleteAction(id: string) {
     const snapshot = read();
@@ -307,9 +231,11 @@ export class LocalStore implements Store {
     write(snapshot);
   }
 
+
   async listCheckins(): Promise<Checkin[]> {
     return read().checkins.slice();
   }
+
 
   async addCheckin(
     goalId: string,
@@ -343,6 +269,7 @@ export class LocalStore implements Store {
     return checkin;
   }
 
+
   async addOneOff(goalId: string, day: string, title: string, pp: number): Promise<Checkin> {
     const snapshot = read();
     const checkin: Checkin = {
@@ -363,6 +290,7 @@ export class LocalStore implements Store {
     return checkin;
   }
 
+
   async updateCheckin(id: string, patch: { note?: string; value?: number | null }) {
     const snapshot = read();
     const checkin = snapshot.checkins.find((c) => c.id === id);
@@ -372,15 +300,18 @@ export class LocalStore implements Store {
     write(snapshot);
   }
 
+
   async deleteCheckin(id: string) {
     const snapshot = read();
     snapshot.checkins = snapshot.checkins.filter((c) => c.id !== id);
     write(snapshot);
   }
 
+
   async listAchievements(): Promise<UnlockedAchievement[]> {
     return read().achievements.slice();
   }
+
 
   async unlockAchievements(ids: string[]) {
     if (ids.length === 0) return;
@@ -393,34 +324,22 @@ export class LocalStore implements Store {
     write(snapshot);
   }
 
-  async getSettings(): Promise<Settings> {
-    return { ...read().settings };
-  }
-
-  async updateSettings(patch: Partial<Settings>) {
-    const snapshot = read();
-    snapshot.settings = { ...snapshot.settings, ...patch };
-    write(snapshot);
-  }
-
-  async exportAll(): Promise<Backup> {
-    const { actions, checkins, achievements, settings } = read();
+  async exportData(): Promise<GoalsBackup> {
+    const { actions, checkins, achievements } = read();
     return {
       goals: await this.listGoals(),
       actions: actions.slice(),
       checkins: checkins.slice(),
       achievements: achievements.slice(),
-      settings: { ...settings },
     };
   }
 
-  async importAll(backup: Backup) {
+  async importData(data: GoalsBackup) {
     write({
-      goals: backup.goals,
-      actions: backup.actions ?? [],
-      checkins: backup.checkins ?? [],
-      achievements: backup.achievements ?? [],
-      settings: { ...DEFAULT_SETTINGS, ...(backup.settings ?? {}) },
+      goals: data.goals,
+      actions: data.actions ?? [],
+      checkins: data.checkins ?? [],
+      achievements: data.achievements ?? [],
     });
   }
 }
