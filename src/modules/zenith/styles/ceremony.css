@@ -1,0 +1,403 @@
+/* -------------------------------------------------------------- ceremony */
+.ceremony {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 6, 12, 0.88);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  animation: ceremony-in 0.25s ease both;
+}
+
+@keyframes ceremony-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ceremony-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.ceremony-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: glow-breathe 2.6s ease-in-out infinite alternate;
+}
+
+@keyframes glow-breathe {
+  from {
+    opacity: 0.65;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ceremony-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 24px;
+  max-width: 480px;
+}
+
+.ceremony-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  color: var(--text-dim);
+  animation: rise-in 0.5s ease 0.05s both;
+}
+
+.ceremony-crest-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 190px;
+  height: 190px;
+  margin: 6px 0;
+}
+
+.ceremony-crest {
+  display: grid;
+  place-items: center;
+  width: 128px;
+  height: 128px;
+  clip-path: polygon(50% 0%, 100% 22%, 100% 68%, 50% 100%, 0% 68%, 0% 22%);
+  font-size: 48px;
+  font-weight: 800;
+  animation: crest-forge 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) 0.12s both;
+}
+
+@keyframes crest-forge {
+  0% {
+    transform: scale(0.2) rotate(-14deg);
+    opacity: 0;
+    filter: brightness(2.4);
+  }
+  55% {
+    transform: scale(1.14) rotate(3deg);
+    opacity: 1;
+    filter: brightness(1.5);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1);
+  }
+}
+
+.ceremony-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid;
+  animation: ring-pulse 1.5s ease-out 0.25s infinite;
+  pointer-events: none;
+}
+
+.ceremony-ring.late {
+  animation-delay: 0.7s;
+}
+
+@keyframes ring-pulse {
+  0% {
+    transform: scale(0.62);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+
+.ceremony-rank {
+  font-family: 'Cinzel', 'Inter', serif;
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-shadow: 0 2px 30px rgba(0, 0, 0, 0.5);
+  animation: rise-in 0.5s ease 0.3s both;
+}
+
+.ceremony-sub {
+  color: var(--text-dim);
+  font-size: 15px;
+  max-width: 420px;
+  animation: rise-in 0.5s ease 0.42s both;
+}
+
+.ceremony-pp {
+  font-size: 15px;
+  font-weight: 750;
+  color: var(--accent);
+  background: rgba(242, 193, 78, 0.12);
+  border: 1px solid rgba(242, 193, 78, 0.4);
+  border-radius: 999px;
+  padding: 5px 16px;
+  font-variant-numeric: tabular-nums;
+  animation: pp-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.55s both;
+}
+
+@keyframes pp-pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.ceremony-content .btn {
+  margin-top: 10px;
+  animation: rise-in 0.5s ease 0.7s both;
+}
+
+@keyframes rise-in {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* L'échelle qui se dessine à la création d'un objectif : les marches
+   apparaissent une à une, du bas vers le haut. C'est la seule cérémonie sans
+   PP — planifier est déjà un accomplissement, mais on ne paye pas pour une
+   intention. */
+.ceremony-ladder {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  width: min(420px, 100%);
+}
+
+.ceremony-step-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 13px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  animation: rise-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ceremony-step-crest {
+  width: 13px;
+  height: 15px;
+  flex-shrink: 0;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+.ceremony-step-title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+.ceremony-step-rank {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.ceremony-steps {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.ceremony-step {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.ceremony-step.active {
+  background: var(--accent);
+}
+
+.ceremony-mute {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.ceremony-mute:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Version apaisée pour prefers-reduced-motion */
+.ceremony.still .ceremony-crest,
+.ceremony.still .ceremony-eyebrow,
+.ceremony.still .ceremony-rank,
+.ceremony.still .ceremony-sub,
+.ceremony.still .ceremony-pp,
+.ceremony.still .ceremony-content .btn {
+  animation: none;
+}
+
+.ceremony.still .ceremony-ring,
+.ceremony.still .ceremony-glow {
+  animation: none;
+  opacity: 0.5;
+}
+
+/* ------------------------------------------------------------ game juice */
+/* Entrée des cartes en cascade */
+.goal {
+  animation: goal-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+@keyframes goal-in {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* La coche « pop » à la validation */
+.tier-check.done {
+  animation: check-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes check-pop {
+  0% {
+    transform: scale(0.6);
+  }
+  55% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Léger flash de la ligne quand le palier passe à validé */
+.tier.done {
+  animation: tier-flash 0.7s ease;
+}
+
+@keyframes tier-flash {
+  0% {
+    background: rgba(63, 185, 80, 0.16);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* Reflet discret qui traverse les barres de progression pleines */
+.bar > span {
+  position: relative;
+  overflow: hidden;
+}
+
+.bar > span::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: bar-shine 2.8s ease 1s infinite;
+}
+
+@keyframes bar-shine {
+  0% {
+    transform: translateX(-100%);
+  }
+  55%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Barre fine de progression vers le rang suivant, dans l'en-tête de profil */
+.profile-tonext {
+  margin-top: 9px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  max-width: 340px;
+}
+
+.profile-tonext > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.stat-pp {
+  color: var(--accent);
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+/* Tout couper pour qui préfère les interfaces sans mouvement */
+@media (prefers-reduced-motion: reduce) {
+  .flame.lit,
+  .pp-fly,
+  .checkin-chip.done,
+  .goal,
+  .tier-check.done,
+  .tier.done,
+  .ceremony {
+    animation: none;
+  }
+  .bar > span::after {
+    animation: none;
+    display: none;
+  }
+  .btn:hover,
+  .btn:active {
+    transform: none;
+  }
+}
+

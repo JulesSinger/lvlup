@@ -1,0 +1,115 @@
+/* ------------------------------------------------------------ onboarding */
+.onboarding {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.onboarding-card {
+  width: min(520px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 32px 28px 22px;
+  text-align: center;
+}
+
+.onboarding-icon {
+  font-size: 46px;
+  line-height: 1;
+  margin-bottom: 16px;
+}
+
+.onboarding-title {
+  font-family: 'Cinzel', 'Inter', serif;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-bottom: 12px;
+}
+
+.onboarding-body {
+  color: var(--text-dim);
+  font-size: 14.5px;
+  line-height: 1.6;
+  margin: 0 auto;
+  max-width: 420px;
+}
+
+.starter-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.starter-tab {
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+}
+
+.starter-tab.active {
+  border-color: var(--accent);
+  background: rgba(242, 193, 78, 0.12);
+  color: var(--text);
+}
+
+.starter-preview {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  text-align: left;
+}
+
+.starter-preview li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+
+.starter-preview li:last-child {
+  border-bottom: none;
+}
+
+.starter-preview-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.onboarding-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin: 22px 0 16px;
+}
+
+.onboarding-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.onboarding-dot.active {
+  background: var(--accent);
+}
+
+.onboarding-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+

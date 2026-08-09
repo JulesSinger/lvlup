@@ -73,10 +73,18 @@ npm run lint       # oxlint
 
 ### État actuel
 
+**Étape 1 du plan faite : le style est découpé.** `src/core/styles/` et
+`src/modules/zenith/styles/` existent donc déjà — mais *uniquement pour le CSS*. Les
+composants, la logique et l'accès aux données sont encore à plat (étapes 2 et 3).
+
 ```
 src/
   App.tsx            ~40 Ko — coquille + logique de célébration + trophées
-  styles.css         ~86 Ko — TOUT le style de l'app
+  styles.css         56 lignes — uniquement des @import, plus aucune règle
+  core/styles/       11 fichiers — socle commun (variables, mise en page,
+                     boutons, fenêtres, écrans publics, réglages)
+  modules/zenith/styles/
+                     11 fichiers — style propre au module objectifs
   components/        22 composants à plat, tous domaines confondus
   data/
     store.ts         interface Store — contrat unique interface ↔ stockage
@@ -206,7 +214,17 @@ Postgres. Voir `TIER_KINDS` dans `src/lib/types.ts` et `src/lib/schema.test.ts`.
 
 Un module ne touche pas au style d'un autre module. Les classes CSS d'un module sont
 préfixées par son nom technique (`.budget-…`). Les variables partagées (couleurs, espacements,
-typographie) vivent dans la base commune et nulle part ailleurs.
+typographie) vivent dans `core/styles/base.css` et nulle part ailleurs.
+
+**`src/styles.css` n'ordonne que des `@import`, et cet ordre est celui de l'ancien fichier
+monolithique.** En CSS, deux règles de même spécificité se départagent par leur position :
+réordonner ces imports change l'apparence de l'app sans toucher une seule règle. Un nouveau
+module ajoute son import **à la fin**, jamais au milieu.
+
+Les fichiers du découpage initial contiennent encore, ici et là, des règles qui appartiennent
+à l'autre camp — la découpe a été faite par tranches contiguës pour garantir une cascade
+identique, pas par tri sémantique. Déplacer une règle isolée d'un fichier à l'autre est permis,
+mais c'est un changement à vérifier à l'œil, pas un simple rangement.
 
 ---
 
@@ -265,6 +283,7 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 
 | Date | Décision | Pourquoi |
 |---|---|---|
+| 2026-08-09 | `styles.css` découpé par tranches contiguës, ordre des `@import` figé | Une découpe sémantique aurait réordonné la cascade ; ici la concaténation redonne l'original à l'octet près (md5 vérifié) |
 | 2026-08-09 | Les clés de stockage (`zenith.outbox.v1`, `palier.v1`…) ne suivent **pas** le renommage | Une clé est un identifiant, pas un libellé : la renommer efface les données des utilisateurs existants |
 | 2026-08-09 | Nom technique (`objectifs`) séparé du nom affiché (`Zénith`) | Pour qu'un changement de marque ne devienne jamais une migration de base |
 | 2026-08-09 | Le module budget s'appelle **Astra** | Famille céleste cohérente avec Zénith, sous le hub Atlas |

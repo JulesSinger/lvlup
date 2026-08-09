@@ -1,0 +1,194 @@
+/* ======================================================================
+ * Avancée d'un palier comptable
+ * ==================================================================== */
+
+/**
+ * La barre qui reliait le geste du jour à la marche qu'il fait monter.
+ * Rien ne s'affiche pour un jalon : une barre à zéro sur « Passer le permis »
+ * serait un reproche permanent plutôt qu'une information.
+ */
+.meter {
+  display: grid;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.meter-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.meter-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.meter-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.meter-count b {
+  color: var(--text);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ce que la coche du soir va ajouter — le lien explicite entre les deux. */
+.meter-pending {
+  color: var(--accent);
+}
+
+.meter-latest {
+  color: var(--text-dim);
+}
+
+/* « en une seule fois » : la barre d'une performance n'est pas un total. */
+.meter-scope {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* Le record d'une série reste affiché même quand le compteur est retombé :
+   ce qui a été tenu n'est jamais effacé. */
+.meter-best {
+  white-space: nowrap;
+  color: var(--flame);
+}
+
+.meter.compact {
+  margin-top: 5px;
+}
+
+.meter.compact .meter-bar {
+  height: 4px;
+}
+
+/* ====================================================================
+ * Comptage d'un palier, et courbe d'une mesure
+ * ==================================================================== */
+
+/* Un bouton d'outil resté enfoncé : le panneau qu'il ouvre est visible. */
+.btn.btn-ghost.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.tier-counter {
+  display: grid;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 10px 12px 12px;
+  border-radius: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  animation: rise-in 0.2s ease both;
+}
+
+.tier-counter-kinds {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tier-counter-hint,
+.tier-counter-foot {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
+.tier-counter-foot {
+  padding-top: 2px;
+  border-top: 1px solid var(--border);
+}
+
+.tier-counter-fields {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tier-counter-fields label {
+  display: grid;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.tier-counter-fields input {
+  width: 116px;
+  font-size: 13px;
+  background: var(--bg);
+}
+
+.tier-counter-fields select {
+  width: auto;
+  min-width: 168px;
+  font-size: 13px;
+  background: var(--bg);
+}
+
+/* La courbe d'une mesure : cadrée sur l'amplitude des relevés, jamais sur
+   zéro — un poids tracé depuis 0 kg est une ligne plate. */
+.measure-chart {
+  margin-top: 8px;
+  display: grid;
+  gap: 3px;
+}
+
+.measure-chart svg {
+  display: block;
+  border-radius: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.measure-foot {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* Chaque légende porte le trait qu'elle nomme : on lit la courbe sans avoir
+   à deviner lequel des deux pointillés est la cible. */
+.measure-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.measure-legend::before {
+  content: '';
+  width: 14px;
+  border-top: 1px dashed #2c3550;
+}
+
+.measure-legend.goal::before {
+  border-top-color: #3fb950;
+}
+
+.measure-legend.goal {
+  color: var(--success);
+}
+
+@media (max-width: 620px) {
+  .meter-foot {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+}

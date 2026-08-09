@@ -1,0 +1,47 @@
+/* ---------------------------------------------------------------- states */
+.empty {
+  text-align: center;
+  padding: 56px 22px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: rgba(22, 27, 39, 0.5);
+}
+
+.empty h3 {
+  font-size: 17px;
+  margin-bottom: 7px;
+}
+
+.empty p {
+  color: var(--text-dim);
+  margin: 0 auto 18px;
+  max-width: 440px;
+  font-size: 14px;
+}
+
+.notice {
+  padding: 10px 13px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  margin-bottom: 15px;
+  border: 1px solid;
+}
+
+.notice.error {
+  background: rgba(229, 72, 77, 0.1);
+  border-color: rgba(229, 72, 77, 0.35);
+  color: #ffb4b4;
+}
+
+.notice.info {
+  background: rgba(63, 127, 214, 0.1);
+  border-color: rgba(63, 127, 214, 0.32);
+  color: #a9cbff;
+}
+
+.notice.success {
+  background: rgba(63, 185, 80, 0.1);
+  border-color: rgba(63, 185, 80, 0.32);
+  color: #9ae6a8;
+}
+

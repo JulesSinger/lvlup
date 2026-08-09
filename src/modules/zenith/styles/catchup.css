@@ -1,0 +1,98 @@
+/* ======================================================================
+ * Revenir sur les jours précédents
+ * ==================================================================== */
+
+/**
+ * Une seule ligne, et seulement les jours où il y a eu un oubli.
+ *
+ * L'app ne prend la parole que quand une journée récente est restée
+ * entièrement vide : c'est le seul cas où elle sait quelque chose que
+ * l'utilisateur a probablement oublié. Le reste du temps, revenir en arrière
+ * passe par les flèches de la section et n'occupe aucune place.
+ */
+.forgotten {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 15px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: rgba(242, 193, 78, 0.05);
+}
+
+.forgotten-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.forgotten-text b {
+  color: var(--text);
+}
+
+/* --------------------------------------------- navigation dans le jour */
+.day-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.day-nav h2 {
+  min-width: 8.5ch;
+}
+
+.day-arrow {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-2);
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.day-arrow:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.day-arrow:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+/**
+ * Quand on n'est plus sur aujourd'hui, ça doit se voir sans avoir à lire :
+ * cocher le mauvais jour sans s'en rendre compte est le piège classique de
+ * ce genre de navigation.
+ */
+.hub-section.past-day {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.hub-section.past-day .day-nav h2 {
+  color: var(--accent);
+}
+
+.day-back {
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .forgotten {
+    gap: 8px;
+  }
+  .forgotten-text {
+    flex: 1 1 100%;
+  }
+  .day-nav h2 {
+    min-width: 0;
+  }
+}
+

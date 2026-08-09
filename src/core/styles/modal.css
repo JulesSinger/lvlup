@@ -1,0 +1,129 @@
+/* ----------------------------------------------------------------- modal */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 12, 0.72);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  z-index: 50;
+  overflow-y: auto;
+}
+
+.modal {
+  width: min(620px, 100%);
+  /* Élément de grille : sans ça, `min-width: auto` vaut la largeur
+     min-content du contenu, et le panneau déborde de l'écran sur
+     téléphone au lieu de faire défiler ce qui doit défiler. */
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  max-height: min(88vh, 900px);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 17px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+  font-size: 16.5px;
+  font-weight: 650;
+}
+
+.modal-body {
+  padding: 18px 20px;
+  overflow-y: auto;
+}
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.field {
+  margin-bottom: 15px;
+}
+
+.field label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 5px;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+}
+
+.row .field {
+  flex: 1;
+}
+
+.field.compact {
+  flex: 0 0 92px;
+}
+
+.draft-tier {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.draft-index {
+  width: 22px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.draft-tier input {
+  flex: 1;
+  min-width: 0;
+}
+
+.draft-tier select {
+  width: 138px;
+  flex-shrink: 0;
+}
+
+/* Le badge de rang change de largeur selon le mot (« Or » contre
+   « Challenger ») : sans colonne fixe, les champs de saisie se décalent
+   ligne après ligne et l'échelle semble bancale. */
+/* 112 px : la largeur naturelle du plus long badge, « Challenger ». En
+   dessous, il déborde de sa colonne et décale son champ de saisie — le
+   défaut visible d'une échelle qui monte jusqu'en haut. */
+.draft-tier .rank-badge,
+.draft-tier .draft-rank-empty {
+  flex: 0 0 112px;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.draft-rank-empty {
+  text-align: center;
+  color: var(--text-faint);
+}
+

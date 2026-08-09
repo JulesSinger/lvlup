@@ -1,0 +1,157 @@
+:root {
+  --bg: #0b0e14;
+  --bg-2: #11151f;
+  --surface: #161b27;
+  --surface-2: #1c2232;
+  --border: #262e40;
+  --border-strong: #36405a;
+  --text: #e8ecf4;
+  --text-dim: #97a1b8;
+  --text-faint: #6a748c;
+  --accent: #f2c14e;
+  --accent-ink: #2b2000;
+  --danger: #e5484d;
+  --flame: #ff9d4d;
+  --success: #3fb950;
+  --radius: 14px;
+  --radius-sm: 9px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  /* Pas de background-attachment: fixed — il force un re-rendu du dégradé à
+     chaque frame de scroll sur mobile et plombe toute l'app. */
+  background:
+    radial-gradient(1100px 620px at 15% -10%, #1b2440 0%, transparent 60%),
+    radial-gradient(900px 560px at 90% 0%, #241d3a 0%, transparent 55%),
+    var(--bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  width: 100%;
+  transition: border-color 0.15s ease;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px rgba(242, 193, 78, 0.12);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+/* ---------------------------------------------------------------- layout */
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: 232px;
+  height: 100vh;
+  padding: 22px 14px 18px;
+  border-right: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(22, 27, 39, 0.6), rgba(11, 14, 20, 0.3));
+  flex-shrink: 0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  max-width: 1080px;
+  padding: 24px 26px 96px;
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.page-title {
+  font-family: 'Cinzel', 'Inter', serif;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+  padding: 0 8px;
+}
+
+.brand-name {
+  font-family: 'Cinzel', 'Inter', serif;
+  letter-spacing: 0.06em;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(145deg, var(--accent), #b9812a);
+  color: var(--accent-ink);
+  font-size: 17px;
+  box-shadow: 0 0 18px rgba(242, 193, 78, 0.25);
+}
+

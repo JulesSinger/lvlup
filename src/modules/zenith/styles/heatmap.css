@@ -1,0 +1,382 @@
+/* ====================================================================
+ * La grille des jours — la mémoire d'un objectif
+ * ==================================================================== */
+
+.heat {
+  --cell: 13px;
+  --gap: 3px;
+  display: grid;
+  gap: 7px;
+  /* Posée sous l'en-tête, sur toute la largeur de la carte : dans la colonne
+     du titre elle partageait la place avec les boutons d'action et se faisait
+     couper sur téléphone — en masquant la colonne d'aujourd'hui, la seule
+     qu'on regarde vraiment. */
+  padding: 0 14px 14px 15px;
+}
+
+.heat-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  /* Élément de grille : sans `min-width: 0`, sa largeur minimale vaut celle de
+     son contenu. En vue année (371 px de colonnes), la carte s'élargissait au
+     lieu de laisser la grille défiler — et débordait de l'écran sur
+     téléphone, en emportant le bouton de bascule avec elle. */
+  min-width: 0;
+}
+
+/* Filtrer par action répond à une autre question que la grille entière : non
+   plus « est-ce que je m'y suis mis » mais « laquelle je ne fais jamais ». */
+.heat-filter {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.heat-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.heat-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* La pastille active prend la teinte de la grille : le lien entre le filtre
+   et ce qu'on regarde n'a pas besoin d'être expliqué. */
+.heat-chip.on {
+  color: var(--heat);
+  border-color: var(--heat);
+  background: color-mix(in srgb, var(--heat) 14%, transparent);
+}
+
+.heat-dow {
+  display: grid;
+  grid-auto-rows: var(--cell);
+  gap: var(--gap);
+  padding-top: 14px;
+  font-size: 8.5px;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+.heat-dow span {
+  display: flex;
+  align-items: center;
+  width: 7px;
+}
+
+.heat-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 1px;
+}
+
+.heat-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.heat-months {
+  display: flex;
+  height: 14px;
+  font-size: 9px;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+}
+
+.heat-months span {
+  flex: 0 0 calc(var(--cell) + var(--gap));
+  /* `min-width: auto` est la valeur par défaut d'un élément flex : chaque
+     étiquette s'élargissait à la taille de son texte et poussait les
+     suivantes, si bien que « juin » finissait au-dessus d'août. Le texte doit
+     déborder de sa colonne sans jamais la déplacer. */
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* `justify-content: start` n'est pas décoratif : sans lui, les colonnes
+   implicites se partagent la largeur restante et la grille se disloque. */
+.heat-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, var(--cell));
+  grid-auto-columns: var(--cell);
+  justify-content: start;
+  gap: var(--gap);
+  width: max-content;
+}
+
+.heat-cell {
+  border-radius: 3px;
+  /* Un jour sans rien doit se VOIR comme une case vide, pas comme un trou.
+     À `--bg-2` sur la surface d'une carte, l'écart était de deux points de
+     luminosité : la grille se lisait comme des carrés flottants séparés par
+     du vide, au lieu d'un calendrier avec des cases remplies et des cases
+     vides. C'est le vide qui donne son sens au plein. */
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--border);
+}
+
+/* Avant la création de l'objectif, ou après aujourd'hui.
+   Ces jours ne comptent pas — on n'a rien à s'y reprocher, l'objectif
+   n'existait pas. Mais les effacer complètement cassait la lecture : sur un
+   objectif créé aujourd'hui, la grille devenait quatre-vingt-trois trous et
+   une case, ce qui ressemble à un bug plutôt qu'à un choix. Ils gardent donc
+   un contour, assez léger pour qu'aucun œil ne les confonde avec un jour
+   manqué, assez présent pour que la grille reste une grille. */
+.heat-cell.ghost {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+.heat-cell[data-level='1'] {
+  background: var(--heat);
+  border-color: transparent;
+  /* 0,42 passait sous le seuil de lisibilité sur les rangs pâles (Argent,
+     Fer) : la case allumée devenait indiscernable de la case vide. */
+  opacity: 0.55;
+}
+
+.heat-cell[data-level='2'] {
+  background: var(--heat);
+  border-color: transparent;
+  opacity: 0.78;
+}
+
+.heat-cell[data-level='3'] {
+  background: var(--heat);
+  border-color: transparent;
+}
+
+/* Anneaux dessinés à l'INTÉRIEUR de la case, jamais en `outline`.
+   `.heat-scroll` défile horizontalement, et `overflow-x: auto` force aussi le
+   rognage vertical : un contour posé autour de la case se faisait couper en
+   bas sur la dernière ligne, et sur les bords à gauche et à droite. Un
+   `box-shadow: inset` reste dans la boîte, donc il ne peut pas être rogné. */
+.heat-cell.today {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.heat-cell:not(.ghost) {
+  cursor: pointer;
+}
+
+/* Le jour dont on lit le détail juste en dessous. Déclaré après `.today`
+   pour l'emporter quand c'est aujourd'hui qu'on regarde. */
+.heat-cell.picked {
+  box-shadow: inset 0 0 0 1.5px var(--text);
+  border-color: var(--text);
+}
+
+/* Le focus clavier va sur le conteneur de défilement, pas sur la grille :
+   posé sur la grille, il serait rogné par ce même conteneur. */
+.heat-scroll:has(.heat-grid:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 5px;
+}
+
+.heat-grid:focus-visible {
+  outline: none;
+}
+
+/* Cinquante-trois colonnes ne tiennent pas à 13 px : l'année réduit la case
+   plutôt que de forcer un défilement, qui priverait la vue longue de sa seule
+   raison d'être — tout voir d'un coup. */
+.heat.year {
+  --cell: 6px;
+  --gap: 1px;
+}
+
+.heat.year .heat-cell {
+  border-radius: 2px;
+}
+
+/* Douze mois sur cinquante-trois colonnes : environ trente pixels par
+   étiquette. On réduit pour qu'elles ne se chevauchent pas. */
+.heat.year .heat-months {
+  font-size: 8px;
+}
+
+.heat-foot {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* La grille dit « je m'y suis mis ». Cette ligne dit quoi — sans quoi une
+   case ment par omission dès qu'un objectif a plusieurs actions. Toujours
+   affichée, pour que le clic ne fasse pas sauter la carte. */
+.heat-detail {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  min-height: 16px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-dim);
+}
+
+/* Le streak de CET objectif — la flamme du profil, elle, est globale. */
+.heat-streak {
+  color: var(--flame);
+}
+
+.heat-streak b {
+  color: var(--flame);
+  font-variant-numeric: tabular-nums;
+}
+
+.heat-zoom {
+  flex-shrink: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.heat-zoom:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.heat-detail b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.heat-hint {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* La règle des deux jours. Un seul repère, sur hier, une seule fois — jamais
+   deux jours de suite. C'est le seul endroit où la grille prend la parole. */
+.heat-cell.warn {
+  border: 1.5px dashed var(--flame);
+  background: rgba(255, 157, 77, 0.08);
+}
+
+@media (max-width: 620px) {
+  .heat {
+    --cell: 12px;
+    padding: 0 12px 12px 13px;
+  }
+
+}
+
+.goal:hover {
+  border-color: var(--border-strong);
+}
+
+.goal.complete {
+  border-color: rgba(63, 185, 80, 0.35);
+}
+
+.goal-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.goal-emoji {
+  font-size: 25px;
+  line-height: 1.15;
+  flex-shrink: 0;
+}
+
+.goal-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.goal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.goal-title {
+  font-size: 16.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.goal-desc {
+  color: var(--text-dim);
+  font-size: 13.5px;
+  margin-top: 3px;
+}
+
+.goal-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 11px;
+}
+
+.bar {
+  flex: 1;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--bg-2);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.goal-count {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.goal-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.chevron {
+  color: var(--text-faint);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.chevron.open {
+  transform: rotate(90deg);
+}
+

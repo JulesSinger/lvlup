@@ -1,0 +1,154 @@
+/* ------------------------------------------------- mobile : barre en bas */
+@media (max-width: 760px) {
+  .layout {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+    padding: 4px 6px calc(4px + env(safe-area-inset-bottom));
+    border-right: none;
+    border-top: 1px solid var(--border);
+    /* Fond quasi opaque plutôt que backdrop-filter : le blur permanent coûte
+       cher sur GPU mobile pour un gain visuel minime. */
+    background: rgba(11, 14, 20, 0.97);
+    z-index: 60;
+  }
+
+  /* iOS zoome automatiquement sur tout champ < 16px : on aligne tous les
+     champs de saisie sur 16px pour neutraliser ce comportement. */
+  input,
+  textarea,
+  select,
+  .checkin-note input,
+  .ladder-add input,
+  .ladder-add select {
+    font-size: 16px;
+  }
+
+  /* Les animations de confort coûtent plus qu'elles ne rapportent sur mobile :
+     entrée des cartes rejouée à chaque navigation, reflets permanents… */
+  .goal {
+    animation: none;
+  }
+  .bar > span::after {
+    animation: none;
+    display: none;
+  }
+
+  .sidebar .brand,
+  .sidebar-foot,
+  .nav-item.soon,
+  .nav-count {
+    display: none;
+  }
+
+  .nav {
+    flex-direction: row;
+    gap: 2px;
+  }
+
+  .nav-item {
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 7px 4px 5px;
+    font-size: 10.5px;
+  }
+
+  .nav-item.active::before {
+    top: auto;
+    bottom: 0;
+    left: 22%;
+    right: 22%;
+    width: auto;
+    height: 2.5px;
+  }
+
+  .nav-icon {
+    font-size: 17px;
+  }
+
+  .main {
+    padding: 16px 14px 110px;
+    max-width: none;
+  }
+
+  .hub-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .goal-grid {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+@media (max-width: 620px) {
+  /* La ligne « prochain palier » passe sur deux rangées : titre en haut,
+     badge et bouton de validation en dessous, alignés à droite. */
+  .next-tier {
+    flex-wrap: wrap;
+    row-gap: 7px;
+  }
+  .next-body {
+    flex: 1 1 calc(100% - 34px);
+  }
+  .next-validate {
+    margin-left: auto;
+  }
+  .profile {
+    gap: 16px;
+    padding: 18px;
+  }
+  .profile-stats {
+    gap: 20px;
+    width: 100%;
+  }
+  .goal-head {
+    padding: 14px;
+  }
+  .ladder {
+    padding: 4px 14px 14px;
+  }
+  /* Sur écran étroit, le palier passe sur deux lignes : intitulé au-dessus,
+     rang et actions en dessous, plutôt qu'un titre comprimé sur trois lignes. */
+  .tier {
+    flex-wrap: wrap;
+    row-gap: 7px;
+  }
+  .tier-body {
+    flex: 1 1 calc(100% - 36px);
+  }
+  .tier > span {
+    margin-left: 36px;
+  }
+  .tier-tools {
+    margin-left: auto;
+    opacity: 1;
+  }
+  .row {
+    flex-direction: column;
+    gap: 0;
+  }
+  .draft-tier select {
+    width: 116px;
+  }
+  /* Sur un écran étroit, la colonne fixe du badge mangerait le champ de
+     saisie : on la laisse se réduire à ce que le mot demande. */
+  .draft-tier .rank-badge,
+  .draft-tier .draft-rank-empty {
+    flex: 0 0 auto;
+  }
+}
+
