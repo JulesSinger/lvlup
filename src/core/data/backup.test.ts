@@ -12,6 +12,8 @@ function fakeModule(id: string, legacyKey?: string): AtlasModule {
       exportData: vi.fn(async () => ({ from: id })),
       importData: vi.fn(async () => {}),
     },
+    // Ce test n'exerce que la sauvegarde : l'écran n'a pas besoin d'être réel.
+    Screen: () => null,
     fromLegacyBackup: legacyKey
       ? (raw) => (Array.isArray(raw[legacyKey]) ? { recupere: raw[legacyKey] } : null)
       : undefined,

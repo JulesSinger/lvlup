@@ -32,12 +32,13 @@ const LEGACY = {
 /**
  * Plafond de couplage d'`App.tsx`.
  *
- * `App.tsx` porte encore tout l'écran du module objectifs, ce qui devra être
- * extrait pour qu'il devienne la coquille du hub. En attendant, ce plafond
+ * Depuis la coquille du hub (2026-08-09), il ne reste qu'un import : l'écran
+ * public `Landing`, encore porté par l'unique module existant (voir
+ * `CLAUDE.md` §4, renommage des surfaces publiques reporté). Ce plafond
  * empêche la situation d'empirer : un agent peut réduire ce nombre, jamais
  * l'augmenter. Objectif final : 0.
  */
-const PLAFOND_IMPORTS_MODULE_DANS_APP = 22;
+const PLAFOND_IMPORTS_MODULE_DANS_APP = 1;
 
 function modules(): string[] {
   return readdirSync(MODULES_DIR).filter((name) => {

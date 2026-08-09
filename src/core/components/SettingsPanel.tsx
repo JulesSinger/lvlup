@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { coreStore } from '../data';
-import { DAILY_GOAL_LEVELS, type Settings } from '../data/coreStore';
+import type { Settings } from '../data/coreStore';
+import type { AtlasModule } from '../lib/module';
 import type { AppUser } from '../lib/types';
-import { ReminderSettings } from './ReminderSettings';
 
 /**
  * Panneau de réglages — tout ce qui ne se règle qu'une fois : le rythme
@@ -17,6 +17,7 @@ export function SettingsPanel({
   onExport,
   onImport,
   onClose,
+  modules,
 }: {
   user: AppUser | null;
   settings: Settings;
@@ -24,6 +25,8 @@ export function SettingsPanel({
   onExport: () => void;
   onImport: () => void;
   onClose: () => void;
+  /** Chaque module ayant une `SettingsSection` y ajoute la sienne, sous son nom. */
+  modules: readonly AtlasModule[];
 }) {
   const [password, setPassword] = useState('');
   const [passwordBusy, setPasswordBusy] = useState(false);
@@ -69,28 +72,14 @@ export function SettingsPanel({
         </div>
 
         <div className="modal-body">
-          <section className="settings-block">
-            <h3 className="settings-title">Objectif du jour</h3>
-            <p className="settings-hint">
-              La cible de PP qui remplit l'anneau. Mieux vaut la placer bas et la dépasser
-              souvent que l'inverse.
-            </p>
-            <div className="goal-levels">
-              {DAILY_GOAL_LEVELS.map((level) => (
-                <button
-                  key={level.pp}
-                  className={`goal-level${settings.dailyGoal === level.pp ? ' active' : ''}`}
-                  onClick={() => onChange({ dailyGoal: level.pp })}
-                >
-                  <b>{level.label}</b>
-                  <span>{level.pp} PP</span>
-                  <i>{level.hint}</i>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          {user && !user.isLocal && <ReminderSettings settings={settings} onChange={onChange} />}
+          {modules.map((m) =>
+            m.SettingsSection ? (
+              <div key={m.id}>
+                <p className="settings-module-title">{m.label}</p>
+                <m.SettingsSection user={user} settings={settings} onChange={onChange} />
+              </div>
+            ) : null,
+          )}
 
           <section className="settings-block">
             <h3 className="settings-title">Tes données</h3>

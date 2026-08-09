@@ -1,6 +1,8 @@
 import type { AtlasModule } from '../../core/lib/module';
 import { goalsStore } from './data';
 import type { GoalsBackup } from './data/goalsStore';
+import { ZenithScreen } from './ZenithScreen';
+import { ZenithSettingsSection } from './ZenithSettingsSection';
 
 /**
  * Déclaration du module objectifs.
@@ -12,6 +14,8 @@ export const objectifsModule: AtlasModule = {
   label: 'Zénith',
   emoji: '▲',
   data: goalsStore,
+  Screen: ZenithScreen,
+  SettingsSection: ZenithSettingsSection,
 
   fromLegacyBackup(raw) {
     // Avant la v5, les objectifs occupaient la racine du fichier. Les

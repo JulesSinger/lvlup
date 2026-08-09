@@ -91,24 +91,34 @@ chemin Supabase — à lancer dès qu'on touche à un store.
 
 ### État actuel
 
-**Étapes 1 à 5 du plan faites.** `src/data/` n'existe plus, le registre de modules existe, et
-la sauvegarde est versionnée par module. **Le socle est prêt à recevoir Astra.**
+**Étapes 1 à 5 du plan faites, et l'étape A de `docs/chantier-coquille-et-e2e.md` aussi.**
+`src/data/` n'existe plus, le registre de modules existe, la sauvegarde est versionnée par
+module, et **`App.tsx` est devenu la coquille du hub** : authentification, choix du module,
+panneau de réglages, export/import de sauvegarde. Tout l'écran de Zénith (hub interne, objectifs,
+historique, trophées, célébrations) vit maintenant dans
+`modules/objectifs/ZenithScreen.tsx`. **Le socle est prêt à recevoir Astra.**
 
-Reste un chantier de l'étape 4 qui n'a pas été fait : `App.tsx` porte encore tout l'écran du
-module objectifs et devrait se réduire à une coquille (authentification + navigation entre
-modules). Ce n'est pas bloquant pour créer Astra, mais ce sera le prochain point de collision
-entre conversations dès qu'il y aura deux modules à afficher.
+Deux décisions ont été prises avec Jules pour cette extraction (voir le journal) : l'écran
+d'accueil du hub liste les modules en cartes (`ModulePicker`, plutôt qu'une barre d'onglets
+permanente), et les réglages restent une fenêtre commune, mais chaque module y ajoute sa propre
+section via `AtlasModule.SettingsSection` (Zénith y a mis « Objectif du jour » et le rappel).
+
+Reste l'étape B (découper `e2e-check.mjs` en suites par module) : non commencée, et par
+construction elle vient après l'étape A — voir le chantier.
 
 ```
 src/
-  App.tsx            ~40 Ko — coquille, célébrations, trophées, et encore tout
-                     l'écran du module objectifs (à extraire — voir ci-dessus)
+  App.tsx            coquille du hub : authentification, choix du module, réglages,
+                     export/import. Un seul import de module (`Landing`, écran
+                     public — voir §4, renommage reporté). Ne connaît aucun domaine.
   main.tsx
-  styles.css         56 lignes — uniquement des @import, plus aucune règle
+  styles.css         58 lignes — uniquement des @import, plus aucune règle
   modules/index.ts   ⭐ le registre : la liste des modules actifs
   core/
-    components/      AuthScreen, PasswordRecovery, ReminderSettings, SettingsPanel
-    lib/module.ts    ⭐ ce qu'un module déclare au hub (id, label, data…)
+    components/      AuthScreen, PasswordRecovery, ReminderSettings, SettingsPanel,
+                     ModulePicker (écran d'accueil du hub)
+    lib/module.ts    ⭐ ce qu'un module déclare au hub (id, label, data, Screen,
+                     SettingsSection…)
     data/
       backup.ts         sauvegarde versionnée, pilotée par le registre
       coreStore.ts      contrat du socle : comptes, réglages, notifications
@@ -118,10 +128,14 @@ src/
       supabaseClient.ts client unique + helpers partagés
       index.ts          bascule locale/Supabase ; seul lecteur des variables d'env
     lib/             types (AppUser), push, sound, confetti, onboarding
-    styles/          11 fichiers — socle commun
+    styles/          12 fichiers — socle commun (+ hub.css : écran d'accueil du hub)
   modules/objectifs/
-    module.ts        ⭐ sa déclaration : id `objectifs`, label « Zénith »
-    components/      18 composants — Hub, GoalCard, Heatmap, Ceremony, Landing…
+    module.ts             ⭐ sa déclaration : id `objectifs`, label « Zénith »,
+                          Screen, SettingsSection
+    ZenithScreen.tsx      ⭐ tout l'écran du module — hub interne, objectifs,
+                          historique, trophées, célébrations, file hors-ligne
+    ZenithSettingsSection.tsx  sa section dans le panneau de réglages
+    components/      17 composants — Hub, GoalCard, Heatmap, Ceremony, Landing…
     data/
       goalsStore.ts     contrat du module + GoalsBackup
       localGoals.ts, supabaseGoals.ts, index.ts
@@ -384,6 +398,13 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 
 | Date | Décision | Pourquoi |
 |---|---|---|
+| 2026-08-09 | Étape A du chantier de la coquille faite : `App.tsx` réduit à authentification + choix du module + réglages + export/import ; tout l'écran de Zénith déplacé dans `modules/objectifs/ZenithScreen.tsx` | Deux agents travaillant chacun sur un module ne doivent plus se croiser sur `App.tsx` |
+| 2026-08-09 | Hub : écran d'accueil listant les modules en cartes (`ModulePicker`), pas une barre d'onglets permanente | Choix de Jules — plus clair pour un premier module qui grossit, une barre coûterait de la hauteur d'écran sur mobile |
+| 2026-08-09 | Avec un seul module enregistré, le hub y entre directement sans passer par l'écran de choix | Sinon toutes les vérifications de bout en bout (205 + 217) auraient dû cliquer une carte supplémentaire pour rien — l'écran de choix ne prend son sens qu'à partir de deux modules |
+| 2026-08-09 | Réglages : fenêtre commune (compte, données) + une section par module via `AtlasModule.SettingsSection` | Choix de Jules — « Objectif du jour » et le rappel n'ont de sens que pour Zénith, mais une fenêtre unique reste plus simple qu'un onglet par module tant qu'il n'y en a qu'un avec des réglages |
+| 2026-08-09 | `AtlasModule` gagne `Screen` (écran racine) et `SettingsSection` (optionnelle) ; `ModuleScreenProps` porte `user`, `settings`, `error`, `onError`, `onOpenSettings`, `onBackToHub`, `reloadToken` | Le hub doit pouvoir rendre l'écran d'un module et lui donner la main sur les réglages et l'erreur globale, sans connaître son contenu |
+| 2026-08-09 | `Landing` reste le seul import de module dans `App.tsx` (plafond abaissé de 22 à 1, pas à 0) | Écran public de marque, dont le renommage est déjà reporté par ailleurs (§4) ; le forcer dans le contrat `AtlasModule` maintenant aurait anticipé une décision qui n'est pas encore prise |
+| 2026-08-09 | Le md5 du CSS produit a changé (`57f11ca6…` → `fe2ec1c8…`) lors de l'étape A | Contrairement aux découpages précédents, cette étape ajoute du CSS neuf (écran d'accueil du hub, intitulé de section de réglages) — ce n'est pas un déplacement pur, donc pas une régression |
 | 2026-08-09 | Les conventions entre modules sont **vérifiées par un test**, pas seulement écrites | Trois agents sans mémoire partagée ne tiennent pas une règle qui ne casse rien quand on l'enfreint |
 | 2026-08-09 | La dette est **nommée** (listes `LEGACY`, plafond d'imports) plutôt que tacite | Une exemption visible se résorbe ; une exception silencieuse devient la norme |
 | 2026-08-09 | Astra s'alimentera par **import du relevé CSV**, jamais par synchro bancaire | Les API DSP2 sont fermées aux particuliers (agrément + certificat eIDAS à 2 000–10 000 €/an) et les intermédiaires gratuits ont fermé. Voir `docs/etude-budget-solutions.md` |

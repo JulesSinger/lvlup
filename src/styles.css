@@ -54,3 +54,6 @@
 /* --- Zénith : rattrapage et comptage des paliers --------------------- */
 @import './modules/objectifs/styles/catchup.css';
 @import './modules/objectifs/styles/counters.css';
+
+/* --- socle : écran d'accueil du hub, ajouté en fin de chaîne --------- */
+@import './core/styles/hub.css';

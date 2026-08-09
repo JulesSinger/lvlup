@@ -6,6 +6,16 @@ connaître l'historique : lire `CLAUDE.md`, ce fichier, et le code suffit.*
 **Ordre imposé : la coquille d'abord, l'e2e ensuite.** Découper les parcours de test avant de
 changer la navigation obligerait à les redécouper après.
 
+> **Étape A faite (2026-08-09).** `App.tsx` est la coquille, `ZenithScreen.tsx` porte tout
+> l'écran de Zénith. Les deux décisions demandées à Jules : écran d'accueil en cartes
+> (`ModulePicker`), et réglages en fenêtre commune + section par module
+> (`AtlasModule.SettingsSection`). `npm run test` (255), `npm run check` (205) et
+> `npm run check:auth` (217) passent à l'identique de l'état d'avant l'étape — ces chiffres ont
+> grossi depuis l'écriture de ce document (187/199), voir le journal de `CLAUDE.md`. Le md5 du
+> CSS **a changé** (`57f11ca6…` → `fe2ec1c8…`) : cette étape ajoute du CSS neuf (écran d'accueil
+> du hub, intitulé de section de réglages), ce n'est pas un déplacement pur — voir le journal.
+> Reste l'étape B, non commencée.
+
 ---
 
 ## Pourquoi ce chantier

@@ -1,3 +1,7 @@
+import type { ComponentType } from 'react';
+import type { Settings } from '../data/coreStore';
+import type { AppUser } from './types';
+
 /**
  * Ce qu'un module déclare au hub.
  *
@@ -13,6 +17,39 @@ export interface ModuleDataStore {
   importData(data: unknown): Promise<void>;
 }
 
+/**
+ * Ce que le hub passe à l'écran racine d'un module.
+ *
+ * Le module ne connaît jamais Supabase ni les autres modules : il reçoit un
+ * utilisateur déjà authentifié, déclenche les réglages et l'erreur globale
+ * par callback, et sait quand revenir à la liste des modules.
+ */
+export interface ModuleScreenProps {
+  user: AppUser;
+  /** Réglages partagés (rythme quotidien, rappel…), en lecture. */
+  settings: Settings;
+  /** Erreur affichée par le hub — la plomberie d'erreurs reste au socle. */
+  error: string;
+  /** Signale une erreur au hub, pour qu'elle s'affiche au même endroit que les autres. */
+  onError: (message: string) => void;
+  /** Ouvre le panneau de réglages, porté par le hub. */
+  onOpenSettings: () => void;
+  /** Revient à l'écran de choix du module. */
+  onBackToHub: () => void;
+  /**
+   * Incrémenté après une restauration de sauvegarde : c'est le signal pour le
+   * module de relire ses propres données, que le hub ne connaît pas.
+   */
+  reloadToken: number;
+}
+
+/** Ce qu'un module ajoute au panneau de réglages, sous son propre intitulé. */
+export interface ModuleSettingsProps {
+  user: AppUser | null;
+  settings: Settings;
+  onChange: (patch: Partial<Settings>) => void;
+}
+
 export interface AtlasModule {
   /**
    * Nom technique : dossier, préfixe des tables et des classes CSS, clé dans
@@ -23,6 +60,10 @@ export interface AtlasModule {
   label: string;
   emoji: string;
   data: ModuleDataStore;
+  /** Écran racine du module. Le hub le rend sans rien savoir de son contenu. */
+  Screen: ComponentType<ModuleScreenProps>;
+  /** Section optionnelle ajoutée au panneau de réglages, sous `label`. */
+  SettingsSection?: ComponentType<ModuleSettingsProps>;
   /**
    * Retrouve la section du module dans une sauvegarde antérieure au format
    * versionné, où tout vivait à plat. C'est au module de savoir lire son
