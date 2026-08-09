@@ -12,6 +12,8 @@ import { Timeline } from './modules/objectifs/components/Timeline';
 import { Trophies } from './modules/objectifs/components/Trophies';
 import { ActionEditor } from './modules/objectifs/components/ActionEditor';
 import { coreStore } from './core/data';
+import { exportBackup, importBackup, readBackupFile } from './core/data/backup';
+import { MODULES } from './modules';
 import { goalsStore } from './modules/objectifs/data';
 import {
   applyPending,
@@ -686,29 +688,14 @@ export default function App() {
   }
 
   async function exportJson() {
-    const backup = await goalsStore.exportData();
-    const settings = await coreStore.getSettings();
-    const blob = new Blob(
-      [
-        JSON.stringify(
-          {
-            version: 4,
-            goals: backup.goals,
-            actions: backup.actions,
-            checkins: backup.checkins,
-            achievements: backup.achievements,
-            settings,
-          },
-          null,
-          2,
-        ),
-      ],
-      { type: 'application/json' },
-    );
+    // Le registre décide de ce qui entre dans le fichier : ajouter un module
+    // suffit à l'y faire figurer, sans toucher à cette fonction.
+    const backup = await exportBackup(MODULES, coreStore);
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `zenith-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `atlas-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -721,26 +708,13 @@ export default function App() {
       const file = input.files?.[0];
       if (!file) return;
       try {
-        const parsed = JSON.parse(await file.text()) as {
-          goals?: Goal[];
-          actions?: Action[];
-          checkins?: Checkin[];
-          achievements?: UnlockedAchievement[];
-          settings?: Settings;
-        };
-        if (!Array.isArray(parsed.goals)) throw new Error('Fichier de sauvegarde non reconnu.');
+        // `readBackupFile` accepte aussi bien le format versionné que les
+        // anciens fichiers à plat, et refuse tout ce qu'il ne reconnaît pas —
+        // il vaut mieux rejeter un fichier étranger qu'écraser des données.
+        const parsed = readBackupFile(JSON.parse(await file.text()), MODULES);
         if (!window.confirm('Importer cette sauvegarde ? Elle remplacera tes objectifs actuels.'))
           return;
-        // Les sauvegardes plus anciennes n'ont ni check-ins (v1) ni trophées (v2).
-        await run(async () => {
-          await goalsStore.importData({
-            goals: parsed.goals as Goal[],
-            actions: Array.isArray(parsed.actions) ? parsed.actions : [],
-            checkins: Array.isArray(parsed.checkins) ? parsed.checkins : [],
-            achievements: Array.isArray(parsed.achievements) ? parsed.achievements : [],
-          });
-          if (parsed.settings) await coreStore.updateSettings(parsed.settings);
-        });
+        await run(() => importBackup(parsed, MODULES, coreStore));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Import impossible.');
       }

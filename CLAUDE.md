@@ -73,19 +73,26 @@ npm run lint       # oxlint
 
 ### État actuel
 
-**Étapes 1 à 3 du plan faites.** `src/data/` n'existe plus : tout vit dans `core/` ou dans un
-module. Restent l'étape 4 (registre de modules, `App.tsx` réduit à une coquille) et l'étape 5
-(sauvegarde versionnée) avant de construire Astra.
+**Étapes 1 à 5 du plan faites.** `src/data/` n'existe plus, le registre de modules existe, et
+la sauvegarde est versionnée par module. **Le socle est prêt à recevoir Astra.**
+
+Reste un chantier de l'étape 4 qui n'a pas été fait : `App.tsx` porte encore tout l'écran du
+module objectifs et devrait se réduire à une coquille (authentification + navigation entre
+modules). Ce n'est pas bloquant pour créer Astra, mais ce sera le prochain point de collision
+entre conversations dès qu'il y aura deux modules à afficher.
 
 ```
 src/
-  App.tsx            ~40 Ko — coquille, célébrations, trophées, et l'assemblage
-                     de la sauvegarde (à confier au registre, étape 4)
+  App.tsx            ~40 Ko — coquille, célébrations, trophées, et encore tout
+                     l'écran du module objectifs (à extraire — voir ci-dessus)
   main.tsx
   styles.css         56 lignes — uniquement des @import, plus aucune règle
+  modules/index.ts   ⭐ le registre : la liste des modules actifs
   core/
     components/      AuthScreen, PasswordRecovery, ReminderSettings, SettingsPanel
+    lib/module.ts    ⭐ ce qu'un module déclare au hub (id, label, data…)
     data/
+      backup.ts         sauvegarde versionnée, pilotée par le registre
       coreStore.ts      contrat du socle : comptes, réglages, notifications
       localCore.ts      implémentation navigateur
       supabaseCore.ts   implémentation Supabase
@@ -95,6 +102,7 @@ src/
     lib/             types (AppUser), push, sound, confetti, onboarding
     styles/          11 fichiers — socle commun
   modules/objectifs/
+    module.ts        ⭐ sa déclaration : id `objectifs`, label « Zénith »
     components/      18 composants — Hub, GoalCard, Heatmap, Ceremony, Landing…
     data/
       goalsStore.ts     contrat du module + GoalsBackup
@@ -109,6 +117,17 @@ supabase/
   functions/         Edge Functions (envoi des rappels)
 docs/                études, maquettes, notes de sprint
 ```
+
+### Ajouter un module
+
+1. `src/modules/<nom-technique>/` — `module.ts`, `components/`, `data/`, `lib/`, `styles.css`.
+2. Son contrat de stockage et ses **deux** implémentations, locale et Supabase.
+3. Une ligne dans `src/modules/index.ts`.
+4. Un `@import` **à la fin** de `src/styles.css`.
+5. Ses tables, préfixées, avec RLS, dans une migration `AAAA-MM-JJ-sujet.sql`.
+
+Aucun fichier du socle n'est modifié en chemin. Si tu te retrouves à en éditer un, c'est le
+signe qu'une pièce appartient au socle et devrait y être remontée.
 
 ### Ce qui reste à faire
 
@@ -259,12 +278,13 @@ mais c'est un changement à vérifier à l'œil, pas un simple rangement.
 - **Les PP sont figés à l'enregistrement** dans les check-ins. Renommer ou revaloriser une
   action ne réécrit pas l'historique.
 - **Le rang d'un objectif est celui du palier le plus élevé**, pas du dernier validé.
-- **La sauvegarde doit couvrir tout nouveau module.** Chaque module expose `exportData` /
-  `importData` ; `App.tsx` assemble les sections et y ajoute les réglages du socle. Le fichier
-  produit garde le format v4 à plat (`goals`, `actions`, `checkins`, `achievements`,
-  `settings`) — le passage à un format versionné par module est l'étape 5, et il devra rester
-  capable de relire les anciens fichiers. **Un module absent de la sauvegarde est un module
-  dont les données sont perdues le jour d'une restauration.**
+- **La sauvegarde suit le registre.** Un module déclaré dans `src/modules/index.ts` entre
+  automatiquement dans le fichier, sous son nom technique : rien à modifier dans `backup.ts`
+  ni dans `App.tsx`. En revanche, **un module absent du registre est un module dont les
+  données sont perdues le jour d'une restauration.** Le format écrit est la v5
+  (`{version, settings, modules:{…}}`) ; les fichiers à plat antérieurs restent lisibles, via
+  le `fromLegacyBackup` de chaque module — c'est au module de savoir lire son ancien format,
+  le socle ignore le nom de ses champs.
 - **`.env` n'est jamais commité** (déjà couvert par `.gitignore`). La clé `anon` est publique
   par conception ; c'est le RLS qui protège, jamais le secret de cette clé.
 
@@ -304,6 +324,10 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 
 | Date | Décision | Pourquoi |
 |---|---|---|
+| 2026-08-09 | Le renommage des surfaces publiques (titre, manifeste, page d'accueil) est **reporté** | Tant qu'Atlas n'a qu'un module, afficher « Atlas » à la place de « Zénith » n'apprendrait rien à personne. À faire quand Astra rend le hub visible |
+| 2026-08-09 | Sauvegarde v5 : une section par module, sous son nom technique | Le format à plat promouvait les champs d'un seul module au rang de format d'échange |
+| 2026-08-09 | C'est au module de relire son ancien format (`fromLegacyBackup`) | Le socle n'a pas à connaître le vocabulaire de chaque domaine |
+| 2026-08-09 | Le registre `src/modules/index.ts` est le seul fichier partagé qu'un module modifie | Deux conversations ajoutant chacune un module n'ont qu'une ligne à départager |
 | 2026-08-09 | `Store` scindé en `CoreStore` + `GoalsStore`, deux implémentations chacun | Le contrat unique aurait doublé de taille à chaque module, et les deux implémentations avec lui |
 | 2026-08-09 | Le blob local `palier.v1` est lu et écrit **par section** | Le socle ne connaît que `settings` ; sans lecture-modification-écriture il écraserait les sections des modules |
 | 2026-08-09 | Un client Supabase unique, partagé (`core/data/supabaseClient.ts`) | Un `createClient` par module ferait diverger l'état d'authentification entre eux |
