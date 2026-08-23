@@ -1,0 +1,14 @@
+﻿dateOp;dateVal;label;suggestedLabel;category;categoryParent;amount;comment;accountNum;accountLabel;accountbalance;mark
+2026-03-31;2026-03-31;"VIR SEPA EXEMPLE EMPLOYEUR";"Vir Sepa Exemple Employeur";"Virements reçus";"Virements reçus";"2 100,00";;00000000000;BoursoBank;1420.55;Non
+2026-03-30;2026-03-30;"VIR Virement depuis BoursoBank";"Vir Virement Depuis Boursobank";"Virements émis de comptes à comptes";"Mouvements internes débiteurs";"-1 200,00";;00000000000;BoursoBank;-679.45;Non
+2026-03-28;2026-03-28;"PRLV SEPA BAILLEUR EXEMPLE";"Prlv Sepa Bailleur Exemple";Loyer;"Logement";-620,00;;00000000000;BoursoBank;520.55;Non
+2026-03-25;2026-03-25;"CARTE 24/03/26 SUPERMARCHE EX CB*0000";Supermarche;Alimentation;"Vie quotidienne";-54,30;;00000000000;BoursoBank;1140.55;Non
+2026-03-22;2026-03-22;"CARTE 21/03/26 CONCERT EXEMPLE CB*0000";"Concert Exemple";"Divertissement - culture (ciné, théâtre, concerts…)";"Loisirs et sorties";-45,00;;00000000000;BoursoBank;1194.85;Non
+2026-03-22;2026-03-22;"CARTE 21/03/26 CONCERT EXEMPLE CB*0000";"Concert Exemple";"Divertissement - culture (ciné, théâtre, concerts…)";"Loisirs et sorties";-45,00;;00000000000;BoursoBank;1194.85;Non
+2026-03-20;2026-03-20;"AVOIR 18/03/26 CONCERT EXEMPLE CB*0000";"Concert Exemple";"Divertissement - culture (ciné, théâtre, concerts…)";"Loisirs et sorties";45,00;;00000000000;BoursoBank;1284.85;Non
+2026-03-18;2026-03-18;"VIR Virement depuis LIVRET A";"Vir Virement Depuis Livret A";"Virements reçus de comptes à comptes";"Mouvements internes créditeurs";150,00;;00000000000;BoursoBank;1239.85;Non
+2026-03-15;2026-03-15;"VIR INST CONTACT EXEMPLE";"Vir Inst Contact Exemple";"Virements émis";"Virements émis";-30,00;;00000000000;BoursoBank;1089.85;Non
+2026-03-12;2026-03-12;"CARTE 11/03/26 ATELIER EXEMPLE CB*0000";"Atelier Exemple";"Non catégorisé";"Non catégorisé";-18,90;;00000000000;BoursoBank;1119.85;Non
+2026-03-10;2026-03-10;"VIR SEPA MUTUELLE EXEMPLE";"Vir Sepa Mutuelle Exemple";"Remboursements frais de santé";Santé;12,40;;00000000000;BoursoBank;1138.75;Non
+2026-03-05;2026-03-05;"PRLV SEPA OPERATEUR EXEMPLE";"Prlv Sepa Operateur Exemple";"Multimedia à domicile (TV, internet, téléphonie…)";"Abonnements & téléphonie";-19,99;;00000000000;BoursoBank;1126.35;Non
+2026-03-02;2026-03-02;"CARTE 28/02/26 STATION EXEMPLE CB*0000";"Station Exemple";Carburant;"Auto & Moto";-62,15;;00000000000;BoursoBank;1146.34;Non
