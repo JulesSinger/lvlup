@@ -2,12 +2,39 @@
  * Styles du module budget (Astra).
  *
  * Nommé « placeholder.css » depuis l'étape 1, quand l'écran n'était qu'un
- * signet ; il porte maintenant les vraies règles de l'écran des catégories
- * (étape 2). Renommer le fichier demanderait de supprimer l'ancien, ce
+ * signet ; il porte maintenant les catégories (étape 2) et les opérations
+ * (étape 3). Renommer le fichier demanderait de supprimer l'ancien, ce
  * qu'une session cloud ne peut pas faire sur le dossier monté — voir
- * CLAUDE.md §7. À renommer en `categories.css` depuis un poste local, sans
+ * CLAUDE.md §7. À renommer en `budget.css` depuis un poste local, sans
  * urgence.
  */
+
+.budget-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.budget-tab {
+  padding: 9px 4px;
+  margin-bottom: -1px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.budget-tab + .budget-tab {
+  margin-left: 14px;
+}
+
+.budget-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
 
 .budget-categories {
   display: flex;
@@ -97,4 +124,61 @@
 
 .budget-color-swatch {
   border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* --- opérations --------------------------------------------------------- */
+
+.budget-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.budget-entry-row {
+  gap: 14px;
+}
+
+.budget-row-day {
+  flex-shrink: 0;
+  width: 92px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.budget-row-category {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+.budget-row-amount {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  min-width: 88px;
+  text-align: right;
+}
+
+.budget-row-amount.negative {
+  color: #ff8b8b;
+}
+
+.budget-row-amount.positive {
+  color: #6fbf7f;
+}
+
+/* --- éditeur d'écriture -------------------------------------------------- */
+
+.budget-kind-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+.budget-kind-toggle .btn.selected {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  color: var(--text);
+  font-weight: 650;
 }
