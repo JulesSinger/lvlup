@@ -49,7 +49,7 @@ Toute décision technique se prend sous cette contrainte, dans cet ordre :
 | Base, comptes, droits | Supabase (Postgres + Auth + Row Level Security) |
 | Notifications | Web Push (VAPID) via Supabase Edge Function |
 | Tests unitaires | Vitest, fichiers `*.test.ts` **à côté** du fichier testé |
-| Tests bout en bout | Playwright, via `e2e-check.mjs` à la racine |
+| Tests bout en bout | Playwright, via `e2e/run.mjs` (socle) + une suite par module (`src/modules/<id>/e2e/suite.mjs`) |
 | Lint | oxlint |
 | Hébergement | Cloudflare Pages |
 
@@ -74,10 +74,10 @@ cette étape produit un `net::ERR_CONNECTION_REFUSED` qui ressemble à un bug de
 
 ```bash
 npm run build && npm run preview &            # sert dist/ sur :4173
-npm run check                                 # ~187 vérifications
+npm run check                                 # 205 vérifications (socle + toutes les suites de module)
 
 npm run build:auth && npm run preview:auth &  # sert dist-auth/ sur :4174
-npm run check:auth                            # ~199 : exige les DEUX serveurs
+npm run check:auth                            # 217 : exige les DEUX serveurs
 ```
 
 `check:auth` rejoue tout `check` puis ajoute le parcours avec comptes. C'est lui qui couvre le
@@ -91,22 +91,26 @@ chemin Supabase — à lancer dès qu'on touche à un store.
 
 ### État actuel
 
-**Étapes 1 à 5 du plan faites, et l'étape A de `docs/chantier-coquille-et-e2e.md` aussi.**
+**Étapes 1 à 5 du plan faites, et les étapes A et B de `docs/chantier-coquille-et-e2e.md` aussi.**
 `src/data/` n'existe plus, le registre de modules existe, la sauvegarde est versionnée par
 module, et **`App.tsx` est devenu la coquille du hub** : authentification, choix du module,
 panneau de réglages, export/import de sauvegarde. Tout l'écran de Zénith (hub interne, objectifs,
 historique, trophées, célébrations) vit maintenant dans
-`modules/objectifs/ZenithScreen.tsx`. **Le socle est prêt à recevoir Astra.**
+`modules/objectifs/ZenithScreen.tsx`. Les vérifications de bout en bout sont découpées à
+l'identique : `e2e/run.mjs` (lanceur + socle : PWA, service worker, écran d'authentification) et
+`src/modules/objectifs/e2e/suite.mjs` (tout Zénith). **Le socle est prêt à recevoir Astra.**
 
 Deux décisions ont été prises avec Jules pour cette extraction (voir le journal) : l'écran
 d'accueil du hub liste les modules en cartes (`ModulePicker`, plutôt qu'une barre d'onglets
 permanente), et les réglages restent une fenêtre commune, mais chaque module y ajoute sa propre
 section via `AtlasModule.SettingsSection` (Zénith y a mis « Objectif du jour » et le rappel).
 
-Reste l'étape B (découper `e2e-check.mjs` en suites par module) : non commencée, et par
-construction elle vient après l'étape A — voir le chantier.
+Les deux étapes du chantier `docs/chantier-coquille-et-e2e.md` sont faites.
 
 ```
+e2e/
+  run.mjs             lanceur : navigateur, check(), découverte des suites de module
+  core.mjs            suite du socle : PWA, service worker, écran d'authentification
 src/
   App.tsx            coquille du hub : authentification, choix du module, réglages,
                      export/import. Un seul import de module (`Landing`, écran
@@ -135,6 +139,8 @@ src/
     ZenithScreen.tsx      ⭐ tout l'écran du module — hub interne, objectifs,
                           historique, trophées, célébrations, file hors-ligne
     ZenithSettingsSection.tsx  sa section dans le panneau de réglages
+    e2e/suite.mjs     ⭐ sa suite de bout en bout — grille, échelle, cérémonies,
+                      comptage, quotidien, historique, rendu mobile (198 vérifications)
     components/      17 composants — Hub, GoalCard, Heatmap, Ceremony, Landing…
     data/
       goalsStore.ts     contrat du module + GoalsBackup
@@ -398,6 +404,10 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 
 | Date | Décision | Pourquoi |
 |---|---|---|
+| 2026-08-23 | Étape B du chantier de la coquille faite : `e2e-check.mjs` (1973 lignes) découpé en `e2e/run.mjs` (lanceur, découvre les suites de module par scan de `src/modules/*/e2e/suite.mjs`), `e2e/core.mjs` (socle : PWA, service worker, écran d'auth — 7 + 12 vérifications) et `src/modules/objectifs/e2e/suite.mjs` (Zénith — 198 vérifications) | Ordre imposé par le chantier : la coquille d'abord (étape A), les suites e2e ensuite. `205/205` puis `217/217` après découpage, identiques aux chiffres d'avant — extraction ligne à ligne vérifiée par sous-chaîne exacte, aucun contrôle perdu |
+| 2026-08-23 | La section « Réglages » de l'ancien fichier (ouverture du panneau, rythme quotidien, absence de rappel en local) rejoint la suite `objectifs`, pas `core.mjs` | Aujourd'hui, atteindre les réglages passe forcément par l'écran de Zénith — décision pragmatique, à revoir si un jour les réglages s'ouvrent aussi sans aucun module actif |
+| 2026-08-23 | `LEGACY.sansSuiteE2E` supprimé de `conventions.test.ts` (la liste s'est vidée) ; `LEGACY.sansPrefixeCSS` reste, lui, non vide | Le chantier le demandait explicitement : « si la liste se vide, supprimer la liste » — mais seule celle-là s'est vidée, l'autre dette (préfixe CSS) n'est pas concernée par l'étape B |
+| 2026-08-23 | « Changer de module » ajouté dans le panneau de réglages (`SettingsPanel`), câblé directement depuis `App.tsx` | Le bouton « ▲ Modules » du pied de la barre latérale (`ZenithScreen`) est invisible sur téléphone — `mobile.css` cache tout `.sidebar-foot` pour laisser la place à la barre du bas. Le panneau de réglages, lui, reste joignable partout via `.topbar-settings`, jamais caché par cette règle |
 | 2026-08-09 | Étape A du chantier de la coquille faite : `App.tsx` réduit à authentification + choix du module + réglages + export/import ; tout l'écran de Zénith déplacé dans `modules/objectifs/ZenithScreen.tsx` | Deux agents travaillant chacun sur un module ne doivent plus se croiser sur `App.tsx` |
 | 2026-08-09 | Hub : écran d'accueil listant les modules en cartes (`ModulePicker`), pas une barre d'onglets permanente | Choix de Jules — plus clair pour un premier module qui grossit, une barre coûterait de la hauteur d'écran sur mobile |
 | 2026-08-09 | Avec un seul module enregistré, le hub y entre directement sans passer par l'écran de choix | Sinon toutes les vérifications de bout en bout (205 + 217) auraient dû cliquer une carte supplémentaire pour rien — l'écran de choix ne prend son sens qu'à partir de deux modules |

@@ -14,7 +14,19 @@ changer la navigation obligerait à les redécouper après.
 > grossi depuis l'écriture de ce document (187/199), voir le journal de `CLAUDE.md`. Le md5 du
 > CSS **a changé** (`57f11ca6…` → `fe2ec1c8…`) : cette étape ajoute du CSS neuf (écran d'accueil
 > du hub, intitulé de section de réglages), ce n'est pas un déplacement pur — voir le journal.
-> Reste l'étape B, non commencée.
+>
+> **Étape B faite (2026-08-23).** `e2e-check.mjs` (1973 lignes) découpé en `e2e/run.mjs`
+> (lanceur : navigateur, `check()`, découverte des suites par scan de
+> `src/modules/*/e2e/suite.mjs`), `e2e/core.mjs` (socle — PWA, service worker, écran
+> d'authentification) et `src/modules/objectifs/e2e/suite.mjs` (Zénith — grille, échelle,
+> cérémonies, comptage). `npm run test` (255), `npm run check` (205) et `npm run check:auth`
+> (217) passent à l'identique — extraction ligne à ligne vérifiée par sous-chaîne exacte avant
+> assemblage, aucun contrôle perdu. Le panneau de réglages (ouverture, rythme quotidien, absence
+> de rappel en local) a rejoint la suite `objectifs` plutôt que le socle, par pragmatisme : y
+> accéder passe aujourd'hui par l'écran de Zénith. `LEGACY.sansSuiteE2E` a disparu de
+> `conventions.test.ts`, sa liste s'étant vidée ; `LEGACY.sansPrefixeCSS` reste, non concerné par
+> cette étape. Le md5 du CSS produit est resté `fe2ec1c8…` : cette étape ne touche aucun fichier
+> React ni CSS, seulement les scripts e2e.
 
 ---
 

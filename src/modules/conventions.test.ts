@@ -23,8 +23,6 @@ const MODULES_DIR = join(SRC, 'modules');
 
 /** Modules antérieurs à une règle. À vider, jamais à allonger. */
 const LEGACY = {
-  /** `e2e-check.mjs` est encore à la racine et couvre socle + objectifs mêlés. */
-  sansSuiteE2E: ['objectifs'],
   /** Ses classes datent d'avant la règle de préfixe (`.goal-`, `.heat-`, `.tier-`…). */
   sansPrefixeCSS: ['objectifs'],
 };
@@ -113,7 +111,6 @@ describe('conventions des modules', () => {
     });
 
     it('a une suite de bout en bout', () => {
-      if (LEGACY.sansSuiteE2E.includes(id)) return; // dette nommée, voir en tête
       expect(existsSync(join(dir, 'e2e'))).toBe(true);
     });
 

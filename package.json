@@ -8,10 +8,10 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "check": "node e2e-check.mjs",
+    "check": "node e2e/run.mjs",
     "build:auth": "VITE_SUPABASE_URL=https://exemple.supabase.co VITE_SUPABASE_ANON_KEY=cle-factice-pour-les-tests vite build --outDir dist-auth",
     "preview:auth": "vite preview --outDir dist-auth --port 4174",
-    "check:auth": "AUTH_BASE=http://localhost:4174 node e2e-check.mjs",
+    "check:auth": "AUTH_BASE=http://localhost:4174 node e2e/run.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

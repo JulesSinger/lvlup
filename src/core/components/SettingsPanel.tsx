@@ -18,6 +18,7 @@ export function SettingsPanel({
   onImport,
   onClose,
   modules,
+  onBackToHub,
 }: {
   user: AppUser | null;
   settings: Settings;
@@ -27,6 +28,13 @@ export function SettingsPanel({
   onClose: () => void;
   /** Chaque module ayant une `SettingsSection` y ajoute la sienne, sous son nom. */
   modules: readonly AtlasModule[];
+  /**
+   * Revient à l'écran de choix du module. Porté par la fenêtre de réglages
+   * plutôt que par le seul pied de la barre latérale : c'est le seul endroit
+   * commun aux deux mises en page, desktop et mobile — sur téléphone la barre
+   * latérale devient la barre du bas, et son pied n'a plus de place.
+   */
+  onBackToHub?: () => void;
 }) {
   const [password, setPassword] = useState('');
   const [passwordBusy, setPasswordBusy] = useState(false);
@@ -72,6 +80,27 @@ export function SettingsPanel({
         </div>
 
         <div className="modal-body">
+          {onBackToHub && (
+            <section className="settings-block">
+              <h3 className="settings-title">Modules</h3>
+              <p className="settings-hint">
+                Revient à la liste des modules — le seul chemin qui marche aussi sur téléphone,
+                où la barre latérale devient la barre du bas et n'a plus de place pour ça.
+              </p>
+              <div className="settings-actions">
+                <button
+                  className="btn btn-sm"
+                  onClick={() => {
+                    onClose();
+                    onBackToHub();
+                  }}
+                >
+                  ▲ Changer de module
+                </button>
+              </div>
+            </section>
+          )}
+
           {modules.map((m) =>
             m.SettingsSection ? (
               <div key={m.id}>

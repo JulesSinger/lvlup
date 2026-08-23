@@ -179,6 +179,9 @@ export default function App() {
           onImport={importJson}
           onClose={() => setShowSettings(false)}
           modules={MODULES}
+          // Inutile de proposer de « changer de module » si on est déjà sur
+          // l'écran qui les liste.
+          onBackToHub={activeModule ? () => setModuleId(null) : undefined}
         />
       )}
     </>
