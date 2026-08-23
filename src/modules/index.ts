@@ -1,4 +1,5 @@
 import type { AtlasModule } from '../core/lib/module';
+import { budgetModule } from './budget/module';
 import { objectifsModule } from './objectifs/module';
 
 /**
@@ -8,4 +9,4 @@ import { objectifsModule } from './objectifs/module';
  * brièveté volontaire. Deux conversations qui ajoutent chacune un module n'ont
  * ici qu'une ligne à départager.
  */
-export const MODULES: readonly AtlasModule[] = [objectifsModule];
+export const MODULES: readonly AtlasModule[] = [objectifsModule, budgetModule];

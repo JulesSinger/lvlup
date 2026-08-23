@@ -1,0 +1,27 @@
+/* Étape 1 : le module n'a qu'un signet, en attendant ses vrais écrans. */
+
+.budget-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 70vh;
+  padding: 2rem;
+  text-align: center;
+}
+
+.budget-placeholder-emoji {
+  font-size: 2.5rem;
+}
+
+.budget-placeholder-title {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.budget-placeholder-text {
+  margin: 0 0 0.5rem;
+  color: var(--text-dim, #9aa3b8);
+  font-size: 1rem;
+}

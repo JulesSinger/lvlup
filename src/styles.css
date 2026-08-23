@@ -57,3 +57,6 @@
 
 /* --- socle : écran d'accueil du hub, ajouté en fin de chaîne --------- */
 @import './core/styles/hub.css';
+
+/* --- Astra : signet d'étape 1, en attendant ses vrais écrans --------- */
+@import './modules/budget/styles/placeholder.css';

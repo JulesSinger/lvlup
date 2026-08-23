@@ -18,6 +18,30 @@ async function dismissCeremonies(p) {
   }
 }
 
+/**
+ * Depuis l'arrivée d'Astra, le hub compte deux modules : l'écran de choix
+ * (`ModulePicker`) s'affiche donc avant l'écran de Zénith, sur toute page
+ * fraîchement chargée. Cette suite ne teste que Zénith — elle entre donc
+ * systématiquement dans sa carte avant de continuer, comme le ferait
+ * quiconque n'a qu'un module qui l'intéresse.
+ */
+async function enterZenith(p) {
+  const card = p.locator('.hub-picker-card', { hasText: 'Zénith' });
+  if (await card.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await card.click();
+  }
+}
+
+async function gotoZenith(p, base) {
+  await p.goto(base);
+  await enterZenith(p);
+}
+
+async function reloadZenith(p) {
+  await p.reload();
+  await enterZenith(p);
+}
+
 export async function run({ browser, check, BASE }) {
   const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
   const page = await context.newPage();
@@ -25,7 +49,7 @@ export async function run({ browser, check, BASE }) {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
-  await page.goto(BASE);
+  await gotoZenith(page, BASE);
 
   // 0. Onboarding de première connexion
   await page.waitForSelector('.onboarding-card');
@@ -139,7 +163,7 @@ export async function run({ browser, check, BASE }) {
   check('Palier ajouté', (await page.locator('.goal-count').first().textContent())?.includes('2/6'));
 
   // 4. Persistance après rechargement (retour sur le hub par défaut)
-  await page.reload();
+  await reloadZenith(page);
   await page.waitForSelector('.brand');
   await page.getByRole('button', { name: 'Objectifs' }).click();
   await page.waitForSelector('.goal');
@@ -399,7 +423,7 @@ export async function run({ browser, check, BASE }) {
   );
 
   // Persistance après rechargement
-  await page.reload();
+  await reloadZenith(page);
   await page.waitForSelector('.checkin-chips');
   check(
     'Action persistante après rechargement',
@@ -537,7 +561,7 @@ export async function run({ browser, check, BASE }) {
   );
 
   // La règle qui empêche tout de dériver : demain, ce n'est pas une case.
-  await page.reload();
+  await reloadZenith(page);
   await page.waitForSelector('.checkin-chips');
   check(
     'Après rechargement, il reste un geste et pas une action de plus',
@@ -601,7 +625,7 @@ export async function run({ browser, check, BASE }) {
   // Bannière « streak en jeu » : contexte isolé, activité datée d'hier seulement
   const riskCtx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
   const riskPage = await riskCtx.newPage();
-  await riskPage.goto(BASE);
+  await gotoZenith(riskPage, BASE);
   await riskPage.evaluate(() => {
     const yesterday = new Date(Date.now() - 86_400_000);
     const day = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
@@ -627,7 +651,7 @@ export async function run({ browser, check, BASE }) {
       }),
     );
   });
-  await riskPage.reload();
+  await reloadZenith(riskPage);
   await riskPage.waitForSelector('.hub');
   check(
     "Bannière « streak en jeu » quand rien n'est fait aujourd'hui",
@@ -637,7 +661,7 @@ export async function run({ browser, check, BASE }) {
 
   const mobile = await page.context().newPage();
   await mobile.setViewportSize({ width: 390, height: 844 });
-  await mobile.goto(BASE);
+  await gotoZenith(mobile, BASE);
   await mobile.waitForSelector('.brand', { state: 'attached' });
   check(
     'Barre de navigation mobile en bas',
@@ -753,7 +777,7 @@ export async function run({ browser, check, BASE }) {
     const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
     const rp = await fresh.newPage();
     rp.on('pageerror', (e) => errors.push(e.message));
-    await rp.goto(BASE);
+    await gotoZenith(rp, BASE);
     await rp.getByRole('button', { name: 'Passer' }).click();
     await rp.getByRole('button', { name: 'Charger des exemples' }).click();
     await rp.waitForSelector('.hub');
@@ -787,7 +811,7 @@ export async function run({ browser, check, BASE }) {
       });
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await rp.reload();
+    await reloadZenith(rp);
     await rp.waitForSelector('.forgotten');
     await rp.waitForTimeout(400);
 
@@ -882,7 +906,7 @@ export async function run({ browser, check, BASE }) {
       !(await rp.locator('.day-arrow').first().isDisabled()),
     );
 
-    await rp.reload();
+    await reloadZenith(rp);
     await rp.waitForSelector('.hub');
     await rp.waitForTimeout(400);
     check(
@@ -899,7 +923,7 @@ export async function run({ browser, check, BASE }) {
     const fresh = await browser.newContext({ viewport: { width: 1150, height: 1000 } });
     const cp = await fresh.newPage();
     cp.on('pageerror', (e) => errors.push(e.message));
-    await cp.goto(BASE);
+    await gotoZenith(cp, BASE);
     await cp.getByRole('button', { name: 'Passer' }).click();
     await cp.getByRole('button', { name: 'Charger des exemples' }).click();
     await cp.waitForSelector('.hub');
@@ -932,7 +956,7 @@ export async function run({ browser, check, BASE }) {
       }));
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await cp.reload();
+    await reloadZenith(cp);
     await cp.waitForSelector('.meter');
     await cp.waitForTimeout(400);
 
@@ -1026,7 +1050,7 @@ export async function run({ browser, check, BASE }) {
     const fresh = await browser.newContext({ viewport: { width: 1150, height: 1000 } });
     const qp = await fresh.newPage();
     qp.on('pageerror', (e) => errors.push(e.message));
-    await qp.goto(BASE);
+    await gotoZenith(qp, BASE);
     await qp.getByRole('button', { name: 'Passer' }).click();
     await qp.getByRole('button', { name: 'Charger des exemples' }).click();
     await qp.waitForSelector('.hub');
@@ -1059,7 +1083,7 @@ export async function run({ browser, check, BASE }) {
       ];
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await qp.reload();
+    await reloadZenith(qp);
     await qp.waitForSelector('.meter');
     await qp.waitForTimeout(400);
 
@@ -1233,7 +1257,7 @@ export async function run({ browser, check, BASE }) {
     const fresh = await browser.newContext({ viewport: { width: 1280, height: 950 } });
     const lp = await fresh.newPage();
     lp.on('pageerror', (e) => errors.push(e.message));
-    await lp.goto(BASE);
+    await gotoZenith(lp, BASE);
     await lp.getByRole('button', { name: 'Passer' }).click();
     await lp.waitForSelector('.empty');
     await lp.getByRole('button', { name: 'Créer mon premier objectif' }).click();
@@ -1319,7 +1343,7 @@ export async function run({ browser, check, BASE }) {
     const fresh = await browser.newContext({ viewport: { width: 1150, height: 900 } });
     const rp = await fresh.newPage();
     rp.on('pageerror', (e) => errors.push(e.message));
-    await rp.goto(BASE);
+    await gotoZenith(rp, BASE);
     await rp.getByRole('button', { name: 'Passer' }).click();
     await rp.getByRole('button', { name: 'Charger des exemples' }).click();
     await rp.waitForSelector('.hub');
@@ -1345,7 +1369,7 @@ export async function run({ browser, check, BASE }) {
       }));
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await rp.reload();
+    await reloadZenith(rp);
     await rp.waitForSelector('.hub');
     await rp.waitForTimeout(800);
     check(
@@ -1366,7 +1390,7 @@ export async function run({ browser, check, BASE }) {
     const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const pp = await phone.newPage();
     pp.on('pageerror', (e) => errors.push(e.message));
-    await pp.goto(BASE);
+    await gotoZenith(pp, BASE);
     await pp.getByRole('button', { name: 'Passer' }).click();
     await pp.waitForSelector('.empty');
     await pp.getByRole('button', { name: 'Créer mon premier objectif' }).click();
@@ -1392,7 +1416,7 @@ export async function run({ browser, check, BASE }) {
     const fresh = await browser.newContext({ viewport: { width: 1180, height: 950 } });
     const hp = await fresh.newPage();
     hp.on('pageerror', (e) => errors.push(e.message));
-    await hp.goto(BASE);
+    await gotoZenith(hp, BASE);
     await hp.getByRole('button', { name: 'Passer' }).click();
     await hp.waitForSelector('.empty');
 
@@ -1466,7 +1490,7 @@ export async function run({ browser, check, BASE }) {
       snap.checkins = [...A.ck, ...B.ck, ...C.ck];
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await hp.reload();
+    await reloadZenith(hp);
     await hp.waitForSelector('.hub');
     await hp.getByRole('button', { name: 'Objectifs' }).click();
     await hp.waitForSelector('.goal');
@@ -1695,7 +1719,7 @@ export async function run({ browser, check, BASE }) {
     const fresh = await browser.newContext({ viewport: { width: 1180, height: 950 } });
     const fp = await fresh.newPage();
     fp.on('pageerror', (e) => errors.push(e.message));
-    await fp.goto(BASE);
+    await gotoZenith(fp, BASE);
     await fp.getByRole('button', { name: 'Passer' }).click();
     await fp.waitForSelector('.empty');
     await fp.getByRole('button', { name: 'Charger des exemples' }).click();
@@ -1718,7 +1742,7 @@ export async function run({ browser, check, BASE }) {
       snap.goals = [g]; snap.actions = acts; snap.checkins = ck;
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await fp.reload();
+    await reloadZenith(fp);
     await fp.waitForSelector('.hub');
     await fp.getByRole('button', { name: 'Objectifs' }).click();
     await fp.waitForSelector('.heat');
@@ -1786,7 +1810,7 @@ export async function run({ browser, check, BASE }) {
     const op = await fresh.newPage();
     op.on('pageerror', (e) => errors.push(e.message));
 
-    await op.goto(BASE);
+    await gotoZenith(op, BASE);
     await op.waitForSelector('.onboarding-card');
     check('Première visite : l’accompagnement s’affiche', await op.locator('.onboarding-card').isVisible());
     await op.getByRole('button', { name: 'Passer' }).click();
@@ -1796,7 +1820,7 @@ export async function run({ browser, check, BASE }) {
       (await op.evaluate(() => localStorage.getItem('zenith.onboarded.local'))) === '1',
       await op.evaluate(() => JSON.stringify(Object.keys(localStorage).filter((k) => k.startsWith('zenith.onboarded')))),
     );
-    await op.reload();
+    await reloadZenith(op);
     await op.waitForSelector('.empty');
     check(
       'Et il ne se represente plus au rechargement',
@@ -1808,7 +1832,7 @@ export async function run({ browser, check, BASE }) {
       localStorage.clear();
       localStorage.setItem('zenith.onboarded.autre-utilisateur', '1');
     });
-    await op.reload();
+    await reloadZenith(op);
     await op.waitForSelector('.onboarding-card');
     check(
       'Le marqueur du voisin ne saute pas l’accompagnement',
@@ -1820,7 +1844,7 @@ export async function run({ browser, check, BASE }) {
       localStorage.clear();
       localStorage.setItem('zenith.onboarded', '1');
     });
-    await op.reload();
+    await reloadZenith(op);
     await op.waitForSelector('.empty');
     check(
       'L’ancien marqueur global est encore honoré',
