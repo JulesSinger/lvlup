@@ -10,6 +10,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 10px;
   gap: 14px;
   padding: 18px 22px;
   border-bottom: 1px solid var(--border);
@@ -19,6 +21,18 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+  row-gap: 6px;
+  min-width: 0;
+}
+
+/* Une adresse e-mail longue, sans espace, forçait `.hub-picker-top` à
+   dépasser la largeur de l'écran sur téléphone (le span ne rétrécissait ni
+   ne passait à la ligne) — d'où le défilement horizontal de tout l'écran
+   d'accueil. */
+.hub-picker-actions .account {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .hub-picker-main {

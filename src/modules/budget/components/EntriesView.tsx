@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { budgetStore } from '../data';
 import { formatCents } from '../lib/amount';
-import type { BudgetCategory, BudgetEntry } from '../lib/types';
+import type { BudgetCategory, BudgetEntry, BudgetEntryInput } from '../lib/types';
 import { EntryEditor } from './EntryEditor';
 
 function categoryFor(categories: BudgetCategory[], id: string | null): BudgetCategory | null {
@@ -11,71 +11,55 @@ function categoryFor(categories: BudgetCategory[], id: string | null): BudgetCat
 
 /**
  * La liste des opérations — l'outil de correction (docs/etude-astra.md §5) :
- * sans elle, impossible de rattraper une ligne mal rangée. L'import du
- * relevé arrive à l'étape 5 ; pour l'instant, seule la saisie manuelle
- * alimente cette liste.
+ * sans elle, impossible de rattraper une ligne mal rangée. Depuis l'étape 4,
+ * elle vit sous le camembert du mois (`MonthScreen`), qui lui fournit déjà
+ * les écritures à afficher (déjà filtrées par mois, et le cas échéant par
+ * part cliquée) — cette liste ne va donc plus chercher les écritures
+ * elle-même, à la différence de l'étape 3.
  */
 export function EntriesView({
+  entries,
   categories,
   onError,
-  reloadToken,
+  onChanged,
+  emptyTitle,
+  emptyBody,
 }: {
+  entries: BudgetEntry[];
   categories: BudgetCategory[];
   onError: (message: string) => void;
-  reloadToken: number;
+  onChanged: () => Promise<void>;
+  emptyTitle: string;
+  emptyBody?: string;
 }) {
-  const [entries, setEntries] = useState<BudgetEntry[]>([]);
-  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<BudgetEntry | 'new' | null>(null);
 
-  const refresh = useCallback(async () => {
-    try {
-      setEntries(await budgetStore.listEntries());
-      onError('');
-    } catch (err) {
-      onError(err instanceof Error ? err.message : 'Chargement impossible.');
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    setLoading(true);
-    void refresh();
-  }, [refresh, reloadToken]);
-
-  async function saveEntry(input: Parameters<typeof budgetStore.createEntry>[0]) {
+  async function saveEntry(input: BudgetEntryInput) {
     if (editing !== null && editing !== 'new') {
       await budgetStore.updateEntry(editing.id, input);
     } else {
       await budgetStore.createEntry(input);
     }
     setEditing(null);
-    await refresh();
+    await onChanged();
   }
 
   async function removeEntry(entry: BudgetEntry) {
     if (!window.confirm(`Supprimer « ${entry.label} » (${formatCents(entry.amountCents)}) ?`)) return;
     try {
       await budgetStore.deleteEntry(entry.id);
-      await refresh();
+      await onChanged();
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Suppression impossible.');
     }
   }
 
-  if (loading) return <p>Chargement…</p>;
-
   return (
     <div className="budget-entries">
       {entries.length === 0 ? (
         <div className="empty">
-          <h3>Aucune écriture pour l'instant</h3>
-          <p>
-            Une écriture, c'est une dépense ou une entrée d'argent : un jour, un libellé, un
-            montant, et une catégorie — ou « à classer » si tu n'es pas encore fixé.
-          </p>
+          <h3>{emptyTitle}</h3>
+          {emptyBody && <p>{emptyBody}</p>}
           <button className="btn btn-primary" onClick={() => setEditing('new')}>
             Ajouter une écriture
           </button>

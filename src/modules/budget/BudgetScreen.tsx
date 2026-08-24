@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { CategoryEditor } from './components/CategoryEditor';
-import { EntriesView } from './components/EntriesView';
+import { MonthScreen } from './components/MonthScreen';
 import { budgetStore } from './data';
 import type { BudgetCategory, BudgetCategoryInput, BudgetCategoryKind } from './lib/types';
 import { STARTER_CATEGORIES } from './lib/starterCategories';
@@ -14,14 +14,16 @@ const GROUPS: { kind: BudgetCategoryKind; label: string }[] = [
   { kind: 'transfert', label: 'Transferts' },
 ];
 
-type View = 'categories' | 'entries';
+type View = 'categories' | 'month';
 
 /**
- * Écran racine d'Astra — étape 3 (docs/etude-astra.md §7) : « le module
- * devient utilisable seul » avec la saisie manuelle et la liste des
- * opérations, à côté des catégories. Le camembert du mois (étape 4) et
- * l'import du relevé (étape 5) suivront ; en attendant, deux onglets
- * suffisent, il n'y a rien d'autre à y ranger.
+ * Écran racine d'Astra. Depuis l'étape 4 (docs/etude-astra.md §7), « la V1
+ * est atteinte » : l'onglet Opérations de l'étape 3 devient l'onglet Mois —
+ * camembert, total et sélecteur de mois, avec la liste des opérations
+ * toujours en dessous (§5). L'onglet par défaut reste Catégories : à la
+ * toute première visite, sans aucune catégorie, c'est encore l'écran de
+ * création qui doit apparaître en premier — le camembert n'aurait rien à
+ * montrer avant. L'import du relevé (étape 5) suivra.
  */
 export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
   const [view, setView] = useState<View>('categories');
@@ -114,10 +116,10 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
             Catégories
           </button>
           <button
-            className={`budget-tab${view === 'entries' ? ' active' : ''}`}
-            onClick={() => setView('entries')}
+            className={`budget-tab${view === 'month' ? ' active' : ''}`}
+            onClick={() => setView('month')}
           >
-            Opérations
+            Mois
           </button>
         </nav>
 
@@ -130,8 +132,8 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
           </div>
         )}
 
-        {view === 'entries' ? (
-          <EntriesView categories={categories} onError={onError} reloadToken={reloadToken} />
+        {view === 'month' ? (
+          <MonthScreen categories={categories} onError={onError} reloadToken={reloadToken} />
         ) : loading ? (
           <p>Chargement…</p>
         ) : categories.length === 0 ? (

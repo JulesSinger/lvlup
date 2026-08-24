@@ -1,12 +1,13 @@
 /**
  * Suite e2e du module budget (Astra).
  *
- * Étapes 2 et 3 (docs/etude-astra.md §7) : les catégories se créent et
- * s'éditent, et le module devient utilisable seul grâce à la saisie
- * manuelle et à la liste des opérations. Comme la suite Zénith, elle part
- * d'un contexte frais et entre dans la carte Astra du hub — voir
- * `modules/objectifs/e2e/suite.mjs` pour le même motif, conséquence du
- * deuxième module désormais enregistré.
+ * Étapes 2 à 4 (docs/etude-astra.md §7) : les catégories se créent et
+ * s'éditent, le module devient utilisable seul grâce à la saisie manuelle
+ * et à la liste des opérations, et l'onglet Mois ajoute le camembert du
+ * mois, son total et son sélecteur — « la V1 est atteinte ». Comme la
+ * suite Zénith, elle part d'un contexte frais et entre dans la carte Astra
+ * du hub — voir `modules/objectifs/e2e/suite.mjs` pour le même motif,
+ * conséquence du deuxième module désormais enregistré.
  */
 
 async function enterAstra(p, base) {
@@ -95,9 +96,9 @@ export async function run({ browser, check, BASE }) {
   const rowCount = await page.locator('.budget-row').count();
   check('Une vingtaine de catégories de départ chargées', rowCount >= 15, String(rowCount));
 
-  // --- Opérations (étape 3) ------------------------------------------------
-  await page.getByRole('button', { name: 'Opérations' }).click();
-  check("L'onglet Opérations affiche l'écran vide", await page.locator('.empty h3').isVisible());
+  // --- Opérations, sous le camembert du mois (étapes 3 et 4) ---------------
+  await page.getByRole('button', { name: 'Mois' }).click();
+  check("L'onglet Mois affiche l'écran vide", await page.locator('.empty h3').isVisible());
 
   await page.getByRole('button', { name: 'Ajouter une écriture' }).click();
   check("L'éditeur d'écriture s'ouvre", await page.locator('.budget-entry-editor').isVisible());
@@ -144,9 +145,90 @@ export async function run({ browser, check, BASE }) {
       '-50,00 €',
   );
 
+  // --- Camembert du mois (étape 4) ------------------------------------------
+  // Une dépense sans catégorie doit apparaître dans le camembert sous « À
+  // classer » plutôt que disparaître du total (docs/etude-astra.md §2). Le
+  // camembert agrège par catégorie (donc ici, par « pas de catégorie ») :
+  // avec le remboursement d'ami (+20 €) déjà présent, une nouvelle dépense
+  // non catégorisée de 30 € laisse le groupe « à classer » à un net de
+  // -10 €, qui est bien ce qui doit apparaître comme part (le net positif
+  // du remboursement seul, lui, n'aurait pas fait de part — voir
+  // lib/monthlyBreakdown.ts).
+  await page.getByRole('button', { name: '+ Nouvelle écriture' }).click();
+  await page.locator('#budget-entry-label').fill('Distributeur');
+  await page.locator('#budget-entry-amount').fill('30');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForTimeout(200);
+
+  check(
+    'Le camembert affiche deux parts : Courses et À classer',
+    (await page.locator('.budget-pie-legend-item').count()) === 2,
+  );
+  check(
+    'La part « Courses » affiche le bon montant',
+    ((await page.locator('.budget-pie-legend-item', { hasText: 'Courses' }).textContent()) ?? '').includes('50,00'),
+  );
+  check(
+    'La part « À classer » nette le remboursement et la dépense (30 - 20 = 10 €)',
+    ((await page.locator('.budget-pie-legend-item', { hasText: 'À classer' }).textContent()) ?? '').includes('10,00'),
+  );
+  check(
+    'Le total dépensé du mois est la somme des deux parts (50 + 10 = 60 €)',
+    (await page.locator('.budget-month-total-amount').textContent())?.trim() === '-60,00 €',
+  );
+
+  // --- Filtrage par clic sur une part -----------------------------------------
+  // La part « à classer » regroupe toutes les écritures sans catégorie : le
+  // filtre montre donc le remboursement ET la dépense, pas seulement celle
+  // qui vient d'être ajoutée.
+  await page.locator('.budget-pie-legend-item', { hasText: 'À classer' }).click();
+  await page.waitForTimeout(150);
+  check(
+    'Cliquer la part « À classer » filtre la liste sur les deux écritures non catégorisées',
+    (await page.locator('.budget-entry-row').count()) === 2,
+  );
+  check(
+    'Le filtre exclut bien Courses de la semaine',
+    (await page.locator('.budget-entry-row', { hasText: 'Courses de la semaine' }).count()) === 0,
+  );
+  check(
+    'La notice de filtre est visible et nomme la part',
+    ((await page.locator('.budget-filter-notice').textContent()) ?? '').includes('À classer'),
+  );
+  await page.locator('.budget-pie-legend-item', { hasText: 'À classer' }).click();
+  await page.waitForTimeout(150);
+  check('Recliquer la même part retire le filtre', (await page.locator('.budget-entry-row').count()) === 3);
+  check('La notice de filtre disparaît', (await page.locator('.budget-filter-notice').count()) === 0);
+
+  // --- Sélecteur de mois -------------------------------------------------------
+  const currentMonthText = await page.locator('.budget-month-label').textContent();
+  await page.getByRole('button', { name: 'Mois précédent' }).click();
+  await page.waitForTimeout(150);
+  check(
+    'Le mois précédent change le libellé et affiche un camembert vide',
+    (await page.locator('.budget-month-label').textContent()) !== currentMonthText &&
+      (await page.locator('.budget-pie-empty').isVisible()),
+  );
+  await page.getByRole('button', { name: 'Mois suivant' }).click();
+  await page.waitForTimeout(150);
+  check(
+    'Revenir au mois suivant réaffiche le mois courant et son camembert',
+    (await page.locator('.budget-month-label').textContent()) === currentMonthText,
+  );
+
+  // On retire l'écriture ajoutée pour ce test, afin de ne pas perturber les
+  // vérifications de suppression ci-dessous, écrites pour l'étape 3.
+  page.once('dialog', (d) => d.accept());
+  await page
+    .locator('.budget-entry-row', { hasText: 'Distributeur' })
+    .getByRole('button', { name: 'Supprimer' })
+    .click();
+  await page.waitForTimeout(200);
+  check('Deux écritures après nettoyage du test du camembert', (await page.locator('.budget-entry-row').count()) === 2);
+
   // --- Persistance -----------------------------------------------------------
   await reloadAstra(page);
-  await page.getByRole('button', { name: 'Opérations' }).click();
+  await page.getByRole('button', { name: 'Mois' }).click();
   check('Les écritures survivent au rechargement', (await page.locator('.budget-entry-row').count()) === 2);
 
   // --- Suppression -----------------------------------------------------------

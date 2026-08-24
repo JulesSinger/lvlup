@@ -58,5 +58,5 @@
 /* --- socle : écran d'accueil du hub, ajouté en fin de chaîne --------- */
 @import './core/styles/hub.css';
 
-/* --- Astra : catégories (étape 2) ------------------------------------ */
+/* --- Astra : catégories, opérations, écran du mois (étapes 2-4) ------ */
 @import './modules/budget/styles/placeholder.css';
