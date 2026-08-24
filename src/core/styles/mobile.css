@@ -52,6 +52,12 @@
     display: none;
   }
 
+  /* L'adresse e-mail n'apporte rien sur un écran de téléphone, et sa
+     longueur forçait l'en-tête du hub sur deux lignes. */
+  .hub-picker-actions .account {
+    display: none;
+  }
+
   .nav {
     flex-direction: row;
     gap: 2px;
@@ -80,6 +86,7 @@
   }
 
   .main {
+    width: 100%;
     padding: 16px 14px 110px;
     max-width: none;
   }

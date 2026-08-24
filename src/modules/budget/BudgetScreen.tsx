@@ -18,15 +18,17 @@ type View = 'categories' | 'month';
 
 /**
  * Écran racine d'Astra. Depuis l'étape 4 (docs/etude-astra.md §7), « la V1
- * est atteinte » : l'onglet Opérations de l'étape 3 devient l'onglet Mois —
- * camembert, total et sélecteur de mois, avec la liste des opérations
- * toujours en dessous (§5). L'onglet par défaut reste Catégories : à la
- * toute première visite, sans aucune catégorie, c'est encore l'écran de
- * création qui doit apparaître en premier — le camembert n'aurait rien à
- * montrer avant. L'import du relevé (étape 5) suivra.
+ * est atteinte » : l'onglet Opérations de l'étape 3 devient l'onglet
+ * « Aperçu » — camembert, total et sélecteur de mois, avec la liste des
+ * opérations toujours en dessous (§5). « Mois » nommait bien son contenu
+ * mais rien de sa fonction ; « Aperçu » dit que c'est l'écran qu'on regarde
+ * d'abord — et c'est maintenant l'onglet par défaut, en premier dans la
+ * barre : c'est lui qui répond à la question qu'on se pose en ouvrant
+ * Astra (« où en est mon mois ? »), les catégories ne se consultent qu'en
+ * second. L'import du relevé (étape 5) suivra.
  */
 export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
-  const [view, setView] = useState<View>('categories');
+  const [view, setView] = useState<View>('month');
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingStarter, setLoadingStarter] = useState(false);
@@ -110,16 +112,16 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
 
         <nav className="budget-tabs" aria-label="Sections d'Astra">
           <button
+            className={`budget-tab${view === 'month' ? ' active' : ''}`}
+            onClick={() => setView('month')}
+          >
+            Aperçu
+          </button>
+          <button
             className={`budget-tab${view === 'categories' ? ' active' : ''}`}
             onClick={() => setView('categories')}
           >
             Catégories
-          </button>
-          <button
-            className={`budget-tab${view === 'month' ? ' active' : ''}`}
-            onClick={() => setView('month')}
-          >
-            Mois
           </button>
         </nav>
 

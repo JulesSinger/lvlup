@@ -3,11 +3,13 @@
  *
  * Étapes 2 à 4 (docs/etude-astra.md §7) : les catégories se créent et
  * s'éditent, le module devient utilisable seul grâce à la saisie manuelle
- * et à la liste des opérations, et l'onglet Mois ajoute le camembert du
- * mois, son total et son sélecteur — « la V1 est atteinte ». Comme la
- * suite Zénith, elle part d'un contexte frais et entre dans la carte Astra
- * du hub — voir `modules/objectifs/e2e/suite.mjs` pour le même motif,
- * conséquence du deuxième module désormais enregistré.
+ * et à la liste des opérations, et l'onglet « Aperçu » ajoute le camembert
+ * du mois, son total et son sélecteur — « la V1 est atteinte ». C'est
+ * désormais l'onglet par défaut : Astra s'ouvre sur la réponse à « où en
+ * est mon mois ? », les catégories passent en second. Comme la suite
+ * Zénith, elle part d'un contexte frais et entre dans la carte Astra du hub
+ * — voir `modules/objectifs/e2e/suite.mjs` pour le même motif, conséquence
+ * du deuxième module désormais enregistré.
  */
 
 async function enterAstra(p, base) {
@@ -35,9 +37,15 @@ export async function run({ browser, check, BASE }) {
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
   await enterAstra(page, BASE);
-  check('Écran vide affiché à la première visite', await page.locator('.empty h3').isVisible());
+  check(
+    'Astra s’ouvre sur l’onglet Aperçu, pas Catégories',
+    (await page.locator('.budget-tab', { hasText: 'Aperçu' }).getAttribute('class'))?.includes('active') ?? false,
+  );
+  check('Écran vide affiché à la première visite (aucune écriture ce mois-ci)', await page.locator('.empty h3').isVisible());
 
   // --- Création manuelle -------------------------------------------------
+  await page.getByRole('button', { name: 'Catégories' }).click();
+  check("L'onglet Catégories affiche aussi son écran vide", await page.locator('.empty h3').isVisible());
   await page.getByRole('button', { name: 'Créer ma première catégorie' }).click();
   check("L'éditeur s'ouvre", await page.locator('.budget-category-editor').isVisible());
 
@@ -73,7 +81,10 @@ export async function run({ browser, check, BASE }) {
   );
 
   // --- Persistance ---------------------------------------------------------
+  // Le rechargement retombe sur l'onglet Aperçu (l'onglet par défaut) : il
+  // faut recliquer sur Catégories pour retrouver la catégorie créée.
   await reloadAstra(page);
+  await page.getByRole('button', { name: 'Catégories' }).click();
   check('La catégorie survit au rechargement', (await page.locator('.budget-row').count()) === 1);
 
   // --- Suppression -----------------------------------------------------------
@@ -97,8 +108,8 @@ export async function run({ browser, check, BASE }) {
   check('Une vingtaine de catégories de départ chargées', rowCount >= 15, String(rowCount));
 
   // --- Opérations, sous le camembert du mois (étapes 3 et 4) ---------------
-  await page.getByRole('button', { name: 'Mois' }).click();
-  check("L'onglet Mois affiche l'écran vide", await page.locator('.empty h3').isVisible());
+  await page.getByRole('button', { name: 'Aperçu' }).click();
+  check("L'onglet Aperçu affiche l'écran vide", await page.locator('.empty h3').isVisible());
 
   await page.getByRole('button', { name: 'Ajouter une écriture' }).click();
   check("L'éditeur d'écriture s'ouvre", await page.locator('.budget-entry-editor').isVisible());
@@ -187,6 +198,18 @@ export async function run({ browser, check, BASE }) {
     'Cliquer la part « À classer » filtre la liste sur les deux écritures non catégorisées',
     (await page.locator('.budget-entry-row').count()) === 2,
   );
+  // Le contour de sélection est un <path> à part, redessiné par-dessus les
+  // parts (voir PieChart.tsx) : il doit exister et être le dernier enfant
+  // du SVG, sans quoi une part voisine dessinée après lui reviendrait
+  // masquer un de ses côtés.
+  check(
+    'Le contour de sélection du camembert est redessiné au-dessus des parts',
+    await page.evaluate(() => {
+      const svg = document.querySelector('.budget-pie');
+      const outline = svg?.querySelector('.budget-pie-slice-outline');
+      return !!outline && svg.lastElementChild === outline;
+    }),
+  );
   check(
     'Le filtre exclut bien Courses de la semaine',
     (await page.locator('.budget-entry-row', { hasText: 'Courses de la semaine' }).count()) === 0,
@@ -227,8 +250,13 @@ export async function run({ browser, check, BASE }) {
   check('Deux écritures après nettoyage du test du camembert', (await page.locator('.budget-entry-row').count()) === 2);
 
   // --- Persistance -----------------------------------------------------------
+  // Un rechargement retombe sur l'onglet Aperçu (l'onglet par défaut) : rien
+  // à cliquer pour l'atteindre, contrairement à l'étape 3.
   await reloadAstra(page);
-  await page.getByRole('button', { name: 'Mois' }).click();
+  check(
+    'Le rechargement retombe directement sur Aperçu',
+    (await page.locator('.budget-tab', { hasText: 'Aperçu' }).getAttribute('class'))?.includes('active') ?? false,
+  );
   check('Les écritures survivent au rechargement', (await page.locator('.budget-entry-row').count()) === 2);
 
   // --- Suppression -----------------------------------------------------------

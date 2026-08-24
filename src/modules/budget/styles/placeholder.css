@@ -271,9 +271,13 @@
   stroke-width: 1.5;
 }
 
-.budget-pie-slice.selected {
+/* Contour de la part sélectionnée, redessiné par-dessus toutes les autres
+   (voir PieChart.tsx) — sinon une voisine peint sur le côté qu'elle
+   partage avec la part sélectionnée, et le contour blanc y disparaît. */
+.budget-pie-slice-outline {
   stroke: var(--text);
   stroke-width: 2.5;
+  stroke-linejoin: round;
 }
 
 .budget-pie-empty {

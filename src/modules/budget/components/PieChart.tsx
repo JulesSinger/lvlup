@@ -50,6 +50,15 @@ export function PieChart({ slices, totalCents, selectedCategoryId, onSelect }: P
     return { slice, d };
   });
 
+  // La part sélectionnée est redessinée par-dessus toutes les autres, en
+  // contour seul (`fill="none"`). Sans ça, chaque part dessine SA propre
+  // bordure sur les côtés qu'elle partage avec ses voisines ; celle
+  // dessinée en dernier gagne visuellement sur ce côté commun, et le
+  // contour blanc de la part sélectionnée disparaît juste là où une
+  // voisine est venue peindre par-dessus après elle. La redessiner en
+  // dernier, elle, garantit qu'elle est toujours au-dessus des deux.
+  const selectedArc = selectedCategoryId !== undefined ? arcs.find((a) => a.slice.categoryId === selectedCategoryId) : undefined;
+
   return (
     <div className="budget-pie-wrap">
       <svg
@@ -65,10 +74,13 @@ export function PieChart({ slices, totalCents, selectedCategoryId, onSelect }: P
             key={slice.categoryId ?? '__uncategorized__'}
             d={d}
             fill={slice.color}
-            className={`budget-pie-slice${selectedCategoryId === slice.categoryId ? ' selected' : ''}`}
+            className="budget-pie-slice"
             onClick={() => onSelect(slice.categoryId)}
           />
         ))}
+        {selectedArc && (
+          <path d={selectedArc.d} className="budget-pie-slice-outline" fill="none" pointerEvents="none" />
+        )}
       </svg>
       <ul className="budget-pie-legend">
         {slices.map((slice) => (
