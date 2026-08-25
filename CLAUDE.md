@@ -18,7 +18,7 @@ ses données et sa logique.
 | Module | Nom affiché | Domaine | État |
 |---|---|---|---|
 | `objectifs` | **Zénith** | suivi d'objectifs par paliers, rangs Fer → Challenger | en production |
-| `budget` | **Astra** | dépenses, catégories, comparaison mensuelle | V1 (5/5) livrée ; chantier enveloppes d'épargne terminé (3/3, voir `docs/etude-astra-epargne.md` §8) |
+| `budget` | **Astra** | dépenses, catégories, comparaison mensuelle | à construire |
 | — | — | sport, et d'autres plus tard | envisagé |
 
 Les noms affichés forment une famille céleste — Atlas porte la voûte, Zénith en est le point
@@ -49,7 +49,7 @@ Toute décision technique se prend sous cette contrainte, dans cet ordre :
 | Base, comptes, droits | Supabase (Postgres + Auth + Row Level Security) |
 | Notifications | Web Push (VAPID) via Supabase Edge Function |
 | Tests unitaires | Vitest, fichiers `*.test.ts` **à côté** du fichier testé |
-| Tests bout en bout | Playwright, via `e2e/run.mjs` (socle) + une suite par module (`src/modules/<id>/e2e/suite.mjs`) |
+| Tests bout en bout | Playwright, via `e2e-check.mjs` à la racine |
 | Lint | oxlint |
 | Hébergement | Cloudflare Pages |
 
@@ -74,16 +74,17 @@ cette étape produit un `net::ERR_CONNECTION_REFUSED` qui ressemble à un bug de
 
 ```bash
 npm run build && npm run preview &            # sert dist/ sur :4173
-npm run check                                 # 205 vérifications (socle + toutes les suites de module)
+npm run check                                 # ~208 vérifications
 
 npm run build:auth && npm run preview:auth &  # sert dist-auth/ sur :4174
-npm run check:auth                            # 217 : exige les DEUX serveurs
+npm run check:auth                            # 220 : exige les DEUX serveurs
 ```
 
 `check:auth` rejoue tout `check` puis ajoute le parcours avec comptes. C'est lui qui couvre le
 chemin Supabase — à lancer dès qu'on touche à un store.
 
-**Un échec est attendu le dimanche** : voir le journal, §8.
+Tout doit passer, tous les jours de la semaine — l'échec du dimanche est corrigé
+(journal, §8).
 
 ---
 
@@ -91,38 +92,24 @@ chemin Supabase — à lancer dès qu'on touche à un store.
 
 ### État actuel
 
-**Étapes 1 à 5 du plan faites, et les étapes A et B de `docs/chantier-coquille-et-e2e.md` aussi.**
-`src/data/` n'existe plus, le registre de modules existe, la sauvegarde est versionnée par
-module, et **`App.tsx` est devenu la coquille du hub** : authentification, choix du module,
-panneau de réglages, export/import de sauvegarde. Tout l'écran de Zénith (hub interne, objectifs,
-historique, trophées, célébrations) vit maintenant dans
-`modules/objectifs/ZenithScreen.tsx`. Les vérifications de bout en bout sont découpées à
-l'identique : `e2e/run.mjs` (lanceur + socle : PWA, service worker, écran d'authentification) et
-`src/modules/objectifs/e2e/suite.mjs` (tout Zénith). **Le socle est prêt à recevoir Astra.**
+**Étapes 1 à 5 du plan faites.** `src/data/` n'existe plus, le registre de modules existe, et
+la sauvegarde est versionnée par module. **Le socle est prêt à recevoir Astra.**
 
-Deux décisions ont été prises avec Jules pour cette extraction (voir le journal) : l'écran
-d'accueil du hub liste les modules en cartes (`ModulePicker`, plutôt qu'une barre d'onglets
-permanente), et les réglages restent une fenêtre commune, mais chaque module y ajoute sa propre
-section via `AtlasModule.SettingsSection` (Zénith y a mis « Objectif du jour » et le rappel).
-
-Les deux étapes du chantier `docs/chantier-coquille-et-e2e.md` sont faites.
+Reste un chantier de l'étape 4 qui n'a pas été fait : `App.tsx` porte encore tout l'écran du
+module objectifs et devrait se réduire à une coquille (authentification + navigation entre
+modules). Ce n'est pas bloquant pour créer Astra, mais ce sera le prochain point de collision
+entre conversations dès qu'il y aura deux modules à afficher.
 
 ```
-e2e/
-  run.mjs             lanceur : navigateur, check(), découverte des suites de module
-  core.mjs            suite du socle : PWA, service worker, écran d'authentification
 src/
-  App.tsx            coquille du hub : authentification, choix du module, réglages,
-                     export/import. Un seul import de module (`Landing`, écran
-                     public — voir §4, renommage reporté). Ne connaît aucun domaine.
+  App.tsx            ~40 Ko — coquille, célébrations, trophées, et encore tout
+                     l'écran du module objectifs (à extraire — voir ci-dessus)
   main.tsx
-  styles.css         58 lignes — uniquement des @import, plus aucune règle
+  styles.css         56 lignes — uniquement des @import, plus aucune règle
   modules/index.ts   ⭐ le registre : la liste des modules actifs
   core/
-    components/      AuthScreen, PasswordRecovery, ReminderSettings, SettingsPanel,
-                     ModulePicker (écran d'accueil du hub)
-    lib/module.ts    ⭐ ce qu'un module déclare au hub (id, label, data, Screen,
-                     SettingsSection…)
+    components/      AuthScreen, PasswordRecovery, ReminderSettings, SettingsPanel
+    lib/module.ts    ⭐ ce qu'un module déclare au hub (id, label, data…)
     data/
       backup.ts         sauvegarde versionnée, pilotée par le registre
       coreStore.ts      contrat du socle : comptes, réglages, notifications
@@ -132,16 +119,10 @@ src/
       supabaseClient.ts client unique + helpers partagés
       index.ts          bascule locale/Supabase ; seul lecteur des variables d'env
     lib/             types (AppUser), push, sound, confetti, onboarding
-    styles/          12 fichiers — socle commun (+ hub.css : écran d'accueil du hub)
+    styles/          11 fichiers — socle commun
   modules/objectifs/
-    module.ts             ⭐ sa déclaration : id `objectifs`, label « Zénith »,
-                          Screen, SettingsSection
-    ZenithScreen.tsx      ⭐ tout l'écran du module — hub interne, objectifs,
-                          historique, trophées, célébrations, file hors-ligne
-    ZenithSettingsSection.tsx  sa section dans le panneau de réglages
-    e2e/suite.mjs     ⭐ sa suite de bout en bout — grille, échelle, cérémonies,
-                      comptage, quotidien, historique, rendu mobile (198 vérifications)
-    components/      17 composants — Hub, GoalCard, Heatmap, Ceremony, Landing…
+    module.ts        ⭐ sa déclaration : id `objectifs`, label « Zénith »
+    components/      18 composants — Hub, GoalCard, Heatmap, Ceremony, Landing…
     data/
       goalsStore.ts     contrat du module + GoalsBackup
       localGoals.ts, supabaseGoals.ts, index.ts
@@ -166,29 +147,6 @@ docs/                études, maquettes, notes de sprint
 
 Aucun fichier du socle n'est modifié en chemin. Si tu te retrouves à en éditer un, c'est le
 signe qu'une pièce appartient au socle et devrait y être remontée.
-
-### Le garde-fou : `src/modules/conventions.test.ts`
-
-Ces règles ne sont pas seulement écrites ici, elles sont **vérifiées à chaque `npm run test`**.
-Une convention qu'aucun test ne contrôle ne survit pas à trois agents : elle est lue, comprise
-à moitié, puis contournée par commodité.
-
-Le test parcourt `src/modules/*` et exige de chacun : un `module.ts` dont l'`id` égale le nom
-du dossier, une inscription au registre, un contrat de stockage avec ses **deux**
-implémentations, un dossier `styles/` importé depuis `styles.css`, au moins un test unitaire,
-une suite de bout en bout, des classes CSS préfixées, et **aucun import venant d'un autre
-module**. Il vérifie aussi que le socle n'importe jamais depuis un module et que `styles.css`
-ne contient que des `@import`.
-
-**Ce fichier est la version exécutable du présent document.** Quand une règle change, elle
-change aux deux endroits — sinon l'un des deux ment.
-
-Deux mécanismes y rendent la dette visible plutôt que tacite :
-
-- les listes `LEGACY` nomment les modules antérieurs à une règle. **Un nouveau module n'y
-  entre jamais** : elles ne peuvent que se vider ;
-- `PLAFOND_IMPORTS_MODULE_DANS_APP` empêche `App.tsx` de se coupler davantage aux modules
-  qu'aujourd'hui. On peut l'abaisser en extrayant du code, jamais l'augmenter. Objectif : 0.
 
 ### Ce qui reste à faire
 
@@ -251,11 +209,11 @@ silencieusement les données existantes :
 
 | Clé | Fichier | Ce qu'on perdrait |
 |---|---|---|
-| `zenith.outbox.v1` | `data/outbox.ts` | **les coches en attente d'envoi** — le bug impardonnable |
-| `palier.v1` | `data/localStore.ts` | toutes les données du mode local |
-| `zenith.onboarded*` | `lib/onboarding.ts` | l'onboarding se rejoue à chaque ouverture |
-| `zenith.catchup.ignores` | `lib/catchup.ts` | les rattrapages déjà écartés reviennent |
-| `zenith.muted` | `lib/sound.ts` | le réglage du son |
+| `zenith.outbox.v1` | `modules/objectifs/data/outbox.ts` | **les coches en attente d'envoi** — le bug impardonnable |
+| `palier.v1` | `core/data/localSnapshot.ts` | toutes les données du mode local |
+| `zenith.onboarded*` | `core/lib/onboarding.ts` | l'onboarding se rejoue à chaque ouverture |
+| `zenith.catchup.ignores` | `modules/objectifs/lib/catchup.ts` | les rattrapages déjà écartés reviennent |
+| `zenith.muted` | `core/lib/sound.ts` | le réglage du son |
 | `zenith-v2` (cache) | `public/sw.js` | rien de grave, mais aucun gain |
 
 `palier.v1` porte d'ailleurs encore le nom du tout premier prototype : la preuve qu'une clé de
@@ -271,7 +229,7 @@ libellé.** Les tags de notification (`zenith-rappel`) et le titre poussé par
 
 Le code est en anglais (identifiants, types, noms de fichiers). **Les commentaires, la
 documentation et l'interface sont en français.** Les commentaires expliquent *pourquoi*, pas
-*quoi* — le style existant dans `src/lib/types.ts` est la référence : quand une décision est
+*quoi* — le style existant dans `src/modules/objectifs/lib/types.ts` est la référence : quand une décision est
 contre-intuitive, elle est justifiée en toutes lettres.
 
 ### Base de données
@@ -303,7 +261,7 @@ Une contrainte `CHECK` en base qui énumère des valeurs doit avoir son pendant 
 déclaré **en tableau `as const`**, et un test qui compare les deux. Ce n'est pas de la
 paranoïa : la divergence s'est déjà produite (`compte` présent côté TS, absent du CHECK), le
 code compilait, les tests passaient, et toute création d'objectif concernée était refusée par
-Postgres. Voir `TIER_KINDS` dans `src/lib/types.ts` et `src/lib/schema.test.ts`.
+Postgres. Voir `TIER_KINDS` dans `src/modules/objectifs/lib/types.ts` et `src/modules/objectifs/lib/schema.test.ts`.
 
 ### Style
 
@@ -402,38 +360,14 @@ Une session lancée « sur votre ordinateur » n'a aucun de ces trois problèmes
 
 Le plus récent en haut. Une ligne par décision, avec sa raison.
 
-| 2026-08-25 | Astra prend plus de largeur sur grand écran (`.budget-main`, 1440px contre 1080px pour `.main` du socle) : le camembert et sa légende laissaient toute la largeur gagnée en vide (retour de Jules après le premier passage à deux colonnes) | Classe ajoutée par-dessus `.main` plutôt qu'un changement du socle — importée après lui dans `styles.css`, elle l'emporte à spécificité égale sans toucher `core/styles/base.css` ; Zénith garde sa largeur de lecture inchangée. La légende du camembert (`.budget-pie-legend`) passe de largeur minimale à `flex: 1` pour occuper l'espace gagné. Aucun test ne couvre une largeur d'écran précise (les vérifications de largeur existantes ciblent le mobile) — vérifié à l'œil via une capture d'écran à 1800px. `370/370` unit, `276/276` local, `288/288` en mode comptes, tous inchangés (CSS pur) |
-| 2026-08-25 | Trois retouches à l'onglet Aperçu suite aux remarques de Jules après la V1 : (1) un deuxième camembert « Entrées » à côté de celui des dépenses, plus trois chiffres côte à côte (Dépensé, Entré, Solde) — `computeMonthlyBreakdown` gagne `incomeSlices`/`totalIncomeCents`, même construction symétrique que les dépenses ; (2) les deux camemberts sont côte à côte sur écran large plutôt qu'un seul centré, pour ne plus laisser la moitié de l'écran vide ; (3) ordre des onglets : Épargne en deuxième position, Catégories en dernier | `PieChart` gagne un `variant` (`'expense'`/`'income'`) pour afficher le bon signe sans dupliquer le composant. Le solde utilise ses propres classes CSS (`.budget-month-stat-net.positive/.negative`) plutôt que réutiliser celles de Dépensé/Entré (`.expense`/`.income`), qui marquent une nature fixe alors que le solde change de couleur selon son signe. `366/366` unit → `370/370` (+4 : entrées, remboursement au-delà de la dépense, transfert/epargne exclus des deux camemberts), `273/273` local → `276/276` (+3), `285/285` en mode comptes → `288/288` (+3) |
-| 2026-08-25 | Courbe d'évolution du total mis de côté ajoutée à l'onglet Épargne (`SavingsChart`) — idée initialement écartée du chantier (§6), demandée par Jules une fois les trois étapes livrées. `lib/envelopes.ts` gagne `computeSavingsTimeline`, qui cumule les écritures `epargne` jour par jour | Construction propre à Astra plutôt que réutilisée depuis `objectifs/components/PPChart.tsx` (même forme de courbe) : un module n'importe jamais depuis un autre. Le cadre du graphique suit un total qui peut devenir négatif (plus retiré que mis de côté), sans qu'aucun calcul existant n'ait besoin de changer. `361/361` unit → `366/366` (+5), `271/271` local → `273/273` (+2), `283/283` en mode comptes → `285/285` (+2) |
-| 2026-08-25 | Chantier enveloppes d'épargne, étape 3 (dernière) livrée : bouton « Historique » par enveloppe (`EnvelopeHistory`) — la liste de ses mouvements, le plus récent en premier, avec suppression individuelle | Solde et non-affecté se recalculent automatiquement après une suppression, toujours pas stockés (§4.3). `361/361` unit (inchangé, pas de nouvelle logique de calcul), `271/271` local et `283/283` en mode comptes (+5 chacun) |
-| 2026-08-25 | Chantier enveloppes d'épargne, étape 2 livrée : nouvel onglet « Épargne » (`EnvelopesScreen`) — total mis de côté, non-affecté (avec alerte si négatif), liste des enveloppes, création/édition (`EnvelopeEditor`), affectation/retrait de fonds (`EnvelopeMoveForm`). Calculs dans `lib/envelopes.ts` | Solde et non-affecté toujours recalculés, jamais stockés (§4.3). `GROUPS` de l'écran Catégories mis à jour pour afficher la nature `epargne` (sinon la catégorie de départ restait invisible). `361/361` unit (+10 `envelopes.test.ts`), `266/266` local et `278/278` en mode comptes (+10 vérifications Épargne chacun, plus l'ajustement du test « groupes de catégories » passé de 4 à 5) |
-| 2026-08-25 | Chantier enveloppes d'épargne, étape 1 livrée : nouvelle nature de catégorie `epargne` (distincte de `transfert` — exclue du camembert comme lui, mais alimente en plus le total mis de côté), tables `budget_envelopes` et `budget_envelope_moves` (migration `2026-08-25-budget-envelopes.sql`), contrat `BudgetStore` étendu (`listEnvelopes`/`createEnvelope`/`updateEnvelope`/`deleteEnvelope`, `listEnvelopeMoves`/`createEnvelopeMove`/`deleteEnvelopeMove`) et ses deux implémentations, catégorie de départ `Épargne` reclassée en `epargne`. Aucun écran encore — conception complète dans `docs/etude-astra-epargne.md`, sept questions tranchées avec Jules le 25/08/2026 | Le solde d'une enveloppe n'est **jamais stocké**, seulement recalculé en sommant `budget_envelope_moves` — même principe que le total du mois, jamais mis en cache, qui ne peut donc pas diverger. Le non-affecté (total épargné moins la somme de tous les mouvements) n'a pas de colonne non plus : l'invariant « la somme des enveloppes égale le total » tient par construction, jamais par une contrainte à vérifier. Supprimer une enveloppe (`on delete cascade` sur `envelope_id`) renvoie mécaniquement ses fonds au non-affecté, sans mouvement compensatoire à écrire — décision §7 Q5 de l'étude. Aucun lien entre `budget_envelope_moves` et `budget_entries` : lier une dépense à une enveloppe (le cas de la vidange) reste un geste manuel à deux temps (une dépense normale + un retrait d'enveloppe avec une note), justement pour ne jamais exiger un vrai virement bancaire à chaque fois — voir §6 bis de l'étude, qui répond à l'objection soulevée par Jules sur la cohérence avec son compte réel. Retirer de l'argent de l'épargne ne demande aucune fonctionnalité de plus : une écriture positive catégorisée `epargne` fait mécaniquement baisser le total, symétrique à un dépôt (signe déjà porté par `amountCents` partout dans Astra). `schema.test.ts` du module bascule sur le même mécanisme « dernière définition de contrainte fait foi » que `modules/objectifs/lib/schema.test.ts`, Astra ayant désormais deux migrations. `343/343` tests unitaires → `351/351` (+8 : enveloppes et mouvements dans `localBudget.test.ts`, exclusion `epargne` du camembert, hygiène de migration), `255/255` local et `267/267` en mode comptes inchangés (aucun écran nouveau à vérifier à ce stade) |
-| 2026-08-24 | Bug rapporté par l'utilisateur, touchant Astra **et** Zénith indifféremment : l'app ramenait parfois toute seule à l'écran de choix des modules. Cause, dans `App.tsx` (socle) : l'effet qui remet à zéro l'écran affiché dépendait de l'objet `user` entier plutôt que de son identifiant. En mode Supabase, `onUserChange` (`supabaseCore.ts`) rappelle son callback à chaque événement `onAuthStateChange` — y compris un `TOKEN_REFRESHED` sans rapport avec un changement de compte, que Supabase déclenche entre autres à la reprise de focus d'un onglet ou de l'app — et reconstruit à chaque fois un nouvel objet `AppUser`, distinct par référence même à contenu identique. React rejouait donc cet effet à chaque retour sur l'app, qui remettait `moduleId` à `null`. Corrigé en ne dépendant que de `user?.id` | **Exception documentée** : `App.tsx` est un fichier du socle, hors limites pour ce chantier — corrigé ici comme les deux précédentes fois (`core/styles/mobile.css`, `core/styles/hub.css`) parce qu'il s'agit d'un bug concret signalé, avec un correctif strictement ciblé (une dépendance de `useEffect`, aucun comportement changé en dehors du cas de ré-émission). Le bug touchait les deux modules par construction : `moduleId` est un état du hub, pas d'un module, et aucun des deux n'avait de moyen de s'en prémunir depuis son propre code. `343/343` tests unitaires, `255/255` local, `267/267` en mode comptes, tous inchangés (correctif de dépendance React, sans nouveau comportement observable dans une session e2e courte et sans jeton à rafraîchir) |
-| 2026-08-24 | Bug rapporté après coup sur étape 5 : changer d'onglet pendant ou après un import réinitialisait tout (aperçu en cours, catégories déjà choisies, case « créer une règle », confirmation finale). Cause : `ImportScreen` était démonté à chaque changement d'onglet (rendu conditionnel dans `BudgetScreen.tsx`), perdant son état local — contrairement à Catégories, qui n'est pas un composant à part et garde son état dans `BudgetScreen` lui-même. Corrigé en gardant `ImportScreen` toujours monté, simplement masqué (`hidden`) en dehors de l'onglet Importer, plutôt que retiré du DOM | Aperçu et Catégories, eux, se remontent volontairement à chaque visite (Aperçu recharge les écritures pour refléter un import tout juste validé, voir `MonthScreen.tsx`) : seul Import porte un travail en cours qui n'a de source de vérité nulle part ailleurs tant que « Valider » n'a pas été cliqué — c'est spécifiquement ce cas qui devait survivre à un changement d'onglet, pas les deux autres écrans. `343/343` tests unitaires (inchangé, correctif de montage React sans nouvelle logique testable unitairement), `253/253` local → `255/255` (+2 : l'aperçu et le choix de catégorie survivent à un aller-retour d'onglet, la confirmation aussi), `265/265` en mode comptes → `267/267` (+2) |
-| 2026-08-24 | Étape 5 d'Astra livrée, **dernière étape du plan** (`docs/etude-astra.md` §7) : import du relevé BoursoBank en CSV (`lib/boursobankImport.ts`, `lib/csv.ts`), aperçu avant écriture (`ImportScreen.tsx`, nouvel onglet « Importer »), dédoublonnage par empreinte `(jour, libellé brut, montant, rang d'occurrence)` et catégorisation automatique amorcée par sept des onze `categoryParent` documentés (`docs/astra-import-boursobank.md` §3) | **Aucune migration SQL** : le schéma posé à l'étape 1 anticipait déjà l'index unique partiel `(user_id, import_key)` et la table `budget_rules`. **Catégorisation volontairement incomplète** : trois `categoryParent` documentés (« Auto & Moto », « Virements émis », « Virements reçus ») restent « à classer » plutôt que de deviner un nom de catégorie approché — deviner ferait courir exactement le risque que §3 met en garde contre, confondre un virement ordinaire avec un virement interne (qui, lui, doit être exclu du camembert). Un clic classe la ligne, et cocher « créer une règle » à ce moment-là suffit à ce que le mois suivant se range tout seul — une règle utilisateur l'emporte toujours sur l'amorce. **`label` vs `displayLabel`** : le nom affiché par BoursoBank (`suggestedLabel`) est stocké comme `label` de l'écriture, quand il existe ; le libellé brut, lui, ne sert qu'à l'empreinte de dédoublonnage et n'est jamais persisté à part — pas de colonne supplémentaire nécessaire. Le filet de sécurité final contre un doublon (l'unicité `(user_id, import_key)` côté base) reste couvert par un filtrage côté client avant écriture, pas par l'inspection du code d'erreur Postgres — `unwrap()` (`core/data/supabaseClient.ts`) ne préserve que le message, jamais le code structuré. `306/306` tests unitaires → `343/343` (+37 : `lib/csv.test.ts` 8, `lib/boursobankImport.test.ts` 22, 7 nouveaux cas dans `lib/amount.test.ts` pour `parseSignedAmountToCents`), `245/245` local → `253/253` (+8 : dépôt du fichier, compte des nouvelles/déjà-connues/à-classer, doublon volontaire du relevé compté deux fois, classement manuel + règle, réimport sans duplication), `257/257` en mode comptes → `265/265` (+8) |
-| 2026-08-24 | Quatre correctifs Astra rapportés par l'utilisateur après coup sur étape 4 : (1) l'adresse e-mail est masquée sur téléphone dans l'en-tête du hub (`core/styles/mobile.css`) plutôt que simplement autorisée à passer à la ligne — l'en-tête tenait sur deux lignes, ce qui restait moche ; (2) cause racine du (petit) débordement horizontal restant, y compris dans l'onglet Catégories : `.main` (socle, `core/styles/mobile.css`) ne portait pas de `width: 100%` sur mobile — un item flex seul dans un conteneur flex en colonne peut, dans certains cas, se calculer plus large que son parent sans cette valeur explicite ; reproduit avec Playwright (393px de large mesurés pour un `.main` dans un viewport à 375px) puis corrigé ; (3) les onglets d'Astra sont réordonnés — « Aperçu » (l'ancien « Mois », renommé — il dit maintenant ce qu'il fait plutôt que ce qu'il montre) passe en premier et devient l'onglet par défaut, « Catégories » en second ; (4) sur le camembert, le contour blanc de sélection disparaissait parfois sur un des côtés d'une part — chaque `<path>` de part dessinait sa propre bordure sur les côtés partagés avec ses voisines, et celle dessinée en dernier dans le DOM l'emportait visuellement ; corrigé en redessinant la part sélectionnée par-dessus toutes les autres, en contour seul (`PieChart.tsx`) | Les points (1) et (2) touchent `core/styles/mobile.css`, un fichier du socle — même exception que la veille : bug concret signalé, correctif strictement ciblé. Le point (3) change le comportement de persistance de session : après un rechargement, Astra retombe désormais sur Aperçu et non plus sur la dernière catégorie éditée, ce qui a demandé d'ajuster la suite e2e (recliquer sur Catégories après un rechargement pour vérifier la persistance des catégories). `306/306` tests unitaires (inchangé, correctifs CSS/UI sans nouvelle logique testable unitairement), `245/245` local (+4 : onglet par défaut, écran vide de Catégories, persistance de l'onglet après rechargement, contour de sélection redessiné en dernier), `257/257` en mode comptes (+4) |
-| 2026-08-24 | Correction du défilement horizontal sur téléphone à deux endroits : la liste des opérations d'Astra (`budget/styles/placeholder.css`) et l'écran d'accueil du hub (`core/styles/hub.css`) | Rapporté par l'utilisateur. Dans Astra, une ligne d'écriture porte cinq colonnes à largeurs fixes (jour, pastille, libellé, montant, actions) dont la somme dépasse la largeur d'un téléphone étroit ; le jour et les actions repassent sur leur propre ligne en dessous de 520px plutôt que d'être comprimés. Sur l'écran d'accueil, une adresse e-mail longue et sans espace dans `.hub-picker-actions` ne rétrécissait ni ne passait à la ligne, poussant tout l'écran au-delà du viewport ; `flex-wrap` et `overflow-wrap: anywhere` corrigent ça sans rien changer d'autre. **Exception documentée** : `core/styles/hub.css` est un fichier du socle, normalement hors limites pour ce chantier — corrigé ici parce qu'il s'agit d'un bug concret signalé, avec un correctif CSS strictement additif (aucune classe renommée, aucun comportement changé en dehors du cas de débordement). Vérifié à la main avec Playwright à 320px et 375px de large (le défilement horizontal mesurable disparaît : `scrollWidth` ≈ `clientWidth`) faute de pouvoir reproduire une vraie session Supabase connectée dans cette session cloud ; `306/306` tests unitaires, `241/241` local, `253/253` en mode comptes, tous inchangés (correctif CSS pur) |
-
 | Date | Décision | Pourquoi |
 |---|---|---|
-| 2026-08-23 | Étape 4 d'Astra livrée, « la V1 est atteinte » : l'onglet « Opérations » de l'étape 3 devient l'onglet « Mois » (`MonthScreen`) — sélecteur de mois (`lib/month.ts`), total dépensé, camembert SVG dessiné à la main (`PieChart.tsx`, comme `objectifs/components/PPChart.tsx` pour sa courbe) et calculé par `lib/monthlyBreakdown.ts`, avec la liste des opérations (`EntriesView`, désormais alimentée par son parent plutôt que de charger elle-même) toujours sous le camembert (`docs/etude-astra.md` §5). Cliquer une part filtre la liste ; recliquer retire le filtre | Quatrième des cinq chantiers de `docs/etude-astra.md` §7. Deux règles du camembert sont explicites dans l'étude : les catégories `kind = transfert` en sont exclues (§2/§6), et une écriture dépensée sans catégorie doit y apparaître sous « À classer » plutôt que disparaître du total (§2). Une troisième règle est **une interprétation, pas une exigence du texte** : seuls les groupes au net **négatif** sur le mois deviennent une part. Ce choix exclut naturellement les catégories `revenu` (le salaire) et les catégories entièrement remboursées, sans écrire de cas particulier sur `kind` — le signe du net suffit, dans le droit fil du remboursement décrit en §6 (« la catégorie totalise alors 40 € de moins »). Il respecte aussi la garantie du §2 : une dépense non catégorisée ne disparaît jamais du total, seule une *entrée d'argent* isolée et non catégorisée (ex. un remboursement d'ami sans rien en face) peut ne pas faire de part, ce qui est cohérent puisqu'elle n'est justement pas une dépense. Le camembert agrège par catégorie, donc par « pas de catégorie » pour « à classer » : une dépense et une entrée non catégorisées se nettent ensemble, pas séparément — le test e2e le vérifie explicitement (30 € de dépense + 20 € de remboursement = 10 € de part « à classer »). Onglet par défaut resté « Catégories », pas « Mois » : à la toute première visite, sans aucune catégorie, c'est encore l'écran de création qui doit apparaître en premier — le camembert n'aurait rien à montrer avant. Aucune migration SQL pour cette étape : le camembert est un calcul côté client sur les tables existantes. `288/288` unit → `306/306` (+18 : `lib/month.test.ts` et `lib/monthlyBreakdown.test.ts`), `241/241` local (+12), `253/253` en mode comptes (+12) |
-| 2026-08-23 | Étape 3 d'Astra livrée : saisie manuelle (`EntryEditor`) et liste des opérations (`EntriesView`), sous un nouvel onglet « Opérations » à côté de « Catégories » (`BudgetScreen`) ; montant lu en euros positifs + bascule Dépense/Entrée plutôt que de faire taper un signe, converti sans flottant (`lib/amount.ts`) | Troisième des cinq chantiers de `docs/etude-astra.md` §7 : « le module devient utilisable seul ». Le signe porte le sens d'un remboursement (une entrée positive dans une catégorie de dépense) sans champ `type` séparé — voir `docs/etude-astra.md` §2 et §6. Une écriture sans catégorie reste visible sous « à classer », jamais masquée |
-| 2026-08-23 | Étape 2 d'Astra livrée : écran des catégories (`BudgetScreen` + `CategoryEditor`) — création, édition (nom, emoji, couleur, nature), suppression, et un bouton « Charger les catégories de départ » qui pose les 21 catégories de `docs/etude-astra.md` §3 (`lib/starterCategories.ts`) | Deuxième des cinq chantiers de `docs/etude-astra.md` §7 : « on peut ranger ». Supprimer une catégorie ne supprime jamais les écritures qui pointaient dessus : elles redeviennent « à classer » (`categoryId: null`), comme le prévoit `LocalBudget.deleteCategory`/`SupabaseBudget.importData` depuis l'étape 1 — sans ça une catégorie supprimée par erreur emporterait son historique |
-| 2026-08-23 | La suite e2e de Zénith (`modules/objectifs/e2e/suite.mjs`) passe désormais par la carte du hub avant de continuer (`gotoZenith`/`reloadZenith`, remplaçant tout `goto`/`reload` direct) | Conséquence directe de l'arrivée d'un deuxième module dans le registre : `ModulePicker` s'affiche maintenant pour de vrai sur toute page fraîchement chargée (le court-circuit à un seul module dans `App.tsx` ne s'applique plus). Sans cet ajustement, les 198 vérifications de Zénith échouaient toutes en timeout sur `.onboarding-card` — la suite d'un module ne doit rien connaître d'un autre, mais elle doit encaisser le comportement du hub commun. `205/205` puis `209/209` (+4 pour Astra étape 1), `217/217` puis `221/221` en mode comptes |
-| 2026-08-23 | Étape 1 d'Astra livrée : migration `supabase/2026-08-23-budget-tables.sql` (`budget_categories`, `budget_entries`, `budget_rules`, RLS complet), contrat `BudgetStore` + `LocalBudget` + `SupabaseBudget`, `module.ts` avec un écran signet (`BudgetScreen`), inscription au registre, `styles/placeholder.css`, et les tests requis par `conventions.test.ts` — dont celui qui compare les CHECK SQL (`budget_categories_kind_check`, `budget_entries_source_check`) aux tableaux `as const` de `lib/types.ts` | Premier des cinq chantiers de `docs/etude-astra.md` §7 : « le module existe, vide, et passe `conventions.test.ts` ». Montants stockés en centimes entiers signés (jamais en flottant), `category_id` nullable à dessein (« à classer », jamais masqué), et un index unique partiel sur `(user_id, import_key)` pour que réimporter un relevé ne duplique jamais une ligne — la conception complète est dans `docs/etude-astra.md` |
-| 2026-08-23 | Étape B du chantier de la coquille faite : `e2e-check.mjs` (1973 lignes) découpé en `e2e/run.mjs` (lanceur, découvre les suites de module par scan de `src/modules/*/e2e/suite.mjs`), `e2e/core.mjs` (socle : PWA, service worker, écran d'auth — 7 + 12 vérifications) et `src/modules/objectifs/e2e/suite.mjs` (Zénith — 198 vérifications) | Ordre imposé par le chantier : la coquille d'abord (étape A), les suites e2e ensuite. `205/205` puis `217/217` après découpage, identiques aux chiffres d'avant — extraction ligne à ligne vérifiée par sous-chaîne exacte, aucun contrôle perdu |
-| 2026-08-23 | La section « Réglages » de l'ancien fichier (ouverture du panneau, rythme quotidien, absence de rappel en local) rejoint la suite `objectifs`, pas `core.mjs` | Aujourd'hui, atteindre les réglages passe forcément par l'écran de Zénith — décision pragmatique, à revoir si un jour les réglages s'ouvrent aussi sans aucun module actif |
-| 2026-08-23 | `LEGACY.sansSuiteE2E` supprimé de `conventions.test.ts` (la liste s'est vidée) ; `LEGACY.sansPrefixeCSS` reste, lui, non vide | Le chantier le demandait explicitement : « si la liste se vide, supprimer la liste » — mais seule celle-là s'est vidée, l'autre dette (préfixe CSS) n'est pas concernée par l'étape B |
-| 2026-08-23 | « Changer de module » ajouté dans le panneau de réglages (`SettingsPanel`), câblé directement depuis `App.tsx` | Le bouton « ▲ Modules » du pied de la barre latérale (`ZenithScreen`) est invisible sur téléphone — `mobile.css` cache tout `.sidebar-foot` pour laisser la place à la barre du bas. Le panneau de réglages, lui, reste joignable partout via `.topbar-settings`, jamais caché par cette règle |
-| 2026-08-09 | Étape A du chantier de la coquille faite : `App.tsx` réduit à authentification + choix du module + réglages + export/import ; tout l'écran de Zénith déplacé dans `modules/objectifs/ZenithScreen.tsx` | Deux agents travaillant chacun sur un module ne doivent plus se croiser sur `App.tsx` |
-| 2026-08-09 | Hub : écran d'accueil listant les modules en cartes (`ModulePicker`), pas une barre d'onglets permanente | Choix de Jules — plus clair pour un premier module qui grossit, une barre coûterait de la hauteur d'écran sur mobile |
-| 2026-08-09 | Avec un seul module enregistré, le hub y entre directement sans passer par l'écran de choix | Sinon toutes les vérifications de bout en bout (205 + 217) auraient dû cliquer une carte supplémentaire pour rien — l'écran de choix ne prend son sens qu'à partir de deux modules |
-| 2026-08-09 | Réglages : fenêtre commune (compte, données) + une section par module via `AtlasModule.SettingsSection` | Choix de Jules — « Objectif du jour » et le rappel n'ont de sens que pour Zénith, mais une fenêtre unique reste plus simple qu'un onglet par module tant qu'il n'y en a qu'un avec des réglages |
-| 2026-08-09 | `AtlasModule` gagne `Screen` (écran racine) et `SettingsSection` (optionnelle) ; `ModuleScreenProps` porte `user`, `settings`, `error`, `onError`, `onOpenSettings`, `onBackToHub`, `reloadToken` | Le hub doit pouvoir rendre l'écran d'un module et lui donner la main sur les réglages et l'erreur globale, sans connaître son contenu |
-| 2026-08-09 | `Landing` reste le seul import de module dans `App.tsx` (plafond abaissé de 22 à 1, pas à 0) | Écran public de marque, dont le renommage est déjà reporté par ailleurs (§4) ; le forcer dans le contrat `AtlasModule` maintenant aurait anticipé une décision qui n'est pas encore prise |
-| 2026-08-09 | Le md5 du CSS produit a changé (`57f11ca6…` → `fe2ec1c8…`) lors de l'étape A | Contrairement aux découpages précédents, cette étape ajoute du CSS neuf (écran d'accueil du hub, intitulé de section de réglages) — ce n'est pas un déplacement pur, donc pas une régression |
-| 2026-08-09 | Les conventions entre modules sont **vérifiées par un test**, pas seulement écrites | Trois agents sans mémoire partagée ne tiennent pas une règle qui ne casse rien quand on l'enfreint |
-| 2026-08-09 | La dette est **nommée** (listes `LEGACY`, plafond d'imports) plutôt que tacite | Une exemption visible se résorbe ; une exception silencieuse devient la norme |
+| 2026-08-09 | **Les rangs appartiennent aux barreaux de l'échelle, pas aux paliers** : un déplacement échange aussi les rangs | `reorderTiers` ne réécrivait que les positions : ajouter un palier à la fin puis le remonter donnait « bronze, argent, challenger, or ». L'échelle descendait, en silence, sur le seul chemin offert pour insérer une étape au milieu |
+| 2026-08-09 | Un palier **validé** ne se déplace plus, et rien ne se déplace à travers lui | Son rang est un trophée daté ; l'échange l'aurait réécrit. Refuser le geste vaut mieux que l'exécuter à moitié — la flèche est grisée et le dit |
+| 2026-08-09 | Le recalcul systématique de toute l'échelle est **écarté** | Il aurait écrasé les rangs choisis à la main, liberté documentée dans `ranks.ts`. Corriger un bug en en créant un autre, plus sournois |
+| 2026-08-09 | La réserve de gels ne survit **pas** à la rupture d'une série, et n'annonce jamais un gel déjà engagé | Le compteur était juste sauf dans la fenêtre où on le consulte ; et une réserve héritée amortissait en silence les premiers trous d'une habitude neuve — l'inverse de ce à quoi sert un gel |
+| 2026-08-09 | L'échec e2e du dimanche est corrigé : le jeu d'essai fait naître un objectif **dans** la fenêtre | La vérification s'appuyait sur les jours à venir de la semaine en cours — inexistants le dimanche. Elle testait donc autre chose que son intitulé six jours sur sept |
+| 2026-08-09 | Un élément absent doit faire tomber **une** ligne, jamais emporter la suite du fichier | `locator.evaluate()` sur un locator vide attend 30 s puis lève : le dimanche, tout ce qui suivait cette ligne — dont le parcours avec comptes — n'était pas vérifié du tout |
 | 2026-08-09 | Astra s'alimentera par **import du relevé CSV**, jamais par synchro bancaire | Les API DSP2 sont fermées aux particuliers (agrément + certificat eIDAS à 2 000–10 000 €/an) et les intermédiaires gratuits ont fermé. Voir `docs/etude-budget-solutions.md` |
 | 2026-08-09 | Le renommage des surfaces publiques (titre, manifeste, page d'accueil) est **reporté** | Tant qu'Atlas n'a qu'un module, afficher « Atlas » à la place de « Zénith » n'apprendrait rien à personne. À faire quand Astra rend le hub visible |
 | 2026-08-09 | Sauvegarde v5 : une section par module, sous son nom technique | Le format à plat promouvait les champs d'un seul module au rang de format d'échange |
@@ -443,7 +377,6 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 | 2026-08-09 | Le blob local `palier.v1` est lu et écrit **par section** | Le socle ne connaît que `settings` ; sans lecture-modification-écriture il écraserait les sections des modules |
 | 2026-08-09 | Un client Supabase unique, partagé (`core/data/supabaseClient.ts`) | Un `createClient` par module ferait diverger l'état d'authentification entre eux |
 | 2026-08-09 | La sauvegarde est assemblée dans `App.tsx`, pas dans un store | C'est le seul endroit qui connaît tous les modules — en attendant le registre de l'étape 4 |
-| 2026-08-09 | Un contrôle e2e (« Rien n'est dessiné avant la création de l'objectif ») échoue **tous les dimanches** | La grille finit le dimanche de la semaine en cours : ce jour-là il n'existe aucune case hors période. Antérieur au découpage, à corriger à part |
 | 2026-08-09 | `AppUser` remonte dans `core/lib/types.ts` | C'est un type du socle ; le laisser côté objectifs forçait un composant de `core/` à importer depuis un module |
 | 2026-08-09 | Le dossier d'un module porte son **nom technique** (`modules/objectifs/`), jamais sa marque | `modules/zenith/`, créé par erreur à l'étape 1, contredisait la règle qu'il venait d'illustrer |
 | 2026-08-09 | `styles.css` découpé par tranches contiguës, ordre des `@import` figé | Une découpe sémantique aurait réordonné la cascade ; ici la concaténation redonne l'original à l'octet près (md5 vérifié) |

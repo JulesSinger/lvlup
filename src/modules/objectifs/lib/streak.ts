@@ -8,7 +8,11 @@ import type { Checkin, Goal } from './types';
  * Les gels (règle « pardon avant punition », leçon du benchmark) :
  * - chaque tranche de 7 jours consécutifs rapporte 1 gel, stockables jusqu'à 3 ;
  * - un jour manqué consomme 1 gel au lieu de casser le streak ;
- * - un trou plus grand que la réserve de gels remet le streak à zéro.
+ * - un trou plus grand que la réserve de gels remet le streak à zéro, **et la
+ *   réserve avec lui** : un gel récompense une régularité installée, il n'a pas
+ *   à protéger un redémarrage ;
+ * - la réserve annoncée est toujours celle qui **restera** une fois les jours
+ *   déjà manqués couverts, jamais celle d'avant leur prise en compte.
  */
 
 export interface Streak {
@@ -84,6 +88,11 @@ export function computeStreak(
         } else {
           current = 0; // trou trop grand : le streak repart
           freezeCredits = 0;
+          // Et la réserve repart avec lui. Un gel est la récompense d'une
+          // régularité installée ; la garder après une rupture reviendrait à
+          // amortir en silence les premiers trous d'une habitude toute neuve,
+          // c'est-à-dire l'inverse de ce à quoi elle sert.
+          freezes = 0;
         }
       }
     }
@@ -108,9 +117,14 @@ export function computeStreak(
     // dernière action (aujourd'hui exclu) restent absorbables par les gels.
     const missed = sinceLast - 1; // jours pleins manqués avant aujourd'hui
     if (missed > freezes) {
-      return { current: 0, best, freezes, activeToday: false, atRisk: false };
+      // Série perdue : la réserve l'accompagne, comme au-dessus.
+      return { current: 0, best, freezes: 0, activeToday: false, atRisk: false };
     }
-    return { current, best, freezes, activeToday: false, atRisk: true };
+    // Les gels qui couvriront ces jours manqués sont déjà engagés : les
+    // annoncer comme disponibles trompe l'utilisateur au seul moment où il
+    // consulte ce chiffre — celui où il se demande s'il peut sauter un jour
+    // de plus. La réserve annoncée est donc celle qui restera.
+    return { current, best, freezes: freezes - missed, activeToday: false, atRisk: true };
   }
 
   return { current, best, freezes, activeToday: true, atRisk: false };

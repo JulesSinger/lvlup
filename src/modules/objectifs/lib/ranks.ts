@@ -107,3 +107,66 @@ export function suggestRanks(count: number): RankId[] {
     return RANKS[index].id;
   });
 }
+
+/**
+ * Déplacer un palier d'un cran, sans casser l'échelle.
+ *
+ * Le piège corrigé ici : `reorderTiers` ne réécrit que les positions, et le
+ * rang restait collé au palier. Ajouter « Courir 15 km » à la fin (challenger)
+ * puis le remonter d'un cran donnait
+ *     bronze | argent | challenger | or
+ * — une échelle qui **redescend** au dernier barreau, et un palier facile
+ * décoré du rang le plus prestigieux. Tout le produit repose sur cette montée.
+ *
+ * La règle retenue : **les rangs appartiennent aux barreaux, pas aux paliers.**
+ * Déplacer un palier déplace son contenu ; la suite des rangs, elle, ne bouge
+ * pas. C'est aussi ce qu'on veut en glissant une étape entre deux autres : elle
+ * prend le rang de la place qu'elle occupe.
+ *
+ * L'exception : **un palier déjà validé garde son rang**, parce que c'est un
+ * trophée gagné à une date donnée — le réécrire réécrirait l'historique, ce que
+ * le projet s'interdit partout ailleurs (les PP sont figés à l'enregistrement
+ * pour la même raison). Un échange qui toucherait un palier validé est donc
+ * refusé plutôt qu'exécuté à moitié : `movableTier` le dit à l'interface, qui
+ * grise la flèche.
+ */
+export interface LadderRung {
+  id: string;
+  rank: RankId;
+  completedAt: string | null;
+}
+
+/** Le déplacement est-il permis ? Refusé s'il toucherait un palier validé. */
+export function movableTier(tiers: LadderRung[], index: number, direction: -1 | 1): boolean {
+  const to = index + direction;
+  if (index < 0 || index >= tiers.length || to < 0 || to >= tiers.length) return false;
+  return tiers[index].completedAt === null && tiers[to].completedAt === null;
+}
+
+/**
+ * Le nouvel ordre et les rangs à réécrire, ou `null` si le déplacement est
+ * refusé. Les deux paliers échangent leur place *et* leur rang, ce qui revient
+ * à laisser les rangs sur place.
+ */
+export function ladderMove(
+  tiers: LadderRung[],
+  tierId: string,
+  direction: -1 | 1,
+): { orderedIds: string[]; rankChanges: { id: string; rank: RankId }[] } | null {
+  const from = tiers.findIndex((t) => t.id === tierId);
+  if (!movableTier(tiers, from, direction)) return null;
+  const to = from + direction;
+
+  const orderedIds = tiers.map((t) => t.id);
+  [orderedIds[from], orderedIds[to]] = [orderedIds[to], orderedIds[from]];
+
+  const rankChanges =
+    tiers[from].rank === tiers[to].rank
+      ? [] // même rang des deux côtés : rien à réécrire
+      : [
+          { id: tiers[from].id, rank: tiers[to].rank },
+          { id: tiers[to].id, rank: tiers[from].rank },
+        ];
+
+  return { orderedIds, rankChanges };
+}

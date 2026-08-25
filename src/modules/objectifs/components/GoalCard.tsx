@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { formatAmount, tierProgress } from '../lib/counters';
 import { goalState } from '../lib/heatmap';
 import { formatDate, goalProgress } from '../lib/progress';
-import { getRank, suggestRanks, type RankId } from '../lib/ranks';
+import { getRank, movableTier, suggestRanks, type RankId } from '../lib/ranks';
 import type { Action, Checkin, Goal, Tier, TierInput } from '../lib/types';
 import { Heatmap } from './Heatmap';
 import { MeasureChart } from './MeasureChart';
@@ -214,8 +214,8 @@ function Ladder({
           key={tier.id}
           tier={tier}
           isNext={tier.id === nextTierId}
-          isFirst={index === 0}
-          isLast={index === goal.tiers.length - 1}
+          canMoveUp={movableTier(goal.tiers, index, -1)}
+          canMoveDown={movableTier(goal.tiers, index, 1)}
           onUpdate={(patch) => onUpdateTier(tier.id, patch)}
           onDelete={() => onDeleteTier(tier.id)}
           onMove={(direction) => onMoveTier(tier.id, direction)}
@@ -243,8 +243,8 @@ function Ladder({
 function TierRow({
   tier,
   isNext,
-  isFirst,
-  isLast,
+  canMoveUp,
+  canMoveDown,
   onUpdate,
   onDelete,
   onMove,
@@ -253,8 +253,8 @@ function TierRow({
 }: {
   tier: Tier;
   isNext: boolean;
-  isFirst: boolean;
-  isLast: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   onUpdate: (patch: Partial<TierInput> & { completedAt?: string | null }) => Promise<void>;
   onDelete: () => Promise<void>;
   onMove: (direction: -1 | 1) => Promise<void>;
@@ -360,11 +360,14 @@ function TierRow({
         >
           ✎
         </button>
+        {/* Déplacer échange aussi les rangs (les rangs appartiennent aux
+            barreaux). Un palier validé ne peut donc pas participer : son rang
+            est un trophée daté, on ne le réécrit pas. */}
         <button
           className="btn btn-ghost btn-sm"
           onClick={() => onMove(-1)}
-          disabled={isFirst}
-          title="Monter"
+          disabled={!canMoveUp}
+          title={canMoveUp ? 'Monter' : 'Impossible : un palier validé garde sa place et son rang'}
           aria-label={`Monter ${tier.title}`}
         >
           ↑
@@ -372,8 +375,10 @@ function TierRow({
         <button
           className="btn btn-ghost btn-sm"
           onClick={() => onMove(1)}
-          disabled={isLast}
-          title="Descendre"
+          disabled={!canMoveDown}
+          title={
+            canMoveDown ? 'Descendre' : 'Impossible : un palier validé garde sa place et son rang'
+          }
           aria-label={`Descendre ${tier.title}`}
         >
           ↓

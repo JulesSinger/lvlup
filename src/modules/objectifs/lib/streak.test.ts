@@ -131,6 +131,63 @@ describe('computeStreak', () => {
     expect(streak.freezes).toBe(0); // le gel a été consommé
   });
 
+  /**
+   * Le compteur de gels était juste partout SAUF dans la fenêtre où on le
+   * regarde : celle où on a déjà manqué un ou deux jours et où l'on se demande
+   * si l'on peut se permettre d'en sauter un de plus. Il annonçait alors la
+   * réserve d'avant, sans en retrancher les jours déjà à couvrir.
+   */
+  it('n’annonce jamais un gel déjà engagé par un jour manqué', () => {
+    const quatorze = daysUpTo('2026-05-14', 14); // 2 gels gagnés
+    const avant = computeStreak([], quatorze.map((d) => checkin(d)), '2026-05-14');
+    expect(avant.freezes).toBe(2);
+
+    // Le 16 : le 15 est définitivement manqué (un gel lui est promis), le 16
+    // est encore ouvert. Il reste donc UN gel libre, pas deux.
+    const le16 = computeStreak([], quatorze.map((d) => checkin(d)), '2026-05-16');
+    expect(le16.current).toBe(14);
+    expect(le16.atRisk).toBe(true);
+    expect(le16.freezes).toBe(1);
+
+    // Et le chiffre annoncé se vérifie : cocher le 16 consomme bien le gel du
+    // 15, et il en reste exactement un.
+    const coche16 = computeStreak(
+      [],
+      [...quatorze, '2026-05-16'].map((d) => checkin(d)),
+      '2026-05-16',
+    );
+    expect(coche16.current).toBe(15);
+    expect(coche16.freezes).toBe(1);
+
+    // Le 17 sans rien avoir fait : les deux jours pleins sont manqués, la
+    // réserve annoncée tombe à zéro — la série ne tient plus qu'à aujourd'hui.
+    const le17 = computeStreak([], quatorze.map((d) => checkin(d)), '2026-05-17');
+    expect(le17.atRisk).toBe(true);
+    expect(le17.freezes).toBe(0);
+  });
+
+  it('la réserve de gels ne survit pas à la rupture de la série', () => {
+    // Trois semaines pleines (3 gels), dix jours d'absence, puis on revient.
+    const avant = daysUpTo('2026-05-21', 21);
+    const reprise = computeStreak(
+      [],
+      [...avant, '2026-06-01'].map((d) => checkin(d)),
+      '2026-06-01',
+    );
+    expect(reprise.current).toBe(1);
+    expect(reprise.best).toBe(21); // le record, lui, reste acquis
+    // Sans quoi les trois premiers trous de la nouvelle habitude seraient
+    // absorbés en silence, par une réserve gagnée par une série qui n'existe
+    // plus.
+    expect(reprise.freezes).toBe(0);
+  });
+
+  it('et elle ne survit pas non plus tant qu’on n’est pas revenu', () => {
+    const streak = computeStreak([], daysUpTo('2026-05-21', 21).map((d) => checkin(d)), '2026-06-01');
+    expect(streak.current).toBe(0);
+    expect(streak.freezes).toBe(0);
+  });
+
   it('un trou plus grand que la réserve de gels remet la série à zéro', () => {
     const first = daysUpTo('2026-05-10', 7); // 1 gel
     const after = ['2026-05-18', '2026-05-19', '2026-05-20']; // 7 jours manqués

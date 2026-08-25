@@ -29,6 +29,11 @@
 .ring-wrap svg {
   transform: rotate(-90deg);
   display: block;
+  /* Un `<svg>` rogne ses enfants sur son viewport. Le cercle s'arrête à 7 px
+     du bord (rayon 84 + trait 14 dans une boîte de 196) pour un halo qui en
+     demande 10 : sans ceci, la lueur du `drop-shadow` ci-dessous est tranchée
+     net sur les quatre côtés, et l'anneau semble posé dans un carré. */
+  overflow: visible;
 }
 
 .ring-progress {
