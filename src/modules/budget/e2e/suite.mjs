@@ -106,8 +106,11 @@ export async function run({ browser, check, BASE }) {
   await page.getByRole('button', { name: 'Charger les catégories de départ' }).click();
   await page.waitForSelector('.budget-row');
   check(
-    'Les quatre groupes de catégories de départ sont représentés',
-    (await page.locator('.budget-group-title').count()) === 4,
+    // Passé de quatre à cinq groupes avec le chantier enveloppes d'épargne :
+    // la catégorie de départ « Épargne » est reclassée en nature `epargne`,
+    // distincte de `transfert` (docs/etude-astra-epargne.md §5).
+    'Les cinq groupes de catégories de départ sont représentés',
+    (await page.locator('.budget-group-title').count()) === 5,
   );
   check(
     'Le groupe « Transferts » existe (exclu du camembert, voir etude-astra.md §2)',
@@ -356,6 +359,90 @@ export async function run({ browser, check, BASE }) {
   // sous le camembert est filtrée par mois), ce n'est donc pas vérifié ici.
   // La persistance et le rattachement au bon mois sont déjà couverts par
   // `lib/month.test.ts` et `data/localBudget.test.ts`.
+
+  // --- Enveloppes d'épargne (docs/etude-astra-epargne.md, étape 2) ---------
+  await page.getByRole('button', { name: 'Épargne' }).click();
+  check("L'onglet Épargne affiche l'écran vide (aucune enveloppe)", await page.locator('.empty h3').isVisible());
+  check(
+    'Le total mis de côté est nul tant qu’aucune écriture Épargne n’existe',
+    (await page.locator('.budget-envelopes-total-amount').textContent())?.trim() === '0,00 €',
+  );
+
+  await page.getByRole('button', { name: 'Créer ma première enveloppe' }).click();
+  await page.locator('#budget-envelope-name').fill('Voiture');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.budget-envelope-row');
+  check('L’enveloppe créée apparaît, solde nul', (await page.locator('.budget-envelope-row .budget-row-amount').textContent())?.trim() === '0,00 €');
+
+  // Un virement vers l'épargne (§3) : une « Dépense » catégorisée Épargne,
+  // comme n'importe quelle écriture — aucun champ ni écran dédié.
+  await page.getByRole('button', { name: 'Aperçu' }).click();
+  await page.getByRole('button', { name: '+ Nouvelle écriture' }).click();
+  await page.locator('#budget-entry-label').fill('Vers Livret A');
+  await page.locator('#budget-entry-amount').fill('500');
+  await page.locator('#budget-entry-category').selectOption({ label: '🏦 Épargne' });
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForTimeout(200);
+  check(
+    'Une catégorie epargne est exclue du camembert, comme transfert (etude-astra-epargne.md §5)',
+    (await page.locator('.budget-pie-legend-item', { hasText: 'Livret' }).count()) === 0,
+  );
+
+  await page.getByRole('button', { name: 'Épargne' }).click();
+  check(
+    'Le total mis de côté reflète le virement (500 €), le non-affecté aussi tant que rien n’est affecté',
+    (await page.locator('.budget-envelopes-total-amount').textContent())?.trim() === '500,00 €' &&
+      (await page.locator('.budget-envelopes-unallocated strong').textContent())?.trim() === '500,00 €',
+  );
+
+  await page.getByRole('button', { name: 'Mouvement' }).click();
+  await page.locator('#budget-envelope-move-amount').fill('300');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForTimeout(200);
+  check(
+    'Affecter 300 € à l’enveloppe met son solde à 300 € et le non-affecté à 200 €',
+    (await page.locator('.budget-envelope-row .budget-row-amount').textContent())?.trim() === '300,00 €' &&
+      (await page.locator('.budget-envelopes-unallocated strong').textContent())?.trim() === '200,00 €',
+  );
+
+  // Retirer des fonds (§6 bis : payer la vidange depuis le compte courant,
+  // puis retirer la part correspondante de l'enveloppe — aucun virement
+  // bancaire réel exigé).
+  await page.getByRole('button', { name: 'Mouvement' }).click();
+  await page.getByRole('button', { name: '− Retirer' }).click();
+  await page.locator('#budget-envelope-move-amount').fill('100');
+  await page.locator('#budget-envelope-move-note').fill('Vidange, payée depuis le compte courant');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForTimeout(200);
+  check(
+    'Retirer 100 € ramène le solde à 200 € et le non-affecté à 300 €',
+    (await page.locator('.budget-envelope-row .budget-row-amount').textContent())?.trim() === '200,00 €' &&
+      (await page.locator('.budget-envelopes-unallocated strong').textContent())?.trim() === '300,00 €',
+  );
+
+  // Affecter plus que le non-affecté disponible : montré tel quel, jamais
+  // bloqué (§4.3, même philosophie que « à classer » sur le camembert).
+  await page.getByRole('button', { name: 'Mouvement' }).click();
+  await page.locator('#budget-envelope-move-amount').fill('400');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForTimeout(200);
+  check(
+    'Le non-affecté peut devenir négatif, sans être bloqué',
+    (await page.locator('.budget-envelopes-unallocated').getAttribute('class'))?.includes('negative') ?? false,
+  );
+  check('Une alerte signale le non-affecté négatif', await page.locator('.budget-envelopes .notice.error').isVisible());
+
+  // Supprimer l'enveloppe renvoie ses fonds au non-affecté (§7 Q5) : le
+  // non-affecté redevient exactement le total, sans mouvement compensatoire.
+  // (le gestionnaire persistant posé plus haut, avant l'import, accepte déjà
+  // toute boîte de dialogue — inutile d'en reposer un ici.)
+  await page.getByRole('button', { name: 'Supprimer' }).click();
+  await page.waitForSelector('.empty h3');
+  check('Supprimer l’enveloppe ramène à l’écran vide', await page.locator('.empty h3').isVisible());
+  check(
+    'Ses fonds retournent au non-affecté : le total ne change pas',
+    (await page.locator('.budget-envelopes-total-amount').textContent())?.trim() === '500,00 €',
+  );
 
   await page.getByRole('button', { name: '← Modules' }).click();
   await page.waitForSelector('.hub-picker-card');

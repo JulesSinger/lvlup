@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { CategoryEditor } from './components/CategoryEditor';
+import { EnvelopesScreen } from './components/EnvelopesScreen';
 import { ImportScreen } from './components/ImportScreen';
 import { MonthScreen } from './components/MonthScreen';
 import { budgetStore } from './data';
@@ -13,9 +14,10 @@ const GROUPS: { kind: BudgetCategoryKind; label: string }[] = [
   { kind: 'variable', label: 'Variables' },
   { kind: 'revenu', label: 'Revenus' },
   { kind: 'transfert', label: 'Transferts' },
+  { kind: 'epargne', label: 'Épargne' },
 ];
 
-type View = 'categories' | 'month' | 'import';
+type View = 'categories' | 'month' | 'import' | 'epargne';
 
 /**
  * Écran racine d'Astra. Depuis l'étape 4 (docs/etude-astra.md §7), « la V1
@@ -28,7 +30,9 @@ type View = 'categories' | 'month' | 'import';
  * mon mois ? »). Depuis l'étape 5, un troisième onglet « Importer » ferme
  * la marche : « l'usage devient tenable dans la durée » (§7) une fois que
  * le relevé mensuel se dépose en quelques clics plutôt que de se ressaisir
- * ligne à ligne.
+ * ligne à ligne. Un cinquième onglet, « Épargne », porte le chantier des
+ * enveloppes (docs/etude-astra-epargne.md) : le total mis de côté, réparti
+ * sur des enveloppes dynamiques.
  */
 export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
   const [view, setView] = useState<View>('month');
@@ -132,6 +136,12 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
           >
             Importer
           </button>
+          <button
+            className={`budget-tab${view === 'epargne' ? ' active' : ''}`}
+            onClick={() => setView('epargne')}
+          >
+            Épargne
+          </button>
         </nav>
 
         {error && (
@@ -145,6 +155,8 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
 
         {view === 'import' ? null : view === 'month' ? (
           <MonthScreen categories={categories} onError={onError} reloadToken={reloadToken} />
+        ) : view === 'epargne' ? (
+          <EnvelopesScreen categories={categories} onError={onError} reloadToken={reloadToken} />
         ) : loading ? (
           <p>Chargement…</p>
         ) : categories.length === 0 ? (
