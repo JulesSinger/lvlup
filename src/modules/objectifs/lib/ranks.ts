@@ -170,3 +170,82 @@ export function ladderMove(
 
   return { orderedIds, rankChanges };
 }
+
+/**
+ * Insérer un palier à une place donnée de l'échelle.
+ *
+ * Même principe que `ladderMove` : **les rangs appartiennent aux barreaux**.
+ * L'échelle gagne un barreau à la fin — le rang suivant de la suite — et les
+ * paliers situés au-dessous du point d'insertion glissent d'un cran, chacun
+ * prenant le rang de sa nouvelle place. Le nouveau venu hérite donc du rang que
+ * portait la place qu'il occupe.
+ *
+ * Insérer « Courir 15 km » entre 10 et 21 sur bronze | argent | or donne
+ * bronze | argent | or(15) | challenger(21) : la suite des rangs ne change
+ * pas, seul son contenu descend d'une marche.
+ *
+ * On ne recalcule pas toute l'échelle depuis `suggestRanks` : un rang choisi à
+ * la main est une liberté documentée, et l'écraser en douce serait un bug plus
+ * sournois que celui qu'on corrige.
+ *
+ * Refusé — comme le déplacement — si un palier **validé** devait changer de
+ * rang, c'est-à-dire dès qu'on insère au-dessus de lui : son rang est un
+ * trophée daté.
+ */
+export function ladderInsert(
+  tiers: LadderRung[],
+  index: number,
+): { rank: RankId; shifts: { id: string; rank: RankId }[] } | null {
+  if (index < 0 || index > tiers.length) return null;
+  if (tiers.slice(index).some((t) => t.completedAt !== null)) return null;
+
+  // Une échelle jamais retouchée reprend simplement la suite standard de sa
+  // nouvelle longueur : c'est ce que l'utilisateur aurait eu en créant
+  // l'objectif avec un palier de plus, et ça évite deux barreaux au même rang
+  // quand l'échelle touchait déjà le plafond. On ne le fait QUE dans ce cas :
+  // dès qu'un rang a été choisi à la main, ce choix prime sur la convention.
+  const standard = suggestRanks(tiers.length);
+  if (tiers.every((t, i) => t.rank === standard[i])) {
+    const suite = suggestRanks(tiers.length + 1);
+    const ordre = [...tiers.slice(0, index), null, ...tiers.slice(index)];
+    return {
+      rank: suite[index],
+      shifts: ordre
+        .map((t, place) => (t === null ? null : { id: t.id, rank: suite[place] }))
+        .filter((s): s is { id: string; rank: RankId } => s !== null)
+        .filter((s) => s.rank !== tiers.find((t) => t.id === s.id)!.rank),
+    };
+  }
+
+  // Le barreau ajouté au sommet de l'échelle : le rang juste au-dessus du
+  // plus haut déjà posé. Prendre `suggestRanks(n + 1)` à cette place le ferait
+  // parfois retomber SOUS le sommet actuel — c'est-à-dire recréer, par une
+  // autre porte, l'échelle qui redescend qu'on vient de corriger.
+  const sommet = tiers.reduce(
+    (haut, t) => (getRank(t.rank).value > getRank(haut).value ? t.rank : haut),
+    tiers[0]?.rank ?? 'bronze',
+  );
+  // Le rang que l'échelle porterait naturellement à cette longueur — c'est la
+  // convention du produit (quatre étapes finissent sur Challenger) — mais
+  // seulement s'il dépasse vraiment le sommet actuel. Sinon, le rang juste
+  // au-dessus. Et au plafond, le nouveau barreau partage le sommet plutôt que
+  // de rétrograder qui que ce soit.
+  const conventionnel = suggestRanks(tiers.length + 1)[tiers.length];
+  const dernier: RankId =
+    conventionnel && getRank(conventionnel).value > getRank(sommet).value
+      ? conventionnel
+      : (RANKS.find((r) => r.value > getRank(sommet).value)?.id ?? sommet);
+
+  const rank = tiers[index]?.rank ?? dernier;
+  const shifts = tiers
+    .slice(index)
+    .map((t, offset) => ({ id: t.id, rank: tiers[index + offset + 1]?.rank ?? dernier }))
+    .filter((s, offset) => s.rank !== tiers[index + offset].rank);
+
+  return { rank, shifts };
+}
+
+/** Peut-on insérer un palier à cette place ? */
+export function insertableAt(tiers: LadderRung[], index: number): boolean {
+  return ladderInsert(tiers, index) !== null;
+}

@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react';
+import {
+  guessAmount,
+  kindFields,
+  ladderKind,
+  parseAmount,
+  starterActions,
+  targetForStore,
+} from '../lib/quantities';
 import { getRank, suggestRanks } from '../lib/ranks';
 import type { TierSpec } from '../lib/templates';
-import type { Goal, GoalInput, TierInput } from '../lib/types';
+import type { ActionInput, Goal, GoalInput, TierInput, TierKind } from '../lib/types';
 import { RankBadge } from './RankBadge';
+import { KINDS } from './TierCounter';
 
 const EMOJIS = [
   // sport & corps
@@ -31,7 +40,7 @@ interface Props {
   goal: Goal | null;
   seed?: GoalSeed | null;
   onCancel: () => void;
-  onSave: (input: GoalInput, tiers: TierInput[]) => Promise<void>;
+  onSave: (input: GoalInput, tiers: TierInput[], actions?: ActionInput[]) => Promise<void>;
 }
 
 interface DraftTier {
@@ -47,6 +56,13 @@ interface DraftTier {
    * la première victoire.
    */
   spec?: Omit<TierSpec, 'title'>;
+  /**
+   * Cible corrigée à la main, gardée telle qu'elle est tapée. On ne la
+   * reformate pas à chaque frappe : sinon la virgule de « 21,1 » disparaît
+   * sous les doigts au moment où on la tape.
+   */
+  amount?: string;
+  unit?: string;
 }
 
 let nextKey = 1;
@@ -65,6 +81,19 @@ export function GoalEditor({ goal, seed, onCancel, onSave }: Props) {
   );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  /**
+   * La nature de l'objectif, demandée **une fois** au lieu d'être répétée sur
+   * chaque palier. Un modèle arrive déjà annoté : on part de sa nature
+   * dominante, et on ne réécrit ses paliers que si on la change vraiment —
+   * sinon « Marcher 10 000 pas » (deux paliers en jours puis deux randonnées
+   * en km) serait aplati par le simple fait d'ouvrir l'écran.
+   */
+  const seedKind = ladderKind(
+    (seed?.tiers ?? []).map((t) => ({ kind: t.kind ?? 'jalon', unit: t.unit ?? '' })),
+  );
+  const [kind, setKind] = useState<TierKind>(seedKind?.kind ?? 'jalon');
+  const kindTouched = kind !== (seedKind?.kind ?? 'jalon');
+  const compte = kind !== 'jalon';
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -80,6 +109,22 @@ export function GoalEditor({ goal, seed, onCancel, onSave }: Props) {
   // faut tous les remplir — et décourage avant même de commencer.
   const filled = drafts.filter((d) => d.title.trim().length > 0);
   const ranks = suggestRanks(Math.max(filled.length, 1));
+
+  /** Cible et unité effectives d'une étape : la saisie manuelle l'emporte. */
+  function amountOf(draft: DraftTier): { raw: string; target: number | null; unit: string } {
+    const guess = guessAmount(draft.title);
+    const raw =
+      draft.amount !== undefined
+        ? draft.amount
+        : guess
+          ? String(guess.target).replace('.', ',')
+          : '';
+    return {
+      raw,
+      target: parseAmount(raw),
+      unit: draft.unit !== undefined ? draft.unit : (guess?.unit || (seedKind?.unit ?? '')),
+    };
+  }
 
   function setDraft(key: number, patch: Partial<DraftTier>) {
     setDrafts((list) => list.map((d) => (d.key === key ? { ...d, ...patch } : d)));
@@ -108,16 +153,37 @@ export function GoalEditor({ goal, seed, onCancel, onSave }: Props) {
       return;
     }
     const finalRanks = suggestRanks(kept.length);
-    const tiers: TierInput[] = kept.map((d, i) => ({
-      title: d.title,
-      rank: finalRanks[i],
-      ...d.spec,
-    }));
+    const tiers: TierInput[] = kept.map((d, i) => {
+      const base = { title: d.title, rank: finalRanks[i] };
+      // Nature inchangée depuis le modèle : on garde son annotation, plus
+      // précise que tout ce qu'on pourrait déduire.
+      if (!kindTouched && d.spec) return { ...base, ...d.spec };
+      if (!compte) return base;
+      const { target, unit } = amountOf(d);
+      // Sans cible lisible, on reste un jalon : un palier comptable à zéro
+      // afficherait une barre bloquée pour toujours.
+      if (target === null) return base;
+      const fields = kindFields(kind, { unit, target });
+      const signe = targetForStore(target, {
+        kind,
+        direction: fields.direction ?? 'hausse',
+        mode: fields.mode ?? 'absolu',
+      });
+      return { ...base, ...fields, unit, target: signe };
+    });
+
+    // Les actions doivent porter l'unité, sinon les paliers comptables ne
+    // monteront jamais — voir `starterActions`.
+    const cibles = tiers
+      .map((t) => t.target)
+      .filter((t): t is number => typeof t === 'number');
+    const unite = tiers.find((t) => t.unit)?.unit ?? '';
+    const actions = compte ? starterActions(kind, unite, cibles) : undefined;
 
     setSaving(true);
     setError('');
     try {
-      await onSave({ title: cleanTitle, description: description.trim(), emoji }, tiers);
+      await onSave({ title: cleanTitle, description: description.trim(), emoji }, tiers, actions);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Enregistrement impossible.');
       setSaving(false);
@@ -198,7 +264,9 @@ export function GoalEditor({ goal, seed, onCancel, onSave }: Props) {
                 De la plus accessible à la plus ambitieuse. Mets-en autant que tu veux : deux
                 suffisent, et les rangs se répartissent tout seuls.
               </p>
-              {drafts.map((draft, index) => (
+              {drafts.map((draft, index) => {
+                const montant = amountOf(draft);
+                return (
                 <div className="draft-tier" key={draft.key}>
                   <span className="draft-index">{index + 1}</span>
                   <input
@@ -208,6 +276,27 @@ export function GoalEditor({ goal, seed, onCancel, onSave }: Props) {
                       ['Courir 10 km', 'Semi-marathon', 'Marathon'][index] ?? 'Étape suivante…'
                     }
                   />
+                  {/* La cible lue dans l'intitulé, montrée avant d'être
+                      enregistrée : on ne devine jamais en silence. Elle reste
+                      modifiable, et une étape sans nombre reste à cocher. */}
+                  {compte && draft.title.trim() !== '' && (
+                    <span className="draft-amount">
+                      <input
+                        inputMode="decimal"
+                        value={montant.raw}
+                        onChange={(e) => setDraft(draft.key, { amount: e.target.value })}
+                        placeholder="—"
+                        aria-label={`Cible de l'étape ${index + 1}`}
+                      />
+                      <input
+                        value={montant.unit}
+                        maxLength={12}
+                        onChange={(e) => setDraft(draft.key, { unit: e.target.value })}
+                        placeholder="unité"
+                        aria-label={`Unité de l'étape ${index + 1}`}
+                      />
+                    </span>
+                  )}
                   {draft.title.trim() ? (
                     <RankBadge rank={rankForIndex(index)} />
                   ) : (
@@ -222,10 +311,30 @@ export function GoalEditor({ goal, seed, onCancel, onSave }: Props) {
                     ✕
                   </button>
                 </div>
-              ))}
+                );
+              })}
               <button type="button" className="btn btn-sm" onClick={addDraft}>
                 + Ajouter une étape
               </button>
+
+              {/* La question posée UNE fois pour tout l'objectif, au lieu d'être
+                  répétée sur chaque palier après coup. Par défaut « à cocher » :
+                  le chemin d'avant ne change pas d'un pixel. */}
+              <div className="draft-kind">
+                <label htmlFor="goal-kind">Ces étapes se comptent en</label>
+                <select
+                  id="goal-kind"
+                  value={kind}
+                  onChange={(e) => setKind(e.target.value as TierKind)}
+                >
+                  {KINDS.filter((k) => k.id !== 'serie').map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="field-hint">{KINDS.find((k) => k.id === kind)?.hint}</span>
+              </div>
               <p className="field-hint">
                 Les étapes vides sont ignorées. Tu pourras ajuster les rangs plus tard, en
                 dépliant l'objectif.

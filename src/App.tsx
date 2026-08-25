@@ -31,10 +31,10 @@ import { timezoneOffsetMinutes } from './core/lib/push';
 import { newlyUnlocked, unlockedAchievements } from './modules/objectifs/lib/achievements';
 import { adoptLegacyOnboarding, hasOnboarded, markOnboarded } from './core/lib/onboarding';
 import { isCountable, tierProgress } from './modules/objectifs/lib/counters';
-import { tapValue } from './modules/objectifs/lib/quantities';
+import { inheritedTier, ladderKind, tapValue } from './modules/objectifs/lib/quantities';
 import { DEMO_GOALS } from './modules/objectifs/lib/demo';
 import { goalProgress, ppForRank, profileRank, todayPP } from './modules/objectifs/lib/progress';
-import { getRank, ladderMove } from './modules/objectifs/lib/ranks';
+import { getRank, ladderInsert, ladderMove } from './modules/objectifs/lib/ranks';
 import type { GoalTemplate } from './modules/objectifs/lib/templates';
 import { playCheckinBlip, vibrate } from './core/lib/sound';
 import { computeStreak, dayString } from './modules/objectifs/lib/streak';
@@ -620,12 +620,14 @@ export default function App() {
     return { goalsAfter, queue };
   }
 
-  async function saveGoal(input: GoalInput, tiers: TierInput[]) {
+  async function saveGoal(input: GoalInput, tiers: TierInput[], actions?: ActionInput[]) {
     const target = editing?.goal;
     if (target) {
       await goalsStore.updateGoal(target.id, input);
     } else {
-      const created = await goalsStore.createGoal(input, tiers);
+      // `actions` porte l'unité de l'objectif quand ses paliers se comptent :
+      // sans ça, un palier « 100 km » resterait à 0/100 quoi qu'on coche.
+      const created = await goalsStore.createGoal(input, tiers, actions);
       // Un modèle apporte ses propres actions : elles remplacent les deux
       // génériques créées d'office.
       if (seedActions && seedActions.length > 0) {
@@ -676,6 +678,37 @@ export default function App() {
     const label = `Supprimer « ${goal.title} » et ses ${goal.tiers.length} palier(s) ? Cette action est définitive.`;
     if (!window.confirm(label)) return;
     void run(() => goalsStore.deleteGoal(goal.id));
+  }
+
+  /**
+   * Ajouter un palier — à la fin, ou glissé à une place précise.
+   *
+   * Deux choses lui sont données sans qu'on les demande : la **nature** de
+   * l'objectif, dont il hérite (sinon il naîtrait « à cocher » et il faudrait
+   * le requalifier à la main), et le **rang de la place qu'il occupe**, les
+   * paliers du dessous glissant d'un barreau. Voir `ladderInsert`.
+   */
+  function addTier(goal: Goal, input: TierInput, index?: number) {
+    const herite = inheritedTier(input.title, ladderKind(goal.tiers));
+    const place = index ?? goal.tiers.length;
+    const plan = ladderInsert(goal.tiers, place);
+    return run(async () => {
+      const created = await goalsStore.createTier(goal.id, {
+        ...herite,
+        ...input,
+        rank: plan?.rank ?? input.rank,
+      });
+      if (!plan || place === goal.tiers.length) return;
+      const ids = goal.tiers.map((t) => t.id);
+      await goalsStore.reorderTiers(goal.id, [
+        ...ids.slice(0, place),
+        created.id,
+        ...ids.slice(place),
+      ]);
+      for (const shift of plan.shifts) {
+        await goalsStore.updateTier(shift.id, { rank: shift.rank });
+      }
+    });
   }
 
   /**
@@ -943,7 +976,7 @@ export default function App() {
                     onEdit={() => setEditing({ goal })}
                     onArchive={() => archiveGoal(goal)}
                     onDelete={() => deleteGoal(goal)}
-                    onAddTier={(input) => run(() => goalsStore.createTier(goal.id, input))}
+                    onAddTier={(input, index) => addTier(goal, input, index)}
                     onUpdateTier={(tierId, patch) => {
                       if (patch.completedAt) {
                         const tier = goal.tiers.find((t) => t.id === tierId);

@@ -74,10 +74,10 @@ cette étape produit un `net::ERR_CONNECTION_REFUSED` qui ressemble à un bug de
 
 ```bash
 npm run build && npm run preview &            # sert dist/ sur :4173
-npm run check                                 # ~208 vérifications
+npm run check                                 # ~221 vérifications
 
 npm run build:auth && npm run preview:auth &  # sert dist-auth/ sur :4174
-npm run check:auth                            # 220 : exige les DEUX serveurs
+npm run check:auth                            # 233 : exige les DEUX serveurs
 ```
 
 `check:auth` rejoue tout `check` puis ajoute le parcours avec comptes. C'est lui qui couvre le
@@ -362,6 +362,14 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 
 | Date | Décision | Pourquoi |
 |---|---|---|
+| 2026-08-09 | Insérer un palier au milieu : les paliers du dessous glissent d'un barreau, l'étape prend le rang de sa place | Même règle que le déplacement — les rangs appartiennent aux barreaux. Refusé au-dessus d'un palier validé, dont le rang est un trophée daté |
+| 2026-08-09 | Une échelle **jamais retouchée** reprend la suite standard de sa nouvelle longueur ; une échelle personnalisée, non | Sinon insérer dans une échelle qui touchait déjà Challenger donnait deux barreaux au même rang. Le garde-fou : dès qu'un rang a été choisi à la main, la convention ne s'applique plus |
+| 2026-08-09 | L'invariant testé est « l'échelle ne descend jamais », pas « aucun palier n'est rétrogradé » | Le second est plus fort qu'il ne faut : une échelle qui s'allonge redistribue ses rangs, exactement comme si l'objectif avait été créé avec un palier de plus |
+| 2026-08-09 | **La nature d'un objectif est déduite de ses paliers, jamais stockée** | Elle s'affiche et se change comme une propriété (« ces paliers se comptent en km »), mais un champ en base aurait créé deux sources de vérité qui se contredisent — un objectif annonçant « cumul en km » au-dessus de paliers comptant des jours. Comme le streak et la grille : recalculé, donc jamais désynchronisé, et vrai rétroactivement |
+| 2026-08-09 | Un palier ajouté hérite de l'échelle ; sa cible se lit dans son intitulé | Règle mesurée sur les 66 paliers chiffrés de la bibliothèque : le premier nombre du titre est la cible, le mot qui suit est l'unité — juste 63 fois sur 66. Un test épingle le taux, et tombera si la règle ou la bibliothèque dérivent |
+| 2026-08-09 | On ne devine **jamais** la nature d'un palier, seulement sa cible | « 30 pompes d'affilée » et « 30 séances » portent le même nombre et n'ont rien à voir. Le nombre est dans le titre, la nature n'y est pas : c'est elle qu'on demande une fois pour tout l'objectif |
+| 2026-08-09 | `createGoal` accepte les actions de départ, qui portent l'unité de l'objectif | Sans ça, un palier « 100 km » créé à la main restait à **0/100 pour toujours** : les deux actions génériques naissent sans unité, donc une coche n'enregistre aucune quantité. Défaut vérifié, pas supposé |
+| 2026-08-09 | « Série » reste hors du choix global de nature | C'est la nature où un jour manqué efface tout ; le projet la réserve au tabac et à l'alcool, et un test le vérifie. Elle reste accessible palier par palier |
 | 2026-08-09 | **Les rangs appartiennent aux barreaux de l'échelle, pas aux paliers** : un déplacement échange aussi les rangs | `reorderTiers` ne réécrivait que les positions : ajouter un palier à la fin puis le remonter donnait « bronze, argent, challenger, or ». L'échelle descendait, en silence, sur le seul chemin offert pour insérer une étape au milieu |
 | 2026-08-09 | Un palier **validé** ne se déplace plus, et rien ne se déplace à travers lui | Son rang est un trophée daté ; l'échange l'aurait réécrit. Refuser le geste vaut mieux que l'exécuter à moitié — la flèche est grisée et le dit |
 | 2026-08-09 | Le recalcul systématique de toute l'échelle est **écarté** | Il aurait écrasé les rangs choisis à la main, liberté documentée dans `ranks.ts`. Corriger un bug en en créant un autre, plus sournois |

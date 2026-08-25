@@ -52,12 +52,6 @@
     display: none;
   }
 
-  /* L'adresse e-mail n'apporte rien sur un écran de téléphone, et sa
-     longueur forçait l'en-tête du hub sur deux lignes. */
-  .hub-picker-actions .account {
-    display: none;
-  }
-
   .nav {
     flex-direction: row;
     gap: 2px;
@@ -86,7 +80,6 @@
   }
 
   .main {
-    width: 100%;
     padding: 16px 14px 110px;
     max-width: none;
   }
@@ -150,6 +143,15 @@
   }
   .draft-tier select {
     width: 116px;
+  }
+  /* Sur un écran étroit, la cible passe sous l'intitulé plutôt que de le
+     réduire à une fenêtre de trois lettres. */
+  .draft-tier {
+    flex-wrap: wrap;
+  }
+  .draft-amount {
+    flex: 1 1 100%;
+    margin-left: 30px;
   }
   /* Sur un écran étroit, la colonne fixe du badge mangerait le champ de
      saisie : on la laisse se réduire à ce que le mot demande. */

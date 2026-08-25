@@ -109,6 +109,53 @@
   flex-shrink: 0;
 }
 
+/* La cible lue dans l'intitulé, à côté de lui. Largeur fixe : sans elle, le
+   champ du titre se met à danser d'une ligne à l'autre selon la longueur de
+   l'unité, et l'échelle paraît bancale — le même défaut que le badge de rang
+   ci-dessous, pour la même raison. */
+.draft-amount {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 152px;
+}
+
+.draft-amount input:first-child {
+  flex: 0 0 66px;
+  min-width: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.draft-amount input:last-child {
+  flex: 1 1 60px;
+  min-width: 0;
+}
+
+/* La nature, demandée une fois pour toutes les étapes. */
+.draft-kind {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.draft-kind label {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.draft-kind select {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.draft-kind .field-hint {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
 /* Le badge de rang change de largeur selon le mot (« Or » contre
    « Challenger ») : sans colonne fixe, les champs de saisie se décalent
    ligne après ligne et l'échelle semble bancale. */

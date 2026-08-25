@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { formatAmount, tierProgress } from '../lib/counters';
 import { goalState } from '../lib/heatmap';
 import { formatDate, goalProgress } from '../lib/progress';
-import { getRank, movableTier, suggestRanks, type RankId } from '../lib/ranks';
-import type { Action, Checkin, Goal, Tier, TierInput } from '../lib/types';
+import { inheritedTier, kindFields, ladderKind } from '../lib/quantities';
+import { getRank, insertableAt, movableTier, suggestRanks, type RankId } from '../lib/ranks';
+import type { Action, Checkin, Goal, Tier, TierInput, TierKind } from '../lib/types';
 import { Heatmap } from './Heatmap';
 import { MeasureChart } from './MeasureChart';
 import { RankBadge, RankSelect } from './RankBadge';
-import { TierCounter } from './TierCounter';
+import { KINDS, TierCounter } from './TierCounter';
 import { TierMeter } from './TierMeter';
 
 interface Props {
@@ -19,7 +20,8 @@ interface Props {
   onEdit: () => void;
   onArchive: () => void;
   onDelete: () => void;
-  onAddTier: (input: TierInput) => Promise<void>;
+  /** `index` glisse le palier à cette place ; absent, il va à la fin. */
+  onAddTier: (input: TierInput, index?: number) => Promise<void>;
   onUpdateTier: (
     tierId: string,
     patch: Partial<TierInput> & { completedAt?: string | null },
@@ -192,6 +194,19 @@ function Ladder({
   const [newRank, setNewRank] = useState<RankId>(
     () => suggestRanks(goal.tiers.length + 1)[goal.tiers.length] ?? 'or',
   );
+  /** Place où l'on est en train de glisser un palier, s'il y en a une. */
+  const [insertAt, setInsertAt] = useState<number | null>(null);
+  const [insertTitle, setInsertTitle] = useState('');
+
+  async function insert(index: number) {
+    const title = insertTitle.trim();
+    if (!title) return;
+    setInsertAt(null);
+    setInsertTitle('');
+    // Le rang est décidé par la place, pas par l'utilisateur : c'est tout
+    // l'intérêt d'une insertion — on choisit un endroit dans la montée.
+    await onAddTier({ title, rank: 'or' }, index);
+  }
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -199,6 +214,24 @@ function Ladder({
     if (!title) return;
     await onAddTier({ title, rank: newRank });
     setNewTitle('');
+  }
+
+  const ladder = ladderKind(goal.tiers);
+
+  /**
+   * Requalifier l'objectif entier. La nature n'est pas stockée sur l'objectif :
+   * la changer, c'est changer celle de tous ses paliers — c'est la même chose,
+   * dite à l'endroit où l'utilisateur la pense.
+   *
+   * Chaque palier reprend la cible lisible dans son propre intitulé quand il y
+   * en a une ; sinon il garde la sienne, ajustée à la nouvelle nature.
+   */
+  async function requalify(kind: TierKind) {
+    for (const tier of goal.tiers) {
+      const herite = inheritedTier(tier.title, { kind, unit: ladder?.unit ?? '', mixed: false });
+      const patch = Object.keys(herite).length > 0 ? herite : kindFields(kind, tier);
+      await onUpdateTier(tier.id, patch);
+    }
   }
 
   return (
@@ -209,9 +242,87 @@ function Ladder({
         </p>
       )}
 
+      {/* La nature de l'objectif, lue sur ses paliers. Elle vaut pour toute
+          l'échelle : un palier ajouté plus tard en hérite sans rien demander. */}
+      {goal.tiers.length > 0 && (
+        <div className="ladder-kind">
+          <span className="ladder-kind-label">Ces paliers se comptent en</span>
+          <select
+            value={ladder?.kind ?? 'jalon'}
+            onChange={(e) => void requalify(e.target.value as TierKind)}
+            aria-label={`Façon de compter les paliers de ${goal.title}`}
+          >
+            {KINDS.map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+          {ladder?.unit && <span className="ladder-kind-unit">{ladder.unit}</span>}
+          {ladder?.mixed && (
+            <span
+              className="ladder-kind-mixed"
+              title="Les paliers n'ont pas tous la même façon de compter. Choisir ici les alignera tous."
+            >
+              échelle mixte
+            </span>
+          )}
+        </div>
+      )}
+
       {goal.tiers.map((tier, index) => (
+        <div key={tier.id}>
+          {/* Glisser une étape ICI. Discret jusqu'au survol : c'est un geste
+              rare, il n'a pas à occuper l'écran en permanence. Refusé
+              au-dessus d'un palier validé, dont le rang ne se réécrit pas. */}
+          {insertableAt(goal.tiers, index) &&
+            (insertAt === index ? (
+              <div className="ladder-insert-bar">
+                <input
+                  autoFocus
+                  value={insertTitle}
+                  onChange={(e) => setInsertTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void insert(index);
+                    }
+                    if (e.key === 'Escape') setInsertAt(null);
+                  }}
+                  placeholder="Étape intercalée…"
+                  aria-label={`Intercaler une étape avant « ${tier.title} »`}
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => void insert(index)}
+                  disabled={!insertTitle.trim()}
+                >
+                  Intercaler
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setInsertAt(null)}
+                >
+                  Annuler
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="ladder-insert"
+                onClick={() => {
+                  setInsertAt(index);
+                  setInsertTitle('');
+                }}
+                title={`Intercaler une étape avant « ${tier.title} »`}
+                aria-label={`Intercaler une étape avant ${tier.title}`}
+              >
+                <span aria-hidden="true">+</span>
+              </button>
+            ))}
         <TierRow
-          key={tier.id}
           tier={tier}
           isNext={tier.id === nextTierId}
           canMoveUp={movableTier(goal.tiers, index, -1)}
@@ -222,6 +333,7 @@ function Ladder({
           actions={actions}
           checkins={checkins}
         />
+        </div>
       ))}
 
       <form className="ladder-add" onSubmit={add}>

@@ -204,7 +204,11 @@ export class SupabaseGoals implements GoalsStore {
   }
 
 
-  async createGoal(input: GoalInput, tiers: TierInput[]): Promise<Goal> {
+  async createGoal(
+    input: GoalInput,
+    tiers: TierInput[],
+    actions: ActionInput[] = DEFAULT_ACTIONS,
+  ): Promise<Goal> {
     const userId = await this.requireUserId();
     const { count } = await this.client
       .from('goals')
@@ -245,13 +249,22 @@ export class SupabaseGoals implements GoalsStore {
 
     // Tout objectif naît avec ses deux actions génériques : aucun formulaire à
     // remplir avant la première victoire.
+    // PostgREST prend l'union des clés de toutes les lignes d'une insertion
+    // groupée et remplit les manquantes avec NULL — les valeurs par défaut des
+    // colonnes ne s'appliquent pas. Chaque ligne doit donc porter TOUTES les
+    // colonnes, sans quoi un relevé glissé parmi des actions simples ferait
+    // basculer les autres à NULL. Ce piège a déjà coûté une panne en
+    // production sur la table `tiers`.
     const { error: actionsError } = await this.client.from('actions').insert(
-      DEFAULT_ACTIONS.map((a, index) => ({
+      actions.map((a, index) => ({
         goal_id: goalRow.id,
         user_id: userId,
         title: a.title,
         pp: a.pp,
         position: index,
+        unit: a.unit ?? '',
+        default_value: a.defaultValue ?? null,
+        is_measure: a.isMeasure ?? false,
       })),
     );
     if (actionsError) throw new Error(actionsError.message);

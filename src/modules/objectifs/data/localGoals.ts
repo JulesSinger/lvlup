@@ -57,7 +57,11 @@ export class LocalGoals implements GoalsStore {
   }
 
 
-  async createGoal(input: GoalInput, tiers: TierInput[]): Promise<Goal> {
+  async createGoal(
+    input: GoalInput,
+    tiers: TierInput[],
+    actions: ActionInput[] = DEFAULT_ACTIONS,
+  ): Promise<Goal> {
     const snapshot = read();
     const now = new Date().toISOString();
     const goalId = newId();
@@ -84,7 +88,7 @@ export class LocalGoals implements GoalsStore {
     snapshot.goals.push(goal);
     // Tout objectif naît avec ses deux actions génériques : aucun formulaire à
     // remplir avant la première victoire.
-    DEFAULT_ACTIONS.forEach((a, index) => {
+    actions.forEach((a, index) => {
       snapshot.actions.push({
         id: newId(),
         goalId,

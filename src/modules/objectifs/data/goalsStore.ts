@@ -28,7 +28,12 @@ export interface GoalsBackup {
 /** Contrat de stockage du module objectifs. */
 export interface GoalsStore {
   listGoals(): Promise<Goal[]>;
-  createGoal(input: GoalInput, tiers: TierInput[]): Promise<Goal>;
+  /**
+   * `actions` remplace les deux actions génériques quand on sait déjà en quoi
+   * l'objectif se compte : un palier « 100 km » a besoin d'actions qui portent
+   * des kilomètres, sans quoi il reste à 0/100 quoi qu'on coche.
+   */
+  createGoal(input: GoalInput, tiers: TierInput[], actions?: ActionInput[]): Promise<Goal>;
   updateGoal(id: string, patch: Partial<GoalInput> & { archived?: boolean }): Promise<void>;
   deleteGoal(id: string): Promise<void>;
 

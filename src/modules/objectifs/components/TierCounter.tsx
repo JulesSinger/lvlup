@@ -13,7 +13,7 @@ import type { Tier, TierInput, TierKind } from '../lib/types';
  * principaux : on nomme le geste (« total accumulé », « meilleure séance »),
  * le mot technique reste dans l'explication.
  */
-const KINDS: { id: TierKind; label: string; hint: string }[] = [
+export const KINDS: { id: TierKind; label: string; hint: string }[] = [
   {
     id: 'jalon',
     label: 'À cocher',

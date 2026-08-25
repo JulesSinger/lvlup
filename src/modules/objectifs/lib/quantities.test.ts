@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
+import { GOAL_TEMPLATES } from './templates';
 import {
   MEASURE_PP,
   actionNature,
+  guessAmount,
+  inheritedTier,
+  ladderKind,
   kindFields,
   measureSeries,
   measureTarget,
   natureFields,
   needsInput,
   parseAmount,
+  starterActions,
   tapValue,
   targetForInput,
   targetForStore,
@@ -262,5 +267,165 @@ describe('série de relevés', () => {
 
   it('un palier qui n’est pas une mesure n’a pas de cible traçable', () => {
     expect(measureTarget(tier({ kind: 'cumul', target: 100 }), [])).toBeNull();
+  });
+});
+
+describe('deviner la cible dans un intitulé', () => {
+  it('lit le nombre et le mot qui suit', () => {
+    expect(guessAmount('Courir 10 km')).toEqual({ target: 10, unit: 'km' });
+    expect(guessAmount('30 jours réussis')).toEqual({ target: 30, unit: 'jours' });
+    expect(guessAmount('5 pompes d’affilée')).toEqual({ target: 5, unit: 'pompes' });
+  });
+
+  it('accepte la virgule française et les milliers espacés', () => {
+    expect(guessAmount('Courir 21,1 km')).toEqual({ target: 21.1, unit: 'km' });
+    expect(guessAmount('Marcher 10 000 pas')).toEqual({ target: 10000, unit: 'pas' });
+  });
+
+  it('n’invente pas d’unité quand le titre n’en donne pas', () => {
+    expect(guessAmount('Économiser 500')).toEqual({ target: 500, unit: '' });
+  });
+
+  it('ne prend pas un ordinal pour une unité', () => {
+    // « 1er versement effectué » ne compte pas des « er ».
+    expect(guessAmount('1er versement effectué')).toEqual({ target: 1, unit: '' });
+  });
+
+  it('ne prend pas un millésime pour une cible', () => {
+    expect(guessAmount('Marathon 2027')).toBeNull();
+    // Mais un nombre du même ordre suivi d'une unité reste une cible.
+    expect(guessAmount('2000 pas par jour')).toEqual({ target: 2000, unit: 'pas' });
+  });
+
+  it('rend null quand il n’y a aucun chiffre', () => {
+    expect(guessAmount('Courir un semi-marathon')).toBeNull();
+    expect(guessAmount('Passer le permis')).toBeNull();
+  });
+
+  /**
+   * Le garde-fou qui compte : la règle est validée sur du vrai contenu, pas
+   * sur des exemples choisis. Si une refonte du parseur fait retomber le taux,
+   * ce test tombe — et si quelqu'un enrichit la bibliothèque avec des
+   * intitulés que la règle ne sait pas lire, il tombe aussi, ce qui est
+   * exactement le signal qu'on veut.
+   */
+  it('tombe juste sur au moins 90 % des paliers chiffrés de la bibliothèque', () => {
+    const chiffres = GOAL_TEMPLATES.flatMap((t) =>
+      t.tiers.filter((tier) => typeof tier.target === 'number' && tier.kind !== 'jalon'),
+    );
+    expect(chiffres.length).toBeGreaterThan(50); // le corpus existe bien
+    let justes = 0;
+    for (const tier of chiffres) {
+      const devine = guessAmount(tier.title);
+      if (
+        devine &&
+        devine.target === Math.abs(tier.target as number) &&
+        devine.unit === (tier.unit ?? '')
+      ) {
+        justes += 1;
+      }
+    }
+    expect(justes / chiffres.length).toBeGreaterThanOrEqual(0.9);
+  });
+});
+
+describe('la nature d’un objectif se déduit de ses paliers', () => {
+  const t = (kind: TierKind, unit: string) => tier({ kind, unit, target: 10 });
+
+  it('sans palier comptable, l’objectif n’a pas de nature', () => {
+    expect(ladderKind([tier({ kind: 'jalon' })])).toBeNull();
+    expect(ladderKind([])).toBeNull();
+  });
+
+  it('prend la nature et l’unité dominantes', () => {
+    expect(ladderKind([t('cumul', 'km'), t('cumul', 'km'), t('jalon', '')])).toEqual({
+      kind: 'cumul',
+      unit: 'km',
+      mixed: false,
+    });
+  });
+
+  it('signale une échelle mixte plutôt que de mentir', () => {
+    // « Marcher 10 000 pas » : deux paliers en jours, deux randonnées en km.
+    expect(ladderKind([t('compte', 'jours'), t('compte', 'jours'), t('performance', 'km')])?.mixed)
+      .toBe(true);
+    // Mixte aussi quand la nature est la même mais l'unité change.
+    expect(ladderKind([t('cumul', 'km'), t('cumul', 'pas')])?.mixed).toBe(true);
+  });
+});
+
+describe('un palier ajouté hérite de l’échelle', () => {
+  const echelle = { kind: 'cumul' as TierKind, unit: 'km', mixed: false };
+
+  it('prend la nature de l’objectif et la cible de son titre', () => {
+    expect(inheritedTier('Courir 30 km', echelle)).toMatchObject({
+      kind: 'cumul',
+      target: 30,
+      unit: 'km',
+    });
+  });
+
+  it('retombe sur l’unité de l’échelle quand le titre n’en donne pas', () => {
+    expect(inheritedTier('Atteindre 42', echelle)).toMatchObject({ target: 42, unit: 'km' });
+  });
+
+  it('reste un jalon sans cible lisible — jamais une barre bloquée à zéro', () => {
+    expect(inheritedTier('Courir un marathon', echelle)).toEqual({});
+    expect(inheritedTier('Courir 30 km', null)).toEqual({});
+  });
+
+  it('une mesure en baisse stocke une cible négative', () => {
+    // « Perdre 5 kg » se tape 5 et se stocke -5 : c'est `targetForStore` qui
+    // décide, à partir du sens posé par la nature.
+    const mesure = { kind: 'mesure' as TierKind, unit: 'kg', mixed: false };
+    expect(inheritedTier('Perdre 5 kg', mesure)).toMatchObject({
+      kind: 'mesure',
+      target: -5,
+      unit: 'kg',
+      direction: 'baisse',
+      mode: 'delta',
+    });
+  });
+});
+
+describe('les actions d’un objectif neuf portent son unité', () => {
+  it('un objectif à cocher garde les deux actions génériques', () => {
+    expect(starterActions('jalon', '')).toHaveLength(2);
+    expect(starterActions('jalon', '').every((a) => !a.unit)).toBe(true);
+  });
+
+  it('compter des jours ne demande aucune unité sur les actions', () => {
+    // Une journée se coche ; on n'enregistre pas « 30 jours » d'un coup.
+    expect(starterActions('compte', 'jours', [30]).every((a) => !a.unit)).toBe(true);
+  });
+
+  /**
+   * Le vrai garde-fou : sans unité sur les actions, un palier « 100 km »
+   * resterait à 0/100 pour toujours, quoi qu'on coche.
+   */
+  it('un cumul en km donne des actions en km, avec une valeur habituelle', () => {
+    const actions = starterActions('cumul', 'km', [100, 200]);
+    expect(actions.every((a) => a.unit === 'km')).toBe(true);
+    expect(actions[0].defaultValue).toBe(10); // un dixième de la plus petite cible
+    expect(actions[1].defaultValue).toBe(5); // le petit pas vaut la moitié
+  });
+
+  it('une performance se rapporte à la séance, pas au dixième', () => {
+    expect(starterActions('performance', 'km', [10])[0].defaultValue).toBe(5);
+  });
+
+  it('une valeur habituelle n’est jamais nulle ni négative', () => {
+    expect(starterActions('cumul', 'km', [1])[0].defaultValue).toBe(1);
+    expect(starterActions('cumul', 'km', [])[0].defaultValue).toBeGreaterThan(0);
+  });
+
+  it('une mesure reçoit le relevé sans lequel sa courbe reste vide', () => {
+    const actions = starterActions('mesure', 'kg', [-5]);
+    const releve = actions.find((a) => a.isMeasure);
+    expect(releve).toBeTruthy();
+    expect(releve?.unit).toBe('kg');
+    // Et il ne rapporte pas plus qu'un petit geste : on ne farme pas des PP
+    // sur une balance.
+    expect(releve?.pp).toBeLessThanOrEqual(MEASURE_PP);
   });
 });

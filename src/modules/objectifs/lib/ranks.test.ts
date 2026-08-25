@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { RANKS, getRank, ladderMove, movableTier, rankByValue, suggestRanks } from './ranks';
+import {
+  RANKS,
+  getRank,
+  insertableAt,
+  ladderInsert,
+  ladderMove,
+  movableTier,
+  rankByValue,
+  suggestRanks,
+} from './ranks';
 import type { LadderRung } from './ranks';
 
 /**
@@ -133,5 +142,96 @@ describe('déplacer un palier dans l’échelle', () => {
     const tiers = echelle('bronze', 'argent');
     tiers[1].completedAt = '2026-05-01T10:00:00.000Z';
     expect(movableTier(tiers, 1, -1)).toBe(false);
+  });
+});
+
+describe('insérer un palier au milieu de l’échelle', () => {
+  const echelle = (...ranks: string[]): LadderRung[] =>
+    ranks.map((rank, i) => ({ id: `t${i}`, rank: rank as LadderRung['rank'], completedAt: null }));
+
+  it('le nouveau venu prend le rang de la place qu’il occupe', () => {
+    // Le cas de Jules : glisser « Courir 15 km » entre 10 km et 21 km.
+    const plan = ladderInsert(echelle('bronze', 'argent', 'or'), 2)!;
+    expect(plan.rank).toBe('or');
+    // …et le palier qu'il pousse monte d'un barreau.
+    expect(plan.shifts).toEqual([{ id: 't2', rank: 'challenger' }]);
+  });
+
+  it('la suite des rangs de l’échelle est préservée, allongée d’un barreau', () => {
+    const tiers = echelle('bronze', 'argent', 'or');
+    const plan = ladderInsert(tiers, 1)!;
+    const apres = ['nouveau', ...tiers.map((t) => t.id)];
+    apres.splice(0, 1);
+    const ordre = [tiers[0].id, 'nouveau', tiers[1].id, tiers[2].id];
+    const rangs = ordre.map((id) => {
+      if (id === 'nouveau') return plan.rank;
+      const shift = plan.shifts.find((s) => s.id === id);
+      return shift ? shift.rank : tiers.find((t) => t.id === id)!.rank;
+    });
+    expect(rangs).toEqual(['bronze', 'argent', 'or', 'challenger']);
+  });
+
+  it('insérer à la fin revient à ajouter', () => {
+    const plan = ladderInsert(echelle('bronze', 'argent', 'or'), 3)!;
+    expect(plan.rank).toBe('challenger');
+    expect(plan.shifts).toEqual([]);
+  });
+
+  it('refuse d’insérer au-dessus d’un palier validé', () => {
+    // Son rang est un trophée daté : le décaler le réécrirait.
+    const tiers = echelle('bronze', 'argent', 'or');
+    tiers[2].completedAt = '2026-05-01T10:00:00.000Z';
+    expect(ladderInsert(tiers, 1)).toBeNull();
+    expect(insertableAt(tiers, 1)).toBe(false);
+    // Mais on peut toujours ajouter par-dessus, personne ne bouge.
+    expect(insertableAt(tiers, 3)).toBe(true);
+  });
+
+  it('refuse une place qui n’existe pas', () => {
+    expect(ladderInsert(echelle('bronze'), -1)).toBeNull();
+    expect(ladderInsert(echelle('bronze'), 2)).toBeNull();
+  });
+});
+
+describe('l’échelle ne descend jamais, quoi qu’on insère', () => {
+  const echelle = (...ranks: string[]): LadderRung[] =>
+    ranks.map((rank, i) => ({ id: `t${i}`, rank: rank as LadderRung['rank'], completedAt: null }));
+
+  /** La suite des rangs telle qu'elle sera après l'insertion. */
+  const apresInsertion = (tiers: LadderRung[], index: number) => {
+    const plan = ladderInsert(tiers, index)!;
+    const ordre = [...tiers.slice(0, index), { id: '·', rank: plan.rank, completedAt: null }, ...tiers.slice(index)];
+    return ordre.map((t) => {
+      const shift = plan.shifts.find((sh) => sh.id === t.id);
+      return getRank((shift ? shift.rank : t.rank) as LadderRung['rank']).value;
+    });
+  };
+
+  const croissante = (v: number[]) => v.every((n, i) => i === 0 || n >= v[i - 1]);
+
+  it('sur une échelle standard, à toutes les places', () => {
+    const tiers = echelle('bronze', 'argent', 'or', 'diamant', 'challenger');
+    for (let i = 0; i <= tiers.length; i++) {
+      const suite = apresInsertion(tiers, i);
+      expect(croissante(suite), `insertion en ${i} → ${suite.join(' ')}`).toBe(true);
+    }
+  });
+
+  it('sur une échelle retouchée à la main, à toutes les places', () => {
+    // Ici la convention ne s'applique pas : les rangs choisis à la main sont
+    // conservés, et le nouveau barreau se pose au-dessus du sommet.
+    const tiers = echelle('or', 'maitre');
+    for (let i = 0; i <= tiers.length; i++) {
+      const suite = apresInsertion(tiers, i);
+      expect(croissante(suite), `insertion en ${i} → ${suite.join(' ')}`).toBe(true);
+    }
+  });
+
+  it('une échelle retouchée n’est pas réécrite par la convention', () => {
+    // Le garde-fou : `suggestRanks` ne doit pas écraser un choix explicite.
+    const tiers = echelle('or', 'maitre');
+    const plan = ladderInsert(tiers, 2)!;
+    expect(plan.shifts).toEqual([]); // personne ne bouge
+    expect(getRank(plan.rank).value).toBeGreaterThan(getRank('maitre').value);
   });
 });

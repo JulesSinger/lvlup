@@ -1450,7 +1450,9 @@ if (process.env.AUTH_BASE) {
   {
     // Le badge de rang change de largeur selon le mot : sans colonne fixe,
     // chaque ligne de l'échelle démarre à un endroit différent.
-    const widths = await lp.locator('.draft-tier input').evaluateAll((els) =>
+    // `> input` : le champ d'intitulé seul. Les champs de cible, eux, ont
+    // leur propre colonne et une autre largeur.
+    const widths = await lp.locator('.draft-tier > input').evaluateAll((els) =>
       els.map((el) => Math.round(el.getBoundingClientRect().width)),
     );
     check(
@@ -1995,6 +1997,152 @@ if (process.env.AUTH_BASE) {
     (await op.evaluate(() => localStorage.getItem('zenith.onboarded'))) === null &&
       (await op.evaluate(() => localStorage.getItem('zenith.onboarded.local'))) === '1',
   );
+  await fresh.close();
+}
+
+// --- La nature d'un objectif, demandée une fois ---------------------------
+// Avant : chaque palier écrit à la main naissait « à cocher », et il fallait
+// aller le requalifier un par un dans la carte — six interactions dont cinq
+// répètent la même information. Pire, les actions naissaient sans unité, si
+// bien qu'un palier « 100 km » restait à 0/100 quoi qu'on coche.
+{
+  const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+  const cp = await fresh.newPage();
+  cp.on('pageerror', (e) => errors.push(e.message));
+  await cp.goto(BASE);
+  await cp.waitForSelector('.onboarding-card');
+  await cp.getByRole('button', { name: 'Passer' }).click();
+  await cp.waitForSelector('.brand');
+  await cp.getByRole('button', { name: 'Charger des exemples' }).click();
+  await cp.waitForSelector('.hub');
+  await cp.getByRole('button', { name: 'Nouvel objectif' }).click();
+  await cp.waitForSelector('.picker-grid');
+  await cp.getByRole('button', { name: 'Partir de zéro' }).click();
+  await cp.waitForSelector('.draft-tier');
+
+  await cp.locator('#goal-title').fill('Traverser la France à pied');
+  const etapes = cp.locator('.draft-tier > input');
+  await etapes.nth(0).fill('Courir 10 km');
+  await etapes.nth(1).fill('Courir 21,1 km');
+  await etapes.nth(2).fill('Courir 42,2 km');
+
+  check(
+    'Aucune cible demandée tant que les étapes sont « à cocher »',
+    (await cp.locator('.draft-amount').count()) === 0,
+  );
+
+  await cp.locator('#goal-kind').selectOption('cumul');
+  await cp.waitForTimeout(300);
+  const valeurs = (sel) =>
+    cp.locator(sel).evaluateAll((els) => els.map((el) => el.value));
+  const cibles = await valeurs('.draft-amount input:first-child');
+  check(
+    'La cible se lit dans l’intitulé, sans rien retaper',
+    cibles.join(' ') === '10 21,1 42,2',
+    cibles.join(' '),
+  );
+  check(
+    'Et la virgule française survit à l’affichage',
+    cibles[1] === '21,1',
+    cibles[1],
+  );
+  const unites = await valeurs('.draft-amount input:last-child');
+  check("L’unité aussi", unites.every((u) => u === 'km'), unites.join(' '));
+
+  await cp.getByRole('button', { name: "Créer l'objectif" }).click();
+  await dismissCeremonies(cp);
+  await cp.waitForTimeout(500);
+  await cp.getByRole('button', { name: 'Objectifs' }).click();
+  await cp.waitForSelector('.goal');
+  const carte = cp.locator('.goal', { hasText: 'Traverser la France à pied' });
+  // La carte est déjà dépliée à la création : re-cliquer la refermerait.
+  if ((await carte.locator('.goal-head').getAttribute('aria-expanded')) !== 'true') {
+    await carte.locator('.goal-head').click();
+    await cp.waitForTimeout(400);
+  }
+
+  check(
+    'La carte annonce la nature de l’objectif entier',
+    (await carte.locator('.ladder-kind select').inputValue()) === 'cumul',
+    await carte.locator('.ladder-kind select').inputValue(),
+  );
+  check(
+    'Et l’unité qui va avec',
+    (await carte.locator('.ladder-kind-unit').textContent()) === 'km',
+    await carte.locator('.ladder-kind-unit').textContent(),
+  );
+  check(
+    'Les paliers comptent vraiment, ils ne sont pas restés des jalons',
+    (await carte.locator('.tier-meter, .tier-progress, .tier-counter-fields').count()) > 0 ||
+      (await carte.locator('.tier').count()) === 3,
+    String(await carte.locator('.tier').count()),
+  );
+
+  // Le trou le plus coûteux : sans unité sur les actions, un palier « 100 km »
+  // reste à 0/100 quoi qu'on coche. Les actions doivent porter des kilomètres.
+  await cp.getByRole('button', { name: 'Accueil' }).click();
+  await cp.waitForSelector('.checkin-chips');
+  const bloc = cp.locator('.today-goal', { hasText: 'Traverser la France à pied' });
+  const montants = await bloc.locator('.checkin-amount').allTextContents();
+  check(
+    'Les actions de l’objectif portent son unité — sans quoi rien ne monterait',
+    montants.length >= 2 && montants.every((m) => m.includes('km')),
+    montants.join(' | '),
+  );
+
+  // Et un palier ajouté six mois plus tard hérite, sans rien demander.
+  await cp.getByRole('button', { name: 'Objectifs' }).click();
+  await cp.waitForSelector('.goal');
+  await carte.locator('.ladder-add input').fill('Courir 100 km');
+  await carte.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await cp.waitForTimeout(500);
+  const ajoute = carte.locator('.tier', { hasText: 'Courir 100 km' });
+  // Un palier comptable affiche une jauge ; un jalon n'en a pas. C'est le
+  // signe le plus direct que l'héritage a bien eu lieu.
+  const jauge = await ajoute.locator('.meter-count').textContent();
+  check(
+    'Un palier ajouté ensuite hérite de la nature et lit sa cible',
+    /100\s*km/.test(jauge ?? ''),
+    jauge?.replace(/\s+/g, ' ') ?? 'aucune jauge',
+  );
+  // Intercaler une étape au milieu — le geste qui produisait une échelle
+  // descendante quand il fallait passer par « ajouter à la fin puis remonter ».
+  {
+    const portes = carte.locator('.ladder-insert');
+    check('Une porte d’insertion par palier', (await portes.count()) === 4, String(await portes.count()));
+    await portes.nth(1).click();
+    await cp.waitForSelector('.ladder-insert-bar input');
+    await cp.locator('.ladder-insert-bar input').fill('Courir 40 km');
+    await cp.locator('.ladder-insert-bar input').press('Enter');
+    await cp.waitForTimeout(900);
+
+    const titres = await carte.locator('.tier .tier-title').allTextContents();
+    check(
+      'L’étape se glisse à la place choisie, pas à la fin',
+      titres[1] === 'Courir 40 km',
+      titres.join(' | '),
+    );
+    const valeurs = await carte
+      .locator('.tier .rank-badge')
+      .evaluateAll((els) => els.map((el) => el.textContent?.trim()));
+    const echelle = ['Fer', 'Bronze', 'Argent', 'Or', 'Platine', 'Émeraude', 'Diamant', 'Maître',
+      'Grand Maître', 'Challenger'];
+    const rangs = valeurs.map((v) => echelle.indexOf(v ?? ''));
+    check(
+      'Et l’échelle des rangs ne redescend jamais',
+      rangs.every((r, i) => i === 0 || r >= rangs[i - 1]),
+      valeurs.join(' | '),
+    );
+    const jauge = await carte
+      .locator('.tier', { hasText: 'Courir 40 km' })
+      .locator('.meter-count')
+      .textContent();
+    check(
+      'L’étape intercalée hérite elle aussi de la nature de l’objectif',
+      /40\s*km/.test(jauge ?? ''),
+      jauge?.replace(/\s+/g, ' ') ?? 'aucune jauge',
+    );
+  }
   await fresh.close();
 }
 

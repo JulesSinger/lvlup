@@ -13,8 +13,8 @@ confirmés, et un troisième, non signalé, est apparu en chemin.*
 | ~~1~~ | ~~Ombre de l'anneau rognée~~ | 1 ligne | **Fait le 9 août.** `overflow: visible` sur le `<svg>` |
 | ~~2~~ | ~~Gels comptés deux fois~~ | ~10 lignes | **Fait le 9 août**, les deux volets (réserve annoncée + survie à la rupture) |
 | ~~3~~ | ~~L'échelle des rangs peut redescendre~~ | ~30 lignes | **Fait le 9 août** par déplacement — voir la réserve §3 bis sur l'ajout |
-| **4** | Création : type global + cible devinée | 1 à 2 jours | Le plus gros gain d'usage par unité d'effort. Parseur validé à 95 % |
-| **5** | Insérer un palier au milieu | ~½ jour | Devient presque gratuit une fois le n° 3 fait |
+| ~~4~~ | ~~Création : type global + cible devinée~~ | 1 à 2 jours | **Fait le 9 août** — et la nature devient une propriété de l'objectif, dont tout palier ajouté hérite |
+| ~~5~~ | ~~Insérer un palier au milieu~~ | ~½ jour | **Fait le 9 août** — un « + » entre deux paliers, l'échelle se redistribue |
 | **6** | Donner un sens aux PP | décision d'abord | Ce n'est pas un manque de fonctionnalité, c'est une monnaie en trop |
 | **7** | Animations | 2 à 3 jours | Réel, mais à cibler sur trois moments, pas « partout » |
 | **8** | Onboarding | 1 jour | En dernier — et même plus tard que tu ne le penses, voir §8 |
@@ -205,13 +205,73 @@ interactions à une seule.
 
 ---
 
+### 4 bis. Ce qui a été construit, et le trou qu'on n'avait pas vu
+
+La demande a évolué en cours de route, et pour le mieux : il ne s'agissait pas
+d'appliquer une nature *en bloc à la création*, mais que **l'objectif porte sa
+nature** — de sorte qu'un palier ajouté six mois plus tard en hérite au lieu de
+renaître « à cocher ». Sans ça, le frottement revenait par la porte de derrière.
+
+Cette nature est **déduite, jamais stockée** : le type d'un objectif *est* celui
+de ses paliers, comme le streak est celui de ses réalisations. Elle s'affiche
+pourtant comme une propriété — « Ces paliers se comptent en **Total** · € » sur
+la carte — et la changer requalifie toute l'échelle. Aucune migration, aucun
+champ à tenir à jour, aucune contradiction possible, et l'effet est rétroactif
+sur les objectifs qui existent déjà.
+
+**Le trou découvert en chemin.** Un objectif naît avec deux actions génériques
+**sans unité**. J'ai créé à la main un palier « Courir 100 km » en cumul, coché
+« Un vrai effort » trois jours de suite, et mesuré : **0 / 100**. Pour toujours,
+sans que rien ne le signale. C'est le défaut contre lequel un test protège les
+39 modèles de la bibliothèque — mais rien ne protégeait les objectifs écrits à
+la main. Livrer la nature globale sans ça, c'était livrer une fonctionnalité qui
+*a l'air* de marcher. Les actions naissent donc désormais en portant l'unité de
+l'objectif, avec une valeur habituelle devinée, visible et modifiable.
+
+Trois décisions prises au passage :
+
+- **« Série » est hors du choix global.** C'est la nature où un jour manqué
+  efface tout ; le projet la réserve au tabac et à l'alcool.
+- **« Mesure » y est**, et crée le relevé qui l'alimente — sinon sa courbe
+  resterait vide.
+- **La valeur habituelle est pré-remplie** (un dixième de la plus petite cible
+  pour un cumul, la moitié pour une performance). Un champ vide ouvrirait le
+  clavier à chaque coche, ce que tout le lot « un appui reste un appui » cherche
+  à éviter.
+
+---
+
 ## 5. Insérer un palier au milieu
 
-Réel, mais **c'est déjà possible** — ajouter à la fin puis ↑ — et le vrai
-problème n'est pas l'absence du geste, c'est qu'il produit une échelle fausse
-(§3). Une fois §3 corrigé, je proposerais un « + » discret entre deux paliers
-au survol, qui préremplit le rang intermédiaire. Pas de nouvelle mécanique, pas
-de nouveau modèle de données.
+Réel, mais **c'était déjà possible** — ajouter à la fin puis ↑ — et le vrai
+problème n'était pas l'absence du geste, c'est qu'il produisait une échelle
+fausse (§3).
+
+**Ce qui a été fait.** Un « + » discret entre deux paliers, presque invisible
+jusqu'au survol (et rendu visible au clavier dès que l'échelle a le focus :
+sans ça, la porte serait introuvable pour qui n'utilise pas de souris). Il
+ouvre un champ, on tape l'intitulé, l'étape se glisse à cette place. Elle
+hérite de la nature de l'objectif comme n'importe quel palier ajouté, et sa
+cible se lit dans son titre.
+
+Côté rangs, deux cas :
+
+- **Échelle jamais retouchée** : elle reprend simplement la suite standard de
+  sa nouvelle longueur — exactement ce qu'on aurait eu en créant l'objectif
+  avec un palier de plus. Bronze · Argent · Or · Diamant · Challenger devient
+  Bronze · Argent · Or · Platine · Diamant · Challenger.
+- **Échelle personnalisée** : les rangs choisis à la main sont intouchables, et
+  le nouveau barreau se pose au-dessus du sommet.
+
+Le premier cas a été ajouté après coup, en regardant le résultat : sans lui,
+insérer dans une échelle qui touchait déjà Challenger donnait **deux barreaux
+Challenger**. La règle générale — ne jamais réécrire l'échelle — restait juste,
+mais elle avait un angle mort au plafond.
+
+Et l'invariant vérifié n'est pas « aucun palier n'est rétrogradé » (trop fort :
+une échelle qui s'allonge redistribue ses rangs) mais **« l'échelle ne descend
+jamais »**, testé à toutes les places d'insertion, sur une échelle standard
+comme sur une échelle retouchée.
 
 ---
 
