@@ -487,9 +487,10 @@
   gap: 14px;
 }
 
-/* Trois zones d'action par enveloppe (Mouvement, Modifier, Supprimer) :
-   même défilement horizontal évité que pour les écritures et l'import
-   (voir plus haut) — les actions repassent sur leur propre ligne. */
+/* Quatre zones d'action par enveloppe (Mouvement, Historique, Modifier,
+   Supprimer) depuis l'étape 3 : même défilement horizontal évité que pour
+   les écritures et l'import (voir plus haut) — les actions repassent sur
+   leur propre ligne. */
 @media (max-width: 480px) {
   .budget-envelope-row {
     flex-wrap: wrap;
@@ -500,4 +501,23 @@
     flex: 1 1 100%;
     justify-content: flex-end;
   }
+}
+
+/* --- historique d'une enveloppe (étape 3) ------------------------------ */
+
+.budget-envelope-history {
+  max-width: 480px;
+}
+
+.budget-envelope-history-empty {
+  color: var(--text-faint);
+}
+
+.budget-envelope-history-list {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.budget-envelope-history-row {
+  gap: 12px;
 }

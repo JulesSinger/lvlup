@@ -432,6 +432,41 @@ export async function run({ browser, check, BASE }) {
   );
   check('Une alerte signale le non-affecté négatif', await page.locator('.budget-envelopes .notice.error').isVisible());
 
+  // Historique des mouvements (étape 3) : les trois mouvements passés
+  // (+300, -100 « vidange », +400), le plus récent en premier.
+  await page.getByRole('button', { name: 'Historique' }).click();
+  await page.waitForSelector('.budget-envelope-history-row');
+  check(
+    'Les trois mouvements apparaissent dans l’historique',
+    (await page.locator('.budget-envelope-history-row').count()) === 3,
+  );
+  check(
+    'Le plus récent mouvement (+400 €) est affiché en premier',
+    (await page.locator('.budget-envelope-history-row').first().locator('.budget-row-amount').textContent())?.trim() ===
+      '+400,00 €',
+  );
+  check(
+    'La note du retrait est reprise comme intitulé',
+    (await page.locator('.budget-envelope-history-row', { hasText: 'Vidange' }).count()) === 1,
+  );
+
+  // Supprimer un mouvement corrige l'historique — et le solde/non-affecté
+  // recalculés avec lui, puisqu'ils ne sont jamais stockés (§4.3). Le
+  // gestionnaire persistant posé plus haut, avant l'import, accepte déjà
+  // toute boîte de dialogue.
+  await page.locator('.budget-envelope-history-row').first().getByRole('button', { name: 'Supprimer' }).click();
+  await page.waitForTimeout(200);
+  check(
+    'Supprimer le mouvement de +400 € le retire de l’historique',
+    (await page.locator('.budget-envelope-history-row').count()) === 2,
+  );
+  // Scopé au pied de la modale : son bouton ✕ porte le même intitulé accessible.
+  await page.locator('.budget-envelope-history .modal-foot').getByRole('button', { name: 'Fermer' }).click();
+  check(
+    'Le non-affecté redevient positif (300 €) une fois le mouvement supprimé',
+    (await page.locator('.budget-envelopes-unallocated').getAttribute('class'))?.includes('negative') === false,
+  );
+
   // Supprimer l'enveloppe renvoie ses fonds au non-affecté (§7 Q5) : le
   // non-affecté redevient exactement le total, sans mouvement compensatoire.
   // (le gestionnaire persistant posé plus haut, avant l'import, accepte déjà

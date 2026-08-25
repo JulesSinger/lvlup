@@ -4,6 +4,7 @@ import { centsToInputValue, formatCents } from '../lib/amount';
 import { computeEnvelopesOverview } from '../lib/envelopes';
 import type { BudgetCategory, BudgetEntry, BudgetEnvelope, BudgetEnvelopeMove } from '../lib/types';
 import { EnvelopeEditor } from './EnvelopeEditor';
+import { EnvelopeHistory } from './EnvelopeHistory';
 import { EnvelopeMoveForm } from './EnvelopeMoveForm';
 
 /** Affiche un montant en euros sans forcer de signe « + » sur un montant positif ou nul. */
@@ -33,6 +34,7 @@ export function EnvelopesScreen({
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<BudgetEnvelope | 'new' | null>(null);
   const [moving, setMoving] = useState<BudgetEnvelope | null>(null);
+  const [viewingHistory, setViewingHistory] = useState<BudgetEnvelope | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -143,6 +145,9 @@ export function EnvelopesScreen({
                 <button className="btn btn-ghost btn-sm" onClick={() => setMoving(envelope)}>
                   Mouvement
                 </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setViewingHistory(envelope)}>
+                  Historique
+                </button>
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(envelope)}>
                   Modifier
                 </button>
@@ -174,6 +179,16 @@ export function EnvelopesScreen({
 
       {moving !== null && (
         <EnvelopeMoveForm envelope={moving} onCancel={() => setMoving(null)} onSave={saveMove} />
+      )}
+
+      {viewingHistory !== null && (
+        <EnvelopeHistory
+          envelope={viewingHistory}
+          moves={moves}
+          onCancel={() => setViewingHistory(null)}
+          onError={onError}
+          onChanged={refresh}
+        />
       )}
     </div>
   );
