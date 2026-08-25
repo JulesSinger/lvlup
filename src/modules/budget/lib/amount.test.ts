@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { centsToInputValue, formatCents, parsePositiveAmountToCents } from './amount';
+import { centsToInputValue, formatCents, parsePositiveAmountToCents, parseSignedAmountToCents } from './amount';
 
 describe('parsePositiveAmountToCents', () => {
   it('lit un entier', () => {
@@ -59,5 +59,40 @@ describe('centsToInputValue / formatCents', () => {
   it('l’aller-retour saisie → centimes → affichage est fidèle au centime près', () => {
     const cents = parsePositiveAmountToCents('12,34')!;
     expect(centsToInputValue(cents)).toBe('12,34');
+  });
+});
+
+describe('parseSignedAmountToCents', () => {
+  it('lit un montant négatif simple', () => {
+    expect(parseSignedAmountToCents('-620,00')).toBe(-62000);
+  });
+
+  it('lit un montant positif', () => {
+    expect(parseSignedAmountToCents('150,00')).toBe(15000);
+  });
+
+  it('retire l’espace de milliers (docs/astra-import-boursobank.md §1)', () => {
+    expect(parseSignedAmountToCents('-1 500,00')).toBe(-150000);
+    expect(parseSignedAmountToCents('2 100,00')).toBe(210000);
+  });
+
+  it('lit un montant sans milliers ni signe explicite comme positif', () => {
+    expect(parseSignedAmountToCents('12,40')).toBe(1240);
+  });
+
+  it('complète une seule décimale', () => {
+    expect(parseSignedAmountToCents('-62,1')).toBe(-6210);
+  });
+
+  it('refuse un texte qui ne ressemble pas à un montant', () => {
+    expect(parseSignedAmountToCents('abc')).toBeNull();
+    expect(parseSignedAmountToCents('')).toBeNull();
+    expect(parseSignedAmountToCents('683.65')).toBeNull(); // point décimal : format du solde, pas du montant
+  });
+
+  it('ne produit jamais un nombre à virgule flottante approché', () => {
+    const a = parseSignedAmountToCents('-0,10');
+    const b = parseSignedAmountToCents('0,20');
+    expect(a! + b!).toBe(10);
   });
 });

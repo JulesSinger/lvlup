@@ -1,16 +1,25 @@
+import { fileURLToPath } from 'node:url';
+
 /**
  * Suite e2e du module budget (Astra).
  *
- * Étapes 2 à 4 (docs/etude-astra.md §7) : les catégories se créent et
+ * Étapes 2 à 5 (docs/etude-astra.md §7) : les catégories se créent et
  * s'éditent, le module devient utilisable seul grâce à la saisie manuelle
- * et à la liste des opérations, et l'onglet « Aperçu » ajoute le camembert
- * du mois, son total et son sélecteur — « la V1 est atteinte ». C'est
- * désormais l'onglet par défaut : Astra s'ouvre sur la réponse à « où en
- * est mon mois ? », les catégories passent en second. Comme la suite
- * Zénith, elle part d'un contexte frais et entre dans la carte Astra du hub
- * — voir `modules/objectifs/e2e/suite.mjs` pour le même motif, conséquence
- * du deuxième module désormais enregistré.
+ * et à la liste des opérations, l'onglet « Aperçu » ajoute le camembert
+ * du mois, son total et son sélecteur — « la V1 est atteinte » — et
+ * l'onglet « Importer » dépose un relevé BoursoBank pour que « l'usage
+ * devienne tenable dans la durée ». Comme la suite Zénith, elle part d'un
+ * contexte frais et entre dans la carte Astra du hub — voir
+ * `modules/objectifs/e2e/suite.mjs` pour le même motif, conséquence du
+ * deuxième module désormais enregistré.
  */
+
+/**
+ * Le seul CSV bancaire que ce projet ait le droit de contenir (CLAUDE.md) :
+ * un export synthétique, fidèle octet pour octet au format documenté dans
+ * `docs/astra-import-boursobank.md` — voir aussi `boursobankImport.test.ts`.
+ */
+const FIXTURE_CSV_PATH = fileURLToPath(new URL('../../../../docs/exemples/releve-exemple.csv', import.meta.url));
 
 async function enterAstra(p, base) {
   await p.goto(base);
@@ -267,6 +276,86 @@ export async function run({ browser, check, BASE }) {
     .click();
   await page.waitForTimeout(200);
   check('Une seule écriture après suppression', (await page.locator('.budget-entry-row').count()) === 1);
+
+  // --- Import CSV + règles (étape 5) ----------------------------------------
+  await page.getByRole('button', { name: 'Importer' }).click();
+  check("L'onglet Importer affiche le dépôt de fichier", await page.locator('.budget-import-drop').isVisible());
+
+  await page.locator('input[aria-label="Choisir le fichier du relevé"]').setInputFiles(FIXTURE_CSV_PATH);
+  await page.waitForSelector('.budget-import-summary');
+  check(
+    'Le relevé de treize lignes produit treize nouvelles opérations, zéro déjà connue (§4, §5)',
+    (await page.locator('[data-count="nouvelles"]').textContent()) === '13' &&
+      (await page.locator('[data-count="connues"]').textContent()) === '0',
+  );
+  check(
+    'Cinq lignes restent à classer au premier import, comme sur le relevé réel (§5)',
+    (await page.locator('[data-count="a-classer"]').textContent()) === '5',
+  );
+  check(
+    'Les deux places de concert, strictement identiques, comptent comme deux lignes distinctes (§4) — plus le remboursement, trois lignes « Concert Exemple » en tout',
+    (await page.locator('.budget-import-row', { hasText: 'Concert Exemple' }).count()) === 3 &&
+      (await page.locator('.budget-import-row', { hasText: 'Concert Exemple' }).filter({ hasText: '-45,00 €' }).count()) === 2,
+  );
+  check(
+    'Le groupe « À classer » et le groupe « Déjà classées automatiquement » sont tous deux affichés',
+    (await page.locator('.budget-import-group').count()) === 2,
+  );
+
+  // Une ligne « à classer » (virement émis ordinaire, sans catégorie de
+  // départ fiable — voir BOURSOBANK_CATEGORY_MAP) : on choisit une catégorie
+  // et on demande la création d'une règle, pour que le mois suivant se
+  // range tout seul (§4 point « créer une règle »).
+  const aClasserRow = page.locator('.budget-import-row', { hasText: 'Vir Inst Contact Exemple' });
+  await aClasserRow.locator('select').selectOption({ label: '🧩 Divers' });
+  await aClasserRow.locator('input[type="checkbox"]').check();
+
+  // Changer d'onglet puis revenir ne doit rien effacer : l'aperçu et le
+  // classement déjà fait (ici, la catégorie choisie et la case « créer une
+  // règle ») restent en l'état. Rapporté par l'utilisateur — ImportScreen
+  // reste monté (juste masqué) plutôt que d'être démonté par le changement
+  // d'onglet (voir BudgetScreen.tsx).
+  await page.getByRole('button', { name: 'Aperçu' }).click();
+  await page.getByRole('button', { name: 'Importer' }).click();
+  check(
+    "Changer d'onglet et revenir ne réinitialise pas l'aperçu de l'import",
+    (await page.locator('[data-count="nouvelles"]').textContent()) === '13' &&
+      (await aClasserRow.locator('select').inputValue()) !== '' &&
+      (await aClasserRow.locator('input[type="checkbox"]').isChecked()),
+  );
+
+  await page.getByRole('button', { name: "Valider l'import" }).click();
+  await page.waitForSelector('.budget-import-result');
+  check(
+    "L'import écrit les treize lignes et crée la règle demandée",
+    ((await page.locator('.budget-import-result').textContent()) ?? '').includes('13 écritures importées') &&
+      ((await page.locator('.budget-import-result').textContent()) ?? '').includes('1 règle créée'),
+  );
+
+  // La confirmation elle-même doit survivre à un changement d'onglet — pas
+  // seulement l'aperçu avant validation.
+  await page.getByRole('button', { name: 'Catégories' }).click();
+  await page.getByRole('button', { name: 'Importer' }).click();
+  check(
+    'La confirmation d’import reste affichée après un changement d’onglet',
+    ((await page.locator('.budget-import-result').textContent()) ?? '').includes('13 écritures importées'),
+  );
+
+  // --- Réimporter ne duplique jamais (§4) -----------------------------------
+  await page.locator('input[aria-label="Choisir le fichier du relevé"]').setInputFiles(FIXTURE_CSV_PATH);
+  await page.waitForSelector('.budget-import-summary');
+  check(
+    'Réimporter le même relevé ne propose plus aucune nouvelle ligne',
+    (await page.locator('[data-count="nouvelles"]').textContent()) === '0' &&
+      (await page.locator('[data-count="connues"]').textContent()) === '13',
+  );
+  check('« Rien de nouveau » est affiché plutôt qu\'une liste vide', await page.locator('.budget-import-empty').isVisible());
+
+  // Le relevé d'exemple date de mars 2026 : ses écritures n'apparaissent
+  // pas dans l'Aperçu du mois courant (docs/etude-astra.md §5 — la liste
+  // sous le camembert est filtrée par mois), ce n'est donc pas vérifié ici.
+  // La persistance et le rattachement au bon mois sont déjà couverts par
+  // `lib/month.test.ts` et `data/localBudget.test.ts`.
 
   await page.getByRole('button', { name: '← Modules' }).click();
   await page.waitForSelector('.hub-picker-card');

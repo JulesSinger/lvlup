@@ -342,3 +342,93 @@
   font-size: 13px;
   margin-bottom: 12px;
 }
+
+/* --- import (étape 5) ------------------------------------------------- */
+
+.budget-import {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.budget-import-drop {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 18px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+}
+
+.budget-import-summary {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.budget-import-empty {
+  color: var(--text-faint);
+}
+
+.budget-import-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.budget-import-row {
+  gap: 12px;
+}
+
+.budget-import-row select {
+  flex-shrink: 0;
+  max-width: 220px;
+}
+
+.budget-import-rule-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.budget-import-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.budget-import-result {
+  border-color: var(--success);
+}
+
+/* Cinq zones dans une ligne d'import (jour, libellé, montant, catégorie,
+   règle) : comme pour les écritures (voir plus haut), leurs largeurs
+   cumulées dépassent un téléphone étroit. Le jour et la case « créer une
+   règle » repassent sur leur propre ligne plutôt que d'être comprimés. */
+@media (max-width: 640px) {
+  .budget-import-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .budget-import-row .budget-row-day {
+    order: 4;
+    width: auto;
+    flex: 1 1 100%;
+  }
+
+  .budget-import-row .budget-import-rule-toggle {
+    order: 5;
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+
+  .budget-import-row select {
+    max-width: none;
+  }
+}

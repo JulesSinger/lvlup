@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { CategoryEditor } from './components/CategoryEditor';
+import { ImportScreen } from './components/ImportScreen';
 import { MonthScreen } from './components/MonthScreen';
 import { budgetStore } from './data';
 import type { BudgetCategory, BudgetCategoryInput, BudgetCategoryKind } from './lib/types';
@@ -14,7 +15,7 @@ const GROUPS: { kind: BudgetCategoryKind; label: string }[] = [
   { kind: 'transfert', label: 'Transferts' },
 ];
 
-type View = 'categories' | 'month';
+type View = 'categories' | 'month' | 'import';
 
 /**
  * Écran racine d'Astra. Depuis l'étape 4 (docs/etude-astra.md §7), « la V1
@@ -22,10 +23,12 @@ type View = 'categories' | 'month';
  * « Aperçu » — camembert, total et sélecteur de mois, avec la liste des
  * opérations toujours en dessous (§5). « Mois » nommait bien son contenu
  * mais rien de sa fonction ; « Aperçu » dit que c'est l'écran qu'on regarde
- * d'abord — et c'est maintenant l'onglet par défaut, en premier dans la
- * barre : c'est lui qui répond à la question qu'on se pose en ouvrant
- * Astra (« où en est mon mois ? »), les catégories ne se consultent qu'en
- * second. L'import du relevé (étape 5) suivra.
+ * d'abord — et c'est l'onglet par défaut, en premier dans la barre : c'est
+ * lui qui répond à la question qu'on se pose en ouvrant Astra (« où en est
+ * mon mois ? »). Depuis l'étape 5, un troisième onglet « Importer » ferme
+ * la marche : « l'usage devient tenable dans la durée » (§7) une fois que
+ * le relevé mensuel se dépose en quelques clics plutôt que de se ressaisir
+ * ligne à ligne.
  */
 export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
   const [view, setView] = useState<View>('month');
@@ -123,6 +126,12 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
           >
             Catégories
           </button>
+          <button
+            className={`budget-tab${view === 'import' ? ' active' : ''}`}
+            onClick={() => setView('import')}
+          >
+            Importer
+          </button>
         </nav>
 
         {error && (
@@ -134,7 +143,7 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
           </div>
         )}
 
-        {view === 'month' ? (
+        {view === 'import' ? null : view === 'month' ? (
           <MonthScreen categories={categories} onError={onError} reloadToken={reloadToken} />
         ) : loading ? (
           <p>Chargement…</p>
@@ -197,6 +206,16 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
             </button>
           </div>
         )}
+
+        {/* Toujours monté, simplement masqué en dehors de l'onglet Importer —
+            contrairement à Aperçu et Catégories, l'écran d'import porte un
+            aperçu en cours (choix de catégorie par ligne, case « créer une
+            règle ») ou une confirmation qui n'ont pas de source de vérité
+            ailleurs que dans ImportScreen : le démonter en changeant d'onglet
+            effaçait tout ce travail. Rapporté par l'utilisateur. */}
+        <div hidden={view !== 'import'}>
+          <ImportScreen categories={categories} onError={onError} />
+        </div>
 
         {editing !== null && (
           <CategoryEditor

@@ -61,6 +61,18 @@ export default function App() {
   // Changement d'utilisateur : tout ce qui est à l'écran appartenait à la
   // session précédente. Sans ce ménage, on se connectait et le panneau de
   // réglages était déjà ouvert — celui d'où on venait de se déconnecter.
+  //
+  // La dépendance est `user?.id`, pas `user` : en mode Supabase,
+  // `onUserChange` (`supabaseCore.ts`) rappelle ce callback à chaque
+  // événement `onAuthStateChange` — y compris un `TOKEN_REFRESHED` qui ne
+  // change rien à la session, et que Supabase déclenche entre autres quand
+  // l'onglet ou l'app reprend le focus. Chaque appel construit un nouvel
+  // objet `AppUser`, distinct par référence même à contenu identique ; en
+  // dépendant de `user` lui-même, cet effet se rejouait à chaque reprise de
+  // focus et ramenait Astra comme Zénith sur l'écran de choix des modules —
+  // rapporté par l'utilisateur. Ne dépendre que de l'identifiant ignore les
+  // ré-émissions du même compte et ne réagit qu'à un changement réel
+  // (connexion, déconnexion, autre compte).
   useEffect(() => {
     setShowSettings(false);
     setError('');
@@ -73,7 +85,8 @@ export default function App() {
       .getSettings()
       .then(setSettings)
       .catch((err) => setError(err instanceof Error ? err.message : 'Réglages illisibles.'));
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Lien « mot de passe oublié » : on intercepte avant tout le reste.
   useEffect(() => coreStore.onPasswordRecovery(() => setRecovering(true)), []);

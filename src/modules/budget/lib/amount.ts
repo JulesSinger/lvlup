@@ -45,3 +45,22 @@ export function formatCents(cents: number): string {
   const rest = String(abs % 100).padStart(2, '0');
   return `${sign}${euros},${rest} €`;
 }
+
+/**
+ * Lit un montant **signé** au format du relevé BoursoBank : virgule
+ * décimale, espace ordinaire en séparateur de milliers (docs/astra-import-
+ * boursobank.md §1 — vérifié octet par octet, ce n'est pas une insécable).
+ * `"-1 500,00"` → `-150000`. Toujours en entiers, jamais via `parseFloat`.
+ *
+ * Rend `null` si le texte n'est pas un montant reconnaissable.
+ */
+export function parseSignedAmountToCents(raw: string): number | null {
+  const trimmed = raw.trim().replace(/\s/g, '');
+  if (trimmed === '') return null;
+  const match = /^(-?)(\d+)(?:,(\d{0,2}))?$/.exec(trimmed);
+  if (!match) return null;
+  const [, sign, whole, frac] = match;
+  const cents = Number(whole) * 100 + Number((frac ?? '').padEnd(2, '0'));
+  if (!Number.isFinite(cents)) return null;
+  return sign === '-' ? -cents : cents;
+}
