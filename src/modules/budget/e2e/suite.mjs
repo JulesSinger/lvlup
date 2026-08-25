@@ -367,6 +367,10 @@ export async function run({ browser, check, BASE }) {
     'Le total mis de côté est nul tant qu’aucune écriture Épargne n’existe',
     (await page.locator('.budget-envelopes-total-amount').textContent())?.trim() === '0,00 €',
   );
+  check(
+    'La courbe d’évolution affiche son état vide tant qu’aucune écriture Épargne n’existe',
+    await page.locator('.budget-chart-empty').isVisible(),
+  );
 
   await page.getByRole('button', { name: 'Créer ma première enveloppe' }).click();
   await page.locator('#budget-envelope-name').fill('Voiture');
@@ -393,6 +397,10 @@ export async function run({ browser, check, BASE }) {
     'Le total mis de côté reflète le virement (500 €), le non-affecté aussi tant que rien n’est affecté',
     (await page.locator('.budget-envelopes-total-amount').textContent())?.trim() === '500,00 €' &&
       (await page.locator('.budget-envelopes-unallocated strong').textContent())?.trim() === '500,00 €',
+  );
+  check(
+    'La courbe d’évolution trace le virement, avec un point à 500 €',
+    (await page.locator('.budget-chart-card svg').getAttribute('aria-label'))?.includes('500,00') ?? false,
   );
 
   await page.getByRole('button', { name: 'Mouvement' }).click();

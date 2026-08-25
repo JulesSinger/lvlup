@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { budgetStore } from '../data';
 import { centsToInputValue, formatCents } from '../lib/amount';
-import { computeEnvelopesOverview } from '../lib/envelopes';
+import { computeEnvelopesOverview, computeSavingsTimeline } from '../lib/envelopes';
 import type { BudgetCategory, BudgetEntry, BudgetEnvelope, BudgetEnvelopeMove } from '../lib/types';
 import { EnvelopeEditor } from './EnvelopeEditor';
 import { EnvelopeHistory } from './EnvelopeHistory';
 import { EnvelopeMoveForm } from './EnvelopeMoveForm';
+import { SavingsChart } from './SavingsChart';
 
 /** Affiche un montant en euros sans forcer de signe « + » sur un montant positif ou nul. */
 function formatAmount(cents: number): string {
@@ -94,6 +95,7 @@ export function EnvelopesScreen({
   if (loading) return <p>Chargement…</p>;
 
   const overview = computeEnvelopesOverview(entries, categories, envelopes, moves);
+  const timeline = computeSavingsTimeline(entries, categories);
 
   return (
     <div className="budget-envelopes">
@@ -101,6 +103,8 @@ export function EnvelopesScreen({
         <span className="budget-envelopes-total-label">Total mis de côté</span>
         <span className="budget-envelopes-total-amount">{formatAmount(overview.totalCents)}</span>
       </div>
+
+      <SavingsChart points={timeline} />
 
       <div
         className={`budget-envelopes-unallocated${overview.unallocatedCents < 0 ? ' negative' : ''}`}

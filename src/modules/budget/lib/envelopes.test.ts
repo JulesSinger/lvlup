@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { computeEnvelopeBalanceCents, computeEnvelopesOverview, computeSavingsTotalCents } from './envelopes';
+import {
+  computeEnvelopeBalanceCents,
+  computeEnvelopesOverview,
+  computeSavingsTimeline,
+  computeSavingsTotalCents,
+} from './envelopes';
 import type { BudgetCategory, BudgetEntry, BudgetEnvelope, BudgetEnvelopeMove } from './types';
 
 function category(patch: Partial<BudgetCategory>): BudgetCategory {
@@ -128,5 +133,44 @@ describe('computeEnvelopesOverview', () => {
     const overview = computeEnvelopesOverview([depot], [epargne], [], []);
     expect(overview.balances).toEqual([]);
     expect(overview.unallocatedCents).toBe(25000);
+  });
+});
+
+describe('computeSavingsTimeline', () => {
+  it('cumule les écritures épargne dans l’ordre chronologique', () => {
+    const epargne = category({ id: 'c1' });
+    const juin = entry({ id: 'e1', day: '2026-06-10', categoryId: 'c1', amountCents: -50000 });
+    const juillet = entry({ id: 'e2', day: '2026-07-05', categoryId: 'c1', amountCents: -20000 });
+    expect(computeSavingsTimeline([juillet, juin], [epargne])).toEqual([
+      { day: '2026-06-10', changeCents: 50000, totalCents: 50000 },
+      { day: '2026-07-05', changeCents: 20000, totalCents: 70000 },
+    ]);
+  });
+
+  it('un retrait fait redescendre la courbe (etude-astra-epargne.md §3)', () => {
+    const epargne = category({ id: 'c1' });
+    const depot = entry({ id: 'e1', day: '2026-06-10', categoryId: 'c1', amountCents: -50000 });
+    const retrait = entry({ id: 'e2', day: '2026-07-05', categoryId: 'c1', amountCents: 15000 });
+    const timeline = computeSavingsTimeline([depot, retrait], [epargne]);
+    expect(timeline[1]).toEqual({ day: '2026-07-05', changeCents: -15000, totalCents: 35000 });
+  });
+
+  it('plusieurs écritures le même jour se cumulent en un seul point', () => {
+    const epargne = category({ id: 'c1' });
+    const a = entry({ id: 'e1', day: '2026-07-05', categoryId: 'c1', amountCents: -1000 });
+    const b = entry({ id: 'e2', day: '2026-07-05', categoryId: 'c1', amountCents: -2000 });
+    expect(computeSavingsTimeline([a, b], [epargne])).toEqual([
+      { day: '2026-07-05', changeCents: 3000, totalCents: 3000 },
+    ]);
+  });
+
+  it('les écritures hors épargne ne créent pas de point', () => {
+    const epargne = category({ id: 'c1', kind: 'epargne' });
+    const depense = entry({ id: 'e1', day: '2026-07-05', categoryId: null, amountCents: -3000 });
+    expect(computeSavingsTimeline([depense], [epargne])).toEqual([]);
+  });
+
+  it('sans écriture, la courbe est vide', () => {
+    expect(computeSavingsTimeline([], [])).toEqual([]);
   });
 });

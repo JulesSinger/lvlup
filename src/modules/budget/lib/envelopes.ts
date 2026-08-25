@@ -63,3 +63,34 @@ export function computeEnvelopesOverview(
   const allocatedCents = moves.reduce((sum, m) => sum + m.amountCents, 0);
   return { totalCents, balances, unallocatedCents: totalCents - allocatedCents };
 }
+
+/** Un point de la courbe : le total mis de côté cumulé à la fin de ce jour-là. */
+export interface SavingsPoint {
+  day: string;
+  /** Variation de ce jour, signée — plusieurs écritures le même jour se cumulent en un seul point. */
+  changeCents: number;
+  totalCents: number;
+}
+
+/**
+ * L'évolution du total mis de côté dans le temps : un point par jour où au
+ * moins une écriture `epargne` a été enregistrée, cumulés dans l'ordre
+ * chronologique — même construction que `ppTimeline` côté Zénith
+ * (`modules/objectifs/lib/progress.ts`), mais propre à Astra : un module
+ * n'importe jamais depuis un autre (`conventions.test.ts`).
+ */
+export function computeSavingsTimeline(entries: BudgetEntry[], categories: BudgetCategory[]): SavingsPoint[] {
+  const epargneIds = new Set(categories.filter((c) => c.kind === 'epargne').map((c) => c.id));
+  const perDay = new Map<string, number>();
+  for (const entry of entries) {
+    if (entry.categoryId === null || !epargneIds.has(entry.categoryId)) continue;
+    perDay.set(entry.day, (perDay.get(entry.day) ?? 0) - entry.amountCents);
+  }
+  let running = 0;
+  return [...perDay.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([day, changeCents]) => {
+      running += changeCents;
+      return { day, changeCents, totalCents: running };
+    });
+}
