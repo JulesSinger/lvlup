@@ -18,6 +18,9 @@ export interface MonthlyBreakdown {
   /** Somme des parts, en positif — ce qui a été dépensé ce mois-ci. */
   totalSpentCents: number;
   slices: BudgetSlice[];
+  /** Somme des parts d'entrées, en positif — ce qui est rentré ce mois-ci. */
+  totalIncomeCents: number;
+  incomeSlices: BudgetSlice[];
 }
 
 /**
@@ -43,6 +46,13 @@ export interface MonthlyBreakdown {
  * remboursement d'ami) nette positif et disparaît du camembert, mais rien
  * qui a quitté le compte ne peut y disparaître, ce qui respecte la garantie
  * du §2 ci-dessus.
+ *
+ * Depuis la V1, un second camembert symétrique répond à « d'où vient
+ * l'argent » : mêmes catégories exclues (transfert, epargne), mais les
+ * groupes au net **positif** cette fois — le salaire, un remboursement qui
+ * dépasse la dépense d'origine, ou une entrée isolée sans catégorie, qui
+ * apparaît sous « À classer » plutôt que d'y disparaître, exactement comme
+ * une dépense non catégorisée le fait côté dépenses.
  */
 export function computeMonthlyBreakdown(
   entries: BudgetEntry[],
@@ -61,19 +71,23 @@ export function computeMonthlyBreakdown(
   }
 
   const slices: BudgetSlice[] = [];
+  const incomeSlices: BudgetSlice[] = [];
   for (const [key, net] of netByKey) {
-    if (net >= 0) continue;
+    if (net === 0) continue;
     const category = key ? categoryById.get(key) : undefined;
-    slices.push({
+    const slice: BudgetSlice = {
       categoryId: key || null,
       label: category ? category.name : 'À classer',
       emoji: category ? category.emoji : '❔',
       color: category ? category.color : UNCATEGORIZED_COLOR,
-      cents: -net,
-    });
+      cents: Math.abs(net),
+    };
+    (net < 0 ? slices : incomeSlices).push(slice);
   }
 
   slices.sort((a, b) => b.cents - a.cents);
+  incomeSlices.sort((a, b) => b.cents - a.cents);
   const totalSpentCents = slices.reduce((sum, s) => sum + s.cents, 0);
-  return { totalSpentCents, slices };
+  const totalIncomeCents = incomeSlices.reduce((sum, s) => sum + s.cents, 0);
+  return { totalSpentCents, slices, totalIncomeCents, incomeSlices };
 }

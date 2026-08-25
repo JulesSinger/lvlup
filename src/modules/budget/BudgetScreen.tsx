@@ -27,12 +27,17 @@ type View = 'categories' | 'month' | 'import' | 'epargne';
  * mais rien de sa fonction ; « Aperçu » dit que c'est l'écran qu'on regarde
  * d'abord — et c'est l'onglet par défaut, en premier dans la barre : c'est
  * lui qui répond à la question qu'on se pose en ouvrant Astra (« où en est
- * mon mois ? »). Depuis l'étape 5, un troisième onglet « Importer » ferme
- * la marche : « l'usage devient tenable dans la durée » (§7) une fois que
- * le relevé mensuel se dépose en quelques clics plutôt que de se ressaisir
- * ligne à ligne. Un cinquième onglet, « Épargne », porte le chantier des
- * enveloppes (docs/etude-astra-epargne.md) : le total mis de côté, réparti
- * sur des enveloppes dynamiques.
+ * mon mois ? »). Depuis l'étape 5, un onglet « Importer » : « l'usage
+ * devient tenable dans la durée » (§7) une fois que le relevé mensuel se
+ * dépose en quelques clics plutôt que de se ressaisir ligne à ligne. Un
+ * onglet « Épargne » porte le chantier des enveloppes
+ * (docs/etude-astra-epargne.md) : le total mis de côté, réparti sur des
+ * enveloppes dynamiques.
+ *
+ * Ordre des onglets réajusté après la V1 (retour de Jules, voir CLAUDE.md
+ * §8) : Épargne passe en deuxième position — un usage régulier, à côté
+ * d'Aperçu — et Catégories, un réglage qu'on ne rouvre qu'occasionnellement
+ * une fois les catégories de départ chargées, passe en dernier.
  */
 export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
   const [view, setView] = useState<View>('month');
@@ -101,7 +106,7 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
 
   return (
     <div className="layout">
-      <main className="main">
+      <main className="main budget-main">
         <header className="topbar">
           <div className="brand">
             <span className="brand-mark">✦</span>
@@ -125,10 +130,10 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
             Aperçu
           </button>
           <button
-            className={`budget-tab${view === 'categories' ? ' active' : ''}`}
-            onClick={() => setView('categories')}
+            className={`budget-tab${view === 'epargne' ? ' active' : ''}`}
+            onClick={() => setView('epargne')}
           >
-            Catégories
+            Épargne
           </button>
           <button
             className={`budget-tab${view === 'import' ? ' active' : ''}`}
@@ -137,10 +142,10 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
             Importer
           </button>
           <button
-            className={`budget-tab${view === 'epargne' ? ' active' : ''}`}
-            onClick={() => setView('epargne')}
+            className={`budget-tab${view === 'categories' ? ' active' : ''}`}
+            onClick={() => setView('categories')}
           >
-            Épargne
+            Catégories
           </button>
         </nav>
 

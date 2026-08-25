@@ -9,6 +9,19 @@
  * `budget.css` depuis un poste local, sans urgence.
  */
 
+/* `.main` (socle, `core/styles/base.css`) plafonne à 1080px — pensé pour
+   du texte, la largeur de lecture confortable de Zénith. Astra affiche
+   aussi des graphiques côte à côte (le camembert des dépenses et celui des
+   entrées) qui s'y sentaient à l'étroit sur un grand écran (retour de
+   Jules, voir CLAUDE.md §8). Une classe ajoutée par-dessus plutôt qu'un
+   changement du socle : `.budget-main` est importé après `.main` dans
+   `styles.css`, donc l'emporte sur `max-width` à spécificité égale, sans
+   toucher à un fichier qui ne nous appartient pas — et Zénith garde sa
+   largeur inchangée. */
+.budget-main {
+  max-width: 1440px;
+}
+
 .budget-tabs {
   display: flex;
   gap: 4px;
@@ -233,24 +246,85 @@
   text-transform: capitalize;
 }
 
-.budget-month-total {
+/* Trois chiffres côte à côte (Dépensé, Entré, Solde) plutôt qu'un seul
+   total centré — remplace `.budget-month-total*` de l'étape 4, qui ne
+   montrait que ce qui était parti, jamais ce qui était rentré ni si le
+   mois était positif (retour de Jules, voir CLAUDE.md §8). */
+.budget-month-summary {
+  display: flex;
+  gap: 32px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.budget-month-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
 }
 
-.budget-month-total-label {
+.budget-month-stat-label {
   font-size: 13px;
   color: var(--text-faint);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
-.budget-month-total-amount {
-  font-size: 28px;
+.budget-month-stat-amount {
+  font-size: 26px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.budget-month-stat-amount.expense {
+  color: #ff8b8b;
+}
+
+.budget-month-stat-amount.income {
+  color: #6fbf7f;
+}
+
+.budget-month-stat-net.negative {
+  color: #ff8b8b;
+}
+
+.budget-month-stat-net.positive {
+  color: #6fbf7f;
+}
+
+/* Deux camemberts (Dépenses, Entrées) côte à côte sur un écran large — le
+   camembert seul laissait la moitié droite de la carte vide au-delà de
+   ~700px (retour de Jules). Une seule colonne en dessous de 900px, où deux
+   camemberts et leurs légendes côte à côte deviendraient trop serrés. */
+.budget-pies-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .budget-pies-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.budget-pie-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.budget-pie-card-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text-dim);
 }
 
 .budget-pie-wrap {
@@ -258,7 +332,12 @@
   align-items: center;
   gap: 26px;
   flex-wrap: wrap;
-  justify-content: center;
+  /* `flex-start`, pas `center` : avec `.budget-main` plus large (voir plus
+     haut), centrer un pied fixe (le disque) et une légende à largeur
+     minimale laissait toute la largeur gagnée en vide de chaque côté. La
+     légende, elle, grandit (`flex: 1` ci-dessous) pour occuper ce qui
+     reste. */
+  justify-content: flex-start;
 }
 
 .budget-pie {
@@ -302,6 +381,7 @@
   margin: 0;
   padding: 0;
   min-width: 220px;
+  flex: 1;
 }
 
 .budget-pie-legend-item {
@@ -330,6 +410,10 @@
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: #ff8b8b;
+}
+
+.budget-pie-legend-amount.income {
+  color: #6fbf7f;
 }
 
 .budget-filter-notice {

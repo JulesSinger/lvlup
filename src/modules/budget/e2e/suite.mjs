@@ -197,8 +197,43 @@ export async function run({ browser, check, BASE }) {
   );
   check(
     'Le total dépensé du mois est la somme des deux parts (50 + 10 = 60 €)',
-    (await page.locator('.budget-month-total-amount').textContent())?.trim() === '-60,00 €',
+    (await page.locator('.budget-month-stat-amount.expense').textContent())?.trim() === '-60,00 €',
   );
+
+  // Camembert des entrées (retour de Jules après la V1 : voir aussi les
+  // deux stats et les deux colonnes ci-dessus) — le salaire, déjà chargé
+  // avec les catégories de départ, y fait sa propre part.
+  await page.getByRole('button', { name: '+ Nouvelle écriture' }).click();
+  await page.locator('#budget-entry-label').fill('Salaire juillet');
+  await page.getByRole('button', { name: '+ Entrée' }).click();
+  await page.locator('#budget-entry-amount').fill('2500');
+  await page.locator('#budget-entry-category').selectOption({ label: '💼 Salaire' });
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForTimeout(200);
+  check(
+    'Le camembert des entrées affiche la part Salaire',
+    ((await page.locator('.budget-pie-card-income .budget-pie-legend-item', { hasText: 'Salaire' }).textContent()) ?? '').includes(
+      '2500,00',
+    ),
+  );
+  check(
+    'Le stat « Entré » reflète le salaire, sans signe forcé',
+    (await page.locator('.budget-month-stat-amount.income').textContent())?.trim() === '2500,00 €',
+  );
+  check(
+    'Le solde net est la différence entre l’entré et le dépensé (2500 - 60 = 2440 €)',
+    (await page.locator('.budget-month-stat-net').textContent())?.trim() === '+2440,00 €',
+  );
+
+  // On retire l'écriture, pour ne pas perturber les compteurs d'écritures
+  // des vérifications suivantes (filtrage, suppression), écrites avant ce
+  // camembert des entrées et qui comptent sur exactement trois écritures.
+  page.once('dialog', (d) => d.accept());
+  await page
+    .locator('.budget-entry-row', { hasText: 'Salaire juillet' })
+    .getByRole('button', { name: 'Supprimer' })
+    .click();
+  await page.waitForTimeout(200);
 
   // --- Filtrage par clic sur une part -----------------------------------------
   // La part « à classer » regroupe toutes les écritures sans catégorie : le
@@ -241,8 +276,11 @@ export async function run({ browser, check, BASE }) {
   await page.waitForTimeout(150);
   check(
     'Le mois précédent change le libellé et affiche un camembert vide',
+    // Les deux camemberts (dépenses et entrées) sont vides sans écriture ce
+    // mois-là — `.first()` évite l'erreur de mode strict sur les deux
+    // correspondances.
     (await page.locator('.budget-month-label').textContent()) !== currentMonthText &&
-      (await page.locator('.budget-pie-empty').isVisible()),
+      (await page.locator('.budget-pie-empty').first().isVisible()),
   );
   await page.getByRole('button', { name: 'Mois suivant' }).click();
   await page.waitForTimeout(150);

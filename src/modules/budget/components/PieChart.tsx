@@ -7,6 +7,12 @@ interface Props {
   /** `undefined` = aucun filtre actif. */
   selectedCategoryId: string | null | undefined;
   onSelect: (categoryId: string | null) => void;
+  /**
+   * `'expense'` (par défaut) affiche les montants en négatif, comme une
+   * sortie d'argent ; `'income'` les affiche en positif — même construction,
+   * symétrique (voir `computeMonthlyBreakdown` §5 bis dans monthlyBreakdown.ts).
+   */
+  variant?: 'expense' | 'income';
 }
 
 const SIZE = 200;
@@ -22,10 +28,16 @@ function arcPoint(angleRadians: number): [number, number] {
  * graphique dans Atlas — `objectifs/components/PPChart.tsx` fait le même
  * choix pour sa courbe — quelques chemins SVG suffisent pour des parts.
  */
-export function PieChart({ slices, totalCents, selectedCategoryId, onSelect }: Props) {
+export function PieChart({ slices, totalCents, selectedCategoryId, onSelect, variant = 'expense' }: Props) {
+  const isIncome = variant === 'income';
+
   if (totalCents <= 0 || slices.length === 0) {
     return (
-      <div className="budget-pie-empty" role="img" aria-label="Aucune dépense à répartir ce mois-ci">
+      <div
+        className="budget-pie-empty"
+        role="img"
+        aria-label={isIncome ? 'Aucune entrée à répartir ce mois-ci' : 'Aucune dépense à répartir ce mois-ci'}
+      >
         Rien à afficher
       </div>
     );
@@ -67,7 +79,11 @@ export function PieChart({ slices, totalCents, selectedCategoryId, onSelect }: P
         height={SIZE}
         viewBox={`0 0 ${SIZE} ${SIZE}`}
         role="img"
-        aria-label={`Répartition du mois, total dépensé ${formatCents(-totalCents)}`}
+        aria-label={
+          isIncome
+            ? `Répartition du mois, total des entrées ${formatCents(totalCents)}`
+            : `Répartition du mois, total dépensé ${formatCents(-totalCents)}`
+        }
       >
         {arcs.map(({ slice, d }) => (
           <path
@@ -94,7 +110,9 @@ export function PieChart({ slices, totalCents, selectedCategoryId, onSelect }: P
                 {slice.emoji}
               </span>
               <span className="budget-pie-legend-label">{slice.label}</span>
-              <span className="budget-pie-legend-amount">{formatCents(-slice.cents)}</span>
+              <span className={`budget-pie-legend-amount${isIncome ? ' income' : ''}`}>
+                {formatCents(isIncome ? slice.cents : -slice.cents)}
+              </span>
             </button>
           </li>
         ))}

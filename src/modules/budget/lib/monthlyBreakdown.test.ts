@@ -117,5 +117,46 @@ describe('computeMonthlyBreakdown', () => {
     const result = computeMonthlyBreakdown([], [], '2026-07');
     expect(result.slices).toEqual([]);
     expect(result.totalSpentCents).toBe(0);
+    expect(result.incomeSlices).toEqual([]);
+    expect(result.totalIncomeCents).toBe(0);
+  });
+
+  test('une catégorie revenu (ex. Salaire) devient une part du camembert des entrées', () => {
+    const cat = category({ id: 'c1', name: 'Salaire', kind: 'revenu' });
+    const e = entry({ categoryId: 'c1', amountCents: 250000 });
+    const result = computeMonthlyBreakdown([e], [cat], '2026-07');
+    expect(result.incomeSlices).toEqual([
+      { categoryId: 'c1', label: 'Salaire', emoji: '🛒', color: '#ff0000', cents: 250000 },
+    ]);
+    expect(result.totalIncomeCents).toBe(250000);
+  });
+
+  test('une entrée d’argent isolée et non catégorisée apparaît sous « À classer » côté entrées, jamais masquée', () => {
+    const e = entry({ categoryId: null, amountCents: 2000 });
+    const result = computeMonthlyBreakdown([e], [], '2026-07');
+    expect(result.incomeSlices).toEqual([
+      { categoryId: null, label: 'À classer', emoji: '❔', color: '#8a8f98', cents: 2000 },
+    ]);
+  });
+
+  test('un remboursement qui dépasse la dépense d’origine fait une part côté entrées, pas côté dépenses', () => {
+    const cat = category({ id: 'c1', name: 'Restaurants' });
+    const depense = entry({ id: 'e1', categoryId: 'c1', amountCents: -3000 });
+    const remboursement = entry({ id: 'e2', categoryId: 'c1', amountCents: 5000 });
+    const result = computeMonthlyBreakdown([depense, remboursement], [cat], '2026-07');
+    expect(result.slices).toEqual([]);
+    expect(result.incomeSlices).toEqual([
+      { categoryId: 'c1', label: 'Restaurants', emoji: '🛒', color: '#ff0000', cents: 2000 },
+    ]);
+  });
+
+  test('les catégories transfert et epargne sont exclues des deux camemberts', () => {
+    const transfert = category({ id: 'c1', kind: 'transfert', name: 'Virements internes' });
+    const epargne = category({ id: 'c2', kind: 'epargne', name: 'Épargne' });
+    const e1 = entry({ id: 'e1', categoryId: 'c1', amountCents: 30000 });
+    const e2 = entry({ id: 'e2', categoryId: 'c2', amountCents: 20000 });
+    const result = computeMonthlyBreakdown([e1, e2], [transfert, epargne], '2026-07');
+    expect(result.incomeSlices).toEqual([]);
+    expect(result.totalIncomeCents).toBe(0);
   });
 });
