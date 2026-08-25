@@ -5,6 +5,10 @@ import type {
   BudgetCategoryInput,
   BudgetEntry,
   BudgetEntryInput,
+  BudgetEnvelope,
+  BudgetEnvelopeInput,
+  BudgetEnvelopeMove,
+  BudgetEnvelopeMoveInput,
   BudgetRule,
   BudgetRuleInput,
 } from '../lib/types';
@@ -38,6 +42,23 @@ interface RuleRow {
   priority: number;
 }
 
+interface EnvelopeRow {
+  id: string;
+  name: string;
+  emoji: string | null;
+  color: string | null;
+  position: number;
+}
+
+interface EnvelopeMoveRow {
+  id: string;
+  envelope_id: string;
+  amount_cents: number;
+  day: string;
+  note: string | null;
+  created_at: string;
+}
+
 function toCategory(row: CategoryRow): BudgetCategory {
   return {
     id: row.id,
@@ -65,6 +86,27 @@ function toEntry(row: EntryRow): BudgetEntry {
 
 function toRule(row: RuleRow): BudgetRule {
   return { id: row.id, pattern: row.pattern, categoryId: row.category_id, priority: row.priority };
+}
+
+function toEnvelope(row: EnvelopeRow): BudgetEnvelope {
+  return {
+    id: row.id,
+    name: row.name,
+    emoji: row.emoji ?? '💶',
+    color: row.color ?? '#7c8cf8',
+    position: row.position,
+  };
+}
+
+function toEnvelopeMove(row: EnvelopeMoveRow): BudgetEnvelopeMove {
+  return {
+    id: row.id,
+    envelopeId: row.envelope_id,
+    amountCents: row.amount_cents,
+    day: row.day,
+    note: row.note ?? '',
+    createdAt: row.created_at,
+  };
 }
 
 /** Budget (Astra) stocké sur Supabase, protégé par le Row Level Security. */
@@ -210,25 +252,109 @@ export class SupabaseBudget implements BudgetStore {
     if (error) throw new Error(error.message);
   }
 
+  async listEnvelopes(): Promise<BudgetEnvelope[]> {
+    const rows = unwrap(
+      await this.client
+        .from('budget_envelopes')
+        .select('*')
+        .order('position', { ascending: true }),
+    ) as EnvelopeRow[];
+    return rows.map(toEnvelope);
+  }
+
+  async createEnvelope(input: BudgetEnvelopeInput): Promise<BudgetEnvelope> {
+    const userId = await this.requireUserId();
+    const { count } = await this.client
+      .from('budget_envelopes')
+      .select('id', { count: 'exact', head: true });
+    const row = unwrap(
+      await this.client
+        .from('budget_envelopes')
+        .insert({
+          user_id: userId,
+          name: input.name,
+          emoji: input.emoji ?? '💶',
+          color: input.color ?? '#7c8cf8',
+          position: count ?? 0,
+        })
+        .select()
+        .single(),
+    ) as EnvelopeRow;
+    return toEnvelope(row);
+  }
+
+  async updateEnvelope(id: string, patch: Partial<BudgetEnvelopeInput>) {
+    const row: Record<string, unknown> = {};
+    if (patch.name !== undefined) row.name = patch.name;
+    if (patch.emoji !== undefined) row.emoji = patch.emoji;
+    if (patch.color !== undefined) row.color = patch.color;
+    const { error } = await this.client.from('budget_envelopes').update(row).eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteEnvelope(id: string) {
+    // `on delete cascade` (2026-08-25-budget-envelopes.sql) supprime ses
+    // mouvements côté base : ses fonds retournent au non-affecté sans rien
+    // écrire de plus ici (docs/etude-astra-epargne.md §7 Q5).
+    const { error } = await this.client.from('budget_envelopes').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
+  async listEnvelopeMoves(): Promise<BudgetEnvelopeMove[]> {
+    const rows = unwrap(
+      await this.client.from('budget_envelope_moves').select('*').order('day', { ascending: false }),
+    ) as EnvelopeMoveRow[];
+    return rows.map(toEnvelopeMove);
+  }
+
+  async createEnvelopeMove(input: BudgetEnvelopeMoveInput): Promise<BudgetEnvelopeMove> {
+    const userId = await this.requireUserId();
+    const row = unwrap(
+      await this.client
+        .from('budget_envelope_moves')
+        .insert({
+          user_id: userId,
+          envelope_id: input.envelopeId,
+          amount_cents: Math.round(input.amountCents),
+          day: input.day,
+          note: input.note ?? '',
+        })
+        .select()
+        .single(),
+    ) as EnvelopeMoveRow;
+    return toEnvelopeMove(row);
+  }
+
+  async deleteEnvelopeMove(id: string) {
+    const { error } = await this.client.from('budget_envelope_moves').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
   async exportData(): Promise<BudgetBackup> {
     return {
       categories: await this.listCategories(),
       entries: await this.listEntries(),
       rules: await this.listRules(),
+      envelopes: await this.listEnvelopes(),
+      envelopeMoves: await this.listEnvelopeMoves(),
     };
   }
 
   /**
    * Remplace tout : plus simple et plus sûr qu'une fusion ligne à ligne, et
    * cohérent avec le sens d'une restauration de sauvegarde. Les catégories
-   * changent d'id à l'import (Supabase les régénère) : on reconstitue donc
-   * les correspondances avant de réinsérer écritures et règles.
+   * et les enveloppes changent d'id à l'import (Supabase les régénère) : on
+   * reconstitue donc les correspondances avant de réinsérer ce qui les
+   * référence.
    */
   async importData(data: BudgetBackup) {
     const userId = await this.requireUserId();
     await this.client.from('budget_entries').delete().eq('user_id', userId);
     await this.client.from('budget_rules').delete().eq('user_id', userId);
     await this.client.from('budget_categories').delete().eq('user_id', userId);
+    // Les mouvements d'enveloppe partent avec elles (`on delete cascade`) ;
+    // supprimer les enveloppes suffit.
+    await this.client.from('budget_envelopes').delete().eq('user_id', userId);
 
     const categoryIdMap = new Map<string, string>();
     for (const category of data.categories ?? []) {
@@ -271,6 +397,37 @@ export class SupabaseBudget implements BudgetStore {
         pattern: rule.pattern,
         category_id: categoryId,
         priority: rule.priority,
+      });
+      if (error) throw new Error(error.message);
+    }
+
+    const envelopeIdMap = new Map<string, string>();
+    for (const envelope of data.envelopes ?? []) {
+      const row = unwrap(
+        await this.client
+          .from('budget_envelopes')
+          .insert({
+            user_id: userId,
+            name: envelope.name,
+            emoji: envelope.emoji,
+            color: envelope.color,
+            position: envelope.position,
+          })
+          .select()
+          .single(),
+      ) as EnvelopeRow;
+      envelopeIdMap.set(envelope.id, row.id);
+    }
+
+    for (const move of data.envelopeMoves ?? []) {
+      const envelopeId = envelopeIdMap.get(move.envelopeId);
+      if (!envelopeId) continue; // enveloppe disparue entre-temps : mouvement ignoré
+      const { error } = await this.client.from('budget_envelope_moves').insert({
+        user_id: userId,
+        envelope_id: envelopeId,
+        amount_cents: move.amountCents,
+        day: move.day,
+        note: move.note,
       });
       if (error) throw new Error(error.message);
     }

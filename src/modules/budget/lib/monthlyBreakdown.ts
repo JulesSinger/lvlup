@@ -23,11 +23,12 @@ export interface MonthlyBreakdown {
 /**
  * Le camembert du mois (docs/etude-astra.md §5).
  *
- * Deux règles explicites dans l'étude : `kind === 'transfert'` est exclu du
- * camembert (§2 et §6 — sans quoi épargner ressemblerait à dépenser), et une
- * écriture non catégorisée doit apparaître sous « À classer » plutôt que
- * disparaître du total (§2 — « si on la masquait, le total afficherait moins
- * que ce qui a réellement quitté le compte »).
+ * Deux règles explicites dans l'étude : `kind === 'transfert'` (et, depuis
+ * docs/etude-astra-epargne.md §5, `kind === 'epargne'` pour la même raison)
+ * est exclu du camembert (§2 et §6 — sans quoi épargner ressemblerait à
+ * dépenser), et une écriture non catégorisée doit apparaître sous
+ * « À classer » plutôt que disparaître du total (§2 — « si on la masquait,
+ * le total afficherait moins que ce qui a réellement quitté le compte »).
  *
  * Une troisième règle n'est *pas* explicite dans le texte et relève d'une
  * interprétation assumée ici : seuls les groupes au net **négatif** sur le
@@ -54,7 +55,7 @@ export function computeMonthlyBreakdown(
   for (const entry of entries) {
     if (monthKeyOf(entry.day) !== monthKey) continue;
     const category = entry.categoryId ? categoryById.get(entry.categoryId) : undefined;
-    if (category?.kind === 'transfert') continue;
+    if (category?.kind === 'transfert' || category?.kind === 'epargne') continue;
     const key = entry.categoryId ?? '';
     netByKey.set(key, (netByKey.get(key) ?? 0) + entry.amountCents);
   }

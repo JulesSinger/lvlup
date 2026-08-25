@@ -17,7 +17,10 @@ const KIND_LABELS: Record<BudgetCategoryKind, string> = {
   fixe: 'Fixe — tombe tous les mois',
   variable: 'Variable — sur quoi on peut agir',
   revenu: 'Revenu — salaire, aides, remboursements',
-  transfert: "Transfert — exclu du camembert (épargne, virement à soi-même)",
+  transfert: 'Transfert — exclu du camembert (virement à soi-même)',
+  // Exclue du camembert comme « transfert », mais alimente en plus le total
+  // suivi par les enveloppes d'épargne (docs/etude-astra-epargne.md §4.1).
+  epargne: "Épargne — exclue du camembert, alimente le total des enveloppes",
 };
 
 interface Props {

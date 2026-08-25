@@ -5,6 +5,10 @@ import type {
   BudgetCategoryInput,
   BudgetEntry,
   BudgetEntryInput,
+  BudgetEnvelope,
+  BudgetEnvelopeInput,
+  BudgetEnvelopeMove,
+  BudgetEnvelopeMoveInput,
   BudgetRule,
   BudgetRuleInput,
 } from '../lib/types';
@@ -19,6 +23,10 @@ function read(): Snapshot {
     categories: Array.isArray(raw.budgetCategories) ? (raw.budgetCategories as BudgetCategory[]) : [],
     entries: Array.isArray(raw.budgetEntries) ? (raw.budgetEntries as BudgetEntry[]) : [],
     rules: Array.isArray(raw.budgetRules) ? (raw.budgetRules as BudgetRule[]) : [],
+    envelopes: Array.isArray(raw.budgetEnvelopes) ? (raw.budgetEnvelopes as BudgetEnvelope[]) : [],
+    envelopeMoves: Array.isArray(raw.budgetEnvelopeMoves)
+      ? (raw.budgetEnvelopeMoves as BudgetEnvelopeMove[])
+      : [],
   };
 }
 
@@ -29,6 +37,8 @@ function write(snapshot: Snapshot) {
     budgetCategories: snapshot.categories,
     budgetEntries: snapshot.entries,
     budgetRules: snapshot.rules,
+    budgetEnvelopes: snapshot.envelopes,
+    budgetEnvelopeMoves: snapshot.envelopeMoves,
   });
 }
 
@@ -150,9 +160,80 @@ export class LocalBudget implements BudgetStore {
     write(snapshot);
   }
 
+  async listEnvelopes(): Promise<BudgetEnvelope[]> {
+    return read().envelopes.slice().sort((a, b) => a.position - b.position);
+  }
+
+  async createEnvelope(input: BudgetEnvelopeInput): Promise<BudgetEnvelope> {
+    const snapshot = read();
+    const envelope: BudgetEnvelope = {
+      id: newId(),
+      name: input.name,
+      emoji: input.emoji ?? '💶',
+      color: input.color ?? '#7c8cf8',
+      position: snapshot.envelopes.length,
+    };
+    snapshot.envelopes.push(envelope);
+    write(snapshot);
+    return envelope;
+  }
+
+  async updateEnvelope(id: string, patch: Partial<BudgetEnvelopeInput>) {
+    const snapshot = read();
+    const envelope = snapshot.envelopes.find((e) => e.id === id);
+    if (!envelope) return;
+    Object.assign(envelope, patch);
+    write(snapshot);
+  }
+
+  async deleteEnvelope(id: string) {
+    const snapshot = read();
+    snapshot.envelopes = snapshot.envelopes.filter((e) => e.id !== id);
+    // Supprimer une enveloppe supprime ses mouvements : ses fonds
+    // retournent mécaniquement au non-affecté (docs/etude-astra-epargne.md
+    // §7 Q5), sans mouvement compensatoire à écrire — même principe que la
+    // contrainte `on delete cascade` côté Supabase.
+    snapshot.envelopeMoves = snapshot.envelopeMoves.filter((m) => m.envelopeId !== id);
+    write(snapshot);
+  }
+
+  async listEnvelopeMoves(): Promise<BudgetEnvelopeMove[]> {
+    return read()
+      .envelopeMoves.slice()
+      .sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
+  }
+
+  async createEnvelopeMove(input: BudgetEnvelopeMoveInput): Promise<BudgetEnvelopeMove> {
+    const snapshot = read();
+    const move: BudgetEnvelopeMove = {
+      id: newId(),
+      envelopeId: input.envelopeId,
+      // Entier signé : jamais de flottant, comme partout dans Astra.
+      amountCents: Math.round(input.amountCents),
+      day: input.day,
+      note: input.note ?? '',
+      createdAt: new Date().toISOString(),
+    };
+    snapshot.envelopeMoves.push(move);
+    write(snapshot);
+    return move;
+  }
+
+  async deleteEnvelopeMove(id: string) {
+    const snapshot = read();
+    snapshot.envelopeMoves = snapshot.envelopeMoves.filter((m) => m.id !== id);
+    write(snapshot);
+  }
+
   async exportData(): Promise<BudgetBackup> {
-    const { categories, entries, rules } = read();
-    return { categories: categories.slice(), entries: entries.slice(), rules: rules.slice() };
+    const { categories, entries, rules, envelopes, envelopeMoves } = read();
+    return {
+      categories: categories.slice(),
+      entries: entries.slice(),
+      rules: rules.slice(),
+      envelopes: envelopes.slice(),
+      envelopeMoves: envelopeMoves.slice(),
+    };
   }
 
   async importData(data: BudgetBackup) {
@@ -160,6 +241,8 @@ export class LocalBudget implements BudgetStore {
       categories: data.categories ?? [],
       entries: data.entries ?? [],
       rules: data.rules ?? [],
+      envelopes: data.envelopes ?? [],
+      envelopeMoves: data.envelopeMoves ?? [],
     });
   }
 }

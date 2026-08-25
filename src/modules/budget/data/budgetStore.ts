@@ -3,6 +3,10 @@ import type {
   BudgetCategoryInput,
   BudgetEntry,
   BudgetEntryInput,
+  BudgetEnvelope,
+  BudgetEnvelopeInput,
+  BudgetEnvelopeMove,
+  BudgetEnvelopeMoveInput,
   BudgetRule,
   BudgetRuleInput,
 } from '../lib/types';
@@ -16,6 +20,8 @@ export interface BudgetBackup {
   categories: BudgetCategory[];
   entries: BudgetEntry[];
   rules: BudgetRule[];
+  envelopes: BudgetEnvelope[];
+  envelopeMoves: BudgetEnvelopeMove[];
 }
 
 /** Contrat de stockage du module budget (Astra). */
@@ -34,6 +40,18 @@ export interface BudgetStore {
   createRule(input: BudgetRuleInput): Promise<BudgetRule>;
   updateRule(id: string, patch: Partial<BudgetRuleInput>): Promise<void>;
   deleteRule(id: string): Promise<void>;
+
+  /** Les enveloppes d'épargne (docs/etude-astra-epargne.md). */
+  listEnvelopes(): Promise<BudgetEnvelope[]>;
+  createEnvelope(input: BudgetEnvelopeInput): Promise<BudgetEnvelope>;
+  updateEnvelope(id: string, patch: Partial<BudgetEnvelopeInput>): Promise<void>;
+  /** Supprimer une enveloppe supprime ses mouvements : ses fonds retournent au non-affecté (§7 Q5). */
+  deleteEnvelope(id: string): Promise<void>;
+
+  /** Le journal des affectations/retraits — la somme donne le solde d'une enveloppe (§4.3). */
+  listEnvelopeMoves(): Promise<BudgetEnvelopeMove[]>;
+  createEnvelopeMove(input: BudgetEnvelopeMoveInput): Promise<BudgetEnvelopeMove>;
+  deleteEnvelopeMove(id: string): Promise<void>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
   exportData(): Promise<BudgetBackup>;

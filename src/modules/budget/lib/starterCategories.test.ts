@@ -3,7 +3,7 @@ import { STARTER_CATEGORIES } from './starterCategories';
 import { BUDGET_CATEGORY_KINDS } from './types';
 
 describe('STARTER_CATEGORIES', () => {
-  it("couvre les quatre natures, avec « transfert » présente pour épargner sans fausser le camembert", () => {
+  it("couvre les cinq natures, avec « epargne » et « transfert » présentes pour épargner sans fausser le camembert", () => {
     const kinds = new Set(STARTER_CATEGORIES.map((c) => c.kind));
     expect(kinds).toEqual(new Set(BUDGET_CATEGORY_KINDS));
   });

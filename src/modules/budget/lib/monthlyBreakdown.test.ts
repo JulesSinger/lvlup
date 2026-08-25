@@ -48,6 +48,14 @@ describe('computeMonthlyBreakdown', () => {
     expect(result.totalSpentCents).toBe(0);
   });
 
+  test('les catégories epargne sont exclues du camembert, comme transfert (etude-astra-epargne.md §5)', () => {
+    const cat = category({ id: 'c1', kind: 'epargne', name: 'Épargne' });
+    const e = entry({ categoryId: 'c1', amountCents: -50000 });
+    const result = computeMonthlyBreakdown([e], [cat], '2026-07');
+    expect(result.slices).toEqual([]);
+    expect(result.totalSpentCents).toBe(0);
+  });
+
   test('une écriture dépensée sans catégorie apparaît sous « À classer », jamais masquée', () => {
     const e = entry({ categoryId: null, amountCents: -1500 });
     const result = computeMonthlyBreakdown([e], [], '2026-07');

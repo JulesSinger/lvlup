@@ -33,7 +33,10 @@ export const STARTER_CATEGORIES: BudgetCategoryInput[] = [
   { name: 'Aides (APL)', emoji: '🏛️', color: '#6fbf7f', kind: 'revenu' },
   { name: 'Remboursements', emoji: '💳', color: '#8fd1a0', kind: 'revenu' },
 
+  // --- Épargne : exclue du camembert, alimente le total des enveloppes ---
+  // (docs/etude-astra-epargne.md §4.1) --------------------------------------
+  { name: 'Épargne', emoji: '🏦', color: '#b0b0b0', kind: 'epargne' },
+
   // --- Transferts : exclus du camembert, voir docs/etude-astra.md §2 -----
-  { name: 'Épargne', emoji: '🏦', color: '#b0b0b0', kind: 'transfert' },
   { name: 'Virements internes', emoji: '🔄', color: '#909090', kind: 'transfert' },
 ];
