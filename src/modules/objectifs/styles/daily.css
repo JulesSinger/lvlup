@@ -763,3 +763,27 @@
   padding: 2px 9px;
 }
 
+
+/* Le seul achat de l'app. Il n'apparaît que quand il est possible : un bouton
+   grisé en permanence afficherait un manque tous les jours. */
+.buy-freeze {
+  margin-left: auto;
+  align-self: center;
+  border-color: rgba(140, 196, 255, 0.45);
+  color: #8cc4ff;
+  white-space: nowrap;
+}
+
+.buy-freeze:hover {
+  border-color: #8cc4ff;
+  background: rgba(140, 196, 255, 0.12);
+}
+
+/* Le solde s'affiche sur le bouton : c'est le seul endroit où il sert, depuis
+   que les PP ont quitté le bandeau de profil. */
+.buy-freeze-balance {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}

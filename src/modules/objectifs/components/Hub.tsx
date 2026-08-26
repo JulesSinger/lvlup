@@ -2,11 +2,20 @@ import { useEffect, useState } from 'react';
 import { catchupDays, catchupLabel, ignoreDay, shiftDay } from '../lib/catchup';
 import { formatAmount, isCountable } from '../lib/counters';
 import { needsInput, parseAmount, tapValue } from '../lib/quantities';
-import { goalProgress, history, ppForRank, relativeDate, todayPP, weekStats } from '../lib/progress';
+import {
+  freezeOffer,
+  goalProgress,
+  history,
+  ppForRank,
+  relativeDate,
+  todayPP,
+  weekStats,
+} from '../lib/progress';
 import { getRank } from '../lib/ranks';
-import { computeStreak, dayString } from '../lib/streak';
-import { ONE_OFF_PP } from '../lib/types';
-import type { Action, Checkin, Goal, Tier } from '../lib/types';
+import { MAX_FREEZES, computeStreak, dayString } from '../lib/streak';
+import { FREEZE_COST, ONE_OFF_PP } from '../lib/types';
+import type { Action, Checkin, FreezePurchase, Goal, Tier } from '../lib/types';
+import { useCountUp } from './useCountUp';
 import { DailyRing } from './DailyRing';
 import { ProfileHeader } from './ProfileHeader';
 import { RankBadge } from './RankBadge';
@@ -28,6 +37,8 @@ export function Hub({
   onSaveValue,
   onValidateTier,
   onGoToGoals,
+  freezePurchases,
+  onBuyFreeze,
 }: {
   goals: Goal[];
   actions: Action[];
@@ -40,6 +51,9 @@ export function Hub({
   onSaveValue: (checkin: Checkin, value: number) => void;
   onValidateTier: (goal: Goal, tier: Tier) => void;
   onGoToGoals: () => void;
+  /** Journal des gels achetés : la réserve s'en déduit. */
+  freezePurchases: FreezePurchase[];
+  onBuyFreeze: () => void;
 }) {
   const active = goals.filter((g) => !g.archived);
   const today = dayString();
@@ -158,7 +172,7 @@ export function Hub({
   }
 
   const earned = todayPP(goals, checkins);
-  const streak = computeStreak(goals, checkins);
+  const streak = computeStreak(goals, checkins, dayString(), freezePurchases);
   const remaining = Math.max(0, dailyGoal - earned);
   const dayDone = earned >= dailyGoal;
 
@@ -169,8 +183,19 @@ export function Hub({
     .sort((a, b) => getRank(a.tier.rank).value - getRank(b.tier.rank).value);
 
   const recentTiers = history(goals).slice(0, 4);
+  const offre = freezeOffer(
+    goals,
+    checkins,
+    freezePurchases,
+    streak.freezes,
+    MAX_FREEZES,
+    FREEZE_COST,
+  );
   const week = weekStats(goals, checkins, 0);
   const lastWeek = weekStats(goals, checkins, -1);
+  // Le compteur défile au lieu de sauter : c'est ici que les gains de PP se
+  // voient maintenant, depuis qu'ils ont quitté le bandeau de profil.
+  const weekPP = useCountUp(week.pp);
 
   return (
     <div className="hub">
@@ -225,6 +250,20 @@ export function Hub({
                 )}
               </div>
             </div>
+
+            {/* La seule chose que les PP achètent. Elle n'apparaît que quand
+                elle est possible : proposer un bouton grisé en permanence,
+                c'est afficher un manque tous les jours. */}
+            {offre.affordable && (
+              <button
+                className="btn btn-sm buy-freeze"
+                onClick={onBuyFreeze}
+                title={`Il te reste ${offre.balance} PP cette semaine`}
+              >
+                ❄ Un gel · {offre.cost} PP
+                <span className="buy-freeze-balance">sur {offre.balance}</span>
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -573,7 +612,7 @@ export function Hub({
       )}
 
       {/* ---------- la carrière : le rang que tout ça construit ---------- */}
-      <ProfileHeader goals={goals} checkins={checkins} />
+      <ProfileHeader goals={goals} checkins={checkins} freezePurchases={freezePurchases} />
 
       {/* ---------- ce que ça construit ---------- */}
       <div className="hub-columns">
@@ -642,7 +681,7 @@ export function Hub({
             <div className="week-stats">
               <div>
                 <div className="week-value week-pp">
-                  {week.pp}
+                  {weekPP}
                   {lastWeek.pp > 0 && (
                     <span
                       className={`week-delta${week.pp >= lastWeek.pp ? ' up' : ' down'}`}

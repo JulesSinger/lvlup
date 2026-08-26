@@ -126,6 +126,38 @@ export interface ActionInput {
   isMeasure?: boolean;
 }
 
+/**
+ * Un gel acheté avec des PP.
+ *
+ * C'est un **événement journalisé**, pas un compteur : la réserve de gels
+ * reste recalculée depuis l'historique, comme le streak lui-même. Stocker un
+ * solde qu'on incrémente et décrémente aurait introduit exactement la
+ * désynchronisation que ce projet évite partout — un compteur qui dérive de la
+ * réalité sans que rien ne le signale.
+ *
+ * Le jour de l'achat compte : un gel acheté un mardi ne protège pas le lundi
+ * d'avant.
+ */
+export interface FreezePurchase {
+  id: string;
+  /** Jour de l'achat (YYYY-MM-DD) */
+  day: string;
+  /** PP dépensés — figés à l'achat, comme les PP d'une réalisation. */
+  cost: number;
+  createdAt: string;
+}
+
+/**
+ * Prix d'un gel, en PP de la semaine en cours.
+ *
+ * L'ordre de grandeur : l'objectif du jour par défaut est de 40 PP, soit 280
+ * pour une semaine parfaite. Une bonne semaine achète donc un gel, une semaine
+ * moyenne aucun — et sept jours d'affilée en donnent déjà un gratuitement.
+ * L'achat sert la semaine active mais irrégulière, ce qui est exactement la
+ * situation où un gel a du sens.
+ */
+export const FREEZE_COST = 200;
+
 /** Les deux actions créées d'office avec tout nouvel objectif. */
 export const DEFAULT_ACTIONS: ActionInput[] = [
   { title: 'Un vrai effort', pp: 15 },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activityDays, computeStreak, dayString } from './streak';
+import { MAX_FREEZES, activityDays, computeStreak, dayString } from './streak';
 import { JALON, type Checkin, type Goal } from './types';
 
 /**
@@ -227,5 +227,61 @@ describe('computeStreak', () => {
     expect(computeStreak([], days.map((d) => checkin(d)), '2026-03-01').current).toBe(3);
     const bissextile = ['2028-02-28', '2028-02-29', '2028-03-01'];
     expect(computeStreak([], bissextile.map((d) => checkin(d)), '2028-03-01').current).toBe(3);
+  });
+});
+
+describe('gels achetés', () => {
+  const achat = (day: string) => ({ id: day, day, cost: 200, createdAt: `${day}T12:00:00.000Z` });
+
+  it('un gel acheté grossit la réserve comme un gel gagné', () => {
+    const jours = daysUpTo('2026-05-20', 3); // 0 gel gagné
+    const sans = computeStreak([], jours.map((d) => checkin(d)), '2026-05-20');
+    const avec = computeStreak([], jours.map((d) => checkin(d)), '2026-05-20', [achat('2026-05-19')]);
+    expect(sans.freezes).toBe(0);
+    expect(avec.freezes).toBe(1);
+  });
+
+  it('il ne couvre pas un trou antérieur à son achat', () => {
+    // Trou le 15 et 16 ; l'achat du 18 arrive trop tard pour eux.
+    const jours = [...daysUpTo('2026-05-14', 3), '2026-05-17', '2026-05-18'];
+    const tardif = computeStreak([], jours.map((d) => checkin(d)), '2026-05-18', [achat('2026-05-18')]);
+    expect(tardif.current).toBe(2); // la série a bien été cassée
+    // Acheté avant le trou, il l'aurait absorbé (un seul jour manqué ici).
+    const tot = computeStreak(
+      [],
+      [...daysUpTo('2026-05-14', 3), '2026-05-16'].map((d) => checkin(d)),
+      '2026-05-16',
+      [achat('2026-05-13')],
+    );
+    expect(tot.current).toBe(4);
+  });
+
+  /**
+   * La règle qui protège le portefeuille : une série cassée efface ce que la
+   * série avait *gagné*, jamais ce qui a été *payé*. Confisquer 200 PP parce
+   * qu'on a manqué trois jours serait une punition déguisée.
+   */
+  it('une rupture n’efface pas un gel acheté', () => {
+    const jours = [...daysUpTo('2026-05-21', 21), '2026-06-01']; // 3 gels gagnés, puis 10 jours d'absence
+    const sans = computeStreak([], jours.map((d) => checkin(d)), '2026-06-01');
+    expect(sans.freezes).toBe(0);
+    const avec = computeStreak([], jours.map((d) => checkin(d)), '2026-06-01', [achat('2026-05-20')]);
+    expect(avec.current).toBe(1);
+    expect(avec.freezes).toBe(1); // le gel payé a survécu
+  });
+
+  it('la réserve reste plafonnée, achats compris', () => {
+    const jours = daysUpTo('2026-05-21', 21); // déjà 3 gels gagnés
+    const avec = computeStreak([], jours.map((d) => checkin(d)), '2026-05-21', [
+      achat('2026-05-10'),
+      achat('2026-05-11'),
+    ]);
+    expect(avec.freezes).toBe(MAX_FREEZES);
+  });
+
+  it('un achat daté du futur ne compte pas', () => {
+    const jours = daysUpTo('2026-05-20', 3);
+    const avec = computeStreak([], jours.map((d) => checkin(d)), '2026-05-20', [achat('2026-06-01')]);
+    expect(avec.freezes).toBe(0);
   });
 });

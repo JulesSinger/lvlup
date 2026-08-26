@@ -1,54 +1,31 @@
-import { useEffect, useRef, useState } from 'react';
-import { profilePP, profileRank } from '../lib/progress';
+import { profileRank } from '../lib/progress';
 import { rankByValue } from '../lib/ranks';
-import { computeStreak, MAX_FREEZES } from '../lib/streak';
-import type { Checkin, Goal } from '../lib/types';
+import { computeStreak, dayString, MAX_FREEZES } from '../lib/streak';
+import type { Checkin, FreezePurchase, Goal } from '../lib/types';
 
-/**
- * Anime un nombre de sa valeur précédente vers la nouvelle (easing doux).
- * Rend les gains de PP visibles : le compteur défile au lieu de sauter.
- */
-function useCountUp(target: number, duration = 900): number {
-  const [display, setDisplay] = useState(target);
-  const previous = useRef(target);
-
-  useEffect(() => {
-    const from = previous.current;
-    previous.current = target;
-    if (from === target) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setDisplay(target);
-      return;
-    }
-    let raf = 0;
-    const start = performance.now();
-    function frame(now: number) {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setDisplay(Math.round(from + (target - from) * eased));
-      if (t < 1) raf = requestAnimationFrame(frame);
-    }
-    raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-
-  return display;
-}
 
 export function ProfileHeader({
   goals,
   checkins = [],
+  freezePurchases = [],
 }: {
   goals: Goal[];
   checkins?: Checkin[];
+  freezePurchases?: FreezePurchase[];
 }) {
   const profile = profileRank(goals);
   const rank = profile.rank;
   const active = goals.filter((g) => !g.archived);
   const tiersDone = active.reduce((n, g) => n + g.tiers.filter((t) => t.completedAt).length, 0);
   const tiersTotal = active.reduce((n, g) => n + g.tiers.length, 0);
-  const pp = useCountUp(profilePP(goals, checkins));
-  const streak = computeStreak(goals, checkins);
+  /*
+   * Pas de PP ici. Ce bandeau dit qui tu es — rang, streak, objectifs, paliers.
+   * Les PP sont devenus une mesure de rythme, et le rythme a déjà sa carte
+   * (« Cette semaine »), avec le comparatif à la semaine précédente que ce
+   * bandeau n'a pas. Les afficher aux deux endroits, c'était le même nombre
+   * deux fois sur le même écran.
+   */
+  const streak = computeStreak(goals, checkins, dayString(), freezePurchases);
 
   const nextRank =
     rank && rank.value < 10 ? rankByValue(rank.value + 1) : rank ? null : rankByValue(1);
@@ -121,10 +98,6 @@ export function ProfileHeader({
               </span>
             )}
           </div>
-        </div>
-        <div>
-          <div className="stat-value stat-pp">{pp.toLocaleString('fr-FR')}</div>
-          <div className="stat-label">PP</div>
         </div>
         <div>
           <div className="stat-value">{active.length}</div>

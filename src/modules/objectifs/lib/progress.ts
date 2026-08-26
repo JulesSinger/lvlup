@@ -1,3 +1,4 @@
+import { shiftDay } from './catchup';
 import { getRank, rankByValue, type Rank } from './ranks';
 import { dayString } from './streak';
 import type { Checkin, Goal, Tier } from './types';
@@ -258,4 +259,97 @@ export function relativeDate(value: string | Date): string {
   if (days < 30) return `il y a ${days} jours`;
   if (days < 365) return `il y a ${Math.round(days / 30)} mois`;
   return `il y a ${Math.round(days / 365)} an${days >= 730 ? 's' : ''}`;
+}
+
+/**
+ * Ce qu'on peut dépenser aujourd'hui, et ce que ça achète.
+ *
+ * La monnaie est **la semaine en cours**, pas un cumul à vie. C'est le seul
+ * chiffre que l'app affiche encore — un total qui monte tout seul depuis des
+ * mois ne dit rien à personne — et ça évite de réintroduire un trésor par la
+ * fenêtre au moment où on décide de le retirer.
+ *
+ * Effet de bord assumé : les PP non dépensés ne se reportent pas. Ils n'ont
+ * jamais été un solde, donc rien n'est repris à personne ; et une semaine
+ * repart avec un compteur propre, ce qui est le rythme de l'app.
+ */
+export interface FreezeOffer {
+  /** PP gagnés cette semaine, moins ce qui a déjà été dépensé. */
+  balance: number;
+  cost: number;
+  /** Assez de PP ET de place dans la réserve. */
+  affordable: boolean;
+  /** La réserve est pleine : rien à vendre, quel que soit le solde. */
+  full: boolean;
+}
+
+export function freezeOffer(
+  goals: Goal[],
+  checkins: Checkin[],
+  purchases: { day: string; cost: number }[],
+  freezes: number,
+  maxFreezes: number,
+  cost: number,
+  today: string = dayString(),
+): FreezeOffer {
+  const semaine = weekStats(goals, checkins, 0, today);
+  const debut = mondayOf(today);
+  const depense = purchases
+    .filter((p) => p.day >= debut && p.day <= today)
+    .reduce((sum, p) => sum + p.cost, 0);
+  const balance = Math.max(0, semaine.pp - depense);
+  const full = freezes >= maxFreezes;
+  return { balance, cost, affordable: !full && balance >= cost, full };
+}
+
+/**
+ * Les PP semaine par semaine.
+ *
+ * Remplace la courbe de cumul, qui traçait le nombre qu'on a justement retiré
+ * du profil pour son inutilité. Une courbe cumulative n'est pas tout à fait un
+ * nombre — elle porte une pente, donc une information — mais elle la rend
+ * illisible : l'œil compare des hauteurs, pas des inclinaisons, et deux mois à
+ * mi-régime ressemblent à « ça monte encore ».
+ *
+ * Des barres hebdomadaires disent la même chose dans l'unité de l'app, et un
+ * ralentissement s'y voit : une barre plus courte, pas une pente à deviner.
+ */
+export interface WeekPoint {
+  /** Lundi de la semaine (YYYY-MM-DD) */
+  monday: string;
+  pp: number;
+  /** Paliers validés dans la semaine — les jalons du parcours. */
+  tiers: number;
+}
+
+export function weeklyPP(
+  goals: Goal[],
+  checkins: Checkin[],
+  today: string = dayString(),
+): WeekPoint[] {
+  const points = ppTimeline(goals, checkins).filter((p) => p.day <= today);
+  if (points.length === 0) return [];
+
+  const perWeek = new Map<string, { pp: number; tiers: number }>();
+  for (const p of points) {
+    const monday = mondayOf(p.day);
+    const entry = perWeek.get(monday) ?? { pp: 0, tiers: 0 };
+    entry.pp += p.gained;
+    entry.tiers += p.tiers;
+    perWeek.set(monday, entry);
+  }
+
+  // Les semaines sans rien font partie de l'histoire : les sauter tasserait
+  // une pause de six semaines en un simple trait, et c'est exactement ce
+  // qu'on veut voir.
+  const semaines = [...perWeek.keys()].sort();
+  const out: WeekPoint[] = [];
+  let cursor = semaines[0];
+  const fin = mondayOf(today);
+  while (cursor <= fin) {
+    const entry = perWeek.get(cursor) ?? { pp: 0, tiers: 0 };
+    out.push({ monday: cursor, pp: entry.pp, tiers: entry.tiers });
+    cursor = shiftDay(cursor, 7);
+  }
+  return out;
 }

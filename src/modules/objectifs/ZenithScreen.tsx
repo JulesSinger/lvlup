@@ -25,14 +25,23 @@ import { flushOutbox } from './data/sync';
 import type { UnlockedAchievement } from './data/goalsStore';
 import { newlyUnlocked, unlockedAchievements } from './lib/achievements';
 import { isCountable, tierProgress } from './lib/counters';
-import { tapValue } from './lib/quantities';
+import { inheritedTier, ladderKind, tapValue } from './lib/quantities';
 import { DEMO_GOALS } from './lib/demo';
-import { goalProgress, ppForRank, profileRank, todayPP } from './lib/progress';
-import { getRank } from './lib/ranks';
+import { freezeOffer, goalProgress, ppForRank, profileRank, todayPP } from './lib/progress';
+import { getRank, ladderInsert, ladderMove } from './lib/ranks';
 import type { GoalTemplate } from './lib/templates';
-import { computeStreak, dayString } from './lib/streak';
-import { ONE_OFF_PP } from './lib/types';
-import type { Action, ActionInput, Checkin, Goal, GoalInput, Tier, TierInput } from './lib/types';
+import { MAX_FREEZES, computeStreak, dayString } from './lib/streak';
+import { FREEZE_COST, ONE_OFF_PP } from './lib/types';
+import type {
+  Action,
+  ActionInput,
+  Checkin,
+  FreezePurchase,
+  Goal,
+  GoalInput,
+  Tier,
+  TierInput,
+} from './lib/types';
 
 type View = 'accueil' | 'objectifs' | 'historique' | 'trophees';
 
@@ -66,6 +75,8 @@ export function ZenithScreen({
   const [checkins, setCheckins] = useState<Checkin[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
   const [achievements, setAchievements] = useState<UnlockedAchievement[]>([]);
+  /** Journal des gels achetés : la réserve s'en déduit, elle n'est pas stockée. */
+  const [freezePurchases, setFreezePurchases] = useState<FreezePurchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>('accueil');
   const [editing, setEditing] = useState<{ goal: Goal | null; seed?: GoalSeed | null } | null>(
@@ -97,12 +108,14 @@ export function ZenithScreen({
 
   const refresh = useCallback(async (retry = true): Promise<void> => {
     try {
-      const [nextGoals, nextCheckins, nextActions, stored] = await Promise.all([
+      const [nextGoals, nextCheckins, nextActions, stored, nextPurchases] = await Promise.all([
         goalsStore.listGoals(),
         goalsStore.listCheckins(),
         goalsStore.listActions(),
         goalsStore.listAchievements(),
+        goalsStore.listFreezePurchases(),
       ]);
+      setFreezePurchases(nextPurchases);
       // Un trophée dont la condition est remplie devient acquis pour toujours,
       // même si l'action qui l'a rempli est annulée plus tard.
       let nextAchievements = stored;
@@ -568,12 +581,14 @@ export function ZenithScreen({
     return { goalsAfter, queue };
   }
 
-  async function saveGoal(input: GoalInput, tiers: TierInput[]) {
+  async function saveGoal(input: GoalInput, tiers: TierInput[], actions?: ActionInput[]) {
     const target = editing?.goal;
     if (target) {
       await goalsStore.updateGoal(target.id, input);
     } else {
-      const created = await goalsStore.createGoal(input, tiers);
+      // `actions` porte l'unité de l'objectif quand ses paliers se comptent :
+      // sans ça, un palier « 100 km » resterait à 0/100 quoi qu'on coche.
+      const created = await goalsStore.createGoal(input, tiers, actions);
       // Un modèle apporte ses propres actions : elles remplacent les deux
       // génériques créées d'office.
       if (seedActions && seedActions.length > 0) {
@@ -626,13 +641,77 @@ export function ZenithScreen({
     void run(() => goalsStore.deleteGoal(goal.id));
   }
 
+  /**
+   * Acheter un gel avec les PP de la semaine.
+   *
+   * Le contrôle du solde est fait ici, pas dans le store : c'est une règle de
+   * jeu, pas une règle de stockage. Le store, lui, ne fait que journaliser —
+   * et la réserve reste recalculée depuis ce journal, jamais tenue à jour à la
+   * main.
+   */
+  function buyFreeze() {
+    const streak = computeStreak(goals, checkins, dayString(), freezePurchases);
+    const offre = freezeOffer(
+      goals,
+      checkins,
+      freezePurchases,
+      streak.freezes,
+      MAX_FREEZES,
+      FREEZE_COST,
+    );
+    if (!offre.affordable) return;
+    void run(async () => {
+      await goalsStore.buyFreeze(dayString(), FREEZE_COST);
+      await refresh();
+    });
+  }
+
+  /**
+   * Ajouter un palier — à la fin, ou glissé à une place précise.
+   *
+   * Deux choses lui sont données sans qu'on les demande : la **nature** de
+   * l'objectif, dont il hérite (sinon il naîtrait « à cocher » et il faudrait
+   * le requalifier à la main), et le **rang de la place qu'il occupe**, les
+   * paliers du dessous glissant d'un barreau. Voir `ladderInsert`.
+   */
+  function addTier(goal: Goal, input: TierInput, index?: number) {
+    const herite = inheritedTier(input.title, ladderKind(goal.tiers));
+    const place = index ?? goal.tiers.length;
+    const plan = ladderInsert(goal.tiers, place);
+    return run(async () => {
+      const created = await goalsStore.createTier(goal.id, {
+        ...herite,
+        ...input,
+        rank: plan?.rank ?? input.rank,
+      });
+      if (!plan || place === goal.tiers.length) return;
+      const ids = goal.tiers.map((t) => t.id);
+      await goalsStore.reorderTiers(goal.id, [
+        ...ids.slice(0, place),
+        created.id,
+        ...ids.slice(place),
+      ]);
+      for (const shift of plan.shifts) {
+        await goalsStore.updateTier(shift.id, { rank: shift.rank });
+      }
+    });
+  }
+
+  /**
+   * Déplacer un palier déplace son contenu, pas son rang : la suite des rangs
+   * reste attachée aux barreaux de l'échelle. Sans ça, remonter un palier
+   * ajouté en dernier produisait « bronze, argent, challenger, or » — une
+   * échelle qui redescend. Voir `ladderMove`.
+   */
   function moveTier(goal: Goal, tierId: string, direction: -1 | 1) {
-    const ids = goal.tiers.map((t) => t.id);
-    const from = ids.indexOf(tierId);
-    const to = from + direction;
-    if (from === -1 || to < 0 || to >= ids.length) return;
-    [ids[from], ids[to]] = [ids[to], ids[from]];
-    void run(() => goalsStore.reorderTiers(goal.id, ids));
+    const move = ladderMove(goal.tiers, tierId, direction);
+    if (!move) return; // déplacement refusé (bord de l'échelle, ou palier validé)
+    void run(async () => {
+      await goalsStore.reorderTiers(goal.id, move.orderedIds);
+      for (const change of move.rankChanges) {
+        await goalsStore.updateTier(change.id, { rank: change.rank });
+      }
+    });
   }
 
   function loadDemo() {
@@ -820,6 +899,8 @@ export function ZenithScreen({
               onSaveValue={saveCheckinValue}
               onValidateTier={validateTier}
               onGoToGoals={() => setView('objectifs')}
+              freezePurchases={freezePurchases}
+              onBuyFreeze={buyFreeze}
             />
           )
         ) : activeGoals.length === 0 && archivedGoals.length === 0 ? (
@@ -840,7 +921,7 @@ export function ZenithScreen({
                     onEdit={() => setEditing({ goal })}
                     onArchive={() => archiveGoal(goal)}
                     onDelete={() => deleteGoal(goal)}
-                    onAddTier={(input) => run(() => goalsStore.createTier(goal.id, input))}
+                    onAddTier={(input, index) => addTier(goal, input, index)}
                     onUpdateTier={(tierId, patch) => {
                       if (patch.completedAt) {
                         const tier = goal.tiers.find((t) => t.id === tierId);

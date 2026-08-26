@@ -1,4 +1,4 @@
-import type { Checkin, Goal } from './types';
+import type { Checkin, FreezePurchase, Goal } from './types';
 
 /**
  * Streak : jours consécutifs avec au moins une action (check-in ou palier
@@ -8,6 +8,9 @@ import type { Checkin, Goal } from './types';
  * Les gels (règle « pardon avant punition », leçon du benchmark) :
  * - chaque tranche de 7 jours consécutifs rapporte 1 gel, stockables jusqu'à 3 ;
  * - un jour manqué consomme 1 gel au lieu de casser le streak ;
+ * - un gel peut aussi s'acheter avec les PP de la semaine ; acheté ou gagné,
+ *   il est le même objet, et il n'est disponible qu'à partir de son jour
+ *   d'achat — un gel acheté mardi ne protège pas le lundi d'avant ;
  * - un trou plus grand que la réserve de gels remet le streak à zéro, **et la
  *   réserve avec lui** : un gel récompense une régularité installée, il n'a pas
  *   à protéger un redémarrage ;
@@ -67,6 +70,7 @@ export function computeStreak(
   goals: Goal[],
   checkins: Checkin[],
   today: string = dayString(),
+  purchases: FreezePurchase[] = [],
 ): Streak {
   const days = activityDays(goals, checkins).filter((d) => d <= today);
   if (days.length === 0) {
@@ -75,24 +79,57 @@ export function computeStreak(
 
   let current = 0;
   let best = 0;
-  let freezes = 0;
+  /**
+   * La réserve est tenue en deux poches. L'utilisateur n'en voit qu'un nombre
+   * — un gel acheté vaut un gel gagné — mais elles ne se comportent pas
+   * pareil à la rupture : une série cassée efface ce qui avait été *gagné*
+   * par cette série, jamais ce qui a été *payé*. Confisquer 200 PP parce
+   * qu'on a manqué trois jours serait une punition déguisée, et ce projet
+   * n'en veut aucune.
+   */
+  let gagnes = 0;
+  let achetes = 0;
   let freezeCredits = 0; // tranches de 7 jours déjà créditées sur le streak en cours
   let previous: string | null = null;
 
+  // Les achats, du plus ancien au plus récent : crédités au fil du temps, pour
+  // qu'un gel acheté ne couvre jamais un trou antérieur à son achat.
+  const achats = purchases
+    .filter((p) => p.day <= today)
+    .map((p) => p.day)
+    .sort();
+  let achatsCredites = 0;
+
+  /** Ce que l'utilisateur voit : une seule réserve, plafonnée. */
+  const reserve = () => Math.min(MAX_FREEZES, gagnes + achetes);
+
+  /** Consomme `n` gels, les gagnés d'abord — on garde le payé pour la fin. */
+  function consommer(n: number) {
+    const surGagnes = Math.min(gagnes, n);
+    gagnes -= surGagnes;
+    achetes = Math.max(0, achetes - (n - surGagnes));
+  }
+
   for (const day of days) {
+    // Tout ce qui a été acheté jusqu'à ce jour inclus est disponible.
+    while (achatsCredites < achats.length && achats[achatsCredites] <= day) {
+      achetes += 1;
+      achatsCredites += 1;
+    }
     if (previous !== null) {
       const gap = daysBetween(previous, day) - 1;
       if (gap > 0) {
-        if (gap <= freezes) {
-          freezes -= gap; // les gels absorbent les jours manqués
+        if (gap <= reserve()) {
+          consommer(gap); // les gels absorbent les jours manqués
         } else {
           current = 0; // trou trop grand : le streak repart
           freezeCredits = 0;
-          // Et la réserve repart avec lui. Un gel est la récompense d'une
-          // régularité installée ; la garder après une rupture reviendrait à
-          // amortir en silence les premiers trous d'une habitude toute neuve,
-          // c'est-à-dire l'inverse de ce à quoi elle sert.
-          freezes = 0;
+          // La réserve gagnée repart avec lui : un gel gagné récompense une
+          // régularité installée, le garder après une rupture amortirait en
+          // silence les premiers trous d'une habitude toute neuve. Ce qui a
+          // été acheté, en revanche, reste acquis.
+          gagnes = 0;
+          consommer(0);
         }
       }
     }
@@ -101,11 +138,13 @@ export function computeStreak(
     // Un gel gagné à 7, 14, 21… jours consécutifs, plafonné à la réserve max.
     const earned = Math.floor(current / FREEZE_EVERY_DAYS);
     if (earned > freezeCredits) {
-      freezes = Math.min(MAX_FREEZES, freezes + (earned - freezeCredits));
+      gagnes = Math.min(MAX_FREEZES, gagnes + (earned - freezeCredits));
       freezeCredits = earned;
     }
     previous = day;
   }
+
+  const freezes = reserve();
 
   const last = days[days.length - 1];
   const sinceLast = daysBetween(last, today);

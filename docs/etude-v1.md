@@ -15,7 +15,7 @@ confirmés, et un troisième, non signalé, est apparu en chemin.*
 | ~~3~~ | ~~L'échelle des rangs peut redescendre~~ | ~30 lignes | **Fait le 9 août** par déplacement — voir la réserve §3 bis sur l'ajout |
 | ~~4~~ | ~~Création : type global + cible devinée~~ | 1 à 2 jours | **Fait le 9 août** — et la nature devient une propriété de l'objectif, dont tout palier ajouté hérite |
 | ~~5~~ | ~~Insérer un palier au milieu~~ | ~½ jour | **Fait le 9 août** — un « + » entre deux paliers, l'échelle se redistribue |
-| **6** | Donner un sens aux PP | décision d'abord | Ce n'est pas un manque de fonctionnalité, c'est une monnaie en trop |
+| ~~6~~ | ~~Donner un sens aux PP~~ | décision d'abord | **Fait le 10 août** — les PP se comptent par semaine et achètent des gels |
 | **7** | Animations | 2 à 3 jours | Réel, mais à cibler sur trois moments, pas « partout » |
 | **8** | Onboarding | 1 jour | En dernier — et même plus tard que tu ne le penses, voir §8 |
 
@@ -314,6 +314,52 @@ unique.
 
 **À faire après les bugs, mais avant les animations** : décider ce que les PP
 sont change ce qu'il y a à animer.
+
+---
+
+### 6 bis. Ce qui a été fait
+
+Les deux gestes proposés, tranchés par Jules : le cumul à vie quitte le profil
+au profit des **PP de la semaine** (le calcul existait déjà pour la carte
+« Cette semaine »), et les PP gagnent **une seule dépense** — un gel à 200 PP.
+
+Trois choses ont dû être décidées en chemin, et aucune n'était dans l'étude :
+
+- **Avec quoi paie-t-on ?** Si le cumul à vie n'est plus affiché, payer avec
+  lui reviendrait à réintroduire un trésor invisible. La monnaie est donc la
+  **semaine en cours**. Les PP non dépensés ne se reportent pas — ils n'ont
+  jamais été un solde, donc rien n'est repris à personne.
+- **Un solde ou un journal ?** Un journal. La réserve de gels reste
+  **recalculée** depuis l'historique des achats, exactement comme le streak est
+  recalculé depuis les réalisations. Un compteur qu'on incrémente et décrémente
+  aurait été la première donnée de l'app capable de dériver en silence.
+- **Que devient un gel payé quand la série casse ?** Il survit. La règle
+  « la réserve ne survit pas à la rupture » vaut pour ce qui a été *gagné* par
+  cette série ; confisquer 200 PP pour trois jours manqués serait une punition
+  déguisée. En interne la réserve est donc tenue en deux poches, pour un seul
+  nombre à l'écran — « indistinguables » était la demande, et elle est tenue
+  côté utilisateur.
+
+Le bouton n'apparaît que lorsque l'achat est possible : un bouton grisé en
+permanence afficherait un manque tous les jours.
+
+### 6 ter. L'harmonisation qui a suivi
+
+Deux surfaces parlaient encore l'ancien langage, relevées par Jules :
+
+- **La courbe de l'historique** traçait le cumul à vie — le nombre qu'on venait
+  de retirer du profil. Une courbe n'est pas tout à fait un nombre : elle porte
+  une pente, donc une information. Mais une courbe cumulative la rend
+  illisible, parce que l'œil compare des hauteurs et non des inclinaisons.
+  Elle est devenue des **barres hebdomadaires**, avec les semaines vides
+  dessinées à zéro : une pause de trois semaines se voit maintenant comme un
+  creux, là où la courbe montrait « ça monte encore ».
+- **Le doublon que j'avais créé la veille** : « PP cette semaine » sur le
+  bandeau de profil ET « PP gagnés » sur la carte du hub, le même nombre à
+  trente centimètres d'écart. Les PP ne vivent plus qu'à un endroit — la carte
+  « Cette semaine », qui porte en plus le comparatif à la semaine précédente.
+  Le bandeau garde ce qui dit l'identité : rang, streak, objectifs, paliers. Le
+  solde disponible s'affiche là où il sert, sur le bouton d'achat.
 
 ---
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  freezeOffer,
   goalProgress,
   history,
   ppForRank,
@@ -9,8 +10,10 @@ import {
   sumCheckinPP,
   todayPP,
   weekStats,
+  weeklyPP,
 } from './progress';
 import { getRank } from './ranks';
+import { dayString } from './streak';
 import type { RankId } from './ranks';
 import { JALON, type Checkin, type Goal, type Tier } from './types';
 
@@ -237,5 +240,87 @@ describe('history', () => {
     const entries = history([g]);
     expect(entries).toHaveLength(2);
     expect(entries[0].tier.rank).toBe('argent');
+  });
+});
+
+describe('acheter un gel avec les PP de la semaine', () => {
+  const jour = (n: number) => {
+    const d = new Date(2026, 4, 20 - n, 12); // 20 mai 2026 = un mercredi
+    return dayString(d);
+  };
+
+  it('le solde est celui de la semaine, pas du cumul à vie', () => {
+    // Deux réalisations cette semaine, une la semaine dernière : seules les
+    // deux premières comptent.
+    const list = [checkin(jour(0), 100), checkin(jour(1), 100), checkin(jour(9), 500)];
+    const offre = freezeOffer([], list, [], 0, 3, 200, jour(0));
+    expect(offre.balance).toBe(200);
+    expect(offre.affordable).toBe(true);
+  });
+
+  it('un achat déjà fait cette semaine ampute le solde', () => {
+    const list = [checkin(jour(0), 250)];
+    const offre = freezeOffer([], list, [{ day: jour(0), cost: 200 }], 1, 3, 200, jour(0));
+    expect(offre.balance).toBe(50);
+    expect(offre.affordable).toBe(false);
+  });
+
+  it('un achat de la semaine dernière ne compte plus', () => {
+    const list = [checkin(jour(0), 250)];
+    const offre = freezeOffer([], list, [{ day: jour(9), cost: 200 }], 1, 3, 200, jour(0));
+    expect(offre.balance).toBe(250);
+  });
+
+  it('réserve pleine : rien à vendre, même riche', () => {
+    const list = [checkin(jour(0), 1000)];
+    const offre = freezeOffer([], list, [], 3, 3, 200, jour(0));
+    expect(offre.full).toBe(true);
+    expect(offre.affordable).toBe(false);
+  });
+
+  it('le solde ne descend jamais sous zéro', () => {
+    const offre = freezeOffer([], [], [{ day: jour(0), cost: 200 }], 0, 3, 200, jour(0));
+    expect(offre.balance).toBe(0);
+  });
+});
+
+describe('les PP semaine par semaine', () => {
+  const lundi = '2026-05-18'; // un lundi
+
+  it('regroupe les jours dans leur semaine', () => {
+    const list = [
+      checkin('2026-05-18', 10),
+      checkin('2026-05-20', 15),
+      checkin('2026-05-24', 5), // dimanche : même semaine
+    ];
+    const semaines = weeklyPP([], list, '2026-05-24');
+    expect(semaines).toHaveLength(1);
+    expect(semaines[0]).toMatchObject({ monday: lundi, pp: 30 });
+  });
+
+  it('le lundi suivant ouvre une nouvelle barre', () => {
+    const list = [checkin('2026-05-24', 10), checkin('2026-05-25', 40)];
+    const semaines = weeklyPP([], list, '2026-05-25');
+    expect(semaines.map((s) => s.pp)).toEqual([10, 40]);
+  });
+
+  /**
+   * Le point de tout le changement : une pause doit se voir. Sauter les
+   * semaines vides tasserait six semaines d'arrêt en un simple trait — c'est
+   * exactement ce qu'une courbe de cumul faisait déjà.
+   */
+  it('les semaines sans rien restent dans le graphe, à zéro', () => {
+    const list = [checkin('2026-05-18', 10), checkin('2026-06-08', 20)];
+    const semaines = weeklyPP([], list, '2026-06-08');
+    expect(semaines.map((s) => s.pp)).toEqual([10, 0, 0, 20]);
+  });
+
+  it('s’arrête à la semaine en cours', () => {
+    const list = [checkin('2026-05-18', 10)];
+    expect(weeklyPP([], list, '2026-05-20')).toHaveLength(1);
+  });
+
+  it('rien du tout ne donne aucune barre', () => {
+    expect(weeklyPP([], [], '2026-05-20')).toEqual([]);
   });
 });

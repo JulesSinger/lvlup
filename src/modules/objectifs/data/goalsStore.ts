@@ -2,6 +2,7 @@ import type {
   Action,
   ActionInput,
   Checkin,
+  FreezePurchase,
   Goal,
   GoalInput,
   Tier,
@@ -23,6 +24,8 @@ export interface GoalsBackup {
   actions: Action[];
   checkins: Checkin[];
   achievements: UnlockedAchievement[];
+  /** Absent des sauvegardes antérieures aux gels achetés : traité comme vide. */
+  freezePurchases?: FreezePurchase[];
 }
 
 /** Contrat de stockage du module objectifs. */
@@ -74,6 +77,11 @@ export interface GoalsStore {
   unlockAchievements(ids: string[]): Promise<void>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
+  // --- Gels achetés (journal, jamais un solde) ---
+  listFreezePurchases(): Promise<FreezePurchase[]>;
+  /** Journalise un achat. Le contrôle du solde appartient à l'appelant. */
+  buyFreeze(day: string, cost: number): Promise<FreezePurchase>;
+
   exportData(): Promise<GoalsBackup>;
   importData(data: GoalsBackup): Promise<void>;
 }

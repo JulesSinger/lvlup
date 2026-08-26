@@ -1,6 +1,15 @@
 import { newId } from '../../../core/data/coreStore';
 import { readRaw, writeRaw } from '../../../core/data/localSnapshot';
-import type { Action, ActionInput, Checkin, Goal, GoalInput, Tier, TierInput } from '../lib/types';
+import type {
+  Action,
+  ActionInput,
+  Checkin,
+  FreezePurchase,
+  Goal,
+  GoalInput,
+  Tier,
+  TierInput,
+} from '../lib/types';
 import { DEFAULT_ACTIONS, JALON } from '../lib/types';
 import type { GoalsBackup, GoalsStore, UnlockedAchievement } from './goalsStore';
 
@@ -25,6 +34,9 @@ function read(): Snapshot {
       title: typeof c.title === 'string' ? c.title : null,
     })),
     achievements: Array.isArray(raw.achievements) ? (raw.achievements as UnlockedAchievement[]) : [],
+    freezePurchases: Array.isArray(raw.freezePurchases)
+      ? (raw.freezePurchases as FreezePurchase[])
+      : [],
   };
 }
 
@@ -328,13 +340,31 @@ export class LocalGoals implements GoalsStore {
     write(snapshot);
   }
 
+  async listFreezePurchases(): Promise<FreezePurchase[]> {
+    return read().freezePurchases ?? [];
+  }
+
+  async buyFreeze(day: string, cost: number): Promise<FreezePurchase> {
+    const snapshot = read();
+    const purchase: FreezePurchase = {
+      id: newId(),
+      day,
+      cost,
+      createdAt: new Date().toISOString(),
+    };
+    snapshot.freezePurchases = [...(snapshot.freezePurchases ?? []), purchase];
+    write(snapshot);
+    return purchase;
+  }
+
   async exportData(): Promise<GoalsBackup> {
-    const { actions, checkins, achievements } = read();
+    const { actions, checkins, achievements, freezePurchases } = read();
     return {
       goals: await this.listGoals(),
       actions: actions.slice(),
       checkins: checkins.slice(),
       achievements: achievements.slice(),
+      freezePurchases: (freezePurchases ?? []).slice(),
     };
   }
 
@@ -344,6 +374,8 @@ export class LocalGoals implements GoalsStore {
       actions: data.actions ?? [],
       checkins: data.checkins ?? [],
       achievements: data.achievements ?? [],
+      // Absent des sauvegardes antérieures : une réserve vide, pas une erreur.
+      freezePurchases: data.freezePurchases ?? [],
     });
   }
 }

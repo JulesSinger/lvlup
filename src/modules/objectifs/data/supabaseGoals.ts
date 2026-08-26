@@ -3,6 +3,7 @@ import type { RankId } from '../lib/ranks';
 import type {
   Action,
   ActionInput,
+  FreezePurchase,
   Checkin,
   Goal,
   GoalInput,
@@ -486,12 +487,32 @@ export class SupabaseGoals implements GoalsStore {
     if (error) throw new Error(error.message);
   }
 
+  async listFreezePurchases(): Promise<FreezePurchase[]> {
+    const rows = unwrap(
+      await this.client.from('freeze_purchases').select('id, day, cost, created_at').order('day'),
+    ) as { id: string; day: string; cost: number; created_at: string }[];
+    return rows.map((r) => ({ id: r.id, day: r.day, cost: r.cost, createdAt: r.created_at }));
+  }
+
+  async buyFreeze(day: string, cost: number): Promise<FreezePurchase> {
+    const userId = await this.requireUserId();
+    const row = unwrap(
+      await this.client
+        .from('freeze_purchases')
+        .insert({ user_id: userId, day, cost })
+        .select('id, day, cost, created_at')
+        .single(),
+    ) as { id: string; day: string; cost: number; created_at: string };
+    return { id: row.id, day: row.day, cost: row.cost, createdAt: row.created_at };
+  }
+
   async exportData(): Promise<GoalsBackup> {
     return {
       goals: await this.listGoals(),
       actions: await this.listActions(),
       checkins: await this.listCheckins(),
       achievements: await this.listAchievements(),
+      freezePurchases: await this.listFreezePurchases(),
     };
   }
 
@@ -577,5 +598,21 @@ export class SupabaseGoals implements GoalsStore {
       if (error) throw new Error(error.message);
     }
     await this.unlockAchievements((backup.achievements ?? []).map((a) => a.id));
+
+    // Les gels achetés font partie de ce que l'utilisateur a payé : les perdre
+    // à la restauration serait la seule perte de données que ce projet
+    // s'interdit. Absents des sauvegardes antérieures, d'où le `?? []`.
+    const purchases = backup.freezePurchases ?? [];
+    if (purchases.length > 0) {
+      const { error } = await this.client.from('freeze_purchases').insert(
+        purchases.map((f) => ({
+          user_id: userId,
+          day: f.day,
+          cost: f.cost,
+          created_at: f.createdAt,
+        })),
+      );
+      if (error) throw new Error(error.message);
+    }
   }
 }

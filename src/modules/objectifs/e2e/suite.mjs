@@ -143,9 +143,16 @@ export async function run({ browser, check, BASE }) {
   );
   await page.waitForTimeout(1100); // laisse le compteur de PP finir son animation
   check(
-    'PP du profil cumulés (Bronze 50 + Argent 75 = 125)',
-    (await page.locator('.stat-pp').textContent()) === '125',
-    await page.locator('.stat-pp').textContent(),
+    // Les PP ont quitté le bandeau de profil — qui dit l'identité — pour la
+    // carte « Cette semaine », qui dit le rythme et porte le comparatif.
+    'PP de la semaine (Bronze 50 + Argent 75 = 125)',
+    (await page.locator('.week-pp').textContent())?.replace(/[^0-9]/g, '') === '125',
+    await page.locator('.week-pp').textContent(),
+  );
+  check(
+    'Le bandeau de profil ne répète pas les PP',
+    (await page.locator('.stat-pp').count()) === 0,
+    (await page.locator('.stat-label').allTextContents()).join(' | '),
   );
   check(
     "Activité récente alimentée sur le hub",
@@ -157,7 +164,19 @@ export async function run({ browser, check, BASE }) {
 
   // 3. Ajout d'un palier à un objectif existant
   await page.locator('.ladder-add input').fill('Courir 42 km sous les 4 h');
-  await page.locator('.ladder-add select').selectOption('maitre');
+  // Plus de liste de rangs à l'ajout : depuis que les rangs appartiennent aux
+  // barreaux, c'est la place qui décide. Le formulaire annonce le rang à venir
+  // au lieu de faire choisir un rang qu'il n'honorait plus.
+  check(
+    'Aucune liste de rangs à l’ajout d’un palier',
+    (await page.locator('.ladder-add select').count()) === 0,
+    String(await page.locator('.ladder-add select').count()),
+  );
+  check(
+    'Mais le rang à venir est annoncé',
+    (await page.locator('.ladder-add .rank-badge').count()) === 1,
+    (await page.locator('.ladder-add .rank-badge').textContent()) ?? 'aucun',
+  );
   await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
   await page.waitForTimeout(300);
   check('Palier ajouté', (await page.locator('.goal-count').first().textContent())?.includes('2/6'));
@@ -179,29 +198,33 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.entry');
   check('Historique daté alimenté', (await page.locator('.entry').count()) === 2);
   check(
-    'Courbe des PP tracée (aire + ligne)',
-    (await page.locator('.chart-wrap svg path').count()) === 2,
-    String(await page.locator('.chart-wrap svg path').count()),
+    'Le graphe compte les PP par semaine, plus un cumul à vie',
+    (await page.locator('.chart-title').textContent()) === 'PP par semaine',
+    await page.locator('.chart-title').textContent(),
   );
   check(
-    'Étiquette de fin = total des PP',
-    (await page.locator('.chart-endlabel').textContent()) === '125',
-    await page.locator('.chart-endlabel').textContent(),
+    'Une barre par semaine',
+    (await page.locator('.chart-wrap svg path').count()) >= 1,
+    String(await page.locator('.chart-wrap svg path').count()),
   );
-  // Régression : si la graduation haute est sous le maximum, le dernier point
-  // et son étiquette sortent du cadre par le haut.
+  // Régression : si la graduation haute est sous le maximum, la barre la plus
+  // haute sort du cadre par le haut.
   {
-    const label = await page.locator('.chart-endlabel').boundingBox();
+    const barre = await page.locator('.chart-wrap svg path').first().boundingBox();
     const svg = await page.locator('.chart-wrap svg').boundingBox();
     check(
-      'Étiquette de fin à l’intérieur du cadre',
-      label.y >= svg.y && label.y + label.height <= svg.y + svg.height,
-      `label ${Math.round(label.y)}–${Math.round(label.y + label.height)} / svg ${Math.round(svg.y)}–${Math.round(svg.y + svg.height)}`,
+      'La barre la plus haute tient dans le cadre',
+      barre.y >= svg.y && barre.y + barre.height <= svg.y + svg.height + 1,
+      `barre ${Math.round(barre.y)}–${Math.round(barre.y + barre.height)} / svg ${Math.round(svg.y)}–${Math.round(svg.y + svg.height)}`,
     );
+    // Une barre est ancrée à sa ligne de base : arrondir les quatre coins la
+    // ferait flotter au-dessus de l'axe.
+    const d = await page.locator('.chart-wrap svg path').first().getAttribute('d');
+    check('Les barres sont ancrées à la ligne de base', /Z$/.test(d ?? '') && /V/.test(d ?? ''), d ?? '');
   }
   await page.locator('.chart-wrap svg').hover();
   await page.waitForTimeout(200);
-  check('Infobulle au survol de la courbe', await page.locator('.chart-tooltip').isVisible());
+  check('Infobulle au survol du graphe', await page.locator('.chart-tooltip').isVisible());
   await page.getByRole('button', { name: 'Voir le tableau' }).click();
   await page.waitForSelector('.chart-table');
   check(
@@ -209,7 +232,7 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.chart-table tbody tr').count()) >= 1,
     String(await page.locator('.chart-table tbody tr').count()),
   );
-  await page.getByRole('button', { name: 'Voir la courbe' }).click();
+  await page.getByRole('button', { name: 'Voir le graphe' }).click();
   await page.screenshot({ path: 'screens/historique.png', fullPage: true });
 
   // 6. Création : bibliothèque de modèles puis éditeur
@@ -1310,7 +1333,9 @@ export async function run({ browser, check, BASE }) {
     {
       // Le badge de rang change de largeur selon le mot : sans colonne fixe,
       // chaque ligne de l'échelle démarre à un endroit différent.
-      const widths = await lp.locator('.draft-tier input').evaluateAll((els) =>
+      // `> input` : le champ d'intitulé seul. Les champs de cible, eux, ont
+    // leur propre colonne et une autre largeur.
+    const widths = await lp.locator('.draft-tier > input').evaluateAll((els) =>
         els.map((el) => Math.round(el.getBoundingClientRect().width)),
       );
       check(
@@ -1854,6 +1879,209 @@ export async function run({ browser, check, BASE }) {
       'Mais il est converti puis effacé, pour ne servir qu’une fois',
       (await op.evaluate(() => localStorage.getItem('zenith.onboarded'))) === null &&
         (await op.evaluate(() => localStorage.getItem('zenith.onboarded.local'))) === '1',
+    );
+    await fresh.close();
+  }
+
+
+  // --- La nature d'un objectif, demandée une fois ---------------------------
+  // Avant : chaque palier écrit à la main naissait « à cocher », et il fallait
+  // le requalifier un par un dans la carte. Pire, les actions naissaient sans
+  // unité, si bien qu'un palier « 100 km » restait à 0/100 quoi qu'on coche.
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+    const cp = await fresh.newPage();
+    cp.on('pageerror', (e) => errors.push(e.message));
+    await gotoZenith(cp, BASE);
+    await cp.waitForSelector('.onboarding-card');
+    await cp.getByRole('button', { name: 'Passer' }).click();
+    await cp.waitForSelector('.brand');
+    await cp.getByRole('button', { name: 'Charger des exemples' }).click();
+    await cp.waitForSelector('.hub');
+    await cp.getByRole('button', { name: 'Nouvel objectif' }).click();
+    await cp.waitForSelector('.picker-grid');
+    await cp.getByRole('button', { name: 'Partir de zéro' }).click();
+    await cp.waitForSelector('.draft-tier');
+
+    await cp.locator('#goal-title').fill('Traverser la France à pied');
+    const etapes = cp.locator('.draft-tier > input');
+    await etapes.nth(0).fill('Courir 10 km');
+    await etapes.nth(1).fill('Courir 21,1 km');
+    await etapes.nth(2).fill('Courir 42,2 km');
+
+    check(
+      'Aucune cible demandée tant que les étapes sont « à cocher »',
+      (await cp.locator('.draft-amount').count()) === 0,
+    );
+
+    await cp.locator('#goal-kind').selectOption('cumul');
+    await cp.waitForTimeout(300);
+    const valeurs = (sel) => cp.locator(sel).evaluateAll((els) => els.map((el) => el.value));
+    const cibles = await valeurs('.draft-amount input:first-child');
+    check(
+      'La cible se lit dans l’intitulé, sans rien retaper',
+      cibles.join(' ') === '10 21,1 42,2',
+      cibles.join(' '),
+    );
+    check('Et la virgule française survit à l’affichage', cibles[1] === '21,1', cibles[1]);
+    const unites = await valeurs('.draft-amount input:last-child');
+    check("L’unité aussi", unites.every((u) => u === 'km'), unites.join(' '));
+
+    await cp.getByRole('button', { name: "Créer l'objectif" }).click();
+    await dismissCeremonies(cp);
+    await cp.waitForTimeout(500);
+    await cp.getByRole('button', { name: 'Objectifs' }).click();
+    await cp.waitForSelector('.goal');
+    const carte = cp.locator('.goal', { hasText: 'Traverser la France à pied' });
+    if ((await carte.locator('.goal-head').getAttribute('aria-expanded')) !== 'true') {
+      await carte.locator('.goal-head').click();
+      await cp.waitForTimeout(400);
+    }
+
+    check(
+      'La carte annonce la nature de l’objectif entier',
+      (await carte.locator('.ladder-kind select').inputValue()) === 'cumul',
+      await carte.locator('.ladder-kind select').inputValue(),
+    );
+    check(
+      'Et l’unité qui va avec',
+      (await carte.locator('.ladder-kind-unit').textContent()) === 'km',
+      await carte.locator('.ladder-kind-unit').textContent(),
+    );
+
+    // Le trou le plus coûteux : sans unité sur les actions, un palier
+    // « 100 km » reste à 0/100 quoi qu'on coche.
+    await cp.getByRole('button', { name: 'Accueil' }).click();
+    await cp.waitForSelector('.checkin-chips');
+    const bloc = cp.locator('.today-goal', { hasText: 'Traverser la France à pied' });
+    const montants = await bloc.locator('.checkin-amount').allTextContents();
+    check(
+      'Les actions de l’objectif portent son unité — sans quoi rien ne monterait',
+      montants.length >= 2 && montants.every((m) => m.includes('km')),
+      montants.join(' | '),
+    );
+
+    // Un palier ajouté ensuite hérite, sans rien demander.
+    await cp.getByRole('button', { name: 'Objectifs' }).click();
+    await cp.waitForSelector('.goal');
+    await carte.locator('.ladder-add input').fill('Courir 100 km');
+    await carte.getByRole('button', { name: 'Ajouter', exact: true }).click();
+    await cp.waitForTimeout(500);
+    const ajoute = carte.locator('.tier', { hasText: 'Courir 100 km' });
+    const jauge = await ajoute.locator('.meter-count').textContent();
+    check(
+      'Un palier ajouté ensuite hérite de la nature et lit sa cible',
+      /100\s*km/.test(jauge ?? ''),
+      jauge?.replace(/\s+/g, ' ') ?? 'aucune jauge',
+    );
+
+    // Intercaler une étape au milieu — le geste qui produisait une échelle
+    // descendante quand il fallait « ajouter à la fin puis remonter ».
+    const portes = carte.locator('.ladder-insert');
+    check('Une porte d’insertion par palier', (await portes.count()) === 4, String(await portes.count()));
+    await portes.nth(1).click();
+    await cp.waitForSelector('.ladder-insert-bar input');
+    await cp.locator('.ladder-insert-bar input').fill('Courir 40 km');
+    await cp.locator('.ladder-insert-bar input').press('Enter');
+    await cp.waitForTimeout(900);
+    const titres = await carte.locator('.tier .tier-title').allTextContents();
+    check(
+      'L’étape se glisse à la place choisie, pas à la fin',
+      titres[1] === 'Courir 40 km',
+      titres.join(' | '),
+    );
+    const badges = await carte
+      .locator('.tier .rank-badge')
+      .evaluateAll((els) => els.map((el) => el.textContent?.trim()));
+    const echelle = ['Fer', 'Bronze', 'Argent', 'Or', 'Platine', 'Émeraude', 'Diamant', 'Maître',
+      'Grand Maître', 'Challenger'];
+    const rangs = badges.map((v) => echelle.indexOf(v ?? ''));
+    check(
+      'Et l’échelle des rangs ne redescend jamais',
+      rangs.every((r, i) => i === 0 || r >= rangs[i - 1]),
+      badges.join(' | '),
+    );
+    await fresh.close();
+  }
+
+  // --- Les PP servent enfin à quelque chose --------------------------------
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+    const pp = await fresh.newPage();
+    pp.on('pageerror', (e) => errors.push(e.message));
+    await gotoZenith(pp, BASE);
+    await pp.waitForSelector('.onboarding-card');
+    await pp.getByRole('button', { name: 'Passer' }).click();
+    await pp.waitForSelector('.brand');
+    await pp.getByRole('button', { name: 'Charger des exemples' }).click();
+    await pp.waitForSelector('.hub');
+
+    check(
+      'Les PP se comptent à la semaine, et à un seul endroit',
+      (await pp.locator('.week-label').first().textContent()) === 'PP gagnés' &&
+        (await pp.locator('.stat-pp').count()) === 0,
+      (await pp.locator('.week-label').first().textContent()) ?? '?',
+    );
+    check('Rien à vendre tant qu’on n’a pas les PP', (await pp.locator('.buy-freeze').count()) === 0);
+
+    // Le halo de l'anneau terminé était tranché net au bord du viewport SVG.
+    check(
+      'Le halo de l’anneau n’est pas rogné par la boîte du SVG',
+      (await pp.locator('.ring-wrap svg').evaluate((el) => getComputedStyle(el).overflow)) ===
+        'visible',
+      await pp.locator('.ring-wrap svg').evaluate((el) => getComputedStyle(el).overflow),
+    );
+
+    // Une grosse semaine : de quoi s'offrir un gel.
+    await pp.evaluate(() => {
+      const snap = JSON.parse(localStorage.getItem('palier.v1'));
+      const d = new Date();
+      const jour = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      snap.checkins = [
+        { id: 'pp1', goalId: snap.goals[0].id, actionId: null, pp: 300, day: jour, note: '',
+          createdAt: new Date().toISOString(), value: null, title: 'grosse semaine' },
+      ];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await reloadZenith(pp);
+    await pp.waitForSelector('.hub');
+    await pp.waitForTimeout(500);
+
+    check(
+      'Le solde de la semaine est celui qu’on dépense',
+      (await pp.locator('.week-pp').textContent())?.replace(/[^0-9]/g, '') === '300',
+      await pp.locator('.week-pp').textContent(),
+    );
+    check(
+      'La boutique n’apparaît que quand elle est possible',
+      (await pp.locator('.buy-freeze').count()) === 1,
+      (await pp.locator('.buy-freeze').textContent()) ?? 'absente',
+    );
+    check(
+      'Et le bouton annonce ce qu’il reste',
+      /sur 300/.test((await pp.locator('.buy-freeze').textContent()) ?? ''),
+      (await pp.locator('.buy-freeze').textContent()) ?? 'absent',
+    );
+
+    await pp.locator('.buy-freeze').click();
+    await pp.waitForTimeout(1000);
+    check(
+      'L’achat crédite la réserve',
+      (await pp.locator('.freeze').textContent()) === '❄×1',
+      (await pp.locator('.freeze').textContent()) ?? 'aucun',
+    );
+    check(
+      'Et le solde ne permet plus d’en acheter un second',
+      (await pp.locator('.buy-freeze').count()) === 0,
+    );
+    // Journalisé, pas compté dans un solde : il survit au rechargement.
+    await reloadZenith(pp);
+    await pp.waitForSelector('.hub');
+    await pp.waitForTimeout(400);
+    check(
+      'Le gel acheté survit au rechargement',
+      (await pp.locator('.freeze').textContent()) === '❄×1',
+      (await pp.locator('.freeze').textContent()) ?? 'aucun',
     );
     await fresh.close();
   }

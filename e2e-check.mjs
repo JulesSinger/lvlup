@@ -152,9 +152,16 @@ check(
 );
 await page.waitForTimeout(1100); // laisse le compteur de PP finir son animation
 check(
-  'PP du profil cumulés (Bronze 50 + Argent 75 = 125)',
-  (await page.locator('.stat-pp').textContent()) === '125',
-  await page.locator('.stat-pp').textContent(),
+  // Les PP ont quitté le bandeau de profil — qui dit l'identité — pour la
+  // carte « Cette semaine », qui dit le rythme et porte le comparatif.
+  'PP de la semaine (Bronze 50 + Argent 75 = 125)',
+  (await page.locator('.week-pp').textContent())?.replace(/[^0-9]/g, '') === '125',
+  await page.locator('.week-pp').textContent(),
+);
+check(
+  'Le bandeau de profil ne répète pas les PP',
+  (await page.locator('.stat-pp').count()) === 0,
+  (await page.locator('.stat-label').allTextContents()).join(' | '),
 );
 check(
   "Activité récente alimentée sur le hub",
@@ -225,29 +232,33 @@ await page.getByRole('button', { name: 'Historique' }).click();
 await page.waitForSelector('.entry');
 check('Historique daté alimenté', (await page.locator('.entry').count()) === 2);
 check(
-  'Courbe des PP tracée (aire + ligne)',
-  (await page.locator('.chart-wrap svg path').count()) === 2,
-  String(await page.locator('.chart-wrap svg path').count()),
+  'Le graphe compte les PP par semaine, plus un cumul à vie',
+  (await page.locator('.chart-title').textContent()) === 'PP par semaine',
+  await page.locator('.chart-title').textContent(),
 );
 check(
-  'Étiquette de fin = total des PP',
-  (await page.locator('.chart-endlabel').textContent()) === '125',
-  await page.locator('.chart-endlabel').textContent(),
+  'Une barre par semaine',
+  (await page.locator('.chart-wrap svg path').count()) >= 1,
+  String(await page.locator('.chart-wrap svg path').count()),
 );
-// Régression : si la graduation haute est sous le maximum, le dernier point
-// et son étiquette sortent du cadre par le haut.
-await section('cadrage de la courbe de progression', async () => {
-    const label = await page.locator('.chart-endlabel').boundingBox();
-    const svg = await page.locator('.chart-wrap svg').boundingBox();
-    check(
-      'Étiquette de fin à l’intérieur du cadre',
-      label.y >= svg.y && label.y + label.height <= svg.y + svg.height,
-      `label ${Math.round(label.y)}–${Math.round(label.y + label.height)} / svg ${Math.round(svg.y)}–${Math.round(svg.y + svg.height)}`,
-    );
+// Régression : si la graduation haute est sous le maximum, la barre la plus
+// haute sort du cadre par le haut.
+await section('cadrage du graphe hebdomadaire', async () => {
+  const barre = await page.locator('.chart-wrap svg path').first().boundingBox();
+  const svg = await page.locator('.chart-wrap svg').boundingBox();
+  check(
+    'La barre la plus haute tient dans le cadre',
+    barre.y >= svg.y && barre.y + barre.height <= svg.y + svg.height + 1,
+    `barre ${Math.round(barre.y)}–${Math.round(barre.y + barre.height)} / svg ${Math.round(svg.y)}–${Math.round(svg.y + svg.height)}`,
+  );
+  // Une barre est ancrée à sa ligne de base : arrondir les quatre coins la
+  // ferait flotter au-dessus de l'axe.
+  const d = await page.locator('.chart-wrap svg path').first().getAttribute('d');
+  check('Les barres sont ancrées à la ligne de base', /Z$/.test(d ?? '') && /V/.test(d ?? ''), d ?? '');
 });
 await page.locator('.chart-wrap svg').hover();
 await page.waitForTimeout(200);
-check('Infobulle au survol de la courbe', await page.locator('.chart-tooltip').isVisible());
+check('Infobulle au survol du graphe', await page.locator('.chart-tooltip').isVisible());
 await page.getByRole('button', { name: 'Voir le tableau' }).click();
 await page.waitForSelector('.chart-table');
 check(
@@ -255,7 +266,7 @@ check(
   (await page.locator('.chart-table tbody tr').count()) >= 1,
   String(await page.locator('.chart-table tbody tr').count()),
 );
-await page.getByRole('button', { name: 'Voir la courbe' }).click();
+await page.getByRole('button', { name: 'Voir le graphe' }).click();
 await page.screenshot({ path: 'screens/historique.png', fullPage: true });
 
 // 6. Création : bibliothèque de modèles puis éditeur
@@ -2178,6 +2189,87 @@ await section('nature d’un objectif et insertion', async () => {
       );
     }
     await fresh.close();
+});
+
+// --- Les PP servent enfin à quelque chose --------------------------------
+// Avant : un total à vie qui montait tout seul, que le rang du profil ne
+// regardait même pas. Deux systèmes de statut en parallèle, un seul utile.
+await section('les PP et la boutique de gels', async () => {
+  const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+  const pp = await fresh.newPage();
+  pp.on('pageerror', (e) => errors.push(e.message));
+  await pp.goto(BASE);
+  await pp.waitForSelector('.onboarding-card');
+  await pp.getByRole('button', { name: 'Passer' }).click();
+  await pp.waitForSelector('.brand');
+  await pp.getByRole('button', { name: 'Charger des exemples' }).click();
+  await pp.waitForSelector('.hub');
+
+  check(
+    'Les PP se comptent à la semaine, et à un seul endroit',
+    (await pp.locator('.week-label').first().textContent()) === 'PP gagnés' &&
+      (await pp.locator('.stat-pp').count()) === 0,
+    (await pp.locator('.week-label').first().textContent()) ?? '?',
+  );
+  check(
+    'Rien à vendre tant qu’on n’a pas les PP',
+    (await pp.locator('.buy-freeze').count()) === 0,
+  );
+
+  // Une grosse semaine : de quoi s'offrir un gel.
+  await pp.evaluate(() => {
+    const snap = JSON.parse(localStorage.getItem('palier.v1'));
+    const d = new Date();
+    const jour = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    snap.checkins = [
+      { id: 'pp1', goalId: snap.goals[0].id, actionId: null, pp: 300, day: jour, note: '',
+        createdAt: new Date().toISOString(), value: null, title: 'grosse semaine' },
+    ];
+    localStorage.setItem('palier.v1', JSON.stringify(snap));
+  });
+  await pp.reload();
+  await pp.waitForSelector('.hub');
+  await pp.waitForTimeout(500);
+
+  check(
+    'Le solde de la semaine est celui qu’on dépense',
+    (await pp.locator('.week-pp').textContent())?.replace(/[^0-9]/g, '') === '300',
+    await pp.locator('.week-pp').textContent(),
+  );
+  check(
+    'Et le bouton annonce ce qu’il reste',
+    /sur 300/.test((await pp.locator('.buy-freeze').textContent()) ?? ''),
+    (await pp.locator('.buy-freeze').textContent()) ?? 'absent',
+  );
+  check(
+    'La boutique n’apparaît que quand elle est possible',
+    (await pp.locator('.buy-freeze').count()) === 1,
+    (await pp.locator('.buy-freeze').textContent()) ?? 'absente',
+  );
+  check('Aucun gel au départ', (await pp.locator('.freeze').count()) === 0);
+
+  await pp.locator('.buy-freeze').click();
+  await pp.waitForTimeout(1000);
+  check(
+    'L’achat crédite la réserve',
+    (await pp.locator('.freeze').textContent()) === '❄×1',
+    (await pp.locator('.freeze').textContent()) ?? 'aucun',
+  );
+  check(
+    'Et le solde ne permet plus d’en acheter un second',
+    (await pp.locator('.buy-freeze').count()) === 0,
+  );
+
+  // Le gel est journalisé, pas compté dans un solde : il survit au rechargement.
+  await pp.reload();
+  await pp.waitForSelector('.hub');
+  await pp.waitForTimeout(400);
+  check(
+    'Le gel acheté survit au rechargement',
+    (await pp.locator('.freeze').textContent()) === '❄×1',
+    (await pp.locator('.freeze').textContent()) ?? 'aucun',
+  );
+  await fresh.close();
 });
 
 check('Aucune erreur JavaScript', errors.length === 0, errors.join(' | '));
