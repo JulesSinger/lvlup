@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  freezeFill,
   freezeOffer,
   goalProgress,
   history,
@@ -322,5 +323,31 @@ describe('les PP semaine par semaine', () => {
 
   it('rien du tout ne donne aucune barre', () => {
     expect(weeklyPP([], [], '2026-05-20')).toEqual([]);
+  });
+});
+
+describe('freezeFill', () => {
+  // La jauge est ce qui enseigne le lien PP → gel à quelqu'un qui n'a jamais
+  // eu de quoi payer. Elle doit donc être juste surtout dans le bas.
+  it('vaut la part du prix déjà couverte', () => {
+    expect(freezeFill({ balance: 0, cost: 200 })).toBe(0);
+    expect(freezeFill({ balance: 50, cost: 200 })).toBe(25);
+    expect(freezeFill({ balance: 199, cost: 200 })).toBe(100);
+    expect(freezeFill({ balance: 200, cost: 200 })).toBe(100);
+  });
+
+  it('ne déborde pas au-delà de 100 %', () => {
+    // Un solde de trois gels ne remplit pas la jauge trois fois.
+    expect(freezeFill({ balance: 600, cost: 200 })).toBe(100);
+  });
+
+  it('ne descend pas sous zéro', () => {
+    // `freezeOffer` borne déjà le solde, mais une jauge à -30 % casserait le
+    // rendu sans rien signaler : on tient l'invariant des deux côtés.
+    expect(freezeFill({ balance: -50, cost: 200 })).toBe(0);
+  });
+
+  it('reste défini si le prix tombe à zéro', () => {
+    expect(freezeFill({ balance: 0, cost: 0 })).toBe(100);
   });
 });

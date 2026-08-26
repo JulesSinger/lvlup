@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { catchupDays, catchupLabel, ignoreDay, shiftDay } from '../lib/catchup';
 import { formatAmount, isCountable } from '../lib/counters';
 import { needsInput, parseAmount, tapValue } from '../lib/quantities';
 import {
+  freezeFill,
   freezeOffer,
   goalProgress,
   history,
@@ -251,17 +253,37 @@ export function Hub({
               </div>
             </div>
 
-            {/* La seule chose que les PP achètent. Elle n'apparaît que quand
-                elle est possible : proposer un bouton grisé en permanence,
-                c'est afficher un manque tous les jours. */}
-            {offre.affordable && (
+            {/* La seule chose que les PP achètent.
+                Elle a d'abord été cachée tant qu'elle n'était pas possible —
+                ne pas afficher un manque tous les jours. Mauvais calcul : la
+                seule chose que les PP achètent devenait invisible à qui n'a
+                jamais atteint 200 PP dans une semaine, donc il n'apprenait
+                jamais que les PP servent à quelque chose, donc il n'avait
+                aucune raison d'en gagner. La boutique était réservée à ceux
+                qui n'en avaient plus besoin.
+                Le bouton reste donc visible en permanence, et se remplit à
+                mesure que la semaine avance : la jauge est ce qui enseigne le
+                lien PP → gel, sans qu'on ait à l'écrire nulle part. */}
+            {offre.full ? (
+              <span className="freeze-full" title={`Réserve pleine : ${MAX_FREEZES} gels`}>
+                ❄ Réserve pleine
+              </span>
+            ) : (
               <button
-                className="btn btn-sm buy-freeze"
+                className={`btn btn-sm buy-freeze${offre.affordable ? '' : ' is-short'}`}
                 onClick={onBuyFreeze}
-                title={`Il te reste ${offre.balance} PP cette semaine`}
+                disabled={!offre.affordable}
+                style={{ '--freeze-fill': `${freezeFill(offre)}%` } as CSSProperties}
+                title={
+                  offre.affordable
+                    ? `Il te reste ${offre.balance} PP cette semaine`
+                    : `Encore ${offre.cost - offre.balance} PP cette semaine pour un gel`
+                }
               >
                 ❄ Un gel · {offre.cost} PP
-                <span className="buy-freeze-balance">sur {offre.balance}</span>
+                <span className="buy-freeze-balance">
+                  {offre.affordable ? `sur ${offre.balance}` : `${offre.balance}/${offre.cost}`}
+                </span>
               </button>
             )}
           </div>

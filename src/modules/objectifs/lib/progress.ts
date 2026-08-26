@@ -303,6 +303,19 @@ export function freezeOffer(
 }
 
 /**
+ * Le remplissage de la jauge d'achat, en pourcentage entier.
+ *
+ * Sert au bouton de gel, qui reste affiché même hors de portée : c'est cette
+ * jauge qui apprend à quoi servent les PP, donc elle doit avoir un sens dès
+ * 0 %. Bornée à 100 — la jauge annonce « prêt », pas « au-delà » — et jamais
+ * négative, au cas où un solde le deviendrait.
+ */
+export function freezeFill(offer: { balance: number; cost: number }): number {
+  if (offer.cost <= 0) return 100;
+  return Math.max(0, Math.min(100, Math.round((offer.balance / offer.cost) * 100)));
+}
+
+/**
  * Les PP semaine par semaine.
  *
  * Remplace la courbe de cumul, qui traçait le nombre qu'on a justement retiré

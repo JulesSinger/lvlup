@@ -98,6 +98,10 @@
   display: flex;
   align-items: center;
   gap: 13px;
+  /* Le bouton de gel est désormais toujours là, y compris sur un écran de
+     360 px où il ne tient plus sur la ligne de la flamme. Il passe dessous
+     plutôt que de pousser la carte hors du viewport. */
+  flex-wrap: wrap;
 }
 
 .flame {
@@ -769,14 +773,57 @@
 .buy-freeze {
   margin-left: auto;
   align-self: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   border-color: rgba(140, 196, 255, 0.45);
   color: #8cc4ff;
   white-space: nowrap;
 }
 
-.buy-freeze:hover {
+.buy-freeze:hover:not(:disabled) {
   border-color: #8cc4ff;
   background: rgba(140, 196, 255, 0.12);
+}
+
+/* Hors de portée : le bouton reste, la jauge se remplit.
+   `background-size` plutôt qu'un dégradé recalculé, parce que seule la taille
+   s'anime — un `linear-gradient` dont on bouge la borne ne transitionne pas.
+   Une barre fine en bas plutôt qu'un remplissage pleine hauteur : à mi-course,
+   la bordure du remplissage tombait au milieu de « 200 PP » et tranchait le
+   mot en deux — vu en capture, pas déduit. Et l'opacité de `.btn:disabled` est
+   reprise plus bas : à 0.5, la jauge s'effaçait, or c'est elle qu'on montre. */
+.buy-freeze.is-short {
+  border-color: rgba(140, 196, 255, 0.22);
+  color: rgba(140, 196, 255, 0.62);
+  background-image: linear-gradient(rgba(140, 196, 255, 0.55), rgba(140, 196, 255, 0.55));
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: var(--freeze-fill, 0%) 3px;
+  transition: background-size 500ms ease;
+}
+
+/* « pas encore », pas « interdit » : le curseur barré accuse l'utilisateur
+   d'une faute qu'il n'a pas commise. */
+.buy-freeze.is-short:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .buy-freeze.is-short {
+    transition: none;
+  }
+}
+
+/* Trois gels en réserve : plus rien à vendre, et on le dit plutôt que de
+   laisser un bouton qui ne ferait rien. */
+.freeze-full {
+  margin-left: auto;
+  align-self: center;
+  font-size: 12px;
+  color: rgba(140, 196, 255, 0.6);
+  white-space: nowrap;
 }
 
 /* Le solde s'affiche sur le bouton : c'est le seul endroit où il sert, depuis

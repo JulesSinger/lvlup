@@ -2022,7 +2022,50 @@ export async function run({ browser, check, BASE }) {
         (await pp.locator('.stat-pp').count()) === 0,
       (await pp.locator('.week-label').first().textContent()) ?? '?',
     );
-    check('Rien à vendre tant qu’on n’a pas les PP', (await pp.locator('.buy-freeze').count()) === 0);
+    // Tous les accesseurs Playwright (`textContent`, `isDisabled`, `evaluate`…)
+    // attendent l'élément 30 s avant de lever, et cette exception tue le
+    // fichier entier au lieu de nommer un échec — c'est ce qui avait masqué le
+    // bug du dimanche pendant des semaines. Le bouton de gel est justement ce
+    // qu'on vient de rendre conditionnel : toute lecture passe donc par ce
+    // garde, qui rend `null` sur absence au lieu de bloquer.
+    const lireBouton = async () => {
+      const loc = pp.locator('.buy-freeze');
+      if ((await loc.count()) !== 1) return null;
+      return {
+        texte: (await loc.textContent()) ?? '',
+        classe: (await loc.getAttribute('class')) ?? '',
+        inactif: await loc.isDisabled(),
+        jauge: await loc.evaluate((el) => el.style.getPropertyValue('--freeze-fill')),
+      };
+    };
+
+    {
+      // La boutique reste visible hors de portée : c'est sa jauge qui apprend
+      // à quoi servent les PP. Cachée jusqu'aux 200 PP, elle n'était trouvée
+      // que par ceux qui avaient déjà de quoi payer.
+      const b = await lireBouton();
+      check(
+        'La boutique reste visible même hors de portée',
+        b !== null && b.inactif,
+        b === null ? 'bouton absent' : b.texte,
+      );
+      check(
+        'Et elle affiche le chemin qui reste, pas seulement le prix',
+        b !== null && /\d+\/200/.test(b.texte),
+        b === null ? 'bouton absent' : b.texte,
+      );
+      // La jauge doit valoir le solde, pas un décor : on la compare au solde
+      // affiché juste à côté.
+      const solde = Number(
+        ((await pp.locator('.week-pp').textContent()) ?? '0').replace(/[^0-9]/g, ''),
+      );
+      const attendu = Math.max(0, Math.min(100, Math.round((solde / 200) * 100)));
+      check(
+        'La jauge du bouton vaut le solde de la semaine',
+        b !== null && b.jauge === `${attendu}%`,
+        b === null ? 'bouton absent' : `solde ${solde} PP → jauge ${b.jauge}, attendu ${attendu}%`,
+      );
+    }
 
     // Le halo de l'anneau terminé était tranché net au bord du viewport SVG.
     check(
@@ -2052,16 +2095,19 @@ export async function run({ browser, check, BASE }) {
       (await pp.locator('.week-pp').textContent())?.replace(/[^0-9]/g, '') === '300',
       await pp.locator('.week-pp').textContent(),
     );
-    check(
-      'La boutique n’apparaît que quand elle est possible',
-      (await pp.locator('.buy-freeze').count()) === 1,
-      (await pp.locator('.buy-freeze').textContent()) ?? 'absente',
-    );
-    check(
-      'Et le bouton annonce ce qu’il reste',
-      /sur 300/.test((await pp.locator('.buy-freeze').textContent()) ?? ''),
-      (await pp.locator('.buy-freeze').textContent()) ?? 'absent',
-    );
+    {
+      const b = await lireBouton();
+      check(
+        'Le bouton s’active quand le solde couvre le prix',
+        b !== null && !b.inactif && !b.classe.includes('is-short'),
+        b === null ? 'bouton absent' : b.classe,
+      );
+      check(
+        'Et le bouton annonce ce qu’il reste',
+        b !== null && /sur 300/.test(b.texte),
+        b === null ? 'bouton absent' : b.texte,
+      );
+    }
 
     await pp.locator('.buy-freeze').click();
     await pp.waitForTimeout(1000);
@@ -2070,10 +2116,22 @@ export async function run({ browser, check, BASE }) {
       (await pp.locator('.freeze').textContent()) === '❄×1',
       (await pp.locator('.freeze').textContent()) ?? 'aucun',
     );
-    check(
-      'Et le solde ne permet plus d’en acheter un second',
-      (await pp.locator('.buy-freeze').count()) === 0,
-    );
+    {
+      const b = await lireBouton();
+      check(
+        'Et le solde dépensé rend le bouton inactif, sans le faire disparaître',
+        b !== null && b.inactif,
+        b === null ? 'bouton absent' : b.texte,
+      );
+      // 300 PP gagnés moins 200 dépensés : la jauge doit retomber à la moitié.
+      // C'est la seule mesure de jauge à une valeur ni 0 ni 100 — sans elle,
+      // une jauge figée à zéro passerait toutes les vérifications.
+      check(
+        'La jauge retombe à la moitié après la dépense',
+        b !== null && b.jauge === '50%',
+        b === null ? 'bouton absent' : b.jauge,
+      );
+    }
     // Journalisé, pas compté dans un solde : il survit au rechargement.
     await reloadZenith(pp);
     await pp.waitForSelector('.hub');
