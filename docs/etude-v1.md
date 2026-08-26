@@ -144,12 +144,17 @@ ce qui est révélateur : la liste déroulante invite à l'erreur, parce que
 ce que seuls les joueurs de LoL savent — tu l'avais toi-même relevé en
 demandant « bronze, argent, or, challenger — pas maître »).
 
-Je ne l'ai pas corrigé ici : contrairement au déplacement, c'est un choix
-explicite fait dans une liste visible, pas une corruption silencieuse — et le
-corriger revient à restreindre une liberté documentée. Ma recommandation, à
-trancher : **n'offrir à l'ajout que les rangs strictement au-dessus du dernier
-barreau.** La liberté reste entière dans la plage qui a un sens, et le choix
-incohérent devient inatteignable.
+**Corrigé le 9 août — et le diagnostic avait changé entre-temps.** En allant le
+réparer, j'ai constaté que la liste ne produisait plus d'échelle descendante :
+depuis que l'ajout calcule le rang à partir de la place, le choix affiché
+n'était tout simplement **plus honoré**. On choisissait « Maître » et on
+obtenait « Challenger », sans un mot. Une liste qui ment est pire qu'une liste
+restreinte.
+
+Elle a donc été supprimée : le formulaire **annonce** le rang que prendra
+l'étape au lieu de le demander. La liberté n'est pas perdue — chaque palier
+garde son sélecteur de rang une fois créé, ce que `ranks.ts` documente depuis
+toujours.
 
 Une fois ce point réglé, **ton point 4 devient presque gratuit** : « ajouter puis
 remonter » produit enfin une échelle correcte, et un vrai bouton « insérer ici »

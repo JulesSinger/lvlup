@@ -3,7 +3,14 @@ import { formatAmount, tierProgress } from '../lib/counters';
 import { goalState } from '../lib/heatmap';
 import { formatDate, goalProgress } from '../lib/progress';
 import { inheritedTier, kindFields, ladderKind } from '../lib/quantities';
-import { getRank, insertableAt, movableTier, suggestRanks, type RankId } from '../lib/ranks';
+import {
+  getRank,
+  insertableAt,
+  ladderInsert,
+  movableTier,
+  suggestRanks,
+  type RankId,
+} from '../lib/ranks';
 import type { Action, Checkin, Goal, Tier, TierInput, TierKind } from '../lib/types';
 import { Heatmap } from './Heatmap';
 import { MeasureChart } from './MeasureChart';
@@ -191,9 +198,11 @@ function Ladder({
   checkins: Checkin[];
 } & Pick<Props, 'onAddTier' | 'onUpdateTier' | 'onDeleteTier' | 'onMoveTier'>) {
   const [newTitle, setNewTitle] = useState('');
-  const [newRank, setNewRank] = useState<RankId>(
-    () => suggestRanks(goal.tiers.length + 1)[goal.tiers.length] ?? 'or',
-  );
+  /** Le rang que prendra la prochaine étape : celui du barreau qu'elle occupera. */
+  const nextRank: RankId =
+    ladderInsert(goal.tiers, goal.tiers.length)?.rank ??
+    suggestRanks(goal.tiers.length + 1)[goal.tiers.length] ??
+    'or';
   /** Place où l'on est en train de glisser un palier, s'il y en a une. */
   const [insertAt, setInsertAt] = useState<number | null>(null);
   const [insertTitle, setInsertTitle] = useState('');
@@ -212,7 +221,7 @@ function Ladder({
     e.preventDefault();
     const title = newTitle.trim();
     if (!title) return;
-    await onAddTier({ title, rank: newRank });
+    await onAddTier({ title, rank: nextRank });
     setNewTitle('');
   }
 
@@ -336,6 +345,11 @@ function Ladder({
         </div>
       ))}
 
+      {/* Plus de liste de rangs ici : depuis que les rangs appartiennent aux
+          barreaux, c'est la place qui décide, et le choix affiché n'était plus
+          honoré — on choisissait « Maître » et on obtenait autre chose. Le rang
+          à venir est montré, pas demandé ; il reste modifiable palier par
+          palier une fois l'étape créée. */}
       <form className="ladder-add" onSubmit={add}>
         <input
           value={newTitle}
@@ -343,7 +357,11 @@ function Ladder({
           placeholder="Nouveau palier…"
           aria-label="Titre du nouveau palier"
         />
-        <RankSelect value={newRank} onChange={setNewRank} />
+        {newTitle.trim() ? (
+          <RankBadge rank={getRank(nextRank)} />
+        ) : (
+          <span className="draft-rank-empty">—</span>
+        )}
         <button type="submit" className="btn btn-sm" disabled={!newTitle.trim()}>
           Ajouter
         </button>

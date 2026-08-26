@@ -74,10 +74,10 @@ cette étape produit un `net::ERR_CONNECTION_REFUSED` qui ressemble à un bug de
 
 ```bash
 npm run build && npm run preview &            # sert dist/ sur :4173
-npm run check                                 # ~221 vérifications
+npm run check                                 # ~223 vérifications
 
 npm run build:auth && npm run preview:auth &  # sert dist-auth/ sur :4174
-npm run check:auth                            # 233 : exige les DEUX serveurs
+npm run check:auth                            # 235 : exige les DEUX serveurs
 ```
 
 `check:auth` rejoue tout `check` puis ajoute le parcours avec comptes. C'est lui qui couvre le
@@ -362,6 +362,8 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 
 | Date | Décision | Pourquoi |
 |---|---|---|
+| 2026-08-09 | Chaque bloc de `e2e-check.mjs` est enveloppé dans `section()` : un plantage coûte **une** vérification, plus le reste du fichier | Vérifié en sabotant un bloc : 213/214 avec une ligne d'échec nommée, au lieu d'un script mort à mi-parcours. C'est ce qui masquait la non-vérification du parcours avec comptes tous les dimanches |
+| 2026-08-09 | Plus de liste de rangs au formulaire d'ajout de palier : le rang à venir est **annoncé**, pas demandé | Depuis que les rangs appartiennent aux barreaux, le choix affiché n'était plus honoré — on choisissait « Maître » et on obtenait « Challenger ». Une liste qui ment est pire que pas de liste ; le rang reste modifiable palier par palier |
 | 2026-08-09 | Insérer un palier au milieu : les paliers du dessous glissent d'un barreau, l'étape prend le rang de sa place | Même règle que le déplacement — les rangs appartiennent aux barreaux. Refusé au-dessus d'un palier validé, dont le rang est un trophée daté |
 | 2026-08-09 | Une échelle **jamais retouchée** reprend la suite standard de sa nouvelle longueur ; une échelle personnalisée, non | Sinon insérer dans une échelle qui touchait déjà Challenger donnait deux barreaux au même rang. Le garde-fou : dès qu'un rang a été choisi à la main, la convention ne s'applique plus |
 | 2026-08-09 | L'invariant testé est « l'échelle ne descend jamais », pas « aucun palier n'est rétrogradé » | Le second est plus fort qu'il ne faut : une échelle qui s'allonge redistribue ses rangs, exactement comme si l'objectif avait été créé avec un palier de plus |
