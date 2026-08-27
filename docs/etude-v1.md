@@ -16,7 +16,7 @@ confirmés, et un troisième, non signalé, est apparu en chemin.*
 | ~~4~~ | ~~Création : type global + cible devinée~~ | 1 à 2 jours | **Fait le 9 août** — et la nature devient une propriété de l'objectif, dont tout palier ajouté hérite |
 | ~~5~~ | ~~Insérer un palier au milieu~~ | ~½ jour | **Fait le 9 août** — un « + » entre deux paliers, l'échelle se redistribue |
 | ~~6~~ | ~~Donner un sens aux PP~~ | décision d'abord | **Fait le 10 août** — les PP se comptent par semaine et achètent des gels |
-| **7** | Animations | 2 à 3 jours | Réel, mais à cibler sur trois moments, pas « partout » |
+| **7** | Animations | 2 à 3 jours | **Suspendu le 26 août.** Le constat de départ était faux — voir l'encadré §7 |
 | **8** | Onboarding | 1 jour | En dernier — et même plus tard que tu ne le penses, voir §8 |
 
 ---
@@ -365,6 +365,23 @@ Deux surfaces parlaient encore l'ancien langage, relevées par Jules :
 
 ## 7. Animations — d'accord sur le fond, en désaccord sur le modèle
 
+> **Correction du 26 août — cette section partait d'un fait faux.**
+> J'avais écrit plus bas que la fermeture de l'anneau du jour ne déclenchait
+> rien. C'est l'inverse : en bouclant réellement une journée dans le build, on
+> obtient une **cérémonie plein écran** « Objectif atteint · Journée bouclée »,
+> avec confettis, fanfare, vibration, bouton « Continuer » et fermeture
+> automatique à 5,2 s (`dayCelebrations` dans `ZenithScreen.tsx`,
+> `kind: 'day'` dans `Ceremony.tsx`). Je l'avais lue dans le code sans jamais
+> la déclencher.
+>
+> Le problème du moment quotidien n'est donc pas l'absence d'animation, c'est
+> son excès : un écran qui s'interpose cinq secondes entre l'utilisateur et son
+> app **tous les soirs** — exactement le péage que je reproche à Duolingo trois
+> paragraphes plus bas. Toute reprise de ce chantier doit partir de là, pas du
+> constat périmé ci-dessous.
+>
+> *Chantier suspendu à la demande de Jules le 26 août. Rien n'a été changé.*
+
 L'app n'est pas nue : il y a déjà des cérémonies de palier, des confettis, le
 « +15 » qui s'envole, la pastille qui rebondit. Ce qui manque n'est pas la
 quantité, c'est **le pic** — aucun moment ne fait battre le cœur.
@@ -382,9 +399,10 @@ Ce que je retiens de Duolingo, c'est **la variété** — ton mot, et c'est le b
 Trois moments méritent un vrai traitement, et trois seulement :
 
 1. **L'anneau du jour qui se referme.** C'est le seul rendez-vous quotidien
-   garanti, et aujourd'hui il ne se passe rien — juste un halo statique, qui est
-   en plus cassé (§1). Le corriger, puis animer sa fermeture, est le meilleur
-   rapport effort/effet de toute la liste.
+   garanti. ~~Aujourd'hui il ne se passe rien — juste un halo statique~~ →
+   **faux, voir l'encadré en tête de section** : il s'y passe déjà une
+   cérémonie plein écran de 5,2 s. La question n'est pas quoi ajouter, mais
+   s'il faut la remplacer par quelque chose de discret et sur place.
 2. **Les paliers de série** (7, 30, 100 jours). Rare, donc mémorable, et ça ne
    coûte rien de le rendre spectaculaire puisque personne ne le verra deux fois
    le même mois.

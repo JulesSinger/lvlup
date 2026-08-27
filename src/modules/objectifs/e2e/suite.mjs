@@ -2144,6 +2144,67 @@ export async function run({ browser, check, BASE }) {
     await fresh.close();
   }
 
+  // --- L'accompagnement crée un objectif qui peut réellement avancer --------
+  {
+    // Le modèle « Sport » compte ses paliers en kilomètres. Ses actions
+    // portent donc des kilomètres — et l'accompagnement les jetait, ne laissant
+    // que les actions génériques de repli, sans unité : le premier objectif de
+    // chaque nouveau venu restait bloqué à 0 / 5 km pour toujours. Ce bloc
+    // termine le parcours pour de bon (les autres le « Passent ») et vérifie
+    // qu'une action fait bouger le palier.
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 950 } });
+    const ob = await fresh.newPage();
+    ob.on('pageerror', (e) => errors.push(e.message));
+    await gotoZenith(ob, BASE);
+    await ob.waitForSelector('.onboarding-card');
+    for (let i = 0; i < 3; i++) await ob.getByRole('button', { name: 'Suivant' }).click();
+    await ob.getByRole('button', { name: 'Créer et commencer' }).click();
+    await ob.waitForSelector('.hub');
+    await ob.waitForTimeout(600);
+
+    const gestes = (await ob.locator('.hub button').allTextContents()).map((t) => t.trim());
+    check(
+      'L’objectif de départ hérite des actions de son modèle',
+      gestes.some((t) => /Sortie course/.test(t)),
+      gestes.filter((t) => /Sortie|effort|petit pas/i.test(t)).join(' | ') || 'aucune action',
+    );
+    check(
+      'Et pas des actions génériques, qui ne portent aucune unité',
+      !gestes.some((t) => /Un vrai effort/.test(t)),
+      gestes.filter((t) => /effort|petit pas/i.test(t)).join(' | ') || 'aucune',
+    );
+
+    // La preuve par le geste : cocher doit faire monter le palier en km.
+    const petite = ob.getByRole('button', { name: /Sortie de 15 min/ }).first();
+    if ((await petite.count()) === 0) {
+      check('Une action du modèle est cochable depuis l’accueil', false, 'action introuvable');
+    } else {
+      await petite.click();
+      await ob.waitForTimeout(900);
+      await ob.getByRole('button', { name: 'Objectifs' }).click();
+      await ob.waitForSelector('.goal');
+      // La carte est déjà dépliée : l'accompagnement ajoute l'objectif créé à
+      // `expanded`. Cliquer l'en-tête la refermerait, et `.ladder` disparu,
+      // toute lecture suivante attendrait 30 s avant de tuer le fichier — au
+      // lieu de nommer un échec. On n'ouvre donc que si c'est nécessaire, et
+      // on lit à travers un garde.
+      const echelle = ob.locator('.ladder');
+      if ((await echelle.count()) === 0) {
+        await ob.locator('.goal').first().locator('.goal-head').click();
+        await ob.waitForTimeout(400);
+      }
+      const compteur = ob.locator('.meter-count').first();
+      const lu = (await compteur.count()) === 0 ? null : await compteur.textContent();
+      const propre = (lu ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+      check(
+        'Cocher une action fait monter le palier, en kilomètres',
+        /\b2\b\s*\/\s*5\s*km/.test(propre),
+        lu === null ? 'aucun compteur lisible' : propre,
+      );
+    }
+    await fresh.close();
+  }
+
   check('Aucune erreur JavaScript', errors.length === 0, errors.join(' | '));
 
   await context.close();

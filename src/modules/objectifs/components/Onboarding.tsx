@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { getRank, suggestRanks } from '../lib/ranks';
 import { GOAL_TEMPLATES, type GoalTemplate } from '../lib/templates';
-import type { GoalInput, TierInput } from '../lib/types';
+import type { ActionInput, GoalInput, TierInput } from '../lib/types';
 import { RankBadge } from './RankBadge';
 
 /**
@@ -17,10 +17,29 @@ const STARTER_LABELS: Record<string, string> = {
   ecrans: 'Écrans',
 };
 
-/** Les trois modèles d'accueil, puisés dans la bibliothèque commune. */
+/**
+ * Les trois modèles d'accueil, puisés dans la bibliothèque commune.
+ *
+ * `actions` fait partie du modèle au même titre que `tiers`, et doit voyager
+ * avec lui. Il était omis ici : l'accompagnement créait « Courir un
+ * semi-marathon » avec des paliers comptés en kilomètres et les actions
+ * génériques de repli — « Un vrai effort · 15 PP », sans unité. Cocher une
+ * action rapportait donc des PP et faisait avancer le palier de **zéro
+ * kilomètre** : le premier objectif de tout nouvel utilisateur restait bloqué
+ * à `0 / 5 km` pour toujours. C'est le défaut corrigé le 9 août pour la
+ * création normale (« les actions de l'objectif portent son unité, sans quoi
+ * rien ne monterait »), qui n'avait pas été porté sur le seul chemin
+ * qu'empruntent 100 % des nouveaux venus.
+ */
 const STARTERS = STARTER_IDS.map((id) => {
   const t = GOAL_TEMPLATES.find((g) => g.id === id) as GoalTemplate;
-  return { label: STARTER_LABELS[id], emoji: t.emoji, title: t.title, tiers: t.tiers };
+  return {
+    label: STARTER_LABELS[id],
+    emoji: t.emoji,
+    title: t.title,
+    tiers: t.tiers,
+    actions: t.actions,
+  };
 });
 
 const SLIDES = [
@@ -45,7 +64,7 @@ export function Onboarding({
   onFinish,
   onSkip,
 }: {
-  onFinish: (goal: GoalInput, tiers: TierInput[]) => void;
+  onFinish: (goal: GoalInput, tiers: TierInput[], actions: ActionInput[]) => void;
   onSkip: () => void;
 }) {
   const [step, setStep] = useState(0);
@@ -68,6 +87,9 @@ export function Onboarding({
       // Le modèle transmet sa nature de comptage : sans ça, le premier
       // objectif de l'utilisateur naîtrait avec des paliers muets.
       current.tiers.map((t, i) => ({ ...t, rank: ranks[i] })),
+      // Et ses actions, qui portent l'unité des paliers : sans elles, rien
+      // de ce que l'utilisateur peut cocher ne fait monter quoi que ce soit.
+      current.actions.map((a) => ({ ...a })),
     );
   }
 

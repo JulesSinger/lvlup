@@ -732,10 +732,10 @@ export function ZenithScreen({
     return (
       <Onboarding
         onSkip={finishOnboarding}
-        onFinish={(input, tiers) => {
+        onFinish={(input, tiers, actions) => {
           finishOnboarding();
           void run(async () => {
-            const created = await goalsStore.createGoal(input, tiers);
+            const created = await goalsStore.createGoal(input, tiers, actions);
             setExpanded((set) => new Set(set).add(created.id));
           });
         }}
