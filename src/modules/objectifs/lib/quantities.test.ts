@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GOAL_TEMPLATES } from './templates';
 import {
   MEASURE_PP,
+  actionMeasureSeries,
   actionNature,
   guessAmount,
   inheritedTier,
@@ -267,6 +268,25 @@ describe('série de relevés', () => {
 
   it('un palier qui n’est pas une mesure n’a pas de cible traçable', () => {
     expect(measureTarget(tier({ kind: 'cumul', target: 100 }), [])).toBeNull();
+  });
+});
+
+describe('série de relevés d’une action, sans palier', () => {
+  it('ne garde que les check-ins de cette action, chiffrés', () => {
+    const series = actionMeasureSeries('a1', [
+      checkin('2026-01-01', { actionId: 'a1', value: 80 }),
+      checkin('2026-01-02', { actionId: 'a2', value: 12 }), // une autre action
+      checkin('2026-01-03', { actionId: 'a1' }), // sans valeur
+    ]);
+    expect(series).toEqual([{ day: '2026-01-01', value: 80 }]);
+  });
+
+  it('deux relevés le même jour ne font qu’un point : le dernier', () => {
+    const series = actionMeasureSeries('a1', [
+      checkin('2026-01-01', { actionId: 'a1', value: 80, createdAt: '2026-01-01T07:00:00.000Z' }),
+      checkin('2026-01-01', { actionId: 'a1', value: 79.6, createdAt: '2026-01-01T07:05:00.000Z' }),
+    ]);
+    expect(series).toEqual([{ day: '2026-01-01', value: 79.6 }]);
   });
 });
 

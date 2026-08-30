@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActionMeasureChart } from './MeasureChart';
 import { formatAmount } from '../lib/counters';
 import { HEATMAP_WEEKS, HEATMAP_YEAR_WEEKS, goalHeatmap, goalStreak } from '../lib/heatmap';
 import { shiftDay } from '../lib/catchup';
+import { actionMeasureSeries } from '../lib/quantities';
 import { dayString } from '../lib/streak';
 import type { Action, Checkin, Goal } from '../lib/types';
 import type { Rank } from '../lib/ranks';
@@ -23,6 +25,13 @@ import type { Rank } from '../lib/ranks';
  * objectif de course a trois actions, et « sortie longue » n'est pas « sortie
  * de 15 min » : sans le détail, la case ment par omission. Le clic ouvre une
  * ligne qui nomme ce qui a été fait ce jour-là, sans changer d'écran.
+ *
+ * Une exception au tout-grille : une action de nature **relevé** (se peser)
+ * ne raconte rien en cases pleines ou vides — la vraie question n'est pas
+ * « l'ai-je fait ce jour-là » mais « où j'en suis ». Filtrée seule (ou seule
+ * de l'objectif), elle remplace la grille par la courbe de ses valeurs
+ * (`ActionMeasureChart`), la même lecture qu'un palier de mesure mais sans
+ * cible à tracer.
  */
 
 const DOW = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
@@ -55,6 +64,16 @@ export function Heatmap({
   const streak = useMemo(
     () => goalStreak(goal, checkins, today, focus),
     [goal, checkins, today, focus],
+  );
+
+  // Une seule action ne propose pas de filtre (voir plus bas) mais reste
+  // implicitement « la » sélection : un objectif fait d'un unique relevé doit
+  // montrer sa courbe sans qu'on ait à choisir quoi que ce soit.
+  const activeAction = mine.length === 1 ? mine[0] : (mine.find((a) => a.id === focus) ?? null);
+  const showCurve = activeAction?.isMeasure ?? false;
+  const curveSeries = useMemo(
+    () => (showCurve ? actionMeasureSeries(activeAction!.id, checkins) : []),
+    [showCurve, activeAction, checkins],
   );
 
   // Une année ne tient pas toujours dans une carte : on ouvre sur la fin,
@@ -144,64 +163,74 @@ export function Heatmap({
         </div>
       )}
 
-      <div className="heat-body">
-        <div className="heat-dow" aria-hidden="true">
-          {DOW.map((letter, i) => (
-            <span key={i}>{i % 2 === 0 ? letter : ''}</span>
-          ))}
+      {showCurve ? (
+        <div className="heat-body">
+          {curveSeries.length >= 2 ? (
+            <ActionMeasureChart action={activeAction!} checkins={checkins} />
+          ) : (
+            <p className="heat-hint">Pas encore assez de relevés pour tracer une courbe.</p>
+          )}
         </div>
+      ) : (
+        <div className="heat-body">
+          <div className="heat-dow" aria-hidden="true">
+            {DOW.map((letter, i) => (
+              <span key={i}>{i % 2 === 0 ? letter : ''}</span>
+            ))}
+          </div>
 
-        <div className="heat-scroll" ref={scrollRef}>
-          <div className="heat-months" aria-hidden="true">
-            {Array.from({ length: map.columns }, (_, col) => (
-              <span key={col}>{monthByColumn.get(col) ?? ''}</span>
-            ))}
-          </div>
-          {/* Un seul arrêt de tabulation pour douze semaines : quatre-vingt-
-              quatre boutons dans l'ordre du clavier rendraient la page
-              intraversable. Les flèches déplacent la sélection, la ligne de
-              détail est un `status` — donc annoncée à chaque déplacement. */}
-          <div
-            className="heat-grid"
-            role="img"
-            tabIndex={0}
-            aria-label={`${focus ? mine.find((a) => a.id === focus)?.title + ' : ' : ''}${map.active} jour${map.active > 1 ? 's' : ''} d'activité sur les ${weeks} dernières semaines. Flèches pour parcourir les jours.`}
-            onKeyDown={(e) => {
-              if (e.key === 'ArrowRight') move(1);
-              else if (e.key === 'ArrowLeft') move(-1);
-              else if (e.key === 'ArrowDown') move(7);
-              else if (e.key === 'ArrowUp') move(-7);
-              else if (e.key === 'Escape') setPicked(null);
-              else return;
-              e.preventDefault();
-            }}
-          >
-            {map.cells.map((cell) => (
-              <span
-                key={cell.day}
-                className={
-                  'heat-cell' +
-                  (cell.inRange ? '' : ' ghost') +
-                  (cell.day === today ? ' today' : '') +
-                  (cell.day === map.warnDay ? ' warn' : '') +
-                  (cell.day === picked ? ' picked' : '')
-                }
-                data-level={cell.level}
-                onClick={
-                  cell.inRange
-                    ? () => setPicked((p) => (p === cell.day ? null : cell.day))
-                    : undefined
-                }
-                title={
-                  cell.inRange
-                    ? `${formatDay(cell.day)}${cell.count > 0 ? ` · ${detailOf(cell.day)}` : ' · rien'}`
-                    : undefined
-                }
-              />
-            ))}
+          <div className="heat-scroll" ref={scrollRef}>
+            <div className="heat-months" aria-hidden="true">
+              {Array.from({ length: map.columns }, (_, col) => (
+                <span key={col}>{monthByColumn.get(col) ?? ''}</span>
+              ))}
+            </div>
+            {/* Un seul arrêt de tabulation pour douze semaines : quatre-vingt-
+                quatre boutons dans l'ordre du clavier rendraient la page
+                intraversable. Les flèches déplacent la sélection, la ligne de
+                détail est un `status` — donc annoncée à chaque déplacement. */}
+            <div
+              className="heat-grid"
+              role="img"
+              tabIndex={0}
+              aria-label={`${focus ? mine.find((a) => a.id === focus)?.title + ' : ' : ''}${map.active} jour${map.active > 1 ? 's' : ''} d'activité sur les ${weeks} dernières semaines. Flèches pour parcourir les jours.`}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowRight') move(1);
+                else if (e.key === 'ArrowLeft') move(-1);
+                else if (e.key === 'ArrowDown') move(7);
+                else if (e.key === 'ArrowUp') move(-7);
+                else if (e.key === 'Escape') setPicked(null);
+                else return;
+                e.preventDefault();
+              }}
+            >
+              {map.cells.map((cell) => (
+                <span
+                  key={cell.day}
+                  className={
+                    'heat-cell' +
+                    (cell.inRange ? '' : ' ghost') +
+                    (cell.day === today ? ' today' : '') +
+                    (cell.day === map.warnDay ? ' warn' : '') +
+                    (cell.day === picked ? ' picked' : '')
+                  }
+                  data-level={cell.level}
+                  onClick={
+                    cell.inRange
+                      ? () => setPicked((p) => (p === cell.day ? null : cell.day))
+                      : undefined
+                  }
+                  title={
+                    cell.inRange
+                      ? `${formatDay(cell.day)}${cell.count > 0 ? ` · ${detailOf(cell.day)}` : ' · rien'}`
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="heat-foot">
         {/* Toujours présente, pour que le clic ne fasse pas sauter la carte. */}
@@ -210,7 +239,7 @@ export function Heatmap({
             <>
               <b>{formatDay(picked)}</b> — {detailOf(picked)}
             </>
-          ) : focus !== null && map.active === 0 ? (
+          ) : !showCurve && focus !== null && map.active === 0 ? (
             <span className="heat-hint">Jamais fait sur cette période.</span>
           ) : (
             <span className="heat-hint">
@@ -222,21 +251,33 @@ export function Heatmap({
                   🔥 <b>{streak}</b> jour{streak > 1 ? 's' : ''} d'affilée{' · '}
                 </span>
               )}
-              {map.active} jour{map.active > 1 ? 's' : ''} sur {year ? '1 an' : '12 semaines'}
+              {showCurve ? (
+                <>
+                  {curveSeries.length} relevé{curveSeries.length > 1 ? 's' : ''}
+                </>
+              ) : (
+                <>
+                  {map.active} jour{map.active > 1 ? 's' : ''} sur {year ? '1 an' : '12 semaines'}
+                </>
+              )}
             </span>
           )}
         </p>
 
-        <button
-          className="heat-zoom"
-          onClick={() => {
-            setYear((v) => !v);
-            setPicked(null);
-          }}
-          aria-label={year ? 'Revenir aux douze dernières semaines' : "Voir l'année entière"}
-        >
-          {year ? '12 semaines' : 'Année'}
-        </button>
+        {/* Le zoom bascule la fenêtre de la grille — sans objet sur une
+            courbe, qui montre déjà tout l'historique. */}
+        {!showCurve && (
+          <button
+            className="heat-zoom"
+            onClick={() => {
+              setYear((v) => !v);
+              setPicked(null);
+            }}
+            aria-label={year ? 'Revenir aux douze dernières semaines' : "Voir l'année entière"}
+          >
+            {year ? '12 semaines' : 'Année'}
+          </button>
+        )}
       </div>
     </div>
   );

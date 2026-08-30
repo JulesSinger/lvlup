@@ -88,22 +88,35 @@ export interface Reading {
 }
 
 /**
- * Les relevés qui alimentent un palier de mesure, un par jour.
- *
- * Deux pesées le même matin ne font pas deux points sur la courbe : on garde
- * la dernière, celle qu'on a corrigée.
+ * Un relevé par jour, la dernière valeur du jour l'emportant : deux pesées le
+ * même matin ne font pas deux points sur la courbe, on garde celle qu'on a
+ * corrigée.
  */
+function dailyReadings(checkins: Checkin[]): Reading[] {
+  const byDay = new Map<string, Reading>();
+  checkins
+    .filter((c) => typeof c.value === 'number')
+    .sort((a, b) => a.day.localeCompare(b.day) || a.createdAt.localeCompare(b.createdAt))
+    .forEach((c) => byDay.set(c.day, { day: c.day, value: c.value as number }));
+  return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
+}
+
+/** Les relevés qui alimentent un palier de mesure. */
 export function measureSeries(
   tier: Tier,
   checkins: Checkin[],
   actions: Action[] = [],
 ): Reading[] {
-  const byDay = new Map<string, Reading>();
-  feedingCheckins(tier, checkins, actions)
-    .filter((c) => typeof c.value === 'number')
-    .sort((a, b) => a.day.localeCompare(b.day) || a.createdAt.localeCompare(b.createdAt))
-    .forEach((c) => byDay.set(c.day, { day: c.day, value: c.value as number }));
-  return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
+  return dailyReadings(feedingCheckins(tier, checkins, actions));
+}
+
+/**
+ * Les relevés d'une seule action de type relevé — la courbe de la grille
+ * quand on la filtre sur elle. Contrairement à `measureSeries`, il n'y a ici
+ * ni palier ni cible : juste l'historique de cette action précise.
+ */
+export function actionMeasureSeries(actionId: string, checkins: Checkin[]): Reading[] {
+  return dailyReadings(checkins.filter((c) => c.actionId === actionId));
 }
 
 /**

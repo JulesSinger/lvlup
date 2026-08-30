@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { formatAmount } from '../lib/counters';
 import { formatDate } from '../lib/progress';
-import { measureSeries, measureTarget } from '../lib/quantities';
+import { actionMeasureSeries, measureSeries, measureTarget } from '../lib/quantities';
+import type { Reading } from '../lib/quantities';
 import type { Action, Checkin, Tier } from '../lib/types';
 
 /**
@@ -15,6 +16,11 @@ import type { Action, Checkin, Tier } from '../lib/types';
  * Choix délibéré : pas d'axe zéro. Un poids tracé depuis 0 kg écrase toute la
  * variation en une ligne plate — la courbe cadre sur l'amplitude réelle des
  * relevés, cible comprise.
+ *
+ * `MeasureCurve` est le tracé nu, réutilisé à deux endroits qui n'ont pas la
+ * même notion de cible : un palier de nature « mesure » (`MeasureChart`, une
+ * cible chiffrée) et une action de nature relevé filtrée dans la grille
+ * (`ActionMeasureChart`, dans `Heatmap.tsx` — juste l'historique, sans cible).
  */
 
 const SERIES = '#b9812a';
@@ -33,7 +39,23 @@ export function MeasureChart({
 }) {
   const series = useMemo(() => measureSeries(tier, checkins, actions), [tier, checkins, actions]);
   const target = measureTarget(tier, series);
+  return <MeasureCurve series={series} unit={tier.unit} target={target} />;
+}
 
+export function ActionMeasureChart({ action, checkins }: { action: Action; checkins: Checkin[] }) {
+  const series = useMemo(() => actionMeasureSeries(action.id, checkins), [action.id, checkins]);
+  return <MeasureCurve series={series} unit={action.unit} target={null} />;
+}
+
+export function MeasureCurve({
+  series,
+  unit,
+  target,
+}: {
+  series: Reading[];
+  unit: string;
+  target: number | null;
+}) {
   // Un seul point ne fait pas une tendance : on attend le deuxième relevé
   // plutôt que d'afficher une ligne horizontale qui ne dit rien.
   if (series.length < 2) return null;
@@ -67,9 +89,9 @@ export function MeasureChart({
         height={HEIGHT}
         preserveAspectRatio="none"
         role="img"
-        aria-label={`Suivi : ${formatAmount(first.value, tier.unit)} le ${formatDate(
+        aria-label={`Suivi : ${formatAmount(first.value, unit)} le ${formatDate(
           `${first.day}T12:00:00`,
-        )}, ${formatAmount(last.value, tier.unit)} le ${formatDate(`${last.day}T12:00:00`)}`}
+        )}, ${formatAmount(last.value, unit)} le ${formatDate(`${last.day}T12:00:00`)}`}
       >
         {/* Le point de départ : ce à quoi tout se compare. */}
         <line
@@ -111,9 +133,9 @@ export function MeasureChart({
       {/* Rien d'autre que la légende des deux pointillés : la barre juste
           au-dessus dit déjà où on en est, le répéter serait du bruit. */}
       <div className="measure-foot">
-        <span className="measure-legend base">départ {formatAmount(first.value, tier.unit)}</span>
+        <span className="measure-legend base">départ {formatAmount(first.value, unit)}</span>
         {target !== null && (
-          <span className="measure-legend goal">cible {formatAmount(target, tier.unit)}</span>
+          <span className="measure-legend goal">cible {formatAmount(target, unit)}</span>
         )}
       </div>
     </div>

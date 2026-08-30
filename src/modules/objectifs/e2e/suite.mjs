@@ -1759,11 +1759,14 @@ export async function run({ browser, check, BASE }) {
         { id: 'fa1', goalId: 'fg', title: 'Sortie longue', pp: 20, position: 0, archived: false, createdAt: old, unit: 'km', defaultValue: 12, isMeasure: false },
         { id: 'fa2', goalId: 'fg', title: 'Sortie course', pp: 15, position: 1, archived: false, createdAt: old, unit: 'km', defaultValue: 6, isMeasure: false },
         { id: 'fa3', goalId: 'fg', title: 'Renforcement', pp: 10, position: 2, archived: false, createdAt: old, unit: '', defaultValue: null, isMeasure: false },
+        { id: 'fa4', goalId: 'fg', title: 'Me peser', pp: 5, position: 3, archived: false, createdAt: old, unit: 'kg', defaultValue: null, isMeasure: true },
       ];
-      // 4 sorties longues, 20 sorties courses, jamais de renforcement.
+      // 4 sorties longues, 20 sorties courses, jamais de renforcement, 3 pesées.
       const ck = [];
       for (let i = 0; i < 4; i++) ck.push({ id: 'l' + i, goalId: 'fg', actionId: 'fa1', pp: 20, day: day(3 + i * 14), note: '', createdAt: `${day(3 + i * 14)}T09:00:00.000Z`, value: 12 });
       for (let i = 0; i < 20; i++) ck.push({ id: 'c' + i, goalId: 'fg', actionId: 'fa2', pp: 15, day: day(2 + i * 3), note: '', createdAt: `${day(2 + i * 3)}T09:00:00.000Z`, value: 6 });
+      const poids = [82, 81.2, 80.5];
+      for (let i = 0; i < poids.length; i++) ck.push({ id: 'm' + i, goalId: 'fg', actionId: 'fa4', pp: 5, day: day(5 + i * 20), note: '', createdAt: `${day(5 + i * 20)}T08:00:00.000Z`, value: poids[i] });
       snap.goals = [g]; snap.actions = acts; snap.checkins = ck;
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
@@ -1775,7 +1778,7 @@ export async function run({ browser, check, BASE }) {
 
     check(
       'Un objectif à plusieurs actions propose de filtrer',
-      (await fp.locator('.heat-chip').count()) === 4,
+      (await fp.locator('.heat-chip').count()) === 5,
       String(await fp.locator('.heat-chip').count()),
     );
     check(
@@ -1821,6 +1824,27 @@ export async function run({ browser, check, BASE }) {
       /Sortie course/.test(await fp.locator('.heat-detail').innerText()) &&
         !/Sortie longue/.test(await fp.locator('.heat-detail').innerText()),
       (await fp.locator('.heat-detail').innerText()).replace(/\s+/g, ' '),
+    );
+
+    // Une action de relevé ne se filtre pas en cases : elle se filtre en courbe.
+    await fp.getByRole('button', { name: 'Me peser' }).click();
+    await fp.waitForTimeout(350);
+    check(
+      'Filtrer sur un relevé remplace la grille par une courbe',
+      (await fp.locator('.heat-grid').count()) === 0 &&
+        (await fp.locator('.measure-chart').count()) === 1,
+    );
+    check(
+      'Le bouton de zoom disparaît, sans objet sur une courbe',
+      (await fp.locator('.heat-zoom').count()) === 0,
+    );
+
+    await fp.getByRole('button', { name: 'Tout', exact: true }).click();
+    await fp.waitForTimeout(350);
+    check(
+      'Revenir à « Tout » restaure la grille, même après une courbe',
+      (await fp.locator('.heat-grid').count()) === 1 &&
+        (await fp.locator('.measure-chart').count()) === 0,
     );
 
     await fresh.close();
