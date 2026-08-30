@@ -100,6 +100,15 @@ export class LocalFlashcards implements FlashcardsStore {
     write(snapshot);
   }
 
+  async reviewCard(id: string, patch: Pick<Card, 'box' | 'dueDay'>) {
+    const snapshot = read();
+    const card = snapshot.cards.find((c) => c.id === id);
+    if (!card) return;
+    card.box = patch.box;
+    card.dueDay = patch.dueDay;
+    write(snapshot);
+  }
+
   async exportData(): Promise<FlashcardsBackup> {
     const { decks, cards } = read();
     return { decks: decks.slice(), cards: cards.slice() };

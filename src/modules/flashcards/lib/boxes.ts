@@ -31,6 +31,19 @@ export const BOX_INTERVALS: readonly number[] = [1, 2, 4, 8, 16];
  */
 export const MASTERED_INTERVAL = 32;
 
+/**
+ * Taille maximale d'une session de révision (docs/etude-flashcards.md §6 et
+ * §11 Q6) : un paquet resté une semaine sans visite peut rendre des
+ * centaines de cartes dues d'un coup, et une première session interminable
+ * décourage plus qu'elle n'aide. Constante fixe pour l'instant, pas encore
+ * un réglage — décision à revoir si l'usage montre que 50 ne convient pas.
+ *
+ * Volontairement absente de `dueCards` : le plafond est une décision
+ * d'écran (quelle file présenter aujourd'hui), pas une vérité sur ce qui
+ * est dû — l'écran de statistiques (étape 6) a besoin du vrai compte.
+ */
+export const SESSION_LIMIT = 50;
+
 /** Cartes dues aujourd'hui, dans l'ordre où les revoir. */
 export function dueCards(cards: Card[], today: string): Card[] {
   return cards

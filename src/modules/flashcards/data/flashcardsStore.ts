@@ -20,9 +20,19 @@ export interface FlashcardsStore {
 
   listCards(): Promise<Card[]>;
   createCard(input: CardInput): Promise<Card>;
-  /** N'importe jamais `box`/`dueDay` : seule une révision les change (§9, étape 4-5). */
+  /** N'importe jamais `box`/`dueDay` : seule une révision les change, via `reviewCard`. */
   updateCard(id: string, patch: Partial<Pick<CardInput, 'front' | 'back'>>): Promise<void>;
   deleteCard(id: string): Promise<void>;
+
+  /**
+   * Enregistre le résultat d'une révision — la seule méthode du contrat qui
+   * a le droit de changer `box`/`dueDay` (docs/etude-flashcards.md §6). Le
+   * nouvel état se calcule côté appelant avec `lib/boxes.ts#applyReview`,
+   * jamais ici : ce contrat ne connaît pas la règle du Leitner, il ne fait
+   * qu'écrire l'état qu'on lui donne — même séparation que `updateCategory`
+   * qui ne recalcule jamais un solde.
+   */
+  reviewCard(id: string, patch: Pick<Card, 'box' | 'dueDay'>): Promise<void>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
   exportData(): Promise<FlashcardsBackup>;

@@ -137,6 +137,14 @@ export class SupabaseFlashcards implements FlashcardsStore {
     if (error) throw new Error(error.message);
   }
 
+  async reviewCard(id: string, patch: Pick<Card, 'box' | 'dueDay'>) {
+    const { error } = await this.client
+      .from('flashcards_cards')
+      .update({ box: patch.box, due_day: patch.dueDay })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
   async exportData(): Promise<FlashcardsBackup> {
     return { decks: await this.listDecks(), cards: await this.listCards() };
   }

@@ -167,8 +167,13 @@
 }
 
 .flashcards-deck-detail-title {
+  flex: 1;
   font-size: 1.1rem;
   font-weight: 650;
+}
+
+.flashcards-review-start {
+  flex-shrink: 0;
 }
 
 .flashcards-cards {
@@ -190,4 +195,69 @@
 
 .flashcards-card-back {
   color: var(--text-faint);
+}
+
+/* --- écran de révision (étape 5) ----------------------------------------- */
+
+.flashcards-review {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.flashcards-review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.flashcards-review-progress {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.flashcards-review-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 480px;
+  min-height: 220px;
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  cursor: pointer;
+}
+
+.flashcards-review-card.flipped {
+  cursor: default;
+  border-color: var(--accent);
+}
+
+.flashcards-review-face {
+  font-size: 1.3rem;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.flashcards-review-hint {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.flashcards-review-grade {
+  display: flex;
+  gap: 14px;
+}
+
+.flashcards-review-grade .btn {
+  padding: 12px 26px;
+  font-size: 15px;
 }

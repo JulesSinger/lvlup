@@ -1,11 +1,13 @@
 /**
  * Suite e2e du module flashcards (Orbite).
  *
- * Étapes 2 et 3 (docs/etude-flashcards.md §9) : « les paquets se créent, se
- * renomment, s'archivent », puis « le contenu existe » — les cartes d'un
- * paquet se créent, s'éditent, se suppriment. Comme la suite Astra, elle
- * part d'un contexte frais et entre dans la carte Orbite du hub — voir
- * `modules/objectifs/e2e/suite.mjs` pour le même motif.
+ * Étapes 2, 3 et 5 (docs/etude-flashcards.md §9) : « les paquets se créent,
+ * se renomment, s'archivent », puis « le contenu existe » — les cartes d'un
+ * paquet se créent, s'éditent, se suppriment —, puis « le module devient
+ * utilisable seul » — une carte due se révise, recto puis verso, juste ou
+ * faux. Comme la suite Astra, elle part d'un contexte frais et entre dans
+ * la carte Orbite du hub — voir `modules/objectifs/e2e/suite.mjs` pour le
+ * même motif.
  */
 
 async function enterOrbite(p, base) {
@@ -86,6 +88,42 @@ export async function run({ browser, check, BASE }) {
     'La carte créée affiche son recto et son verso',
     (await page.locator('.flashcards-card-front').first().textContent()) === 'Hola' &&
       (await page.locator('.flashcards-card-back').first().textContent()) === 'Bonjour',
+  );
+
+  // --- Réviser une carte due (étape 5) --------------------------------------
+  check(
+    'Le bouton Réviser affiche le nombre de cartes dues',
+    (await page.locator('.flashcards-review-start').textContent()).includes('1'),
+  );
+  await page.locator('.flashcards-review-start').click();
+  await page.waitForSelector('.flashcards-review-card');
+  check(
+    'La révision montre le recto, pas le verso',
+    (await page.locator('.flashcards-review-face').textContent()) === 'Hola',
+  );
+  check(
+    'La progression annonce 1 / 1',
+    (await page.locator('.flashcards-review-progress').textContent()) === '1 / 1',
+  );
+
+  await page.locator('.flashcards-review-card').click();
+  check(
+    'Retourner la carte montre le verso',
+    (await page.locator('.flashcards-review-face').textContent()) === 'Bonjour',
+  );
+
+  await page.getByRole('button', { name: 'Juste' }).click();
+  await page.waitForSelector('.flashcards-review .empty h3');
+  check(
+    'La session terminée annonce le nombre de cartes revues',
+    (await page.locator('.flashcards-review .empty p').textContent()).includes('1 carte'),
+  );
+
+  await page.getByRole('button', { name: 'Retour au paquet' }).click();
+  await page.waitForSelector('.flashcards-deck-detail');
+  check(
+    'Une carte revue juste quitte la file du jour',
+    (await page.locator('.flashcards-review-start').count()) === 0,
   );
 
   await page.getByRole('button', { name: 'Modifier' }).click();
