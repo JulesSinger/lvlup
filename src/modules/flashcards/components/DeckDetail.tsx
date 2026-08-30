@@ -69,7 +69,7 @@ export function DeckDetail({ deck, onBack, onError }: Props) {
   if (reviewing) {
     return (
       <ReviewSession
-        deck={deck}
+        title={deck.name}
         queue={queue}
         onDone={() => {
           setReviewing(false);

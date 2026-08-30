@@ -119,7 +119,7 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.flashcards-review .empty p').textContent()).includes('1 carte'),
   );
 
-  await page.getByRole('button', { name: 'Retour au paquet' }).click();
+  await page.getByRole('button', { name: 'Terminer' }).click();
   await page.waitForSelector('.flashcards-deck-detail');
   check(
     'Une carte revue juste quitte la file du jour',
@@ -205,4 +205,76 @@ export async function run({ browser, check, BASE }) {
   check('Aucune erreur JavaScript', errors.length === 0, errors.join(' | '));
 
   await context.close();
+
+  // --- Le bandeau « Aujourd'hui » : savoir tout de suite ce qui est dû ------
+  // Demande de Jules après la V1. Deux paquets, chacun une carte due, pour
+  // vérifier à la fois la pastille par paquet et la session tous paquets.
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const tp = await fresh.newPage();
+    tp.on('pageerror', (e) => errors.push(e.message));
+    await enterOrbite(tp, BASE);
+    await tp.waitForSelector('.empty h3');
+    await tp.evaluate(() => {
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      const today = new Date().toISOString().slice(0, 10);
+      snap.flashcardsDecks = [
+        { id: 'td1', name: 'Espagnol', emoji: '🇪🇸', position: 0, archived: false, createdAt: today },
+        { id: 'td2', name: 'Anatomie', emoji: '🩺', position: 1, archived: false, createdAt: today },
+      ];
+      snap.flashcardsCards = [
+        { id: 'tc1', deckId: 'td1', front: 'Hola', back: 'Bonjour', box: 1, dueDay: today, createdAt: today },
+        { id: 'tc2', deckId: 'td2', front: 'Fémur', back: 'Os de la cuisse', box: 1, dueDay: today, createdAt: today },
+      ];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await reloadOrbite(tp);
+    await tp.waitForSelector('.flashcards-today');
+
+    check(
+      'Le bandeau du jour annonce le total, tous paquets confondus',
+      (await tp.locator('.flashcards-today-text').textContent()).includes('2'),
+    );
+    check(
+      'Chaque paquet porte sa propre pastille',
+      (await tp.locator('.flashcards-row-due').allTextContents()).sort().join(',') === '1,1',
+    );
+
+    await tp.getByRole('button', { name: 'Réviser' }).click();
+    await tp.waitForSelector('.flashcards-review-card');
+    check(
+      "La session s'ouvre sur « Aujourd'hui », pas le nom d'un paquet",
+      (await tp.locator('.flashcards-review-head').textContent()).includes("Aujourd'hui"),
+    );
+    check(
+      'La carte annonce de quel paquet elle vient',
+      await tp.locator('.flashcards-review-deck').isVisible(),
+    );
+
+    // Deux cartes, deux paquets différents : on retourne et note chacune.
+    await tp.locator('.flashcards-review-card').click();
+    await tp.getByRole('button', { name: 'Juste' }).click();
+    await tp.waitForSelector('.flashcards-review-card');
+    await tp.locator('.flashcards-review-card').click();
+    await tp.getByRole('button', { name: 'Juste' }).click();
+    await tp.waitForSelector('.flashcards-review .empty h3');
+    check(
+      'Les deux cartes de la session sont comptées',
+      (await tp.locator('.flashcards-review .empty p').textContent()).includes('2 cartes'),
+    );
+
+    await tp.getByRole('button', { name: 'Terminer' }).click();
+    await tp.waitForSelector('.flashcards-decks');
+    check(
+      'Le bandeau annonce qu’il n’y a plus rien à réviser',
+      (await tp.locator('.flashcards-today-empty').count()) === 1,
+    );
+    check(
+      'Les pastilles par paquet disparaissent avec elles',
+      (await tp.locator('.flashcards-row-due').count()) === 0,
+    );
+
+    check('Aucune erreur JavaScript (bandeau du jour)', errors.length === 0, errors.join(' | '));
+    await fresh.close();
+  }
 }

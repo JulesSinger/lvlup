@@ -5,16 +5,29 @@ import { dayString } from '../lib/day';
 import type { Card, Deck } from '../lib/types';
 
 interface Props {
-  deck: Deck;
+  /** Ce que dit le bouton de retour — le nom d'un paquet, ou « Aujourd'hui » pour une session tous paquets. */
+  title: string;
   /** La file du jour, déjà plafonnée (voir SESSION_LIMIT) — fixée à l'ouverture, elle ne grandit pas en cours de session. */
   queue: Card[];
+  /**
+   * Fourni uniquement pour une session tous paquets (`FlashcardsScreen`) :
+   * permet d'annoncer, sous chaque carte, de quel paquet elle vient — sinon
+   * mélanger l'espagnol et l'anatomie dans la même file serait déroutant.
+   * Absent pour une session propre à un paquet (`DeckDetail`), où le titre
+   * suffit déjà à le dire.
+   */
+  decks?: Deck[];
   onDone: () => void;
   onError: (message: string) => void;
 }
 
 /**
  * L'écran de révision — étape 5 (docs/etude-flashcards.md §9) : « le module
- * devient utilisable seul, la V1 est atteinte ».
+ * devient utilisable seul, la V1 est atteinte ». Généralisé pour servir
+ * aussi bien une révision d'un seul paquet (`DeckDetail`) qu'une session
+ * « Aujourd'hui » qui pioche dans tous les paquets actifs (`FlashcardsScreen`)
+ * — demande de Jules après la V1 : savoir tout de suite ce qu'il y a à
+ * réviser, sans avoir à ouvrir chaque paquet un par un.
  *
  * Aucune règle métier ici : `applyReview` (lib/boxes.ts) décide du nouvel
  * état, cet écran ne fait qu'afficher une carte à la fois et enregistrer le
@@ -22,7 +35,7 @@ interface Props {
  * qui a le droit de changer `box`/`dueDay` (`updateCard` ne le peut pas,
  * voir docs/etude-flashcards.md §6).
  */
-export function ReviewSession({ deck, queue, onDone, onError }: Props) {
+export function ReviewSession({ title, queue, decks, onDone, onError }: Props) {
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [reviewed, setReviewed] = useState(0);
@@ -30,6 +43,7 @@ export function ReviewSession({ deck, queue, onDone, onError }: Props) {
 
   const current = queue[index];
   const done = index >= queue.length;
+  const currentDeck = decks?.find((d) => d.id === current?.deckId);
 
   async function grade(correct: boolean) {
     setGrading(true);
@@ -50,7 +64,7 @@ export function ReviewSession({ deck, queue, onDone, onError }: Props) {
     <div className="flashcards-review">
       <div className="flashcards-review-head">
         <button className="btn btn-ghost btn-sm" onClick={onDone}>
-          ← {deck.name}
+          ← {title}
         </button>
         {!done && (
           <span className="flashcards-review-progress">
@@ -66,11 +80,16 @@ export function ReviewSession({ deck, queue, onDone, onError }: Props) {
             {reviewed} carte{reviewed > 1 ? 's' : ''} revue{reviewed > 1 ? 's' : ''}.
           </p>
           <button className="btn btn-primary" onClick={onDone}>
-            Retour au paquet
+            Terminer
           </button>
         </div>
       ) : (
         <>
+          {currentDeck && (
+            <span className="flashcards-review-deck">
+              {currentDeck.emoji} {currentDeck.name}
+            </span>
+          )}
           <button
             type="button"
             className={`flashcards-review-card${flipped ? ' flipped' : ''}`}

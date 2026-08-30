@@ -344,3 +344,32 @@ règle que pour Astra.
 
 Toutes les questions ouvertes de §10 sont donc tranchées. Le chantier peut commencer à
 l'étape 1 (§9).
+
+---
+
+## 12. Visibilité du jour (post-V1, 30/08/2026)
+
+Retour de Jules une fois la V1 (étapes 1 à 5) livrée : rien ne dit, à l'ouverture d'Orbite, ce
+qu'il y a à réviser aujourd'hui. Il faut ouvrir chaque paquet un par un pour le découvrir — ce
+que le bouton « Réviser (N) » de l'étape 5 permettait déjà, mais seulement une fois *dans* un
+paquet.
+
+**Ce qui a été ajouté**, sans toucher au modèle de données ni au moteur (§4, §5) :
+
+- Un **bandeau « Aujourd'hui »**, en tête de l'écran des paquets : le nombre total de cartes
+  dues, tous paquets actifs confondus, avec un bouton « Réviser » qui ouvre directement une
+  session. Rien à zéro n'est pas caché : un paquet à jour affiche « Tout est à jour, rien à
+  réviser aujourd'hui » plutôt que de faire disparaître le bandeau — la question « qu'en est-il
+  aujourd'hui ? » reçoit toujours une réponse visible, y compris quand elle est bonne.
+- Une **pastille d'échéance** sur chaque paquet de la liste, visible seulement s'il a des
+  cartes dues (pas de bruit sinon) — pour situer *où* réviser sans avoir à cliquer.
+- `ReviewSession` généralisée : elle ne connaît plus « un paquet » mais un titre (le nom d'un
+  paquet, ou « Aujourd'hui ») et une file de cartes qui peuvent venir de plusieurs paquets. Une
+  étiquette discrète au-dessus de chaque carte rappelle alors sa provenance, pour ne pas
+  mélanger espagnol et anatomie sans repère.
+
+**Ce qui n'a pas changé** : la file d'une session « Aujourd'hui » suit exactement la même règle
+qu'une session de paquet — `dueCards` puis `SESSION_LIMIT`, sur l'ensemble des paquets actifs
+(un paquet archivé ne réclame rien). Aucune nouvelle méthode de stockage : `listCards()`
+renvoie déjà tout, `FlashcardsScreen` filtre par paquet côté client, comme `DeckDetail` le
+faisait déjà pour un seul.
