@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { dayString } from '../lib/day';
 import { LocalFlashcards } from './localFlashcards';
 
 /**
@@ -45,7 +46,10 @@ describe('LocalFlashcards', () => {
     const deck = await store.createDeck({ name: 'Espagnol' });
     const card = await store.createCard({ deckId: deck.id, front: 'Hola', back: 'Bonjour' });
     expect(card.box).toBe(1);
-    expect(card.dueDay).toBe(new Date().toISOString().slice(0, 10));
+    // `dayString()` lit les composants locaux de la date, pas l'UTC de
+    // `toISOString()` — les deux peuvent diverger selon le fuseau, ce qui
+    // rendait ce test occasionnellement rouge sans rapport avec le code testé.
+    expect(card.dueDay).toBe(dayString());
   });
 
   it('modifier une carte ne touche ni sa boîte ni son échéance', async () => {

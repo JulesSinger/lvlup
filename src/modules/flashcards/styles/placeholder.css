@@ -449,3 +449,62 @@
   padding: 12px 26px;
   font-size: 15px;
 }
+
+/* --- téléphone -------------------------------------------------------- */
+
+/* Trois boutons dans la barre du haut (Modules, Statistiques, Réglages) ne
+   tiennent pas sur un écran étroit avec leur texte — même motif que
+   `.topbar-settings` du socle (Zénith) : l'icône seule survit, le texte
+   disparaît. Même largeur de bascule que le socle (760px), pour que tous
+   les en-têtes de l'app collapsent ensemble. */
+@media (max-width: 760px) {
+  .flashcards-topbar-btn {
+    width: 40px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .flashcards-topbar-label {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Un paquet ou une carte porte une icône/des points, un nom, parfois une
+     pastille, puis trois boutons d'action : sur un écran étroit, la somme
+     de ces largeurs fixes dépasse le viewport. Les actions repassent sur
+     leur propre ligne plutôt que de forcer un débordement horizontal —
+     même motif qu'Astra (`.budget-entry-row`). */
+  .flashcards-row,
+  .flashcards-archived-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .flashcards-row-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+
+  .flashcards-archived-name {
+    flex: 1 1 100%;
+  }
+
+  /* Le recto et le verso d'une carte, côte à côte sur grand écran, se
+     retrouveraient écrasés l'un contre l'autre en dessous de 480px : ils
+     passent chacun sur leur propre ligne. */
+  .flashcards-card-front,
+  .flashcards-card-back {
+    flex: 1 1 100%;
+  }
+
+  .flashcards-deck-detail-head {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .flashcards-review-start {
+    flex: 1 1 100%;
+  }
+}

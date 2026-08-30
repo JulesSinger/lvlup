@@ -198,7 +198,7 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.empty h3');
   check('Supprimer les deux paquets ramène à l’écran vide', await page.locator('.empty h3').isVisible());
 
-  await page.getByRole('button', { name: '← Modules' }).click();
+  await page.getByRole('button', { name: 'Modules' }).click();
   await page.waitForSelector('.hub-picker-card');
   check('Le retour ramène sur l’écran de choix', await page.locator('.hub-picker').isVisible());
 
@@ -497,5 +497,69 @@ export async function run({ browser, check, BASE }) {
 
     check('Aucune erreur JavaScript (import en masse)', errors.length === 0, errors.join(' | '));
     await fresh.close();
+  }
+
+  // --- Rendu mobile --------------------------------------------------------
+  // Jamais vérifié jusqu'ici, contrairement à Zénith et Astra : le bandeau,
+  // les pastilles, les paquets et l'écran de révision doivent tenir sur un
+  // téléphone, sans défilement horizontal.
+  {
+    const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const mp = await phone.newPage();
+    mp.on('pageerror', (e) => errors.push(e.message));
+    await enterOrbite(mp, BASE);
+    await mp.waitForSelector('.empty h3');
+    check(
+      'Écran vide sans débordement horizontal sur téléphone',
+      await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    );
+
+    check(
+      'La barre du haut passe en icônes seules sur téléphone',
+      !(await mp.locator('.flashcards-topbar-label').first().isVisible()),
+    );
+    check(
+      'Mais chaque bouton garde un nom accessible malgré son texte caché',
+      await mp.getByRole('button', { name: 'Statistiques' }).isVisible(),
+    );
+
+    await mp.getByRole('button', { name: 'Créer mon premier paquet' }).click();
+    await mp.locator('#flashcards-deck-name').fill('Vocabulaire espagnol');
+    await mp.getByRole('button', { name: 'Enregistrer' }).click();
+    await mp.waitForSelector('.flashcards-row');
+    check(
+      'Écran des paquets sans débordement horizontal sur téléphone',
+      await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    );
+
+    await mp.getByRole('button', { name: 'Statistiques' }).click();
+    await mp.waitForSelector('.flashcards-stats');
+    check(
+      'Le panneau de statistiques reste utilisable en icône seule',
+      await mp.locator('.flashcards-stats').isVisible(),
+    );
+    await mp.getByRole('button', { name: 'Fermer' }).click();
+
+    await mp.locator('.flashcards-row', { hasText: 'Vocabulaire espagnol' }).click();
+    await mp.waitForSelector('.flashcards-deck-detail');
+    await mp.getByRole('button', { name: 'Créer ma première carte' }).click();
+    await mp.locator('#flashcards-card-front').fill('Hola, ¿cómo estás?');
+    await mp.locator('#flashcards-card-back').fill('Bonjour, comment ça va ?');
+    await mp.getByRole('button', { name: 'Enregistrer' }).click();
+    await mp.waitForSelector('.flashcards-card-row');
+    check(
+      'Détail du paquet (recto/verso empilés) sans débordement sur téléphone',
+      await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    );
+
+    await mp.locator('.flashcards-review-start').click();
+    await mp.waitForSelector('.flashcards-review-card');
+    check(
+      'Écran de révision sans débordement horizontal sur téléphone',
+      await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    );
+
+    check('Aucune erreur JavaScript (mobile)', errors.length === 0, errors.join(' | '));
+    await phone.close();
   }
 }

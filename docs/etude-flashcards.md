@@ -472,3 +472,45 @@ volontairement — deux paquets peuvent légitimement vouloir la même carte.
 
 **Étape 7 maintenant close** pour ce qui a été demandé : outbox écartée, rappel dédié non
 demandé, import en masse livré. Rien d'autre n'est en attente dans le découpage d'origine.
+
+---
+
+## 16. Rendu mobile (31/08/2026)
+
+Le découpage complet livré, Jules a demandé une revue de ce qui pourrait être amélioré ; le
+rendu mobile n'avait, contrairement à Zénith et Astra, **jamais été vérifié** — toutes les
+suites e2e d'Orbite tournaient en viewport bureau. Vérification demandée, deux vrais bugs
+trouvés et corrigés.
+
+**Le bug le plus net : trois boutons dans la barre du haut** (Modules, Statistiques, Réglages)
+ne tenaient pas sur un écran de 390 px. `.main` (le socle) n'a pas de largeur explicite sur
+mobile ; sans elle, un contenu plus large que le viewport l'étire au lieu d'être contraint —
+exactement le mécanisme déjà rencontré et documenté pour Zénith le 24/08/2026 (`CLAUDE.md`),
+mais jamais déclenché côté Astra ou Zénith parce que leurs barres du haut n'ont jamais porté
+plus de deux boutons. Le bouton Statistiques ajouté à l'étape 6 en fait un troisième — assez
+pour dépasser.
+
+**Corrigé en reprenant le motif déjà établi par Zénith** (`.topbar-settings` du socle) plutôt
+qu'en inventant autre chose : sous 760px, le texte de chaque bouton disparaît (icône seule),
+avec un `aria-label` explicite sur le `<button>` pour que le nom accessible survive à la
+disparition du texte visible — sans lui, un bouton dont tout le contenu est soit caché
+(`display: none`) soit exclu (`aria-hidden`) n'a plus de nom du tout, ce qui a d'ailleurs cassé
+le premier essai (un clic sur « Statistiques » ne trouvait plus le bouton).
+
+**Le deuxième bug, plus classique** : les lignes de paquet, de carte et d'archive
+(`.flashcards-row`) ne prévoyaient aucun repli sous 480px — nom, pastille et trois boutons
+d'action sur une seule ligne sans retour, débordant dès qu'un nom de paquet dépasse quelques
+caractères. Corrigé sur le motif déjà utilisé par Astra (`.budget-entry-row`) : les actions
+repassent sur leur propre ligne, alignées à droite. Le recto et le verso d'une carte, côte à
+côte sur grand écran, s'empilent aussi en dessous de 480px.
+
+**Un bug sans rapport, découvert en chemin** : un test unitaire (`localFlashcards.test.ts`)
+comparait `dueDay` (calculé en heure locale) à `new Date().toISOString().slice(0, 10)` (en
+UTC) — les deux peuvent diverger selon le fuseau, et ce jour-là ils divergeaient réellement
+(le calendrier a changé de jour pendant la session). Corrigé pour comparer contre `dayString()`,
+la même fonction que le code testé.
+
+`473/473` tests unitaires (inchangé, uniquement du CSS et de la structure de bouton — sauf le
+correctif de date ci-dessus, qui ne change aucun compte), `365/365` local → `373/373` (+8 :
+absence de débordement sur cinq écrans, icônes seules sur la barre du haut, noms accessibles
+malgré le texte caché), `377/377` en mode comptes → `385/385` (+8).

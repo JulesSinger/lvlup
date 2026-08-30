@@ -136,14 +136,32 @@ export function FlashcardsScreen({
             <span className="brand-name">Orbite</span>
           </div>
           <div className="topbar-actions">
-            <button className="btn btn-ghost btn-sm" onClick={onBackToHub}>
-              ← Modules
+            <button
+              className="btn btn-ghost btn-sm flashcards-topbar-btn"
+              onClick={onBackToHub}
+              title="Modules"
+              aria-label="Modules"
+            >
+              <span aria-hidden="true">←</span>
+              <span className="flashcards-topbar-label">Modules</span>
             </button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setShowStats(true)}>
-              📊 Statistiques
+            <button
+              className="btn btn-ghost btn-sm flashcards-topbar-btn"
+              onClick={() => setShowStats(true)}
+              title="Statistiques"
+              aria-label="Statistiques"
+            >
+              <span aria-hidden="true">📊</span>
+              <span className="flashcards-topbar-label">Statistiques</span>
             </button>
-            <button className="btn btn-ghost btn-sm" onClick={onOpenSettings}>
-              ⚙ Réglages
+            <button
+              className="btn btn-ghost btn-sm flashcards-topbar-btn"
+              onClick={onOpenSettings}
+              title="Réglages"
+              aria-label="Réglages"
+            >
+              <span aria-hidden="true">⚙</span>
+              <span className="flashcards-topbar-label">Réglages</span>
             </button>
           </div>
         </header>
