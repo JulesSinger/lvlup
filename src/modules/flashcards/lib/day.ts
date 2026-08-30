@@ -14,3 +14,10 @@ export function dayString(date: Date = new Date()): string {
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
+
+/** Jour local décalé de `offset` jours (0 = même jour). */
+export function shiftDay(day: string, offset: number): string {
+  const [y, m, d] = day.split('-').map(Number);
+  // Midi local : neutralise les changements d'heure été/hiver.
+  return dayString(new Date(y, m - 1, d + offset, 12));
+}
