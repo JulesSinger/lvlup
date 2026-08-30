@@ -5,7 +5,7 @@ Un hub personnel, un module par domaine de la vie.
 | Module | Nom affiché | Domaine | État |
 |---|---|---|---|
 | `objectifs` | **Zénith** | suivi d'objectifs par paliers | en production |
-| `budget` | **Astra** | dépenses et budget mensuel | à construire |
+| `budget` | **Astra** | dépenses, catégories, import bancaire, enveloppes d'épargne | en production |
 
 **Pour travailler sur ce dépôt, lis d'abord [`CLAUDE.md`](CLAUDE.md)** : il porte les
 conventions, les invariants à ne pas casser et le journal des décisions. Ce README décrit
@@ -20,6 +20,18 @@ Suivi d'objectifs par paliers, où chaque palier vaut un rang à décrocher (Fer
 Un objectif se découpe en autant de paliers que tu veux, chacun avec le rang que tu lui attribues.
 Valider un palier le date automatiquement, fait monter le rang de l'objectif, et la moyenne de tous
 tes objectifs donne ton **rang de profil**.
+
+---
+
+## Astra — le module budget
+
+Suivi des dépenses par catégories, avec un camembert mensuel et des enveloppes d'épargne.
+
+Les opérations s'ajoutent à la main ou par import du relevé CSV BoursoBank (dédoublonné
+automatiquement, catégorisation amorcée puis affinée par des règles). L'onglet *Aperçu* montre
+la répartition du mois par catégorie ; l'onglet *Épargne* permet de répartir ce qui est mis de
+côté dans des enveloppes nommées (vacances, imprévus…), sans jamais toucher à un vrai compte
+bancaire.
 
 ---
 
@@ -40,7 +52,7 @@ Autres commandes :
 npm run build      # build de production dans dist/
 npm run test       # tests unitaires (vitest)
 npm run preview    # sert le build sur http://localhost:4173
-npm run check      # ~190 vérifications de bout en bout (Playwright) sur le build
+npm run check      # vérifications de bout en bout (Playwright) sur le build
 ```
 
 **`npm run check` ne démarre aucun serveur** : il attend que le build soit déjà servi. La
@@ -159,20 +171,26 @@ espace, sans que tu aies quoi que ce soit à faire.
 
 ```
 src/
-  App.tsx              Coquille de l'app (porte encore l'écran de Zénith)
+  App.tsx              Coquille du hub : authentification, choix du module, réglages,
+                       export/import. Ne connaît aucun domaine
   styles.css           Uniquement des @import, dans un ordre qui fait la cascade
   modules/index.ts     Le registre : la liste des modules actifs
   core/                Le socle, commun à tous les modules
-    components/        AuthScreen, PasswordRecovery, ReminderSettings, SettingsPanel
+    components/        AuthScreen, PasswordRecovery, ReminderSettings, SettingsPanel,
+                       ModulePicker (écran d'accueil du hub)
     data/              coreStore (comptes, réglages, notifications) + ses deux
                        implémentations, la sauvegarde, le client Supabase partagé
     lib/               module.ts (ce qu'un module déclare), push, sound, types
     styles/            Le style commun
   modules/objectifs/   Le module Zénith
+  modules/budget/      Le module Astra
     module.ts          Sa déclaration : id technique, nom affiché, accès aux données
-    components/  data/  lib/  styles/
-supabase/schema.sql    Tables + policies Row Level Security
-e2e-check.mjs          Vérifications de bout en bout du parcours principal
+    components/  data/  lib/  styles/  e2e/
+e2e/
+  run.mjs               Lanceur : navigateur, découvre les suites de module
+  core.mjs              Suite du socle : PWA, service worker, écran d'authentification
+supabase/schema.sql     Tables de base + policies Row Level Security
+supabase/migration-*.sql, AAAA-MM-JJ-*.sql   Migrations, dans l'ordre chronologique
 ```
 
 Le point important est la **séparation socle / module**. Chaque module apporte son contrat de

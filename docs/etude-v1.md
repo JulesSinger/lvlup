@@ -16,7 +16,7 @@ confirmés, et un troisième, non signalé, est apparu en chemin.*
 | ~~4~~ | ~~Création : type global + cible devinée~~ | 1 à 2 jours | **Fait le 9 août** — et la nature devient une propriété de l'objectif, dont tout palier ajouté hérite |
 | ~~5~~ | ~~Insérer un palier au milieu~~ | ~½ jour | **Fait le 9 août** — un « + » entre deux paliers, l'échelle se redistribue |
 | ~~6~~ | ~~Donner un sens aux PP~~ | décision d'abord | **Fait le 10 août** — les PP se comptent par semaine et achètent des gels |
-| **7** | Animations | 2 à 3 jours | **Suspendu le 26 août.** Le constat de départ était faux — voir l'encadré §7 |
+| **7** | Animations | 2 à 3 jours | **Suspendu le 26 août.** Pas prioritaire pour le moment |
 | **8** | Onboarding | 1 jour | En dernier — et même plus tard que tu ne le penses, voir §8 |
 
 ---
