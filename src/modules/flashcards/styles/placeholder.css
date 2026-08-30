@@ -276,6 +276,14 @@
   font-size: 13px;
 }
 
+/* La provenance d'une carte, dans une liste qui mélange plusieurs paquets
+   (filtre par boîte de l'écran principal, session « Aujourd'hui »). */
+.flashcards-row-deck {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
 /* Les points d'une carte : plus il y en a de pleins, plus elle est proche
    de la maîtrise. Pas de légende à apprendre. */
 .flashcards-box-dots {

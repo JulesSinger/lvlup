@@ -338,4 +338,64 @@ export async function run({ browser, check, BASE }) {
     check('Aucune erreur JavaScript (boîtes)', errors.length === 0, errors.join(' | '));
     await fresh.close();
   }
+
+  // --- La répartition par boîte, tous paquets confondus, sur l'écran principal ---
+  // Demande de Jules : « voir combien de cartes il y a dans chaque boîte » sur
+  // l'écran principal, comme dans un paquet particulier. Deux paquets, une
+  // boîte partagée par une carte de chacun, pour vérifier l'agrégation et
+  // l'étiquette de provenance.
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const gp = await fresh.newPage();
+    gp.on('pageerror', (e) => errors.push(e.message));
+    await enterOrbite(gp, BASE);
+    await gp.waitForSelector('.empty h3');
+    await gp.evaluate(() => {
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      const today = new Date().toISOString().slice(0, 10);
+      const future = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
+      snap.flashcardsDecks = [
+        { id: 'gd1', name: 'Espagnol', emoji: '🇪🇸', position: 0, archived: false, createdAt: today },
+        { id: 'gd2', name: 'Anatomie', emoji: '🩺', position: 1, archived: false, createdAt: today },
+      ];
+      snap.flashcardsCards = [
+        { id: 'gc1', deckId: 'gd1', front: 'Hola', back: 'Bonjour', box: 1, dueDay: today, createdAt: today },
+        { id: 'gc2', deckId: 'gd1', front: 'Adios', back: 'Au revoir', box: 3, dueDay: future, createdAt: today },
+        { id: 'gc3', deckId: 'gd2', front: 'Fémur', back: 'Os de la cuisse', box: 3, dueDay: future, createdAt: today },
+        { id: 'gc4', deckId: 'gd2', front: 'Tibia', back: 'Os de la jambe', box: 5, dueDay: future, createdAt: today },
+      ];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await reloadOrbite(gp);
+    await gp.waitForSelector('.flashcards-box-filter');
+
+    check(
+      'La répartition agrège les deux paquets',
+      (await gp.locator('.flashcards-box-chip').allTextContents()).join(' ') ===
+        'Toutes (4) Boîte 1 (1) Boîte 2 (0) Boîte 3 (2) Boîte 4 (0) Boîte 5 (1)',
+    );
+    check('Repliée par défaut : pas de liste avant de choisir une boîte', (await gp.locator('.flashcards-row-deck').count()) === 0);
+
+    await gp.getByRole('button', { name: 'Boîte 3' }).click();
+    await gp.waitForTimeout(200);
+    const fronts = (await gp.locator('.flashcards-row-name').allTextContents()).filter(
+      (t) => t === 'Adios' || t === 'Fémur',
+    );
+    check('La boîte 3 montre une carte de chaque paquet', fronts.sort().join(',') === 'Adios,Fémur');
+    check(
+      'Chaque carte annonce son paquet',
+      (await gp.locator('.flashcards-row-deck').allTextContents()).sort().join(',') ===
+        ['🇪🇸 Espagnol', '🩺 Anatomie'].sort().join(','),
+    );
+
+    await gp.locator('.flashcards-row', { hasText: 'Adios' }).click();
+    await gp.waitForSelector('.flashcards-deck-detail');
+    check(
+      'Cliquer une carte de la liste globale ouvre son paquet',
+      (await gp.locator('.flashcards-deck-detail-title').textContent()).includes('Espagnol'),
+    );
+
+    check('Aucune erreur JavaScript (répartition globale)', errors.length === 0, errors.join(' | '));
+    await fresh.close();
+  }
 }

@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
+import { BoxDots } from './components/BoxDots';
 import { DeckDetail } from './components/DeckDetail';
 import { DeckEditor } from './components/DeckEditor';
 import { ReviewSession } from './components/ReviewSession';
 import { flashcardsStore } from './data';
-import { SESSION_LIMIT, dueCards } from './lib/boxes';
+import { SESSION_LIMIT, boxDistribution, dueCards } from './lib/boxes';
 import { dayString } from './lib/day';
+import { BOX_COUNT } from './lib/types';
 import type { Card, Deck, DeckInput } from './lib/types';
 
 /**
  * Écran racine d'Orbite — étapes 2, 3 et 5 (docs/etude-flashcards.md §9),
- * plus une demande de Jules après la V1 : savoir tout de suite ce qu'il y a
- * à réviser aujourd'hui, sans avoir à ouvrir chaque paquet un par un. Un
- * bandeau « Aujourd'hui » l'annonce dès l'ouverture du module, et une
- * pastille sur chaque paquet dit où ça se trouve.
+ * plus deux demandes de Jules après la V1 : savoir tout de suite ce qu'il y
+ * a à réviser aujourd'hui (bandeau « Aujourd'hui », pastille par paquet),
+ * et voir la répartition par boîte tous paquets confondus, comme dans un
+ * paquet particulier (`DeckDetail`) — §13 de l'étude.
  */
 export function FlashcardsScreen({
   error,
@@ -31,6 +33,8 @@ export function FlashcardsScreen({
   const [openDeck, setOpenDeck] = useState<Deck | null>(null);
   /** Session « Aujourd'hui », tous paquets confondus. */
   const [reviewingToday, setReviewingToday] = useState(false);
+  /** Boîte affichée dans la liste globale, `null` = repliée. */
+  const [boxFilter, setBoxFilter] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -76,6 +80,13 @@ export function FlashcardsScreen({
     for (const card of dueToday) tally.set(card.deckId, (tally.get(card.deckId) ?? 0) + 1);
     return tally;
   }, [dueToday]);
+
+  const deckById = useMemo(() => new Map(activeDecks.map((d) => [d.id, d])), [activeDecks]);
+  const globalDistribution = useMemo(() => boxDistribution(reviewableCards), [reviewableCards]);
+  const boxFilteredCards = useMemo(
+    () => (boxFilter === null ? [] : reviewableCards.filter((c) => c.box === boxFilter)),
+    [reviewableCards, boxFilter],
+  );
 
   async function saveDeck(input: DeckInput) {
     if (editing !== null && editing !== 'new') {
@@ -174,6 +185,55 @@ export function FlashcardsScreen({
                 <span className="flashcards-today-text">Tout est à jour, rien à réviser aujourd'hui.</span>
               </div>
             )}
+
+            {activeDecks.length > 0 && (
+              <div className="flashcards-box-filter" role="group" aria-label="Filtrer les cartes par boîte">
+                <button
+                  className={`flashcards-box-chip${boxFilter === null ? ' on' : ''}`}
+                  aria-pressed={boxFilter === null}
+                  onClick={() => setBoxFilter(null)}
+                >
+                  Toutes ({reviewableCards.length})
+                </button>
+                {Array.from({ length: BOX_COUNT }, (_, i) => i + 1).map((box) => (
+                  <button
+                    key={box}
+                    className={`flashcards-box-chip${boxFilter === box ? ' on' : ''}`}
+                    aria-pressed={boxFilter === box}
+                    title={`Ne montrer que la boîte ${box}, tous paquets confondus`}
+                    onClick={() => setBoxFilter((f) => (f === box ? null : box))}
+                  >
+                    Boîte {box} ({globalDistribution[box] ?? 0})
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {boxFilter !== null &&
+              (boxFilteredCards.length === 0 ? (
+                <p className="flashcards-box-empty">Aucune carte dans cette boîte.</p>
+              ) : (
+                <ul className="flashcards-list">
+                  {boxFilteredCards.map((card) => {
+                    const owner = deckById.get(card.deckId);
+                    return (
+                      <li
+                        key={card.id}
+                        className="flashcards-row flashcards-row-clickable"
+                        onClick={() => owner && setOpenDeck(owner)}
+                      >
+                        <BoxDots box={card.box} />
+                        <span className="flashcards-row-name">{card.front}</span>
+                        {owner && (
+                          <span className="flashcards-row-deck">
+                            {owner.emoji} {owner.name}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ))}
 
             {activeDecks.length > 0 && (
               <ul className="flashcards-list">

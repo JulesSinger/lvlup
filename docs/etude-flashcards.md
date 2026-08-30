@@ -399,3 +399,14 @@ il ne manquait qu'un écran par-dessus.
 **Ce qui reste pour l'étape 6 complète** : le streak de révision et l'historique dans le
 temps, qui ont besoin de la table `flashcards_reviews` (encore non créée) pour reconstituer
 autre chose que l'état courant des cartes.
+
+### La même vue, agrégée sur l'écran principal (30/08/2026)
+
+Troisième retour de Jules, le même jour : « on ne voit que les boîtes pour un paquet en
+particulier » — et la demande de la voir aussi sur l'écran principal, « comme dans un paquet
+particulier au final ». `FlashcardsScreen` reprend donc le même filtre par boîte, mais agrégé
+sur `reviewableCards` (tous les paquets actifs, comme le bandeau « Aujourd'hui » — un paquet
+archivé ne compte pas). Choisir une boîte déplie une liste de ses cartes, chacune étiquetée du
+paquet dont elle vient ; cliquer une carte ouvre directement ce paquet, pour aller la réviser
+ou la modifier là où elle vit vraiment. La liste des paquets, elle, reste toujours visible en
+dessous — le filtre par boîte ne la remplace pas, il s'ajoute au-dessus.
