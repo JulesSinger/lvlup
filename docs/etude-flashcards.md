@@ -442,3 +442,33 @@ zéro n'est caché : sans aucune révision, le panneau le dit plutôt que d'affi
 qu'ils étaient à l'ouverture du paquet, même après y avoir révisé, ajouté ou supprimé des
 cartes. `onBack` déclenche maintenant `refresh()`. Il était resté invisible jusqu'ici parce
 qu'aucune vérification n'enchaînait une vraie révision suivie d'un retour à l'écran principal.
+
+---
+
+## 15. Import en masse (étape 7, 30/08/2026)
+
+Dernier morceau de l'étape 7 (§9) livré, à la demande de Jules — sans l'outbox (jugée pas
+nécessaire pour l'instant) ni le rappel dédié. « L'usage devient tenable dans la durée » sans
+ouvrir l'éditeur de carte un par un.
+
+**Le format retenu, plus simple que l'import CSV bancaire d'Astra** : une carte par ligne,
+recto puis verso, séparés par un point-virgule ou une tabulation — les deux acceptés, pas un
+seul, pour qu'un texte tapé à la main (« Hola ; Bonjour ») et un collage depuis un tableur ou
+un export d'une autre appli de cartes (tabulations) marchent tous les deux sans réglage à
+choisir. Seul le premier séparateur d'une ligne compte : un point-virgule dans le verso
+(« Bonjour ; salut informel ») ne casse rien.
+
+**Aperçu avant écriture**, comme l'import CSV : le nombre de cartes nouvelles, le nombre de
+lignes incomprises (affichées, pas juste comptées, pour qu'on puisse les corriger et recoller),
+et le nombre de cartes déjà présentes dans le paquet (même recto, à la casse et aux espaces
+près) — écartées plutôt que dupliquées, pour qu'on puisse recoller une liste sans relire ce qui
+a déjà été fait. Rien n'est créé tant qu'on n'a pas cliqué « Importer ».
+
+**Ce que ce format ne fait pas** : pas de troisième colonne (paquet, boîte de départ…) — toutes
+les cartes importées vont dans le paquet ouvert, naissent en boîte 1, comme une création à
+l'unité. Pas de détection de doublon inter-paquets non plus, seulement dans le paquet où on
+importe : recoller la même liste dans un autre paquet créerait bien des cartes redondantes,
+volontairement — deux paquets peuvent légitimement vouloir la même carte.
+
+**Étape 7 maintenant close** pour ce qui a été demandé : outbox écartée, rappel dédié non
+demandé, import en masse livré. Rien d'autre n'est en attente dans le découpage d'origine.

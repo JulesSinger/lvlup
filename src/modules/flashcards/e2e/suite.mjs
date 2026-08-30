@@ -447,4 +447,55 @@ export async function run({ browser, check, BASE }) {
     check('Aucune erreur JavaScript (statistiques)', errors.length === 0, errors.join(' | '));
     await fresh.close();
   }
+
+  // --- Import en masse (étape 7) ---------------------------------------------
+  // « L'usage devient tenable dans la durée » sans ouvrir l'éditeur une carte
+  // à la fois. Un mélange volontaire : deux lignes valides, une incomprise.
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const ip = await fresh.newPage();
+    ip.on('pageerror', (e) => errors.push(e.message));
+    await enterOrbite(ip, BASE);
+    await ip.waitForSelector('.empty h3');
+    await ip.getByRole('button', { name: 'Créer mon premier paquet' }).click();
+    await ip.locator('#flashcards-deck-name').fill('Espagnol');
+    await ip.getByRole('button', { name: 'Enregistrer' }).click();
+    await ip.waitForSelector('.flashcards-row');
+    await ip.locator('.flashcards-row', { hasText: 'Espagnol' }).click();
+    await ip.waitForSelector('.flashcards-deck-detail .empty h3');
+
+    await ip.getByRole('button', { name: 'Importer une liste' }).click();
+    check("L'éditeur d'import s'ouvre", await ip.locator('.flashcards-bulk-import').isVisible());
+
+    await ip
+      .locator('#flashcards-bulk-text')
+      .fill('Hola ; Bonjour\nAdios ; Au revoir\nligne sans séparateur');
+    check(
+      "L'aperçu distingue nouvelles cartes et lignes incomprises",
+      (await ip.locator('.flashcards-bulk-summary').textContent()).includes('2') &&
+        (await ip.locator('.flashcards-bulk-invalid li').count()) === 1,
+    );
+
+    await ip.getByRole('button', { name: /Importer \(2\)/ }).click();
+    await ip.waitForSelector('.flashcards-card-row');
+    check('Les deux lignes valides deviennent des cartes', (await ip.locator('.flashcards-card-row').count()) === 2);
+
+    // Recoller la même liste : Hola et Adios doivent être écartés, pas dupliqués.
+    await ip.getByRole('button', { name: 'Importer une liste' }).click();
+    await ip.locator('#flashcards-bulk-text').fill('Hola ; Bonjour\nGracias ; Merci');
+    check(
+      'Une carte déjà présente est écartée plutôt que dupliquée',
+      (await ip.locator('.flashcards-bulk-summary').textContent()).includes('1 nouvelle') &&
+        (await ip.locator('.flashcards-bulk-summary').textContent()).includes('1 déjà connue'),
+    );
+    await ip.getByRole('button', { name: /Importer \(1\)/ }).click();
+    await ip.waitForTimeout(200);
+    check(
+      'Seule la carte neuve a été ajoutée',
+      (await ip.locator('.flashcards-card-row').count()) === 3,
+    );
+
+    check('Aucune erreur JavaScript (import en masse)', errors.length === 0, errors.join(' | '));
+    await fresh.close();
+  }
 }

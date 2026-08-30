@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BoxDots } from './BoxDots';
+import { BulkImport } from './BulkImport';
 import { CardEditor } from './CardEditor';
 import { ReviewSession } from './ReviewSession';
 import { flashcardsStore } from '../data';
 import { SESSION_LIMIT, boxDistribution, dueCards } from '../lib/boxes';
 import { dayString } from '../lib/day';
 import { BOX_COUNT } from '../lib/types';
+import type { ParsedCard } from '../lib/bulkImport';
 import type { Card, Deck } from '../lib/types';
 
 interface Props {
@@ -15,21 +17,22 @@ interface Props {
 }
 
 /**
- * Le contenu d'un paquet — étapes 3 et 5 (docs/etude-flashcards.md §9) :
- * créer, éditer, supprimer des cartes, et réviser celles qui sont dues.
+ * Le contenu d'un paquet — étapes 3, 5 et un fragment de 7
+ * (docs/etude-flashcards.md §9) : créer, éditer, supprimer des cartes, une
+ * par une ou en liste collée (`BulkImport`), et réviser celles qui sont
+ * dues.
  *
  * Chaque carte annonce sa boîte (`BoxDots`), et un filtre par boîte permet
  * de voir ce que contient la boîte 1, la boîte 2, etc. — demande de Jules
  * après la V1 : « on ne sait pas quelle carte est bientôt finie ». C'est un
- * fragment de l'étape 6 (répartition par boîte) tiré en avant ; le streak de
- * révision et l'historique, qui ont besoin de `flashcards_reviews`, restent
- * pour l'étape 6 complète.
+ * fragment de l'étape 6 (répartition par boîte) tiré en avant.
  */
 export function DeckDetail({ deck, onBack, onError }: Props) {
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
   /** `null` = fermé, `'new'` = création, une carte = édition. */
   const [editing, setEditing] = useState<Card | 'new' | null>(null);
+  const [importingList, setImportingList] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   /** `null` = toutes les boîtes. */
   const [boxFilter, setBoxFilter] = useState<number | null>(null);
@@ -65,6 +68,17 @@ export function DeckDetail({ deck, onBack, onError }: Props) {
       setBoxFilter(null);
     }
     setEditing(null);
+    await refresh();
+  }
+
+  async function importCards(fresh: ParsedCard[]) {
+    await Promise.all(
+      fresh.map((c) => flashcardsStore.createCard({ deckId: deck.id, front: c.front, back: c.back })),
+    );
+    // Comme une création à l'unité : les cartes importées naissent en boîte
+    // 1, rester sur un autre filtre les rendrait invisibles.
+    setBoxFilter(null);
+    setImportingList(false);
     await refresh();
   }
 
@@ -114,9 +128,14 @@ export function DeckDetail({ deck, onBack, onError }: Props) {
         <div className="empty">
           <h3>Aucune carte pour l'instant</h3>
           <p>Une carte porte un recto (la question) et un verso (la réponse).</p>
-          <button className="btn btn-primary" onClick={() => setEditing('new')}>
-            Créer ma première carte
-          </button>
+          <div className="flashcards-empty-actions">
+            <button className="btn btn-primary" onClick={() => setEditing('new')}>
+              Créer ma première carte
+            </button>
+            <button className="btn" onClick={() => setImportingList(true)}>
+              Importer une liste
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flashcards-cards">
@@ -166,9 +185,14 @@ export function DeckDetail({ deck, onBack, onError }: Props) {
             </ul>
           )}
 
-          <button className="btn btn-primary flashcards-add" onClick={() => setEditing('new')}>
-            + Nouvelle carte
-          </button>
+          <div className="flashcards-cards-actions">
+            <button className="btn btn-primary flashcards-add" onClick={() => setEditing('new')}>
+              + Nouvelle carte
+            </button>
+            <button className="btn" onClick={() => setImportingList(true)}>
+              Importer une liste
+            </button>
+          </div>
         </div>
       )}
 
@@ -177,6 +201,14 @@ export function DeckDetail({ deck, onBack, onError }: Props) {
           card={editing === 'new' ? null : editing}
           onCancel={() => setEditing(null)}
           onSave={saveCard}
+        />
+      )}
+
+      {importingList && (
+        <BulkImport
+          existingFronts={cards.map((c) => c.front)}
+          onCancel={() => setImportingList(false)}
+          onImport={importCards}
         />
       )}
     </div>
