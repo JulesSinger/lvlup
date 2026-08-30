@@ -5,6 +5,9 @@ node_modules/
 dist/
 dist-auth/
 
+# Captures d'écran générées par `npm run check` (src/modules/objectifs/e2e/suite.mjs)
+screens/
+
 # Variables d'environnement — ne jamais committer
 .env
 .env.local
