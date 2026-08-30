@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BoxDots } from './BoxDots';
 import { CardEditor } from './CardEditor';
 import { ReviewSession } from './ReviewSession';
 import { flashcardsStore } from '../data';
-import { SESSION_LIMIT, dueCards } from '../lib/boxes';
+import { SESSION_LIMIT, boxDistribution, dueCards } from '../lib/boxes';
 import { dayString } from '../lib/day';
+import { BOX_COUNT } from '../lib/types';
 import type { Card, Deck } from '../lib/types';
 
 interface Props {
@@ -15,9 +17,13 @@ interface Props {
 /**
  * Le contenu d'un paquet — étapes 3 et 5 (docs/etude-flashcards.md §9) :
  * créer, éditer, supprimer des cartes, et réviser celles qui sont dues.
- * Aucune notion de boîte n'apparaît dans la liste : elle appartient à la
- * carte, pas à son affichage ici (l'écran de statistiques, étape 6, s'en
- * chargera).
+ *
+ * Chaque carte annonce sa boîte (`BoxDots`), et un filtre par boîte permet
+ * de voir ce que contient la boîte 1, la boîte 2, etc. — demande de Jules
+ * après la V1 : « on ne sait pas quelle carte est bientôt finie ». C'est un
+ * fragment de l'étape 6 (répartition par boîte) tiré en avant ; le streak de
+ * révision et l'historique, qui ont besoin de `flashcards_reviews`, restent
+ * pour l'étape 6 complète.
  */
 export function DeckDetail({ deck, onBack, onError }: Props) {
   const [cards, setCards] = useState<Card[]>([]);
@@ -25,6 +31,8 @@ export function DeckDetail({ deck, onBack, onError }: Props) {
   /** `null` = fermé, `'new'` = création, une carte = édition. */
   const [editing, setEditing] = useState<Card | 'new' | null>(null);
   const [reviewing, setReviewing] = useState(false);
+  /** `null` = toutes les boîtes. */
+  const [boxFilter, setBoxFilter] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -45,12 +53,16 @@ export function DeckDetail({ deck, onBack, onError }: Props) {
   }, [refresh]);
 
   const queue = useMemo(() => dueCards(cards, dayString()).slice(0, SESSION_LIMIT), [cards]);
+  const distribution = useMemo(() => boxDistribution(cards), [cards]);
+  const shown = boxFilter === null ? cards : cards.filter((c) => c.box === boxFilter);
 
   async function saveCard(input: { front: string; back: string }) {
     if (editing !== null && editing !== 'new') {
       await flashcardsStore.updateCard(editing.id, input);
     } else {
       await flashcardsStore.createCard({ deckId: deck.id, ...input });
+      // Une carte neuve naît en boîte 1 : rester sur un autre filtre la rendrait invisible.
+      setBoxFilter(null);
     }
     setEditing(null);
     await refresh();
@@ -108,25 +120,51 @@ export function DeckDetail({ deck, onBack, onError }: Props) {
         </div>
       ) : (
         <div className="flashcards-cards">
-          <ul className="flashcards-list">
-            {cards.map((card) => (
-              <li key={card.id} className="flashcards-row flashcards-card-row">
-                <span className="flashcards-card-front">{card.front}</span>
-                <span className="flashcards-card-back">{card.back}</span>
-                <span className="flashcards-row-actions">
-                  <button className="btn btn-ghost btn-sm" onClick={() => setEditing(card)}>
-                    Modifier
-                  </button>
-                  <button
-                    className="btn btn-ghost btn-sm btn-danger"
-                    onClick={() => void removeCard(card)}
-                  >
-                    Supprimer
-                  </button>
-                </span>
-              </li>
+          <div className="flashcards-box-filter" role="group" aria-label="Filtrer les cartes par boîte">
+            <button
+              className={`flashcards-box-chip${boxFilter === null ? ' on' : ''}`}
+              aria-pressed={boxFilter === null}
+              onClick={() => setBoxFilter(null)}
+            >
+              Toutes ({cards.length})
+            </button>
+            {Array.from({ length: BOX_COUNT }, (_, i) => i + 1).map((box) => (
+              <button
+                key={box}
+                className={`flashcards-box-chip${boxFilter === box ? ' on' : ''}`}
+                aria-pressed={boxFilter === box}
+                title={`Ne montrer que la boîte ${box}`}
+                onClick={() => setBoxFilter((f) => (f === box ? null : box))}
+              >
+                Boîte {box} ({distribution[box] ?? 0})
+              </button>
             ))}
-          </ul>
+          </div>
+
+          {shown.length === 0 ? (
+            <p className="flashcards-box-empty">Aucune carte dans cette boîte.</p>
+          ) : (
+            <ul className="flashcards-list">
+              {shown.map((card) => (
+                <li key={card.id} className="flashcards-row flashcards-card-row">
+                  <BoxDots box={card.box} />
+                  <span className="flashcards-card-front">{card.front}</span>
+                  <span className="flashcards-card-back">{card.back}</span>
+                  <span className="flashcards-row-actions">
+                    <button className="btn btn-ghost btn-sm" onClick={() => setEditing(card)}>
+                      Modifier
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm btn-danger"
+                      onClick={() => void removeCard(card)}
+                    >
+                      Supprimer
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
 
           <button className="btn btn-primary flashcards-add" onClick={() => setEditing('new')}>
             + Nouvelle carte

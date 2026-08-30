@@ -241,6 +241,60 @@
   color: var(--text-faint);
 }
 
+/* --- répartition et filtre par boîte ------------------------------------- */
+
+.flashcards-box-filter {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.flashcards-box-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.flashcards-box-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.flashcards-box-chip.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.flashcards-box-empty {
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+/* Les points d'une carte : plus il y en a de pleins, plus elle est proche
+   de la maîtrise. Pas de légende à apprendre. */
+.flashcards-box-dots {
+  display: inline-flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.flashcards-box-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.flashcards-box-dot.filled {
+  background: var(--accent);
+}
+
 /* --- écran de révision (étape 5) ----------------------------------------- */
 
 .flashcards-review {

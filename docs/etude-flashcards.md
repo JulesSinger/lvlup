@@ -373,3 +373,29 @@ qu'une session de paquet — `dueCards` puis `SESSION_LIMIT`, sur l'ensemble des
 (un paquet archivé ne réclame rien). Aucune nouvelle méthode de stockage : `listCards()`
 renvoie déjà tout, `FlashcardsScreen` filtre par paquet côté client, comme `DeckDetail` le
 faisait déjà pour un seul.
+
+---
+
+## 13. Visibilité par boîte (post-V1, 30/08/2026)
+
+Deuxième retour de Jules, le même jour : « on ne sait pas quelle carte est bientôt finie,
+qu'est-ce qu'il y a dans la boîte 1, la boîte 2 etc. ». C'est le fragment « répartition par
+boîte » de l'étape 6 (§9), tiré en avant — `boxDistribution` existait déjà depuis l'étape 4,
+il ne manquait qu'un écran par-dessus.
+
+**Ajouté à `DeckDetail`, sans toucher au modèle de données :**
+
+- **`BoxDots`** : chaque carte affiche sa boîte en points pleins/vides (●●●○○ pour une boîte 3
+  sur 5), plutôt qu'un numéro ou une légende à apprendre — plus il y a de points pleins, plus
+  la carte est proche de la maîtrise. Répond directement à « quelle carte est bientôt finie ».
+- **Un filtre par boîte**, avec l'effectif de chacune (`Boîte 3 (4)`), sur le même motif que le
+  filtre par action de la grille de Zénith (`Heatmap`, `.heat-chip`/`.heat-filter`) — même
+  idée, réécrite ici plutôt qu'importée (un module n'importe jamais d'un autre). Cliquer une
+  boîte montre son contenu ; une boîte vide le dit plutôt que de ne rien afficher.
+- Créer une carte réinitialise le filtre à « Toutes » : une carte neuve naît en boîte 1
+  (`docs/etude-flashcards.md` §4), rester sur un autre filtre la rendrait invisible sans
+  explication.
+
+**Ce qui reste pour l'étape 6 complète** : le streak de révision et l'historique dans le
+temps, qui ont besoin de la table `flashcards_reviews` (encore non créée) pour reconstituer
+autre chose que l'état courant des cartes.

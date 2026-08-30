@@ -277,4 +277,65 @@ export async function run({ browser, check, BASE }) {
     check('Aucune erreur JavaScript (bandeau du jour)', errors.length === 0, errors.join(' | '));
     await fresh.close();
   }
+
+  // --- Voir ce qu'il y a dans chaque boîte -----------------------------------
+  // Demande de Jules : « on ne sait pas quelle carte est bientôt finie, qu'est-ce
+  // qu'il y a dans la boîte 1, la boîte 2 etc. ». Trois cartes, trois boîtes
+  // différentes, dont deux pas dues aujourd'hui (pour ne pas dépendre de
+  // l'écran de révision ici).
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const bp = await fresh.newPage();
+    bp.on('pageerror', (e) => errors.push(e.message));
+    await enterOrbite(bp, BASE);
+    await bp.waitForSelector('.empty h3');
+    await bp.evaluate(() => {
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      const today = new Date().toISOString().slice(0, 10);
+      const future = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
+      snap.flashcardsDecks = [
+        { id: 'bd1', name: 'Espagnol', emoji: '🇪🇸', position: 0, archived: false, createdAt: today },
+      ];
+      snap.flashcardsCards = [
+        { id: 'bc1', deckId: 'bd1', front: 'Hola', back: 'Bonjour', box: 1, dueDay: today, createdAt: today },
+        { id: 'bc2', deckId: 'bd1', front: 'Adios', back: 'Au revoir', box: 3, dueDay: future, createdAt: today },
+        { id: 'bc3', deckId: 'bd1', front: 'Gracias', back: 'Merci', box: 5, dueDay: future, createdAt: today },
+      ];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await reloadOrbite(bp);
+    await bp.locator('.flashcards-row', { hasText: 'Espagnol' }).click();
+    await bp.waitForSelector('.flashcards-box-filter');
+
+    check(
+      'Le filtre annonce la répartition par boîte',
+      (await bp.locator('.flashcards-box-chip').allTextContents()).join(' ') ===
+        'Toutes (3) Boîte 1 (1) Boîte 2 (0) Boîte 3 (1) Boîte 4 (0) Boîte 5 (1)',
+    );
+    check(
+      'Chaque carte affiche sa boîte en points',
+      (await bp.locator('.flashcards-card-row').nth(1).locator('.flashcards-box-dot.filled').count()) === 3,
+    );
+
+    await bp.getByRole('button', { name: 'Boîte 3' }).click();
+    await bp.waitForTimeout(200);
+    check(
+      'Filtrer sur une boîte réduit la liste à son contenu',
+      (await bp.locator('.flashcards-card-row').count()) === 1 &&
+        (await bp.locator('.flashcards-card-front').first().textContent()) === 'Adios',
+    );
+
+    await bp.getByRole('button', { name: 'Boîte 2' }).click();
+    check(
+      'Une boîte vide le dit, plutôt que de ne rien montrer',
+      await bp.locator('.flashcards-box-empty').isVisible(),
+    );
+
+    await bp.getByRole('button', { name: 'Toutes' }).click();
+    await bp.waitForTimeout(200);
+    check('Revenir à « Toutes » restaure les trois cartes', (await bp.locator('.flashcards-card-row').count()) === 3);
+
+    check('Aucune erreur JavaScript (boîtes)', errors.length === 0, errors.join(' | '));
+    await fresh.close();
+  }
 }
