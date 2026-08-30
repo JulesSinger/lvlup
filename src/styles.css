@@ -60,3 +60,6 @@
 
 /* --- Astra : catégories, opérations, écran du mois (étapes 2-4) ------ */
 @import './modules/budget/styles/placeholder.css';
+
+/* --- Orbite : signet d'étape 1, en attendant ses vrais écrans -------- */
+@import './modules/flashcards/styles/placeholder.css';
