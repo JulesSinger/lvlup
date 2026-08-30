@@ -398,4 +398,53 @@ export async function run({ browser, check, BASE }) {
     check('Aucune erreur JavaScript (répartition globale)', errors.length === 0, errors.join(' | '));
     await fresh.close();
   }
+
+  // --- Statistiques, sans streak (étape 6) -----------------------------------
+  // Décision de Jules : pas de streak, juste le volume et le taux de réussite —
+  // une vraie révision (via l'écran de révision) doit se refléter dans le
+  // panneau, pour vérifier que le journal est bien écrit et relu.
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const sp = await fresh.newPage();
+    sp.on('pageerror', (e) => errors.push(e.message));
+    await enterOrbite(sp, BASE);
+    await sp.waitForSelector('.empty h3');
+
+    await sp.getByRole('button', { name: 'Statistiques' }).click();
+    await sp.waitForSelector('.flashcards-stats');
+    check(
+      'Aucune révision : le panneau le dit plutôt que d’afficher des zéros',
+      await sp.locator('.flashcards-stats-empty').isVisible(),
+    );
+    await sp.getByRole('button', { name: 'Fermer' }).click();
+
+    await sp.getByRole('button', { name: 'Créer mon premier paquet' }).click();
+    await sp.locator('#flashcards-deck-name').fill('Espagnol');
+    await sp.getByRole('button', { name: 'Enregistrer' }).click();
+    await sp.waitForSelector('.flashcards-row');
+    await sp.locator('.flashcards-row', { hasText: 'Espagnol' }).click();
+    await sp.getByRole('button', { name: 'Créer ma première carte' }).click();
+    await sp.locator('#flashcards-card-front').fill('Hola');
+    await sp.locator('#flashcards-card-back').fill('Bonjour');
+    await sp.getByRole('button', { name: 'Enregistrer' }).click();
+
+    await sp.locator('.flashcards-review-start').click();
+    await sp.waitForSelector('.flashcards-review-card');
+    await sp.locator('.flashcards-review-card').click();
+    await sp.getByRole('button', { name: 'Juste' }).click();
+    await sp.waitForSelector('.flashcards-review .empty h3');
+    await sp.getByRole('button', { name: 'Terminer' }).click();
+    await sp.waitForSelector('.flashcards-deck-detail');
+
+    await sp.getByRole('button', { name: '← Paquets' }).click();
+    await sp.getByRole('button', { name: 'Statistiques' }).click();
+    await sp.waitForSelector('.flashcards-stats');
+    check(
+      'La révision faite à l’instant apparaît dans les statistiques',
+      (await sp.locator('.flashcards-stat-value').allTextContents()).join(',') === '1,1,100 %',
+    );
+
+    check('Aucune erreur JavaScript (statistiques)', errors.length === 0, errors.join(' | '));
+    await fresh.close();
+  }
 }

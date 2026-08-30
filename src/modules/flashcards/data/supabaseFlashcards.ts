@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
 import { dayString } from '../lib/day';
-import type { Card, CardInput, Deck, DeckInput } from '../lib/types';
+import type { Card, CardInput, Deck, DeckInput, Review } from '../lib/types';
 import type { FlashcardsBackup, FlashcardsStore } from './flashcardsStore';
 
 interface DeckRow {
@@ -20,6 +20,15 @@ interface CardRow {
   back: string;
   box: number;
   due_day: string;
+  created_at: string;
+}
+
+interface ReviewRow {
+  id: string;
+  card_id: string;
+  day: string;
+  correct: boolean;
+  box_after: number;
   created_at: string;
 }
 
@@ -42,6 +51,17 @@ function toCard(row: CardRow): Card {
     back: row.back,
     box: row.box,
     dueDay: row.due_day,
+    createdAt: row.created_at,
+  };
+}
+
+function toReview(row: ReviewRow): Review {
+  return {
+    id: row.id,
+    cardId: row.card_id,
+    day: row.day,
+    correct: row.correct,
+    boxAfter: row.box_after,
     createdAt: row.created_at,
   };
 }
@@ -137,26 +157,47 @@ export class SupabaseFlashcards implements FlashcardsStore {
     if (error) throw new Error(error.message);
   }
 
-  async reviewCard(id: string, patch: Pick<Card, 'box' | 'dueDay'>) {
+  async reviewCard(id: string, patch: Pick<Card, 'box' | 'dueDay'>, correct: boolean) {
+    const userId = await this.requireUserId();
     const { error } = await this.client
       .from('flashcards_cards')
       .update({ box: patch.box, due_day: patch.dueDay })
       .eq('id', id);
     if (error) throw new Error(error.message);
+
+    const { error: reviewError } = await this.client.from('flashcards_reviews').insert({
+      user_id: userId,
+      card_id: id,
+      day: dayString(),
+      correct,
+      box_after: patch.box,
+    });
+    if (reviewError) throw new Error(reviewError.message);
+  }
+
+  async listReviews(): Promise<Review[]> {
+    const rows = unwrap(await this.client.from('flashcards_reviews').select('*')) as ReviewRow[];
+    return rows.map(toReview);
   }
 
   async exportData(): Promise<FlashcardsBackup> {
-    return { decks: await this.listDecks(), cards: await this.listCards() };
+    return {
+      decks: await this.listDecks(),
+      cards: await this.listCards(),
+      reviews: await this.listReviews(),
+    };
   }
 
   /**
    * Remplace tout : plus simple et plus sûr qu'une fusion ligne à ligne,
-   * cohérent avec le sens d'une restauration de sauvegarde. Les paquets
-   * changent d'id à l'import (Supabase les régénère) : on reconstitue donc
-   * les correspondances avant de réinsérer les cartes.
+   * cohérent avec le sens d'une restauration de sauvegarde. Paquets et
+   * cartes changent d'id à l'import (Supabase les régénère) : on
+   * reconstitue les correspondances avant de réinsérer ce qui en dépend —
+   * les cartes après les paquets, le journal après les cartes.
    */
   async importData(data: FlashcardsBackup) {
     const userId = await this.requireUserId();
+    await this.client.from('flashcards_reviews').delete().eq('user_id', userId);
     await this.client.from('flashcards_cards').delete().eq('user_id', userId);
     await this.client.from('flashcards_decks').delete().eq('user_id', userId);
 
@@ -178,16 +219,36 @@ export class SupabaseFlashcards implements FlashcardsStore {
       deckIdMap.set(deck.id, row.id);
     }
 
+    const cardIdMap = new Map<string, string>();
     for (const card of data.cards ?? []) {
       const deckId = deckIdMap.get(card.deckId);
       if (!deckId) continue; // paquet disparu entre-temps : carte ignorée
-      const { error } = await this.client.from('flashcards_cards').insert({
+      const row = unwrap(
+        await this.client
+          .from('flashcards_cards')
+          .insert({
+            user_id: userId,
+            deck_id: deckId,
+            front: card.front,
+            back: card.back,
+            box: card.box,
+            due_day: card.dueDay,
+          })
+          .select()
+          .single(),
+      ) as CardRow;
+      cardIdMap.set(card.id, row.id);
+    }
+
+    for (const review of data.reviews ?? []) {
+      const cardId = cardIdMap.get(review.cardId);
+      if (!cardId) continue; // carte disparue entre-temps : entrée de journal ignorée
+      const { error } = await this.client.from('flashcards_reviews').insert({
         user_id: userId,
-        deck_id: deckId,
-        front: card.front,
-        back: card.back,
-        box: card.box,
-        due_day: card.dueDay,
+        card_id: cardId,
+        day: review.day,
+        correct: review.correct,
+        box_after: review.boxAfter,
       });
       if (error) throw new Error(error.message);
     }

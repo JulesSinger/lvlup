@@ -11,14 +11,29 @@ import { BOX_COUNT } from './types';
  * ne doit jamais diverger silencieusement de l'autre.
  */
 
-const MIGRATION = new URL('../../../../supabase/2026-08-30-flashcards-tables.sql', import.meta.url)
+const CARDS_MIGRATION = new URL('../../../../supabase/2026-08-30-flashcards-tables.sql', import.meta.url)
   .pathname;
+const REVIEWS_MIGRATION = new URL(
+  '../../../../supabase/2026-08-30-flashcards-reviews.sql',
+  import.meta.url,
+).pathname;
+
+function boxBound(file: string, constraint: string, column: string): number {
+  const body = readFileSync(file, 'utf8');
+  const pattern = new RegExp(`${constraint}\\s+check\\s*\\(${column} between 1 and (\\d+)\\)`, 'is');
+  const match = pattern.exec(body);
+  if (!match) throw new Error(`Contrainte ${constraint} introuvable dans ${file}`);
+  return Number(match[1]);
+}
 
 describe('le type et la base disent la même chose (Orbite)', () => {
-  it('le nombre de boîtes accepté par Postgres correspond à BOX_COUNT', () => {
-    const body = readFileSync(MIGRATION, 'utf8');
-    const match = /flashcards_cards_box_check\s+check\s*\(box between 1 and (\d+)\)/is.exec(body);
-    if (!match) throw new Error(`Contrainte flashcards_cards_box_check introuvable dans ${MIGRATION}`);
-    expect(Number(match[1])).toBe(BOX_COUNT);
+  it('le nombre de boîtes accepté par Postgres correspond à BOX_COUNT (cartes)', () => {
+    expect(boxBound(CARDS_MIGRATION, 'flashcards_cards_box_check', 'box')).toBe(BOX_COUNT);
+  });
+
+  it('le nombre de boîtes accepté par Postgres correspond à BOX_COUNT (journal des révisions)', () => {
+    expect(boxBound(REVIEWS_MIGRATION, 'flashcards_reviews_box_after_check', 'box_after')).toBe(
+      BOX_COUNT,
+    );
   });
 });

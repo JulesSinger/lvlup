@@ -1,4 +1,4 @@
-import type { Card, CardInput, Deck, DeckInput } from '../lib/types';
+import type { Card, CardInput, Deck, DeckInput, Review } from '../lib/types';
 
 /**
  * La part du module dans une sauvegarde. Le socle n'en connaît pas la
@@ -8,6 +8,7 @@ import type { Card, CardInput, Deck, DeckInput } from '../lib/types';
 export interface FlashcardsBackup {
   decks: Deck[];
   cards: Card[];
+  reviews: Review[];
 }
 
 /** Contrat de stockage du module flashcards (Orbite). */
@@ -26,13 +27,20 @@ export interface FlashcardsStore {
 
   /**
    * Enregistre le résultat d'une révision — la seule méthode du contrat qui
-   * a le droit de changer `box`/`dueDay` (docs/etude-flashcards.md §6). Le
-   * nouvel état se calcule côté appelant avec `lib/boxes.ts#applyReview`,
+   * a le droit de changer `box`/`dueDay` (docs/etude-flashcards.md §6), et
+   * qui journalise la révision (`Review`) pour les statistiques (étape 6).
+   * Le nouvel état se calcule côté appelant avec `lib/boxes.ts#applyReview`,
    * jamais ici : ce contrat ne connaît pas la règle du Leitner, il ne fait
    * qu'écrire l'état qu'on lui donne — même séparation que `updateCategory`
-   * qui ne recalcule jamais un solde.
+   * qui ne recalcule jamais un solde. `correct` est fourni à part plutôt que
+   * déduit de `patch.box === 1` : ce serait vrai aujourd'hui, mais seulement
+   * parce que ce contrat en sait alors plus que ce qu'il devrait sur la
+   * règle du Leitner.
    */
-  reviewCard(id: string, patch: Pick<Card, 'box' | 'dueDay'>): Promise<void>;
+  reviewCard(id: string, patch: Pick<Card, 'box' | 'dueDay'>, correct: boolean): Promise<void>;
+
+  /** Le journal des révisions passées — pour les statistiques, ne pilote rien. */
+  listReviews(): Promise<Review[]>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
   exportData(): Promise<FlashcardsBackup>;

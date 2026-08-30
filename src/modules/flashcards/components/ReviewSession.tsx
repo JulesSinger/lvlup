@@ -49,7 +49,7 @@ export function ReviewSession({ title, queue, decks, onDone, onError }: Props) {
     setGrading(true);
     try {
       const patch = applyReview(current, correct, dayString());
-      await flashcardsStore.reviewCard(current.id, patch);
+      await flashcardsStore.reviewCard(current.id, patch, correct);
       setReviewed((r) => r + 1);
       setFlipped(false);
       setIndex((i) => i + 1);

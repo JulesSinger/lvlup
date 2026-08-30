@@ -410,3 +410,35 @@ archivé ne compte pas). Choisir une boîte déplie une liste de ses cartes, cha
 paquet dont elle vient ; cliquer une carte ouvre directement ce paquet, pour aller la réviser
 ou la modifier là où elle vit vraiment. La liste des paquets, elle, reste toujours visible en
 dessous — le filtre par boîte ne la remplace pas, il s'ajoute au-dessus.
+
+---
+
+## 14. Statistiques, sans streak (post-V1, 30/08/2026)
+
+Quatrième retour de Jules, le même jour, sur la statistique de streak envisagée dans le
+découpage d'origine (§9, étape 6) : « est-ce que la streak de révision est pertinente ? car
+certains jours il n'y aura rien à réviser ». L'objection tient : contrairement à une action de
+Zénith, toujours disponible, la file du jour d'Orbite est décidée par l'algorithme, pas par la
+discipline de l'utilisateur — un jour à zéro carte due n'est pas un jour manqué, et un streak
+qui compterait « as-tu fait quelque chose » le punirait pour avoir justement bien réparti ses
+révisions.
+
+**Décision : pas de streak pour l'instant.** L'étape 6 se limite au volume et à la réussite —
+deux statistiques qui restent vraies quel que soit le remplissage de la file. Une version
+« conditionnelle » du streak (compte comme tenu un jour sans rien à réviser, casse seulement un
+jour où des cartes dues n'ont pas été faites) a été évoquée comme piste, pas retenue pour
+l'instant — à reprendre si le besoin revient.
+
+**Ajouté** : la table `flashcards_reviews` (le journal — jour, résultat, boîte atteinte),
+`reviewCard` qui l'écrit en plus de l'état de la carte (avec `correct` fourni explicitement par
+l'appelant, jamais déduit de `patch.box`, pour ne pas faire fuiter la règle du Leitner dans le
+contrat de stockage), et un panneau **Statistiques** (`StatsPanel`) accessible depuis l'écran
+principal : le total de révisions, celles des sept derniers jours, le taux de réussite. Rien à
+zéro n'est caché : sans aucune révision, le panneau le dit plutôt que d'afficher des zéros nus.
+
+**Un bug découvert en testant cette étape, corrigé au passage** : revenir d'un paquet
+(`DeckDetail`) vers l'écran principal ne rafraîchissait pas l'état de ce dernier — le bandeau
+« Aujourd'hui », les pastilles par paquet et la répartition par boîte restaient figés sur ce
+qu'ils étaient à l'ouverture du paquet, même après y avoir révisé, ajouté ou supprimé des
+cartes. `onBack` déclenche maintenant `refresh()`. Il était resté invisible jusqu'ici parce
+qu'aucune vérification n'enchaînait une vraie révision suivie d'un retour à l'écran principal.

@@ -53,3 +53,23 @@ export interface CardInput {
   front: string;
   back: string;
 }
+
+/**
+ * Une révision passée — le journal, distinct de l'état courant d'une carte
+ * (docs/etude-flashcards.md §9, étape 6). Ne pilote rien : `box`/`dueDay`
+ * sur la carte suffisent à savoir quoi réviser aujourd'hui. Ce journal ne
+ * sert qu'à la mémoire — les statistiques — exactement comme les `checkins`
+ * de Zénith par rapport à l'état d'un palier.
+ *
+ * Écrite par `reviewCard`, jamais créée séparément : une révision n'existe
+ * pas sans le changement d'état qui va avec.
+ */
+export interface Review {
+  id: string;
+  cardId: string;
+  day: string;
+  correct: boolean;
+  /** La boîte atteinte après cette révision — pour une future courbe de progression. */
+  boxAfter: number;
+  createdAt: string;
+}

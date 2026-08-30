@@ -70,9 +70,46 @@ describe('LocalFlashcards', () => {
     expect(await store.listCards()).toEqual([gardee]);
   });
 
-  it('exporte et réimporte fidèlement', async () => {
+  it('réviser une carte écrit son état et journalise la révision', async () => {
     const deck = await store.createDeck({ name: 'Espagnol' });
-    await store.createCard({ deckId: deck.id, front: 'Hola', back: 'Bonjour' });
+    const card = await store.createCard({ deckId: deck.id, front: 'Hola', back: 'Bonjour' });
+
+    await store.reviewCard(card.id, { box: 2, dueDay: '2026-09-01' }, true);
+
+    const [reread] = await store.listCards();
+    expect(reread.box).toBe(2);
+    expect(reread.dueDay).toBe('2026-09-01');
+
+    const [logged] = await store.listReviews();
+    expect(logged.cardId).toBe(card.id);
+    expect(logged.correct).toBe(true);
+    expect(logged.boxAfter).toBe(2);
+  });
+
+  it('supprimer une carte emporte son journal', async () => {
+    const deck = await store.createDeck({ name: 'Espagnol' });
+    const card = await store.createCard({ deckId: deck.id, front: 'Hola', back: 'Bonjour' });
+    await store.reviewCard(card.id, { box: 2, dueDay: '2026-09-01' }, true);
+
+    await store.deleteCard(card.id);
+
+    expect(await store.listReviews()).toEqual([]);
+  });
+
+  it('supprimer un paquet emporte le journal de ses cartes', async () => {
+    const deck = await store.createDeck({ name: 'Espagnol' });
+    const card = await store.createCard({ deckId: deck.id, front: 'Hola', back: 'Bonjour' });
+    await store.reviewCard(card.id, { box: 2, dueDay: '2026-09-01' }, true);
+
+    await store.deleteDeck(deck.id);
+
+    expect(await store.listReviews()).toEqual([]);
+  });
+
+  it('exporte et réimporte fidèlement, journal compris', async () => {
+    const deck = await store.createDeck({ name: 'Espagnol' });
+    const card = await store.createCard({ deckId: deck.id, front: 'Hola', back: 'Bonjour' });
+    await store.reviewCard(card.id, { box: 2, dueDay: '2026-09-01' }, true);
 
     const backup = await store.exportData();
     memory.clear();
@@ -81,5 +118,6 @@ describe('LocalFlashcards', () => {
 
     expect(await restored.listDecks()).toEqual(backup.decks);
     expect(await restored.listCards()).toEqual(backup.cards);
+    expect(await restored.listReviews()).toEqual(backup.reviews);
   });
 });

@@ -4,18 +4,23 @@ import { BoxDots } from './components/BoxDots';
 import { DeckDetail } from './components/DeckDetail';
 import { DeckEditor } from './components/DeckEditor';
 import { ReviewSession } from './components/ReviewSession';
+import { StatsPanel } from './components/StatsPanel';
 import { flashcardsStore } from './data';
 import { SESSION_LIMIT, boxDistribution, dueCards } from './lib/boxes';
 import { dayString } from './lib/day';
+import { computeStats } from './lib/stats';
 import { BOX_COUNT } from './lib/types';
-import type { Card, Deck, DeckInput } from './lib/types';
+import type { Card, Deck, DeckInput, Review } from './lib/types';
 
 /**
- * Écran racine d'Orbite — étapes 2, 3 et 5 (docs/etude-flashcards.md §9),
- * plus deux demandes de Jules après la V1 : savoir tout de suite ce qu'il y
- * a à réviser aujourd'hui (bandeau « Aujourd'hui », pastille par paquet),
- * et voir la répartition par boîte tous paquets confondus, comme dans un
- * paquet particulier (`DeckDetail`) — §13 de l'étude.
+ * Écran racine d'Orbite — étapes 2, 3, 5 et une partie de 6
+ * (docs/etude-flashcards.md §9), plus des demandes de Jules après la V1 :
+ * savoir tout de suite ce qu'il y a à réviser aujourd'hui (bandeau
+ * « Aujourd'hui », pastille par paquet), voir la répartition par boîte
+ * tous paquets confondus (§13), et des statistiques de volume/réussite
+ * sans streak (§13 — la file du jour dépend de l'algorithme, pas de la
+ * discipline de l'utilisateur, un streak punirait un jour sans rien à
+ * réviser).
  */
 export function FlashcardsScreen({
   error,
@@ -26,6 +31,7 @@ export function FlashcardsScreen({
 }: ModuleScreenProps) {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   /** `null` = fermé, `'new'` = création, un paquet = édition. */
   const [editing, setEditing] = useState<Deck | 'new' | null>(null);
@@ -35,15 +41,18 @@ export function FlashcardsScreen({
   const [reviewingToday, setReviewingToday] = useState(false);
   /** Boîte affichée dans la liste globale, `null` = repliée. */
   const [boxFilter, setBoxFilter] = useState<number | null>(null);
+  const [showStats, setShowStats] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      const [nextDecks, nextCards] = await Promise.all([
+      const [nextDecks, nextCards, nextReviews] = await Promise.all([
         flashcardsStore.listDecks(),
         flashcardsStore.listCards(),
+        flashcardsStore.listReviews(),
       ]);
       setDecks(nextDecks);
       setCards(nextCards);
+      setReviews(nextReviews);
       onError('');
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Chargement impossible.');
@@ -88,6 +97,8 @@ export function FlashcardsScreen({
     [reviewableCards, boxFilter],
   );
 
+  const stats = useMemo(() => computeStats(reviews, dayString()), [reviews]);
+
   async function saveDeck(input: DeckInput) {
     if (editing !== null && editing !== 'new') {
       await flashcardsStore.updateDeck(editing.id, input);
@@ -128,6 +139,9 @@ export function FlashcardsScreen({
             <button className="btn btn-ghost btn-sm" onClick={onBackToHub}>
               ← Modules
             </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowStats(true)}>
+              📊 Statistiques
+            </button>
             <button className="btn btn-ghost btn-sm" onClick={onOpenSettings}>
               ⚙ Réglages
             </button>
@@ -155,7 +169,19 @@ export function FlashcardsScreen({
             onError={onError}
           />
         ) : openDeck ? (
-          <DeckDetail deck={openDeck} onBack={() => setOpenDeck(null)} onError={onError} />
+          <DeckDetail
+            deck={openDeck}
+            onBack={() => {
+              setOpenDeck(null);
+              // Réviser, ajouter ou supprimer une carte dans le paquet a pu
+              // changer ce que l'écran principal affiche (bandeau du jour,
+              // pastilles, répartition par boîte, statistiques) — sans ce
+              // rafraîchissement, tout restait figé sur l'état d'avant
+              // l'ouverture du paquet.
+              void refresh();
+            }}
+            onError={onError}
+          />
         ) : loading ? (
           <p>Chargement…</p>
         ) : activeDecks.length === 0 && archivedDecks.length === 0 ? (
@@ -308,6 +334,8 @@ export function FlashcardsScreen({
             onSave={saveDeck}
           />
         )}
+
+        {showStats && <StatsPanel stats={stats} onClose={() => setShowStats(false)} />}
       </main>
     </div>
   );

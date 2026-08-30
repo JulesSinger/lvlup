@@ -1,7 +1,7 @@
 import { newId } from '../../../core/data/coreStore';
 import { readRaw, writeRaw } from '../../../core/data/localSnapshot';
 import { dayString } from '../lib/day';
-import type { Card, CardInput, Deck, DeckInput } from '../lib/types';
+import type { Card, CardInput, Deck, DeckInput, Review } from '../lib/types';
 import type { FlashcardsBackup, FlashcardsStore } from './flashcardsStore';
 
 interface Snapshot extends FlashcardsBackup {}
@@ -12,6 +12,7 @@ function read(): Snapshot {
   return {
     decks: Array.isArray(raw.flashcardsDecks) ? (raw.flashcardsDecks as Deck[]) : [],
     cards: Array.isArray(raw.flashcardsCards) ? (raw.flashcardsCards as Card[]) : [],
+    reviews: Array.isArray(raw.flashcardsReviews) ? (raw.flashcardsReviews as Review[]) : [],
   };
 }
 
@@ -21,6 +22,7 @@ function write(snapshot: Snapshot) {
     ...readRaw(),
     flashcardsDecks: snapshot.decks,
     flashcardsCards: snapshot.cards,
+    flashcardsReviews: snapshot.reviews,
   });
 }
 
@@ -57,8 +59,13 @@ export class LocalFlashcards implements FlashcardsStore {
     const snapshot = read();
     snapshot.decks = snapshot.decks.filter((d) => d.id !== id);
     // Un paquet supprimé emporte ses cartes — pas de carte orpheline sans
-    // paquet pour l'accueillir (docs/etude-flashcards.md §6).
+    // paquet pour l'accueillir (docs/etude-flashcards.md §6) — et leur
+    // journal avec elles, comme `deleteCard`.
+    const removedIds = new Set(
+      snapshot.cards.filter((c) => c.deckId === id).map((c) => c.id),
+    );
     snapshot.cards = snapshot.cards.filter((c) => c.deckId !== id);
+    snapshot.reviews = snapshot.reviews.filter((r) => !removedIds.has(r.cardId));
     write(snapshot);
   }
 
@@ -97,24 +104,39 @@ export class LocalFlashcards implements FlashcardsStore {
   async deleteCard(id: string) {
     const snapshot = read();
     snapshot.cards = snapshot.cards.filter((c) => c.id !== id);
+    // Comme côté base (`on delete cascade`) : le journal d'une carte
+    // supprimée n'a plus de sens à garder.
+    snapshot.reviews = snapshot.reviews.filter((r) => r.cardId !== id);
     write(snapshot);
   }
 
-  async reviewCard(id: string, patch: Pick<Card, 'box' | 'dueDay'>) {
+  async reviewCard(id: string, patch: Pick<Card, 'box' | 'dueDay'>, correct: boolean) {
     const snapshot = read();
     const card = snapshot.cards.find((c) => c.id === id);
     if (!card) return;
     card.box = patch.box;
     card.dueDay = patch.dueDay;
+    snapshot.reviews.push({
+      id: newId(),
+      cardId: id,
+      day: dayString(),
+      correct,
+      boxAfter: patch.box,
+      createdAt: new Date().toISOString(),
+    });
     write(snapshot);
   }
 
+  async listReviews(): Promise<Review[]> {
+    return read().reviews.slice();
+  }
+
   async exportData(): Promise<FlashcardsBackup> {
-    const { decks, cards } = read();
-    return { decks: decks.slice(), cards: cards.slice() };
+    const { decks, cards, reviews } = read();
+    return { decks: decks.slice(), cards: cards.slice(), reviews: reviews.slice() };
   }
 
   async importData(data: FlashcardsBackup) {
-    write({ decks: data.decks ?? [], cards: data.cards ?? [] });
+    write({ decks: data.decks ?? [], cards: data.cards ?? [], reviews: data.reviews ?? [] });
   }
 }
