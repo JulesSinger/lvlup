@@ -1,9 +1,10 @@
 /**
  * Suite e2e du module flashcards (Orbite).
  *
- * Étape 2 (docs/etude-flashcards.md §9) : « les paquets se créent, se
- * renomment, s'archivent ». Comme la suite Astra, elle part d'un contexte
- * frais et entre dans la carte Orbite du hub — voir
+ * Étapes 2 et 3 (docs/etude-flashcards.md §9) : « les paquets se créent, se
+ * renomment, s'archivent », puis « le contenu existe » — les cartes d'un
+ * paquet se créent, s'éditent, se suppriment. Comme la suite Astra, elle
+ * part d'un contexte frais et entre dans la carte Orbite du hub — voir
  * `modules/objectifs/e2e/suite.mjs` pour le même motif.
  */
 
@@ -61,6 +62,62 @@ export async function run({ browser, check, BASE }) {
     'Le renommage est pris en compte',
     (await page.locator('.flashcards-row-name').first().textContent()) === 'Espagnol — verbes',
   );
+
+  // --- Entrer dans le paquet et gérer ses cartes (étape 3) -----------------
+  await page.locator('.flashcards-row', { hasText: 'Espagnol — verbes' }).click();
+  await page.waitForSelector('.flashcards-deck-detail');
+  check(
+    'Ouvrir un paquet vide affiche son écran vide',
+    await page.locator('.flashcards-deck-detail .empty h3').isVisible(),
+  );
+  check(
+    'Le titre du paquet ouvert est affiché',
+    (await page.locator('.flashcards-deck-detail-title').textContent()).includes('Espagnol — verbes'),
+  );
+
+  await page.getByRole('button', { name: 'Créer ma première carte' }).click();
+  check("L'éditeur de carte s'ouvre", await page.locator('.flashcards-card-editor').isVisible());
+  await page.locator('#flashcards-card-front').fill('Hola');
+  await page.locator('#flashcards-card-back').fill('Bonjour');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+
+  await page.waitForSelector('.flashcards-card-row');
+  check(
+    'La carte créée affiche son recto et son verso',
+    (await page.locator('.flashcards-card-front').first().textContent()) === 'Hola' &&
+      (await page.locator('.flashcards-card-back').first().textContent()) === 'Bonjour',
+  );
+
+  await page.getByRole('button', { name: 'Modifier' }).click();
+  check(
+    "L'éditeur de carte se pré-remplit",
+    (await page.locator('#flashcards-card-front').inputValue()) === 'Hola',
+  );
+  await page.locator('#flashcards-card-back').fill('Bonjour / Salut');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForTimeout(200);
+  check(
+    'La modification est prise en compte',
+    (await page.locator('.flashcards-card-back').first().textContent()) === 'Bonjour / Salut',
+  );
+
+  // Un aller-retour, pour vérifier que la carte n'est pas seulement en mémoire.
+  await page.getByRole('button', { name: '← Paquets' }).click();
+  await page.waitForSelector('.flashcards-decks');
+  await page.locator('.flashcards-row', { hasText: 'Espagnol — verbes' }).click();
+  await page.waitForSelector('.flashcards-card-row');
+  check('La carte survit à un aller-retour', (await page.locator('.flashcards-card-row').count()) === 1);
+
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'Supprimer' }).click();
+  await page.waitForSelector('.flashcards-deck-detail .empty h3');
+  check(
+    'Supprimer la seule carte ramène à l’écran vide du paquet',
+    await page.locator('.flashcards-deck-detail .empty h3').isVisible(),
+  );
+
+  await page.getByRole('button', { name: '← Paquets' }).click();
+  await page.waitForSelector('.flashcards-decks');
 
   // --- Un deuxième paquet, pour vérifier que la liste en tient plusieurs ---
   await page.getByRole('button', { name: '+ Nouveau paquet' }).click();

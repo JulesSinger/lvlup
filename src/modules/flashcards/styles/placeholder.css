@@ -59,6 +59,14 @@
   background: var(--surface);
 }
 
+.flashcards-row-clickable {
+  cursor: pointer;
+}
+
+.flashcards-row-clickable:hover {
+  border-color: var(--border-strong);
+}
+
 .flashcards-row-swatch {
   display: inline-flex;
   align-items: center;
@@ -142,4 +150,44 @@
 .flashcards-swatch-btn.selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+/* --- contenu d'un paquet (étape 3) --------------------------------------- */
+
+.flashcards-deck-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.flashcards-deck-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.flashcards-deck-detail-title {
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+
+.flashcards-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.flashcards-card-row {
+  align-items: flex-start;
+}
+
+.flashcards-card-front,
+.flashcards-card-back {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.flashcards-card-back {
+  color: var(--text-faint);
 }

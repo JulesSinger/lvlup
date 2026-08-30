@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
+import { DeckDetail } from './components/DeckDetail';
 import { DeckEditor } from './components/DeckEditor';
 import { flashcardsStore } from './data';
 import type { Deck, DeckInput } from './lib/types';
 
 /**
- * Écran racine d'Orbite — étape 2 (docs/etude-flashcards.md §9) : gérer les
- * paquets. Les cartes, le moteur de révision et les statistiques arrivent
- * aux étapes suivantes ; cet écran est donc, pour l'instant, tout ce
- * qu'Orbite sait faire.
+ * Écran racine d'Orbite — étape 3 (docs/etude-flashcards.md §9) : gérer les
+ * paquets, et le contenu de chacun. Le moteur de révision et les
+ * statistiques arrivent aux étapes suivantes.
  */
 export function FlashcardsScreen({
   error,
@@ -21,6 +21,8 @@ export function FlashcardsScreen({
   const [loading, setLoading] = useState(true);
   /** `null` = fermé, `'new'` = création, un paquet = édition. */
   const [editing, setEditing] = useState<Deck | 'new' | null>(null);
+  /** Le paquet dont on regarde le contenu, `null` = liste des paquets. */
+  const [openDeck, setOpenDeck] = useState<Deck | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -99,7 +101,9 @@ export function FlashcardsScreen({
           </div>
         )}
 
-        {loading ? (
+        {openDeck ? (
+          <DeckDetail deck={openDeck} onBack={() => setOpenDeck(null)} onError={onError} />
+        ) : loading ? (
           <p>Chargement…</p>
         ) : activeDecks.length === 0 && archivedDecks.length === 0 ? (
           <div className="empty">
@@ -117,12 +121,16 @@ export function FlashcardsScreen({
             {activeDecks.length > 0 && (
               <ul className="flashcards-list">
                 {activeDecks.map((deck) => (
-                  <li key={deck.id} className="flashcards-row">
+                  <li
+                    key={deck.id}
+                    className="flashcards-row flashcards-row-clickable"
+                    onClick={() => setOpenDeck(deck)}
+                  >
                     <span className="flashcards-row-swatch" aria-hidden="true">
                       {deck.emoji}
                     </span>
                     <span className="flashcards-row-name">{deck.name}</span>
-                    <span className="flashcards-row-actions">
+                    <span className="flashcards-row-actions" onClick={(e) => e.stopPropagation()}>
                       <button className="btn btn-ghost btn-sm" onClick={() => setEditing(deck)}>
                         Modifier
                       </button>
