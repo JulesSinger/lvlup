@@ -109,13 +109,20 @@
    liste (amélioration post-V1, 31/08/2026) : sur un mois chargé ou avec
    beaucoup de catégories, il fallait scroller jusqu'au bout pour l'atteindre.
    `position: sticky` le fait flotter dès qu'on commence à faire défiler la
-   liste, sans changer son ordre dans le DOM ni son alignement à gauche. */
+   liste, sans changer son ordre dans le DOM.
+   Pleine largeur plutôt qu'une pastille à gauche (retour de Jules après le
+   premier essai : « l'UI n'est pas top ») — une vraie barre d'action, plus
+   facile à viser au pouce, qui ne se confond pas avec une ligne de la liste
+   juste au-dessus. */
 .budget-add {
-  align-self: flex-start;
+  align-self: stretch;
+  justify-content: center;
   position: sticky;
-  bottom: calc(18px + env(safe-area-inset-bottom));
+  bottom: calc(14px + env(safe-area-inset-bottom));
   z-index: 5;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  padding: 13px 18px;
+  font-size: 14.5px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
 }
 
 /* --- éditeur de catégorie ---------------------------------------------- */
@@ -215,6 +222,21 @@
 
   .budget-row-amount {
     min-width: 0;
+  }
+
+  /* Trouvé en vérifiant le rendu mobile (31/08/2026, retour de Jules) :
+     contrairement aux écritures, les lignes de catégorie n'avaient jamais
+     reçu ce traitement — un nom un peu long (« Maison & équipement ») plus
+     les deux boutons d'action dépassaient un écran étroit. Même motif que
+     `.budget-entry-row` ci-dessus. */
+  .budget-category-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .budget-category-row .budget-row-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
   }
 }
 

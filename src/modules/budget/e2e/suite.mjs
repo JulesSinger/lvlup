@@ -586,6 +586,12 @@ export async function run({ browser, check, BASE }) {
       addBox !== null && addBox.y >= 0 && addBox.y + addBox.height <= 900,
       addBox ? `y=${Math.round(addBox.y)}` : 'introuvable',
     );
+    const rowBox = await up.locator('.budget-entry-row').first().boundingBox();
+    check(
+      'Une vraie barre pleine largeur, pas une pastille (retour de Jules)',
+      addBox !== null && rowBox !== null && addBox.width >= rowBox.width - 2,
+      addBox && rowBox ? `bouton=${Math.round(addBox.width)} ligne=${Math.round(rowBox.width)}` : 'introuvable',
+    );
 
     await up.getByRole('button', { name: '+ Nouvelle écriture' }).click();
     await up.waitForSelector('.budget-entry-editor');
@@ -644,5 +650,70 @@ export async function run({ browser, check, BASE }) {
 
     check('Aucune erreur JavaScript (catégorie et bouton sticky)', uxErrors.length === 0, uxErrors.join(' | '));
     await fresh.close();
+  }
+
+  // --- Rendu mobile --------------------------------------------------------
+  // Jamais vérifié jusqu'ici pour Astra, comme pour Orbite (31/08/2026) : les
+  // quatre onglets, la barre d'action pleine largeur et l'éditeur d'écriture
+  // (pastilles + menu groupé) doivent tenir sur un téléphone.
+  {
+    const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const mp = await phone.newPage();
+    const mobileErrors = [];
+    mp.on('pageerror', (e) => mobileErrors.push(e.message));
+    await enterAstra(mp, BASE);
+    await mp.waitForSelector('.empty h3');
+
+    function noOverflow() {
+      return mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+    }
+
+    check('Écran vide (Aperçu) sans débordement horizontal sur téléphone', await noOverflow());
+
+    await mp.getByRole('button', { name: 'Catégories', exact: true }).click();
+    await mp.waitForSelector('.empty h3');
+    await mp.getByRole('button', { name: 'Charger les catégories de départ' }).click();
+    await mp.waitForSelector('.budget-group');
+    check('Onglet Catégories sans débordement horizontal sur téléphone', await noOverflow());
+
+    await mp.getByRole('button', { name: 'Aperçu', exact: true }).click();
+    await mp.waitForSelector('.empty h3');
+    await mp.getByRole('button', { name: 'Ajouter une écriture' }).click();
+    await mp.waitForSelector('.budget-entry-editor');
+    await mp.locator('#budget-entry-label').fill('Courses de la semaine');
+    await mp.locator('#budget-entry-amount').fill('45');
+    await mp.locator('#budget-entry-category').selectOption({ label: '🛒 Courses' });
+    await mp.getByRole('button', { name: 'Enregistrer' }).click();
+    await mp.waitForSelector('.budget-entry-row');
+    check('Écran des écritures sans débordement horizontal sur téléphone', await noOverflow());
+
+    await mp.mouse.wheel(0, 400);
+    await mp.waitForTimeout(200);
+    const mobileAddBox = await mp.getByRole('button', { name: '+ Nouvelle écriture' }).boundingBox();
+    check(
+      'La barre « Nouvelle écriture » reste visible en scrollant sur téléphone',
+      mobileAddBox !== null && mobileAddBox.y >= 0 && mobileAddBox.y + mobileAddBox.height <= 844,
+      mobileAddBox ? `y=${Math.round(mobileAddBox.y)}` : 'introuvable',
+    );
+
+    await mp.getByRole('button', { name: '+ Nouvelle écriture' }).click();
+    await mp.waitForSelector('.budget-entry-editor');
+    check(
+      'Les pastilles de catégories fréquentes tiennent sur téléphone',
+      await mp.locator('.budget-category-chip').first().isVisible(),
+    );
+    check('Éditeur d’écriture sans débordement horizontal sur téléphone', await noOverflow());
+    await mp.getByRole('button', { name: 'Annuler' }).click();
+
+    await mp.getByRole('button', { name: 'Épargne', exact: true }).click();
+    await mp.waitForTimeout(300);
+    check('Onglet Épargne sans débordement horizontal sur téléphone', await noOverflow());
+
+    await mp.getByRole('button', { name: 'Importer', exact: true }).click();
+    await mp.waitForTimeout(300);
+    check('Onglet Importer sans débordement horizontal sur téléphone', await noOverflow());
+
+    check('Aucune erreur JavaScript (mobile)', mobileErrors.length === 0, mobileErrors.join(' | '));
+    await phone.close();
   }
 }

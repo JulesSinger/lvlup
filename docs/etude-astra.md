@@ -244,3 +244,23 @@ plat, sans groupe ni raccourci. Trois pistes combinées :
 **Ce qui n'a pas été retenu** : un vrai système de favoris géré à la main (cocher une
 catégorie comme favorite). Le calcul automatique par fréquence donne le même bénéfice sans
 réglage à tenir à jour.
+
+### Le sticky en pastille ne convainquait pas (31/08/2026)
+
+Premier retour de Jules après coup : « le système est cool, mais l'UI n'est pas top ». Le
+bouton sticky, laissé à sa taille et son alignement à gauche d'origine, flottait comme une
+pastille un peu perdue au-dessus de la liste — pas assez affirmé pour se lire comme une vraie
+action. Retravaillé en **barre pleine largeur** (`align-self: stretch`, texte centré, padding
+plus généreux) : une vraie barre d'action ancrée en bas, alignée avec la largeur de la liste
+au-dessus, plus facile à viser au pouce sur téléphone.
+
+**Vérification mobile demandée dans la foulée** — jamais faite pour Astra non plus,
+contrairement à ce que le journal laissait penser (des correctifs mobiles existent depuis le
+23-24/08/2026, mais aucune vérification e2e n'avait suivi). Un vrai bug trouvé : les lignes de
+catégorie (`BudgetScreen.tsx`, classe `.budget-row` nue) n'avaient jamais reçu le traitement de
+repli déjà appliqué aux lignes d'écriture (`.budget-entry-row`) et d'enveloppe
+(`.budget-envelope-row`) sous 520px — un nom de catégorie un peu long plus les deux boutons
+d'action dépassaient l'écran. Corrigé en leur donnant leur propre classe
+(`.budget-category-row`) et le même repli en dessous de 520px. Les quatre onglets (Aperçu,
+Épargne, Importer, Catégories) et l'éditeur d'écriture ont été vérifiés sans débordement sur un
+viewport de 390 px.

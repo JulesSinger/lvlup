@@ -189,7 +189,7 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
                   <h2 className="budget-group-title">{label}</h2>
                   <ul className="budget-list">
                     {items.map((category) => (
-                      <li key={category.id} className="budget-row">
+                      <li key={category.id} className="budget-row budget-category-row">
                         <span
                           className="budget-row-swatch"
                           style={{ background: category.color }}
