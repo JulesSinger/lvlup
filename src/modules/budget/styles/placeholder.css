@@ -127,9 +127,40 @@
   height: 46px;
   padding: 0;
   border-radius: 50%;
-  font-size: 20px;
-  line-height: 1;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+/* Un « + » dessiné en CSS plutôt qu'un caractère de police : le glyphe
+   « + » n'est pas centré dans sa propre boîte de texte selon la police
+   (mesuré : la boîte flex qui le contient est parfaitement centrée, le
+   glyphe à l'intérieur ne l'est pas) — deux barres positionnées
+   indépendamment ne dépendent d'aucune police et restent centrées quel
+   que soit le navigateur. */
+.budget-add-icon {
+  position: relative;
+  width: 16px;
+  height: 16px;
+}
+
+.budget-add-icon::before,
+.budget-add-icon::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  background: currentColor;
+  transform: translate(-50%, -50%);
+  border-radius: 1px;
+}
+
+.budget-add-icon::before {
+  width: 16px;
+  height: 2px;
+}
+
+.budget-add-icon::after {
+  width: 2px;
+  height: 16px;
 }
 
 /* --- éditeur de catégorie ---------------------------------------------- */

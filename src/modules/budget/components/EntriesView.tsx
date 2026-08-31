@@ -115,7 +115,7 @@ export function EntriesView({
             title="Nouvelle écriture"
             aria-label="Nouvelle écriture"
           >
-            <span aria-hidden="true">+</span>
+            <span className="budget-add-icon" aria-hidden="true" />
           </button>
         </>
       )}

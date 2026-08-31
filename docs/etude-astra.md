@@ -281,3 +281,11 @@ catégorie ») ne disparaît pas pour autant : il vit dans `aria-label`/`title` 
 lui-même, exactement le motif déjà utilisé pour les boutons icône-seule de la barre du haut
 d'Orbite (`docs/etude-flashcards.md` §16) — un bouton dont tout le contenu visible serait
 `aria-hidden` n'aurait sinon plus de nom du tout.
+
+**Troisième retour, immédiat** : le « + » n'était pas centré verticalement dans le rond. Mesuré
+avant de corriger, plutôt que de deviner : la boîte flex qui contient l'icône est parfaitement
+centrée (0 px d'écart entre son centre et celui du bouton), mais le glyphe « + » de la police
+ne l'est pas dans sa propre boîte de texte — un défaut de métriques de police, pas de mise en
+page. Corrigé en dessinant le « + » en CSS pur (deux barres positionnées indépendamment via
+`::before`/`::after`, `.budget-add-icon`) plutôt qu'en ajoutant un décalage approximatif qui
+n'aurait tenu que par hasard sur une police et un navigateur donnés.

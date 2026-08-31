@@ -222,7 +222,7 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
               title="Nouvelle catégorie"
               aria-label="Nouvelle catégorie"
             >
-              <span aria-hidden="true">+</span>
+              <span className="budget-add-icon" aria-hidden="true" />
             </button>
           </div>
         )}
