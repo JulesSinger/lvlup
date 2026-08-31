@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { budgetStore } from '../data';
 import { formatCents } from '../lib/amount';
-import type { BudgetCategory, BudgetEntry, BudgetEntryInput } from '../lib/types';
+import type { BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetRule } from '../lib/types';
 import { EntryEditor } from './EntryEditor';
 
 function categoryFor(categories: BudgetCategory[], id: string | null): BudgetCategory | null {
@@ -20,6 +20,8 @@ function categoryFor(categories: BudgetCategory[], id: string | null): BudgetCat
 export function EntriesView({
   entries,
   categories,
+  rules,
+  frequentCategoryIds,
   onError,
   onChanged,
   emptyTitle,
@@ -27,6 +29,8 @@ export function EntriesView({
 }: {
   entries: BudgetEntry[];
   categories: BudgetCategory[];
+  rules: BudgetRule[];
+  frequentCategoryIds: string[];
   onError: (message: string) => void;
   onChanged: () => Promise<void>;
   emptyTitle: string;
@@ -115,6 +119,8 @@ export function EntriesView({
         <EntryEditor
           entry={editing === 'new' ? null : editing}
           categories={categories}
+          rules={rules}
+          frequentCategoryIds={frequentCategoryIds}
           onCancel={() => setEditing(null)}
           onSave={saveEntry}
         />

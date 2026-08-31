@@ -5,17 +5,15 @@ import { EnvelopesScreen } from './components/EnvelopesScreen';
 import { ImportScreen } from './components/ImportScreen';
 import { MonthScreen } from './components/MonthScreen';
 import { budgetStore } from './data';
+import { BUDGET_CATEGORY_KINDS, CATEGORY_KIND_LABELS } from './lib/types';
 import type { BudgetCategory, BudgetCategoryInput, BudgetCategoryKind } from './lib/types';
 import { STARTER_CATEGORIES } from './lib/starterCategories';
 
-/** Ordre et intitulé des groupes — voir docs/etude-astra.md §2 pour le rôle de `kind`. */
-const GROUPS: { kind: BudgetCategoryKind; label: string }[] = [
-  { kind: 'fixe', label: 'Fixes' },
-  { kind: 'variable', label: 'Variables' },
-  { kind: 'revenu', label: 'Revenus' },
-  { kind: 'transfert', label: 'Transferts' },
-  { kind: 'epargne', label: 'Épargne' },
-];
+/** Ordre des groupes — voir docs/etude-astra.md §2 pour le rôle de `kind`. */
+const GROUPS: { kind: BudgetCategoryKind; label: string }[] = BUDGET_CATEGORY_KINDS.map((kind) => ({
+  kind,
+  label: CATEGORY_KIND_LABELS[kind],
+}));
 
 type View = 'categories' | 'month' | 'import' | 'epargne';
 

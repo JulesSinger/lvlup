@@ -532,4 +532,117 @@ export async function run({ browser, check, BASE }) {
   check('Aucune erreur JavaScript', errors.length === 0, errors.join(' | '));
 
   await context.close();
+
+  // --- Trouver la bonne catégorie, et atteindre le bouton « + » (post-V1) --
+  // Deux améliorations demandées par Jules après la V1 : le bouton d'ajout
+  // ne doit plus exiger de scroller jusqu'au bout d'une longue liste, et la
+  // catégorie d'une écriture doit se trouver sans lire tout le menu.
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const up = await fresh.newPage();
+    const uxErrors = [];
+    up.on('pageerror', (e) => uxErrors.push(e.message));
+    await enterAstra(up, BASE);
+    await up.waitForSelector('.empty h3');
+
+    await up.evaluate(() => {
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      const today = new Date().toISOString().slice(0, 10);
+      snap.budgetCategories = [
+        { id: 'c-courses', name: 'Courses', emoji: '🛒', color: '#e0724c', kind: 'variable', position: 0 },
+        { id: 'c-restos', name: 'Restaurants & bars', emoji: '🍽️', color: '#e0a94c', kind: 'variable', position: 1 },
+        { id: 'c-loyer', name: 'Loyer', emoji: '🏠', color: '#4cb6a0', kind: 'fixe', position: 2 },
+        { id: 'c-salaire', name: 'Salaire', emoji: '💼', color: '#6fbf7f', kind: 'revenu', position: 3 },
+      ];
+      const mix = [
+        ['Monoprix', 'c-courses', -3200], ['Carrefour', 'c-courses', -5400],
+        ['Le Bistrot', 'c-restos', -2900], ['Sushi Shop', 'c-restos', -1500],
+        ['Loyer', 'c-loyer', -85000], ['Monoprix', 'c-courses', -2200],
+        ['Salaire', 'c-salaire', 220000], ['Carrefour', 'c-courses', -6100],
+        ['Bar', 'c-restos', -1900], ['Boulangerie', 'c-courses', -450],
+        ['Épicerie', 'c-courses', -800], ['Café', 'c-restos', -350],
+        ['Pharmacie', 'c-courses', -1200], ['Kebab', 'c-restos', -900],
+        ['Loyer parking', 'c-loyer', -6000],
+      ];
+      snap.budgetEntries = mix.map(([label, categoryId, amountCents], i) => ({
+        id: `e${i}`, day: today, label, amountCents, categoryId,
+        source: 'manuelle', importKey: null, note: '', createdAt: today,
+      }));
+      snap.budgetRules = [{ id: 'r1', pattern: 'monoprix', categoryId: 'c-courses', priority: 1 }];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await up.reload();
+    await up.waitForSelector('.hub-picker-card');
+    await up.getByRole('button', { name: /Astra/ }).click();
+    await up.waitForSelector('.budget-row');
+
+    // Le bouton « + Nouvelle écriture » reste dans le viewport après un
+    // scroll, sans qu'on ait eu à atteindre la fin de la liste.
+    await up.mouse.wheel(0, 800);
+    await up.waitForTimeout(200);
+    const addBox = await up.getByRole('button', { name: '+ Nouvelle écriture' }).boundingBox();
+    check(
+      'Le bouton « Nouvelle écriture » reste visible en scrollant',
+      addBox !== null && addBox.y >= 0 && addBox.y + addBox.height <= 900,
+      addBox ? `y=${Math.round(addBox.y)}` : 'introuvable',
+    );
+
+    await up.getByRole('button', { name: '+ Nouvelle écriture' }).click();
+    await up.waitForSelector('.budget-entry-editor');
+    check(
+      'Le menu de catégorie est groupé par nature',
+      (await up.locator('#budget-entry-category optgroup').count()) === 3,
+      String(await up.locator('#budget-entry-category optgroup').count()),
+    );
+    check(
+      'Les catégories les plus utilisées sont proposées en pastilles',
+      (await up.locator('.budget-category-chip').allTextContents()).join(',').includes('Courses'),
+    );
+
+    // La suggestion agit avant tout choix manuel — testée en premier, avant
+    // de toucher une pastille (qui la désactiverait, voir plus bas).
+    await up.locator('#budget-entry-label').fill('Carte Monoprix');
+    await up.waitForTimeout(200);
+    check(
+      'Le libellé matchant une règle suggère sa catégorie',
+      (await up.locator('#budget-entry-category').inputValue()) === 'c-courses',
+    );
+    check(
+      'La pastille suggérée se met à jour avec la sélection',
+      await up.locator('.budget-category-chip.on', { hasText: 'Courses' }).isVisible(),
+    );
+
+    // Un choix manuel (une pastille) prend le dessus et n'est plus jamais
+    // écrasé par la suggestion, même si le libellé change encore.
+    await up.locator('.budget-category-chip', { hasText: 'Restaurants' }).click();
+    check(
+      'Cliquer une pastille sélectionne la catégorie',
+      (await up.locator('#budget-entry-category').inputValue()) === 'c-restos',
+    );
+    await up.locator('#budget-entry-label').fill('Carte Monoprix (suite)');
+    await up.waitForTimeout(200);
+    check(
+      'Un choix manuel de pastille n’est plus écrasé par la suggestion',
+      (await up.locator('#budget-entry-category').inputValue()) === 'c-restos',
+    );
+
+    // Modifier une écriture existante ne doit jamais être court-circuité par
+    // la suggestion : sa catégorie déjà posée reste jusqu'à un choix manuel.
+    await up.getByRole('button', { name: 'Annuler' }).click();
+    await up.locator('.budget-entry-row', { hasText: 'Sushi Shop' }).getByRole('button', { name: 'Modifier' }).click();
+    await up.waitForSelector('.budget-entry-editor');
+    check(
+      "Éditer une écriture garde sa catégorie d'origine",
+      (await up.locator('#budget-entry-category').inputValue()) === 'c-restos',
+    );
+    await up.locator('#budget-entry-label').fill('Sushi Shop Monoprix');
+    await up.waitForTimeout(200);
+    check(
+      'La suggestion ne remplace jamais la catégorie en édition',
+      (await up.locator('#budget-entry-category').inputValue()) === 'c-restos',
+    );
+
+    check('Aucune erreur JavaScript (catégorie et bouton sticky)', uxErrors.length === 0, uxErrors.join(' | '));
+    await fresh.close();
+  }
 }

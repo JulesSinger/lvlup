@@ -21,6 +21,20 @@
 export const BUDGET_CATEGORY_KINDS = ['fixe', 'variable', 'revenu', 'transfert', 'epargne'] as const;
 export type BudgetCategoryKind = (typeof BUDGET_CATEGORY_KINDS)[number];
 
+/**
+ * Intitulé de groupe par nature — un seul endroit pour cette correspondance,
+ * partagée par l'écran des catégories (regroupement visuel) et le
+ * sélecteur de l'éditeur d'écriture (`<optgroup>`), pour qu'ils ne puissent
+ * pas diverger.
+ */
+export const CATEGORY_KIND_LABELS: Record<BudgetCategoryKind, string> = {
+  fixe: 'Fixes',
+  variable: 'Variables',
+  revenu: 'Revenus',
+  transfert: 'Transferts',
+  epargne: 'Épargne',
+};
+
 /** Origine d'une écriture : importée du relevé, ou saisie à la main. */
 export const BUDGET_ENTRY_SOURCES = ['import', 'manuelle'] as const;
 export type BudgetEntrySource = (typeof BUDGET_ENTRY_SOURCES)[number];

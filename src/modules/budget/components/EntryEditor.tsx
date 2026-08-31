@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { centsToInputValue, parsePositiveAmountToCents } from '../lib/amount';
-import type { BudgetCategory, BudgetEntry, BudgetEntryInput } from '../lib/types';
+import { matchRule } from '../lib/boursobankImport';
+import { BUDGET_CATEGORY_KINDS, CATEGORY_KIND_LABELS } from '../lib/types';
+import type { BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetRule } from '../lib/types';
 
 function today(): string {
   const d = new Date();
@@ -10,6 +12,10 @@ function today(): string {
 interface Props {
   entry: BudgetEntry | null;
   categories: BudgetCategory[];
+  /** Pour la suggestion par mots-clés (même moteur que l'import, voir `matchRule`). */
+  rules: BudgetRule[];
+  /** Les catégories les plus utilisées, en accès rapide au-dessus du menu déroulant. */
+  frequentCategoryIds: string[];
   onCancel: () => void;
   onSave: (input: BudgetEntryInput) => Promise<void>;
 }
@@ -19,14 +25,22 @@ interface Props {
  * (docs/etude-astra.md §5). Le montant se tape toujours positif ; c'est le
  * bouton « Dépense »/« Entrée » qui porte le signe, pour ne jamais faire
  * deviner à l'utilisateur s'il doit taper un `-`.
+ *
+ * Trouver la bonne catégorie était devenu pénible avec un simple menu à
+ * plat (amélioration post-V1, 31/08/2026) : le menu est maintenant groupé
+ * par nature, une suggestion se pré-sélectionne d'après les règles d'import
+ * existantes dès que le libellé matche l'une d'elles, et les catégories les
+ * plus utilisées sont proposées en pastilles avant même d'ouvrir le menu.
  */
-export function EntryEditor({ entry, categories, onCancel, onSave }: Props) {
+export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onCancel, onSave }: Props) {
   const isEdit = entry !== null;
   const [day, setDay] = useState(entry?.day ?? today());
   const [label, setLabel] = useState(entry?.label ?? '');
   const [isExpense, setIsExpense] = useState(entry ? entry.amountCents <= 0 : true);
   const [amountText, setAmountText] = useState(entry ? centsToInputValue(entry.amountCents) : '');
   const [categoryId, setCategoryId] = useState<string>(entry?.categoryId ?? '');
+  /** Une fois vrai, la suggestion par mots-clés n'écrase plus le choix de l'utilisateur. */
+  const [categoryTouched, setCategoryTouched] = useState(isEdit);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -37,6 +51,30 @@ export function EntryEditor({ entry, categories, onCancel, onSave }: Props) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
+
+  // Suggestion par mots-clés : seulement pour une nouvelle écriture, et tant
+  // que l'utilisateur n'a pas lui-même choisi une catégorie — une écriture en
+  // cours de modification a déjà la sienne, elle ne doit jamais être
+  // silencieusement remplacée pendant qu'on corrige le libellé.
+  useEffect(() => {
+    if (isEdit || categoryTouched) return;
+    const rule = matchRule(label, rules);
+    if (rule) setCategoryId(rule.categoryId);
+  }, [label, rules, isEdit, categoryTouched]);
+
+  const groupedCategories = useMemo(
+    () =>
+      BUDGET_CATEGORY_KINDS.map((kind) => ({
+        kind,
+        label: CATEGORY_KIND_LABELS[kind],
+        items: categories.filter((c) => c.kind === kind),
+      })).filter((group) => group.items.length > 0),
+    [categories],
+  );
+
+  const frequentCategories = frequentCategoryIds
+    .map((id) => categories.find((c) => c.id === id))
+    .filter((c): c is BudgetCategory => c !== undefined);
 
   async function submit() {
     if (!day) {
@@ -133,33 +171,59 @@ export function EntryEditor({ entry, categories, onCancel, onSave }: Props) {
             />
           </div>
 
-          <div className="row">
-            <div className="field">
-              <label htmlFor="budget-entry-amount">Montant (€)</label>
-              <input
-                id="budget-entry-amount"
-                type="text"
-                inputMode="decimal"
-                value={amountText}
-                onChange={(e) => setAmountText(e.target.value)}
-                placeholder="12,50"
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="budget-entry-category">Catégorie</label>
-              <select
-                id="budget-entry-category"
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-              >
-                <option value="">À classer</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.emoji} {c.name}
-                  </option>
+          <div className="field">
+            <label htmlFor="budget-entry-amount">Montant (€)</label>
+            <input
+              id="budget-entry-amount"
+              type="text"
+              inputMode="decimal"
+              value={amountText}
+              onChange={(e) => setAmountText(e.target.value)}
+              placeholder="12,50"
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="budget-entry-category">Catégorie</label>
+
+            {frequentCategories.length > 0 && (
+              <div className="budget-category-chips" role="group" aria-label="Catégories fréquentes">
+                {frequentCategories.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`budget-category-chip${categoryId === c.id ? ' on' : ''}`}
+                    aria-pressed={categoryId === c.id}
+                    onClick={() => {
+                      setCategoryId(c.id);
+                      setCategoryTouched(true);
+                    }}
+                  >
+                    <span aria-hidden="true">{c.emoji}</span> {c.name}
+                  </button>
                 ))}
-              </select>
-            </div>
+              </div>
+            )}
+
+            <select
+              id="budget-entry-category"
+              value={categoryId}
+              onChange={(e) => {
+                setCategoryId(e.target.value);
+                setCategoryTouched(true);
+              }}
+            >
+              <option value="">À classer</option>
+              {groupedCategories.map((group) => (
+                <optgroup key={group.kind} label={group.label}>
+                  {group.items.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.emoji} {c.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
           </div>
 
           {error && <div className="notice error">{error}</div>}

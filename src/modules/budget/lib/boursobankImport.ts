@@ -138,8 +138,14 @@ function findCategoryByExactName(categories: BudgetCategory[], name: string): Bu
   return categories.find((c) => c.name.trim().toLowerCase() === normalized);
 }
 
-/** La règle de plus haute priorité dont le motif apparaît dans le libellé brut, insensible à la casse. */
-function matchRule(rawLabel: string, rules: BudgetRule[]): BudgetRule | null {
+/**
+ * La règle de plus haute priorité dont le motif apparaît dans le libellé
+ * brut, insensible à la casse. Exportée : c'est aussi le moteur de la
+ * suggestion par mots-clés de la saisie manuelle (`EntryEditor`,
+ * docs/etude-astra.md — amélioration post-V1 du 31/08/2026), qui n'a rien
+ * de spécifique à l'import — un libellé est un libellé.
+ */
+export function matchRule(rawLabel: string, rules: BudgetRule[]): BudgetRule | null {
   const haystack = rawLabel.toLowerCase();
   const matching = rules.filter((r) => r.pattern.trim() !== '' && haystack.includes(r.pattern.trim().toLowerCase()));
   if (matching.length === 0) return null;

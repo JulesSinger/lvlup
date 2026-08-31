@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { budgetStore } from '../data';
+import { mostUsedCategoryIds } from '../lib/categoryPicker';
 import { currentMonthKey, monthKeyOf, monthLabel, shiftMonthKey } from '../lib/month';
 import { computeMonthlyBreakdown } from '../lib/monthlyBreakdown';
 import { centsToInputValue, formatCents } from '../lib/amount';
-import type { BudgetCategory, BudgetEntry } from '../lib/types';
+import type { BudgetCategory, BudgetEntry, BudgetRule } from '../lib/types';
 import { EntriesView } from './EntriesView';
 import { PieChart } from './PieChart';
 
@@ -29,13 +30,16 @@ export function MonthScreen({
 }) {
   const [monthKey, setMonthKey] = useState(currentMonthKey);
   const [entries, setEntries] = useState<BudgetEntry[]>([]);
+  const [rules, setRules] = useState<BudgetRule[]>([]);
   const [loading, setLoading] = useState(true);
   /** `undefined` = pas de filtre ; une valeur (dont `null` pour « à classer ») = filtré sur cette part. */
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     try {
-      setEntries(await budgetStore.listEntries());
+      const [nextEntries, nextRules] = await Promise.all([budgetStore.listEntries(), budgetStore.listRules()]);
+      setEntries(nextEntries);
+      setRules(nextRules);
       onError('');
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Chargement impossible.');
@@ -163,6 +167,8 @@ export function MonthScreen({
         <EntriesView
           entries={visibleEntries}
           categories={categories}
+          rules={rules}
+          frequentCategoryIds={mostUsedCategoryIds(entries)}
           onError={onError}
           onChanged={refresh}
           emptyTitle={monthEntries.length === 0 ? 'Aucune écriture ce mois-ci' : 'Aucune écriture pour cette part'}

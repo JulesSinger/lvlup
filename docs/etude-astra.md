@@ -205,3 +205,42 @@ Les étapes 1 à 4 ne dépendent pas du format du relevé : elles peuvent être 
 que tu aies exporté quoi que ce soit. Seule l'étape 5 attend ton fichier.
 
 **Chaque étape est un commit, avec `npm run test` et `npm run check` au vert.**
+
+---
+
+## 8. Deux améliorations UX, post-V1 (31/08/2026)
+
+Étudiées avant d'être codées, à la demande de Jules — deux frottements remontés une fois la V1
+en usage réel.
+
+**Le bouton d'ajout était hors d'atteinte.** `+ Nouvelle écriture` et `+ Nouvelle catégorie`
+vivaient après la liste qu'ils complètent ; avec un mois chargé ou la vingtaine de catégories
+de départ, il fallait scroller jusqu'au bout pour les atteindre. Trois options envisagées :
+le déplacer avant la liste (comme le fait déjà « + Objectif » de Zénith dans sa barre du haut),
+le dupliquer aux deux endroits, ou le rendre `position: sticky`. Retenu : **sticky**, ancré en
+bas du viewport — la seule des trois options qui reste vraie même en scrollant, alors que même
+le bouton de Zénith défile dès qu'on dépasse sa position d'origine (aucun `position: sticky`
+n'existait nulle part dans le socle avant ce jour). Changement purement CSS, aucun déplacement
+dans le DOM.
+
+**Trouver la bonne catégorie était pénible.** Un `<select>` listant toutes les catégories à
+plat, sans groupe ni raccourci. Trois pistes combinées :
+
+- **Le menu groupé par nature** (`<optgroup>`), sur le même découpage que l'écran Catégories —
+  `CATEGORY_KIND_LABELS` factorisé dans `lib/types.ts` pour que les deux écrans ne puissent
+  pas diverger.
+- **Une suggestion par mots-clés**, en réutilisant tel quel le moteur déjà écrit pour l'import
+  (`matchRule`, `boursobankImport.ts` — un libellé est un libellé, rien de spécifique à
+  l'import). Elle ne s'applique qu'à une **nouvelle** écriture, et seulement tant que
+  l'utilisateur n'a pas lui-même choisi une catégorie : ni une écriture en cours de
+  modification (elle a déjà la sienne), ni une catégorie déjà cliquée en pastille, ne doivent
+  jamais se voir réécrites en silence pendant qu'on corrige le libellé.
+- **Des catégories fréquentes en pastilles**, calculées sur l'historique complet des écritures
+  (`mostUsedCategoryIds`), pas seulement le mois affiché — sans quoi la catégorie qu'on utilise
+  chaque mois disparaîtrait le premier jour d'un nouveau mois. Volontairement pas filtrées par
+  dépense/entrée : un remboursement pointe légitimement vers une catégorie de dépense, filtrer
+  aurait caché ce cas plutôt que de le servir.
+
+**Ce qui n'a pas été retenu** : un vrai système de favoris géré à la main (cocher une
+catégorie comme favorite). Le calcul automatique par fréquence donne le même bénéfice sans
+réglage à tenir à jour.

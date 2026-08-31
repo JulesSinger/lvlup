@@ -105,8 +105,17 @@
   flex-shrink: 0;
 }
 
+/* Ancré en bas du viewport plutôt qu'à sa position naturelle en fin de
+   liste (amélioration post-V1, 31/08/2026) : sur un mois chargé ou avec
+   beaucoup de catégories, il fallait scroller jusqu'au bout pour l'atteindre.
+   `position: sticky` le fait flotter dès qu'on commence à faire défiler la
+   liste, sans changer son ordre dans le DOM ni son alignement à gauche. */
 .budget-add {
   align-self: flex-start;
+  position: sticky;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 5;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
 /* --- éditeur de catégorie ---------------------------------------------- */
@@ -221,6 +230,36 @@
   border-color: var(--border-strong);
   color: var(--text);
   font-weight: 650;
+}
+
+/* Catégories fréquentes de l'éditeur d'écriture (amélioration post-V1,
+   31/08/2026) : un accès rapide avant même d'ouvrir le menu déroulant. */
+.budget-category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.budget-category-chip {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
+.budget-category-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.budget-category-chip.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  font-weight: 600;
 }
 
 /* --- écran du mois (étape 4) --------------------------------------------- */
