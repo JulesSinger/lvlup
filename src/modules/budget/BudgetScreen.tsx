@@ -216,8 +216,13 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
               );
             })}
 
-            <button className="btn btn-primary budget-add" onClick={() => setEditing('new')}>
-              + Nouvelle catégorie
+            <button
+              className="btn btn-primary budget-add"
+              onClick={() => setEditing('new')}
+              title="Nouvelle catégorie"
+              aria-label="Nouvelle catégorie"
+            >
+              <span aria-hidden="true">+</span>
             </button>
           </div>
         )}

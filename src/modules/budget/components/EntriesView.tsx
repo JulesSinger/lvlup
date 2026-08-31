@@ -109,8 +109,13 @@ export function EntriesView({
               );
             })}
           </ul>
-          <button className="btn btn-primary budget-add" onClick={() => setEditing('new')}>
-            + Nouvelle écriture
+          <button
+            className="btn btn-primary budget-add"
+            onClick={() => setEditing('new')}
+            title="Nouvelle écriture"
+            aria-label="Nouvelle écriture"
+          >
+            <span aria-hidden="true">+</span>
           </button>
         </>
       )}

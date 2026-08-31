@@ -264,3 +264,20 @@ d'action dépassaient l'écran. Corrigé en leur donnant leur propre classe
 (`.budget-category-row`) et le même repli en dessous de 520px. Les quatre onglets (Aperçu,
 Épargne, Importer, Catégories) et l'éditeur d'écriture ont été vérifiés sans débordement sur un
 viewport de 390 px.
+
+### De la barre pleine largeur au bouton flottant (31/08/2026, même jour)
+
+Deuxième retour de Jules, quelques minutes plus tard : « le bouton est beaucoup trop gros et
+visible ». La barre pleine largeur corrigeait le problème initial (l'atteindre sans scroller)
+mais en créait un autre — elle dominait l'écran. Étudié avant de retoucher : le motif standard
+pour ce geste précis (ajouter un élément à une liste, toujours accessible, jamais envahissant)
+est le **FAB** (floating action button) de Material Design — un petit bouton rond, icône seule,
+ancré dans un coin, popularisé par Gmail, Google Keep, Trello mobile.
+
+**Adopté tel quel** : `.budget-add` redevient minuscule (46 px), rond, avec pour seul contenu
+un « + » — `align-self: flex-end` le pousse dans le coin bas-droit de la liste plutôt qu'à
+gauche ou étiré sur toute la largeur. Le nom accessible (« Nouvelle écriture », « Nouvelle
+catégorie ») ne disparaît pas pour autant : il vit dans `aria-label`/`title` sur le `<button>`
+lui-même, exactement le motif déjà utilisé pour les boutons icône-seule de la barre du haut
+d'Orbite (`docs/etude-flashcards.md` §16) — un bouton dont tout le contenu visible serait
+`aria-hidden` n'aurait sinon plus de nom du tout.

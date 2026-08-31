@@ -140,7 +140,7 @@ export async function run({ browser, check, BASE }) {
 
   // Une entrée d'argent sans catégorie : elle doit apparaître « à classer »,
   // visible plutôt que masquée (docs/etude-astra.md §2).
-  await page.getByRole('button', { name: '+ Nouvelle écriture' }).click();
+  await page.getByRole('button', { name: 'Nouvelle écriture' }).click();
   await page.locator('#budget-entry-label').fill('Remboursement ami');
   await page.getByRole('button', { name: '+ Entrée' }).click();
   await page.locator('#budget-entry-amount').fill('20');
@@ -177,7 +177,7 @@ export async function run({ browser, check, BASE }) {
   // -10 €, qui est bien ce qui doit apparaître comme part (le net positif
   // du remboursement seul, lui, n'aurait pas fait de part — voir
   // lib/monthlyBreakdown.ts).
-  await page.getByRole('button', { name: '+ Nouvelle écriture' }).click();
+  await page.getByRole('button', { name: 'Nouvelle écriture' }).click();
   await page.locator('#budget-entry-label').fill('Distributeur');
   await page.locator('#budget-entry-amount').fill('30');
   await page.getByRole('button', { name: 'Enregistrer' }).click();
@@ -203,7 +203,7 @@ export async function run({ browser, check, BASE }) {
   // Camembert des entrées (retour de Jules après la V1 : voir aussi les
   // deux stats et les deux colonnes ci-dessus) — le salaire, déjà chargé
   // avec les catégories de départ, y fait sa propre part.
-  await page.getByRole('button', { name: '+ Nouvelle écriture' }).click();
+  await page.getByRole('button', { name: 'Nouvelle écriture' }).click();
   await page.locator('#budget-entry-label').fill('Salaire juillet');
   await page.getByRole('button', { name: '+ Entrée' }).click();
   await page.locator('#budget-entry-amount').fill('2500');
@@ -419,7 +419,7 @@ export async function run({ browser, check, BASE }) {
   // Un virement vers l'épargne (§3) : une « Dépense » catégorisée Épargne,
   // comme n'importe quelle écriture — aucun champ ni écran dédié.
   await page.getByRole('button', { name: 'Aperçu' }).click();
-  await page.getByRole('button', { name: '+ Nouvelle écriture' }).click();
+  await page.getByRole('button', { name: 'Nouvelle écriture' }).click();
   await page.locator('#budget-entry-label').fill('Vers Livret A');
   await page.locator('#budget-entry-amount').fill('500');
   await page.locator('#budget-entry-category').selectOption({ label: '🏦 Épargne' });
@@ -580,7 +580,7 @@ export async function run({ browser, check, BASE }) {
     // scroll, sans qu'on ait eu à atteindre la fin de la liste.
     await up.mouse.wheel(0, 800);
     await up.waitForTimeout(200);
-    const addBox = await up.getByRole('button', { name: '+ Nouvelle écriture' }).boundingBox();
+    const addBox = await up.getByRole('button', { name: 'Nouvelle écriture' }).boundingBox();
     check(
       'Le bouton « Nouvelle écriture » reste visible en scrollant',
       addBox !== null && addBox.y >= 0 && addBox.y + addBox.height <= 900,
@@ -588,12 +588,12 @@ export async function run({ browser, check, BASE }) {
     );
     const rowBox = await up.locator('.budget-entry-row').first().boundingBox();
     check(
-      'Une vraie barre pleine largeur, pas une pastille (retour de Jules)',
-      addBox !== null && rowBox !== null && addBox.width >= rowBox.width - 2,
+      'Un bouton flottant discret, pas une barre pleine largeur (retour de Jules)',
+      addBox !== null && rowBox !== null && addBox.width < rowBox.width / 4,
       addBox && rowBox ? `bouton=${Math.round(addBox.width)} ligne=${Math.round(rowBox.width)}` : 'introuvable',
     );
 
-    await up.getByRole('button', { name: '+ Nouvelle écriture' }).click();
+    await up.getByRole('button', { name: 'Nouvelle écriture' }).click();
     await up.waitForSelector('.budget-entry-editor');
     check(
       'Le menu de catégorie est groupé par nature',
@@ -654,8 +654,8 @@ export async function run({ browser, check, BASE }) {
 
   // --- Rendu mobile --------------------------------------------------------
   // Jamais vérifié jusqu'ici pour Astra, comme pour Orbite (31/08/2026) : les
-  // quatre onglets, la barre d'action pleine largeur et l'éditeur d'écriture
-  // (pastilles + menu groupé) doivent tenir sur un téléphone.
+  // quatre onglets, le bouton flottant et l'éditeur d'écriture (pastilles +
+  // menu groupé) doivent tenir sur un téléphone.
   {
     const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const mp = await phone.newPage();
@@ -689,14 +689,14 @@ export async function run({ browser, check, BASE }) {
 
     await mp.mouse.wheel(0, 400);
     await mp.waitForTimeout(200);
-    const mobileAddBox = await mp.getByRole('button', { name: '+ Nouvelle écriture' }).boundingBox();
+    const mobileAddBox = await mp.getByRole('button', { name: 'Nouvelle écriture' }).boundingBox();
     check(
-      'La barre « Nouvelle écriture » reste visible en scrollant sur téléphone',
+      'Le bouton « Nouvelle écriture » reste visible en scrollant sur téléphone',
       mobileAddBox !== null && mobileAddBox.y >= 0 && mobileAddBox.y + mobileAddBox.height <= 844,
       mobileAddBox ? `y=${Math.round(mobileAddBox.y)}` : 'introuvable',
     );
 
-    await mp.getByRole('button', { name: '+ Nouvelle écriture' }).click();
+    await mp.getByRole('button', { name: 'Nouvelle écriture' }).click();
     await mp.waitForSelector('.budget-entry-editor');
     check(
       'Les pastilles de catégories fréquentes tiennent sur téléphone',

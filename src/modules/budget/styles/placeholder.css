@@ -110,19 +110,26 @@
    beaucoup de catégories, il fallait scroller jusqu'au bout pour l'atteindre.
    `position: sticky` le fait flotter dès qu'on commence à faire défiler la
    liste, sans changer son ordre dans le DOM.
-   Pleine largeur plutôt qu'une pastille à gauche (retour de Jules après le
-   premier essai : « l'UI n'est pas top ») — une vraie barre d'action, plus
-   facile à viser au pouce, qui ne se confond pas avec une ligne de la liste
-   juste au-dessus. */
+   Un essai en barre pleine largeur (même jour) s'est révélé trop imposant
+   (« trop gros et trop visible ») : passé au motif du bouton d'action
+   flottant (FAB) — rond, icône seule, coin bas-droit — le standard pour ce
+   geste précis (Gmail, Keep, Trello mobile) : toujours atteignable sans
+   jamais dominer l'écran. Le nom reste porté par `aria-label`/`title`,
+   même motif que les boutons de la barre du haut d'Orbite. */
 .budget-add {
-  align-self: stretch;
+  align-self: flex-end;
   justify-content: center;
+  align-items: center;
   position: sticky;
-  bottom: calc(14px + env(safe-area-inset-bottom));
+  bottom: calc(16px + env(safe-area-inset-bottom));
   z-index: 5;
-  padding: 13px 18px;
-  font-size: 14.5px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
 
 /* --- éditeur de catégorie ---------------------------------------------- */
