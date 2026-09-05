@@ -13,7 +13,16 @@ import type { GoalAmountSummary } from '../lib/progress';
  */
 const WEEKS_SHOWN = 12;
 
-export function GoalAmountChart({ summary, unit }: { summary: GoalAmountSummary; unit: string }) {
+export function GoalAmountChart({
+  summary,
+  unit,
+  onHide,
+}: {
+  summary: GoalAmountSummary;
+  unit: string;
+  /** Masquer ce cumul pour cet objectif — un choix explicite, réversible. */
+  onHide: () => void;
+}) {
   const recent = summary.weeks.slice(-WEEKS_SHOWN);
   const max = Math.max(...recent.map((w) => w.amount), 1);
   const last = recent[recent.length - 1];
@@ -23,6 +32,15 @@ export function GoalAmountChart({ summary, unit }: { summary: GoalAmountSummary;
       <div className="goal-amount-head">
         <span className="goal-amount-total">{formatAmount(summary.total, unit)}</span>
         <span className="goal-amount-total-label">depuis le début</span>
+        <button
+          type="button"
+          className="goal-amount-hide"
+          title="Masquer ce cumul pour cet objectif"
+          aria-label="Masquer ce cumul pour cet objectif"
+          onClick={onHide}
+        >
+          ×
+        </button>
       </div>
       <div
         className="goal-amount-bars"

@@ -415,6 +415,34 @@ La métrique est donc posée **au niveau de l'objectif**, pas d'un palier :
   nature — mais seulement quand `ladderKind` résout une unité **non mixte** : une échelle mixte
   n'a pas d'unité de confiance à sommer.
 
+### Un total à zéro n'est pas la même chose que rien à sommer
+
+Signalé par Jules le jour même : « Apprendre l'anglais », en cumul avec une seule action
+« Duolingo » cochée sans quantité (nature « simple » — pas d'unité, pas de valeur habituelle),
+affichait un graphe présent mais **entièrement à zéro** — `goalAmountCheckins` trouve bien la
+réalisation (elle existe), mais `contribution` ne peut rien lui attribuer sans action quantifiée
+en face. `weeklyGoalAmount` ne renvoie `null` que quand **rien du tout** n'alimente l'objectif
+(§ ci-dessus) ; un total nul avec des réalisations bien réelles passait au travers de cette
+garde, et un graphe plat à zéro ne dit rien d'utile — pire, il ressemble à un bug plutôt qu'à
+« cette métrique ne s'applique pas ici ».
+
+`GoalCard` distingue donc désormais l'**automatique** (`rawAmountSummary.total > 0` — il y a
+vraiment quelque chose à sommer) du **choix explicite** de l'utilisateur, porté par
+`Goal.trackAmount: boolean | null` (`null`/absent = automatique) et une nouvelle méthode
+`updateGoal(id, { trackAmount })`, ajoutée au contrat (les deux implémentations) et à la
+migration `2026-09-06-goals-track-amount.sql`. Le choix explicite l'emporte toujours sur
+l'automatique, dans les deux sens :
+
+- un total réel (le marathon) peut être masqué à la main (`onHide`, le « × » sur la carte) —
+  Jules n'a pas forcément envie de voir cette métrique même quand elle dit quelque chose ;
+- un total nul (l'anglais) peut être révélé quand même via un lien discret
+  (`.goal-amount-reveal`, « Afficher le cumul par semaine ») — honnête (0 affiché en toutes
+  lettres) plutôt que masqué en douce sans recours.
+
+Le lien de réouverture ne s'affiche que si `rawAmountSummary !== null` : sans **aucune**
+réalisation à sommer, il n'y a rien à révéler, pas même un zéro — le distinguo tient à la
+lettre près à celui déjà posé dans `weeklyGoalAmount`.
+
 Seule vraie extension de modèle : `addOneOff` gagne un `value: number | null` optionnel (le
 contrat `GoalsStore`, `LocalGoals`, `SupabaseGoals`, et `sync.ts` — l'outbox portait déjà un
 champ `value` générique, jamais branché côté geste ponctuel). La barre de saisie (`Hub.tsx`)

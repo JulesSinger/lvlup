@@ -71,6 +71,13 @@ export interface Goal {
   archived: boolean;
   createdAt: string;
   tiers: Tier[];
+  /**
+   * Afficher le cumul multi-actions (voir `lib/progress.ts`, `weeklyGoalAmount`) ?
+   * `null`/absent = automatique (affiché seulement si l'objectif a une quantité
+   * à sommer) ; explicite sinon — un utilisateur peut vouloir le masquer même
+   * quand il y a quelque chose à montrer, ou l'inverse.
+   */
+  trackAmount?: boolean | null;
 }
 
 export interface GoalInput {

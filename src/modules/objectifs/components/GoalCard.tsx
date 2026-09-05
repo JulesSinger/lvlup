@@ -36,6 +36,8 @@ interface Props {
   ) => Promise<void>;
   onDeleteTier: (tierId: string) => Promise<void>;
   onMoveTier: (tierId: string, direction: -1 | 1) => Promise<void>;
+  /** Choix explicite d'affichage du cumul multi-actions ; `null` = automatique. */
+  onSetTrackAmount: (value: boolean | null) => Promise<void>;
   /** Actions et réalisations : de quoi calculer l'avancée des paliers comptables */
   actions: Action[];
   checkins: Checkin[];
@@ -55,6 +57,7 @@ export function GoalCard({
   onUpdateTier,
   onDeleteTier,
   onMoveTier,
+  onSetTrackAmount,
   actions,
   checkins,
   actionEditor,
@@ -173,6 +176,7 @@ export function GoalCard({
             onUpdateTier={onUpdateTier}
             onDeleteTier={onDeleteTier}
             onMoveTier={onMoveTier}
+            onSetTrackAmount={onSetTrackAmount}
             actions={actions}
             checkins={checkins}
           />
@@ -190,6 +194,7 @@ function Ladder({
   onUpdateTier,
   onDeleteTier,
   onMoveTier,
+  onSetTrackAmount,
   actions,
   checkins,
 }: {
@@ -197,7 +202,7 @@ function Ladder({
   nextTierId: string | null;
   actions: Action[];
   checkins: Checkin[];
-} & Pick<Props, 'onAddTier' | 'onUpdateTier' | 'onDeleteTier' | 'onMoveTier'>) {
+} & Pick<Props, 'onAddTier' | 'onUpdateTier' | 'onDeleteTier' | 'onMoveTier' | 'onSetTrackAmount'>) {
   const [newTitle, setNewTitle] = useState('');
   /** Le rang que prendra la prochaine étape : celui du barreau qu'elle occupera. */
   const nextRank: RankId =
@@ -230,8 +235,15 @@ function Ladder({
   // Le cumul multi-actions (§ journal 2026-09-06) : combien de km cette
   // semaine et depuis le début, tout confondu — une échelle mixte n'a pas
   // d'unité de confiance à afficher, donc pas de cumul non plus.
-  const amountSummary =
+  const rawAmountSummary =
     ladder?.unit && !ladder.mixed ? weeklyGoalAmount(goal, checkins, actions) : null;
+  // Automatique : une action non quantifiée (ex. « Duolingo » coché sans
+  // valeur) retombe sur un total à zéro — un graphe vide qui ne dit rien,
+  // pas une vraie mesure. Le choix explicite de l'utilisateur l'emporte
+  // toujours sur cette règle, dans un sens comme dans l'autre.
+  const amountAuto = rawAmountSummary !== null && rawAmountSummary.total > 0;
+  const amountShown = goal.trackAmount ?? amountAuto;
+  const amountSummary = amountShown ? rawAmountSummary : null;
 
   /**
    * Requalifier l'objectif entier. La nature n'est pas stockée sur l'objectif :
@@ -285,8 +297,24 @@ function Ladder({
         </div>
       )}
 
-      {amountSummary && ladder?.unit && (
-        <GoalAmountChart summary={amountSummary} unit={ladder.unit} />
+      {amountSummary && ladder?.unit ? (
+        <GoalAmountChart
+          summary={amountSummary}
+          unit={ladder.unit}
+          onHide={() => void onSetTrackAmount(false)}
+        />
+      ) : (
+        // Rien à sommer n'a pas de bouton — mais une somme réduite à zéro
+        // (action non quantifiée) ou explicitement masquée reste réactivable.
+        rawAmountSummary !== null && (
+          <button
+            type="button"
+            className="goal-amount-reveal"
+            onClick={() => void onSetTrackAmount(true)}
+          >
+            Afficher le cumul par semaine
+          </button>
+        )
       )}
 
       {goal.tiers.map((tier, index) => (

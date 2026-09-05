@@ -24,6 +24,7 @@ interface GoalRow {
   position: number;
   archived: boolean;
   created_at: string;
+  track_amount: boolean | null;
 }
 
 interface TierRow {
@@ -174,6 +175,7 @@ function toGoal(row: GoalRow, tiers: TierRow[]): Goal {
     position: row.position,
     archived: row.archived,
     createdAt: row.created_at,
+    trackAmount: row.track_amount,
     tiers: tiers
       .filter((t) => t.goal_id === row.id)
       .sort((a, b) => a.position - b.position)
@@ -274,12 +276,16 @@ export class SupabaseGoals implements GoalsStore {
   }
 
 
-  async updateGoal(id: string, patch: Partial<GoalInput> & { archived?: boolean }) {
+  async updateGoal(
+    id: string,
+    patch: Partial<GoalInput> & { archived?: boolean; trackAmount?: boolean | null },
+  ) {
     const row: Record<string, unknown> = {};
     if (patch.title !== undefined) row.title = patch.title;
     if (patch.description !== undefined) row.description = patch.description;
     if (patch.emoji !== undefined) row.emoji = patch.emoji;
     if (patch.archived !== undefined) row.archived = patch.archived;
+    if (patch.trackAmount !== undefined) row.track_amount = patch.trackAmount;
     const { error } = await this.client.from('goals').update(row).eq('id', id);
     if (error) throw new Error(error.message);
   }

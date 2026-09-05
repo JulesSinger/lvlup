@@ -2308,6 +2308,88 @@ export async function run({ browser, check, BASE }) {
       Math.abs(cetteSemaine - (actionKm + 6)) < 0.01,
       `${cetteSemaine} km`,
     );
+
+    // Choix explicite : masquer puis rouvrir, même avec un total réel.
+    await carteKm.locator('.goal-amount-hide').click();
+    await km.waitForTimeout(300);
+    check(
+      'Masquer le cumul le retire de la carte',
+      (await carteKm.locator('.goal-amount').count()) === 0,
+    );
+    check(
+      'Un lien reste pour le rouvrir',
+      (await carteKm.locator('.goal-amount-reveal').count()) === 1,
+    );
+    await carteKm.locator('.goal-amount-reveal').click();
+    await km.waitForTimeout(300);
+    check(
+      'Rouvrir restaure le même total',
+      Math.abs(parseKm((await carteKm.locator('.goal-amount-total').textContent()) ?? '') - (actionKm + 6)) <
+        0.01,
+    );
+    await fresh.close();
+  }
+
+  // --- Une action simple ne fausse pas le cumul par un zéro trompeur -------
+  // Rapporté par Jules : « Apprendre l'anglais » en cumul avec une action
+  // « Duolingo » cochée sans quantité affichait un graphe vide, 0 à chaque
+  // semaine — l'objectif n'a simplement rien à sommer, et ça ne devait pas
+  // s'afficher tout seul. Un lien reste pour le montrer quand même.
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+    const en = await fresh.newPage();
+    en.on('pageerror', (e) => errors.push(e.message));
+    await gotoZenith(en, BASE);
+    await en.waitForSelector('.onboarding-card');
+    await en.getByRole('button', { name: 'Passer' }).click();
+    await en.waitForSelector('.brand');
+    await en.getByRole('button', { name: 'Nouvel objectif' }).click();
+    await en.waitForSelector('.picker-grid');
+    await en.getByRole('button', { name: 'Partir de zéro' }).click();
+    await en.waitForSelector('.draft-tier');
+    await en.locator('#goal-title').fill('Apprendre l’anglais');
+    await en.locator('.draft-tier > input').first().fill('Pratiquer 30 jours');
+    await en.locator('#goal-kind').selectOption('cumul');
+    await en.waitForTimeout(300);
+    await en.getByRole('button', { name: "Créer l'objectif" }).click();
+    await dismissCeremonies(en);
+    await en.waitForTimeout(500);
+
+    // Une action ajoutée à la main, sans quantité — le cas réel signalé.
+    await en.getByRole('button', { name: 'Objectifs' }).click();
+    await en.waitForSelector('.action-editor');
+    await en.locator('.action-add input').fill('Duolingo');
+    await en.getByRole('button', { name: "Ajouter l'action" }).click();
+    await en.waitForTimeout(400);
+
+    await en.getByRole('button', { name: 'Accueil' }).click();
+    await en.waitForSelector('.checkin-chips');
+    const blocEn = en.locator('.today-goal', { hasText: 'Apprendre l’anglais' });
+    await blocEn.locator('.checkin-chip', { hasText: 'Duolingo' }).click();
+    await en.waitForTimeout(600);
+
+    await en.getByRole('button', { name: 'Objectifs' }).click();
+    await en.waitForSelector('.goal');
+    const carteEn = en.locator('.goal', { hasText: 'Apprendre l’anglais' });
+    if ((await carteEn.locator('.action-editor').count()) === 0) {
+      await carteEn.locator('.goal-head').click();
+      await en.waitForTimeout(400);
+    }
+    check(
+      'Une action sans quantité ne fait pas apparaître un cumul à zéro',
+      (await carteEn.locator('.goal-amount').count()) === 0,
+    );
+    check(
+      'Un lien discret propose de l’afficher quand même',
+      (await carteEn.locator('.goal-amount-reveal').count()) === 1,
+    );
+    await carteEn.locator('.goal-amount-reveal').click();
+    await en.waitForTimeout(300);
+    check(
+      'Forcé, il s’affiche, à zéro — honnête plutôt que masqué en douce',
+      (await carteEn.locator('.goal-amount-total').textContent())?.includes('0'),
+      await carteEn.locator('.goal-amount-total').textContent(),
+    );
     await fresh.close();
   }
 

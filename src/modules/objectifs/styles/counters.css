@@ -212,6 +212,38 @@
   margin-bottom: 8px;
 }
 
+.goal-amount-hide {
+  margin-left: auto;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.goal-amount-hide:hover {
+  color: var(--text-dim);
+}
+
+/* Rien à sommer d'affiché n'est pas un renoncement : le lien reste
+   disponible, discret, pour rouvrir un cumul réduit à zéro ou masqué. */
+.goal-amount-reveal {
+  margin-bottom: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  text-decoration: underline dotted;
+  cursor: pointer;
+}
+
+.goal-amount-reveal:hover {
+  color: var(--text-dim);
+}
+
 .goal-amount-total {
   font-size: 17px;
   font-weight: 600;

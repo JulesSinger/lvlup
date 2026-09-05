@@ -85,6 +85,7 @@ export class LocalGoals implements GoalsStore {
       position: snapshot.goals.length,
       archived: false,
       createdAt: now,
+      trackAmount: null,
       tiers: tiers.map((t, index) => ({
         id: newId(),
         goalId,
@@ -119,7 +120,10 @@ export class LocalGoals implements GoalsStore {
   }
 
 
-  async updateGoal(id: string, patch: Partial<GoalInput> & { archived?: boolean }) {
+  async updateGoal(
+    id: string,
+    patch: Partial<GoalInput> & { archived?: boolean; trackAmount?: boolean | null },
+  ) {
     const snapshot = read();
     const goal = snapshot.goals.find((g) => g.id === id);
     if (!goal) return;

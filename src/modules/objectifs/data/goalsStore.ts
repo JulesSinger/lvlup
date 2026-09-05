@@ -37,7 +37,10 @@ export interface GoalsStore {
    * des kilomètres, sans quoi il reste à 0/100 quoi qu'on coche.
    */
   createGoal(input: GoalInput, tiers: TierInput[], actions?: ActionInput[]): Promise<Goal>;
-  updateGoal(id: string, patch: Partial<GoalInput> & { archived?: boolean }): Promise<void>;
+  updateGoal(
+    id: string,
+    patch: Partial<GoalInput> & { archived?: boolean; trackAmount?: boolean | null },
+  ): Promise<void>;
   deleteGoal(id: string): Promise<void>;
 
   createTier(goalId: string, input: TierInput): Promise<Tier>;

@@ -932,6 +932,9 @@ export function ZenithScreen({
                     }}
                     onDeleteTier={(tierId) => run(() => goalsStore.deleteTier(tierId))}
                     onMoveTier={async (tierId, direction) => moveTier(goal, tierId, direction)}
+                    onSetTrackAmount={(value) =>
+                      run(() => goalsStore.updateGoal(goal.id, { trackAmount: value }))
+                    }
                     actions={actions}
                     checkins={checkins}
                     actionEditor={
