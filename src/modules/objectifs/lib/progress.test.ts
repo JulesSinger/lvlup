@@ -11,12 +11,13 @@ import {
   sumCheckinPP,
   todayPP,
   weekStats,
+  weeklyGoalAmount,
   weeklyPP,
 } from './progress';
 import { getRank } from './ranks';
 import { dayString } from './streak';
 import type { RankId } from './ranks';
-import { JALON, type Checkin, type Goal, type Tier } from './types';
+import { JALON, type Action, type Checkin, type Goal, type Tier } from './types';
 
 /**
  * Ces fonctions décident du rang affiché et des points gagnés. Deux règles
@@ -323,6 +324,98 @@ describe('les PP semaine par semaine', () => {
 
   it('rien du tout ne donne aucune barre', () => {
     expect(weeklyPP([], [], '2026-05-20')).toEqual([]);
+  });
+});
+
+describe('weeklyGoalAmount', () => {
+  const lundi = '2026-05-18'; // un lundi
+
+  function amountCheckin(day: string, patch: Partial<Checkin> = {}): Checkin {
+    counter += 1;
+    return {
+      id: `ca${counter}`,
+      goalId: 'g1',
+      actionId: null,
+      pp: 10,
+      day,
+      note: '',
+      createdAt: `${day}T08:00:00.000Z`,
+      value: null,
+      title: null,
+      ...patch,
+    };
+  }
+
+  function action(patch: Partial<Action>): Action {
+    counter += 1;
+    return {
+      id: patch.id ?? `a${counter}`,
+      goalId: 'g1',
+      title: 'Action',
+      pp: 15,
+      position: 0,
+      archived: false,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      unit: '',
+      defaultValue: null,
+      isMeasure: false,
+      ...patch,
+    };
+  }
+
+  /**
+   * L'objectif marathon (journal 2026-09-06) : plusieurs actions différentes
+   * qui courent toutes des km, plus des gestes ponctuels quantifiés — tout
+   * doit se retrouver dans le même cumul.
+   */
+  it('additionne plusieurs actions de l’objectif dans la même semaine', () => {
+    const g = goal([tier('or', null)]);
+    const list = [
+      amountCheckin(lundi, { actionId: 'a1', value: 8 }),
+      amountCheckin('2026-05-20', { actionId: 'a2', value: 5 }),
+    ];
+    const summary = weeklyGoalAmount(g, list, [], '2026-05-20');
+    expect(summary?.total).toBe(13);
+    expect(summary?.weeks).toEqual([{ monday: lundi, amount: 13 }]);
+  });
+
+  it('inclut les gestes ponctuels quantifiés', () => {
+    const g = goal([tier('or', null)]);
+    const list = [
+      amountCheckin(lundi, { actionId: 'a1', value: 8 }),
+      amountCheckin('2026-05-19', { actionId: null, title: 'sortie improvisée', value: 6 }),
+    ];
+    const summary = weeklyGoalAmount(g, list, [], '2026-05-19');
+    expect(summary?.total).toBe(14);
+  });
+
+  it('exclut une mesure (ex. la VMA) du cumul', () => {
+    const g = goal([tier('or', null)]);
+    const vma = action({ id: 'a1', unit: 'km/h', isMeasure: true });
+    const list = [amountCheckin(lundi, { actionId: 'a1', value: 15 })];
+    expect(weeklyGoalAmount(g, list, [vma], lundi)?.total).toBeUndefined();
+  });
+
+  it('remplit les semaines sans rien à zéro, comme weeklyPP', () => {
+    const g = goal([tier('or', null)]);
+    const list = [
+      amountCheckin('2026-05-18', { value: 10 }),
+      amountCheckin('2026-06-08', { value: 20 }),
+    ];
+    const summary = weeklyGoalAmount(g, list, [], '2026-06-08');
+    expect(summary?.weeks.map((w) => w.amount)).toEqual([10, 0, 0, 20]);
+    expect(summary?.total).toBe(30);
+  });
+
+  it('vaut null sans aucune réalisation à sommer', () => {
+    const g = goal([tier('or', null)]);
+    expect(weeklyGoalAmount(g, [], [], '2026-05-20')).toBeNull();
+  });
+
+  it('ignore les réalisations d’un autre objectif', () => {
+    const g = goal([tier('or', null)]);
+    const list = [amountCheckin(lundi, { goalId: 'g2', value: 8 })];
+    expect(weeklyGoalAmount(g, list, [], '2026-05-20')).toBeNull();
   });
 });
 

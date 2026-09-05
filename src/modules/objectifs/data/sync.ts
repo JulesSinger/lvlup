@@ -40,7 +40,7 @@ async function run(): Promise<FlushResult> {
       if (op.kind === 'add' && op.actionId === null) {
         // Geste ponctuel : pas d'action, donc pas d'upsert possible. Le
         // dédoublonnage se fait en amont, dans `applyPending`.
-        await goalsStore.addOneOff(op.goalId, op.day, op.title ?? '', op.pp);
+        await goalsStore.addOneOff(op.goalId, op.day, op.title ?? '', op.pp, op.value);
       } else if (op.kind === 'add') {
         // `addCheckin` est un upsert : rejouer deux fois la même coche ne
         // crée pas de doublon.

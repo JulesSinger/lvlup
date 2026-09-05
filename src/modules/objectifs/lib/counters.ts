@@ -84,13 +84,37 @@ export function feedingCheckins(
  * Quantité apportée par une réalisation.
  * À défaut de valeur relevée, on retombe sur la valeur habituelle de l'action —
  * c'est ce qui permet de cocher sans rien saisir tout en alimentant un cumul
- * en kilomètres.
+ * en kilomètres. Pour un geste ponctuel (sans action), rien à défaut : sa
+ * quantité est celle saisie, ou zéro.
  */
-function contribution(checkin: Checkin, actions: Action[]): number {
+export function contribution(checkin: Checkin, actions: Action[]): number {
   if (typeof checkin.value === 'number') return checkin.value;
   const action = actions.find((a) => a.id === checkin.actionId);
   if (action && typeof action.defaultValue === 'number') return action.defaultValue;
   return 0;
+}
+
+/**
+ * Réalisations qui comptent dans le cumul multi-actions d'un objectif — la
+ * métrique « combien de km cette semaine, tout confondu » qui traverse
+ * plusieurs actions (courir, un fractionné…) et les gestes ponctuels
+ * quantifiés, là où un palier `cumul` ne regarde qu'une seule échelle.
+ *
+ * Mêmes règles que `feedsByDefault` pour les réalisations d'action (une
+ * mesure comme la VMA n'avance jamais un cumul), et les gestes ponctuels y
+ * sont en plus explicitement inclus — à la différence de `feedingCheckins`,
+ * qui les écarte parce qu'ils ne font monter aucune marche. Ici, il n'y a pas
+ * de marche : juste une somme, à laquelle un geste ponctuel quantifié
+ * participe légitimement.
+ */
+export function goalAmountCheckins(goalId: string, checkins: Checkin[], actions: Action[]): Checkin[] {
+  const byId = new Map(actions.map((a) => [a.id, a]));
+  return checkins.filter((c) => {
+    if (c.goalId !== goalId) return false;
+    if (c.title !== null) return true;
+    const action = c.actionId ? byId.get(c.actionId) : undefined;
+    return !action || !action.isMeasure;
+  });
 }
 
 /** Jours distincts, triés, d'une liste de réalisations. */

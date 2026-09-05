@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { formatAmount, tierProgress } from '../lib/counters';
 import { goalState } from '../lib/heatmap';
-import { formatDate, goalProgress } from '../lib/progress';
+import { formatDate, goalProgress, weeklyGoalAmount } from '../lib/progress';
 import { inheritedTier, kindFields, ladderKind } from '../lib/quantities';
 import {
   getRank,
@@ -12,6 +12,7 @@ import {
   type RankId,
 } from '../lib/ranks';
 import type { Action, Checkin, Goal, Tier, TierInput, TierKind } from '../lib/types';
+import { GoalAmountChart } from './GoalAmountChart';
 import { Heatmap } from './Heatmap';
 import { MeasureChart } from './MeasureChart';
 import { RankBadge, RankSelect } from './RankBadge';
@@ -226,6 +227,11 @@ function Ladder({
   }
 
   const ladder = ladderKind(goal.tiers);
+  // Le cumul multi-actions (§ journal 2026-09-06) : combien de km cette
+  // semaine et depuis le début, tout confondu — une échelle mixte n'a pas
+  // d'unité de confiance à afficher, donc pas de cumul non plus.
+  const amountSummary =
+    ladder?.unit && !ladder.mixed ? weeklyGoalAmount(goal, checkins, actions) : null;
 
   /**
    * Requalifier l'objectif entier. La nature n'est pas stockée sur l'objectif :
@@ -277,6 +283,10 @@ function Ladder({
             </span>
           )}
         </div>
+      )}
+
+      {amountSummary && ladder?.unit && (
+        <GoalAmountChart summary={amountSummary} unit={ladder.unit} />
       )}
 
       {goal.tiers.map((tier, index) => (

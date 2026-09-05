@@ -422,7 +422,7 @@ export function ZenithScreen({
    * et ne reviendra pas demain sous forme de case à cocher : il n'a pas
    * d'action derrière. C'est tout ce qui l'empêche de devenir un déversoir.
    */
-  function logOneOff(goal: Goal, title: string, day: string = dayString()) {
+  function logOneOff(goal: Goal, title: string, day: string = dayString(), value: number | null = null) {
     const clean = title.trim();
     if (!clean) return;
     playCheckinBlip();
@@ -436,7 +436,7 @@ export function ZenithScreen({
       day,
       note: '',
       createdAt: new Date().toISOString(),
-      value: null,
+      value,
       title: clean,
     };
     const nextCheckins = [...checkins, optimistic];
@@ -462,7 +462,7 @@ export function ZenithScreen({
 
     void (async () => {
       try {
-        await goalsStore.addOneOff(goal.id, day, clean, ONE_OFF_PP);
+        await goalsStore.addOneOff(goal.id, day, clean, ONE_OFF_PP, value);
         await refresh();
       } catch (err) {
         if (isNetworkError(err)) {
@@ -472,6 +472,7 @@ export function ZenithScreen({
             day,
             pp: ONE_OFF_PP,
             title: clean,
+            value,
           });
           setCheckins((prev) =>
             prev.map((c) => (c.id === optimistic.id ? { ...c, id: pendingId } : c)),

@@ -533,6 +533,13 @@
   flex: 1 1 180px;
 }
 
+/* La quantité (« combien de km ») reste courte : c'est le titre qui a besoin
+   de place, pas ce champ. */
+.oneoff-bar input.oneoff-value {
+  flex: 0 1 90px;
+  font-variant-numeric: tabular-nums;
+}
+
 .checkin-value input {
   flex: 0 1 130px;
   font-variant-numeric: tabular-nums;

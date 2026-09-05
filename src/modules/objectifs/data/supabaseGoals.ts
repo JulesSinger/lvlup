@@ -431,7 +431,7 @@ export class SupabaseGoals implements GoalsStore {
   }
 
 
-  async addOneOff(goalId: string, day: string, title: string, pp: number): Promise<Checkin> {
+  async addOneOff(goalId: string, day: string, title: string, pp: number, value: number | null = null): Promise<Checkin> {
     const userId = await this.requireUserId();
     // Insertion simple et non upsert : la contrainte d'unicité porte sur
     // (user, action, jour), et une action nulle est distincte de toute autre.
@@ -446,6 +446,7 @@ export class SupabaseGoals implements GoalsStore {
           pp,
           day,
           title: title.trim(),
+          value,
         })
         .select()
         .single(),

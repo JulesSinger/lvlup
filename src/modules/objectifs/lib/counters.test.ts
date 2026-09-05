@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { feedingCheckins, formatAmount, isCountable, tierProgress, todayContribution } from './counters';
+import {
+  contribution,
+  feedingCheckins,
+  formatAmount,
+  goalAmountCheckins,
+  isCountable,
+  tierProgress,
+  todayContribution,
+} from './counters';
 import type { Action, Checkin, Tier, TierKind } from './types';
 
 /**
@@ -382,6 +390,55 @@ describe('ce que la coche du jour ajouterait', () => {
   it('ne promet rien sur une mesure ou une performance', () => {
     expect(todayContribution(tier({ kind: 'mesure', target: -5 }), [], [])).toBe(0);
     expect(todayContribution(tier({ kind: 'performance', target: 10 }), [], [])).toBe(0);
+  });
+});
+
+/**
+ * Le cumul multi-actions d'un objectif (journal 2026-09-06) : « combien de km
+ * cette semaine, en tout », qui traverse plusieurs actions ET les gestes
+ * ponctuels — contrairement à `feedingCheckins`, qui reste au périmètre d'un
+ * seul palier et exclut toujours les gestes ponctuels.
+ */
+describe('goalAmountCheckins', () => {
+  it('rassemble les réalisations de plusieurs actions du même objectif', () => {
+    const list = [
+      checkin('2026-05-18', { actionId: 'a1', value: 8 }),
+      checkin('2026-05-19', { actionId: 'a2', value: 5 }),
+    ];
+    expect(goalAmountCheckins('g1', list, [])).toHaveLength(2);
+  });
+
+  it('ignore les réalisations d’un autre objectif', () => {
+    const list = [checkin('2026-05-18', { goalId: 'g2' })];
+    expect(goalAmountCheckins('g1', list, [])).toHaveLength(0);
+  });
+
+  it('exclut une mesure (ex. la VMA) : elle relève un état, elle n’avance rien', () => {
+    const vma = action({ id: 'a1', unit: 'km/h', isMeasure: true });
+    const list = [checkin('2026-05-18', { actionId: 'a1', value: 15 })];
+    expect(goalAmountCheckins('g1', list, [vma])).toHaveLength(0);
+  });
+
+  it('inclut un geste ponctuel, à la différence de feedingCheckins', () => {
+    const ponctuel = checkin('2026-05-18', { actionId: null, title: 'sortie improvisée', value: 6 });
+    expect(goalAmountCheckins('g1', [ponctuel], [])).toHaveLength(1);
+  });
+
+  it('une action inconnue passe : l’historique ne se réécrit pas', () => {
+    const list = [checkin('2026-05-18', { actionId: 'disparue' })];
+    expect(goalAmountCheckins('g1', list, [])).toHaveLength(1);
+  });
+});
+
+describe('contribution', () => {
+  it('retombe sur zéro pour un geste ponctuel sans quantité saisie', () => {
+    const ponctuel = checkin('2026-05-18', { actionId: null, title: 'tuto', value: null });
+    expect(contribution(ponctuel, [])).toBe(0);
+  });
+
+  it('prend la quantité saisie sur un geste ponctuel', () => {
+    const ponctuel = checkin('2026-05-18', { actionId: null, title: 'sortie improvisée', value: 6 });
+    expect(contribution(ponctuel, [])).toBe(6);
   });
 });
 

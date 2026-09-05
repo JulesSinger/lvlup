@@ -2229,6 +2229,88 @@ export async function run({ browser, check, BASE }) {
     await fresh.close();
   }
 
+  // --- Le cumul multi-actions d'un objectif (journal 2026-09-06) -----------
+  // « Combien de km cette semaine, en tout » : une action cochée ET un geste
+  // ponctuel quantifié doivent se retrouver dans le même total, sur la carte
+  // de l'objectif — pas seulement dans la barre de progression d'un palier.
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+    const km = await fresh.newPage();
+    km.on('pageerror', (e) => errors.push(e.message));
+    await gotoZenith(km, BASE);
+    await km.waitForSelector('.onboarding-card');
+    await km.getByRole('button', { name: 'Passer' }).click();
+    await km.waitForSelector('.brand');
+    await km.getByRole('button', { name: 'Nouvel objectif' }).click();
+    await km.waitForSelector('.picker-grid');
+    await km.getByRole('button', { name: 'Partir de zéro' }).click();
+    await km.waitForSelector('.draft-tier');
+    await km.locator('#goal-title').fill('Courir un marathon');
+    await km.locator('.draft-tier > input').first().fill('Courir 42,2 km');
+    await km.locator('#goal-kind').selectOption('cumul');
+    await km.waitForTimeout(300);
+    await km.getByRole('button', { name: "Créer l'objectif" }).click();
+    await dismissCeremonies(km);
+    await km.waitForTimeout(500);
+
+    // Cocher une action ordinaire : elle porte déjà l'unité de l'objectif.
+    await km.getByRole('button', { name: 'Accueil' }).click();
+    await km.waitForSelector('.checkin-chips');
+    const bloc = km.locator('.today-goal', { hasText: 'Courir un marathon' });
+    const premiere = bloc.locator('.checkin-chip:not(.add-oneoff)').first();
+    const montant = (await premiere.locator('.checkin-amount').textContent()) ?? '';
+    const parseKm = (text) => Number(text.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+    const actionKm = parseKm(montant);
+    await premiere.click();
+    await km.waitForTimeout(600);
+
+    // Puis un geste ponctuel avec sa propre quantité — la nouveauté : il doit
+    // compter dans le même total qu'une action cochée.
+    await bloc.locator('.checkin-chip.add-oneoff').click();
+    await km.waitForSelector('.oneoff-bar input');
+    check(
+      'Une unité connue ouvre un champ de quantité sur le geste ponctuel',
+      await km.locator('.oneoff-value').isVisible(),
+    );
+    await km.locator('.oneoff-bar input').first().fill('Sortie improvisée');
+    await km.locator('.oneoff-value').fill('6');
+    await km.locator('.oneoff-bar .btn-primary').click();
+    await km.waitForTimeout(500);
+    check(
+      'Le geste ponctuel affiche sa quantité, comme une action cochée',
+      ((await bloc.locator('.checkin-chip.oneoff .checkin-amount').first().textContent()) ?? '').includes(
+        'km',
+      ),
+      await bloc.locator('.checkin-chip.oneoff .checkin-amount').first().textContent(),
+    );
+
+    // La carte de l'objectif porte le cumul des deux, semaine par semaine.
+    await km.getByRole('button', { name: 'Objectifs' }).click();
+    await km.waitForSelector('.goal');
+    const carteKm = km.locator('.goal', { hasText: 'Courir un marathon' });
+    if ((await carteKm.locator('.goal-amount').count()) === 0) {
+      await carteKm.locator('.goal-head').click();
+      await km.waitForTimeout(400);
+    }
+    check(
+      'Le cumul multi-actions apparaît sur la carte de l’objectif',
+      (await carteKm.locator('.goal-amount').count()) === 1,
+    );
+    const total = parseKm((await carteKm.locator('.goal-amount-total').textContent()) ?? '');
+    check(
+      'Le total additionne l’action cochée et le geste ponctuel',
+      Math.abs(total - (actionKm + 6)) < 0.01,
+      `${total} km (attendu ${actionKm + 6})`,
+    );
+    const cetteSemaine = parseKm((await carteKm.locator('.goal-amount-foot').textContent()) ?? '');
+    check(
+      'Et la même somme se retrouve sur la semaine en cours',
+      Math.abs(cetteSemaine - (actionKm + 6)) < 0.01,
+      `${cetteSemaine} km`,
+    );
+    await fresh.close();
+  }
+
   check('Aucune erreur JavaScript', errors.length === 0, errors.join(' | '));
 
   await context.close();

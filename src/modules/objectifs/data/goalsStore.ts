@@ -66,8 +66,10 @@ export interface GoalsStore {
   /**
    * Enregistre un **geste ponctuel** : un vrai pas vers l'objectif, mais pas
    * une habitude. Sans action derrière, donc sans case à cocher le lendemain.
+   * `value` est optionnelle : une quantité (ex. des km courus) qui compte
+   * dans le cumul multi-actions de l'objectif, quand celui-ci en suit une.
    */
-  addOneOff(goalId: string, day: string, title: string, pp: number): Promise<Checkin>;
+  addOneOff(goalId: string, day: string, title: string, pp: number, value?: number | null): Promise<Checkin>;
   /** Ajoute ou modifie la note libre, ou la quantité relevée. */
   updateCheckin(id: string, patch: { note?: string; value?: number | null }): Promise<void>;
   deleteCheckin(id: string): Promise<void>;

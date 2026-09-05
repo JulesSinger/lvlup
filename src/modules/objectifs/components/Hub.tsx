@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { catchupDays, catchupLabel, ignoreDay, shiftDay } from '../lib/catchup';
 import { formatAmount, isCountable } from '../lib/counters';
-import { needsInput, parseAmount, tapValue } from '../lib/quantities';
+import { ladderKind, needsInput, parseAmount, tapValue } from '../lib/quantities';
 import {
   freezeFill,
   freezeOffer,
@@ -47,7 +47,7 @@ export function Hub({
   checkins: Checkin[];
   dailyGoal: number;
   onLogAction: (goal: Goal, action: Action, day?: string, value?: number | null) => void;
-  onLogOneOff: (goal: Goal, title: string, day?: string) => void;
+  onLogOneOff: (goal: Goal, title: string, day?: string, value?: number | null) => void;
   onUnlogAction: (checkin: Checkin) => void;
   onSaveNote: (checkin: Checkin, note: string) => void;
   onSaveValue: (checkin: Checkin, value: number) => void;
@@ -125,14 +125,17 @@ export function Hub({
   /** Objectif pour lequel on est en train d'écrire un geste ponctuel. */
   const [oneOffFor, setOneOffFor] = useState<Goal | null>(null);
   const [oneOffDraft, setOneOffDraft] = useState('');
+  /** Quantité optionnelle du geste — seulement quand l'objectif suit une unité. */
+  const [oneOffValueDraft, setOneOffValueDraft] = useState('');
 
   function submitOneOff() {
     if (!oneOffFor) return;
     const title = oneOffDraft.trim();
     if (!title) return;
-    onLogOneOff(oneOffFor, title, viewDay);
+    onLogOneOff(oneOffFor, title, viewDay, parseAmount(oneOffValueDraft));
     setOneOffFor(null);
     setOneOffDraft('');
+    setOneOffValueDraft('');
   }
 
   function openValue(goal: Goal, action: Action, checkin: Checkin | null) {
@@ -354,6 +357,9 @@ export function Hub({
           {active.map((goal) => {
             const goalActions = actions.filter((a) => a.goalId === goal.id);
             if (goalActions.length === 0) return null;
+            // Une unité connue permet de saisir une quantité sur le geste
+            // ponctuel — sinon, le champ n'aurait rien à demander.
+            const ladder = ladderKind(goal.tiers);
             return (
               <div className="today-goal" key={goal.id}>
                 <div className="today-goal-name">
@@ -512,6 +518,9 @@ export function Hub({
                         onClick={() => onUnlogAction(log)}
                       >
                         <span className="checkin-title">{log.title}</span>
+                        {typeof log.value === 'number' && (
+                          <span className="checkin-amount">{formatAmount(log.value, ladder?.unit)}</span>
+                        )}
                         {/* « noté », pas « fait » : rien n'a été coché ici, et
                             un ✓ laisserait croire à une case de plus. */}
                         <span className="checkin-mark">noté</span>
@@ -530,6 +539,7 @@ export function Hub({
                       setNoteFor(null);
                       setOneOffFor((g) => (g?.id === goal.id ? null : goal));
                       setOneOffDraft('');
+                      setOneOffValueDraft('');
                     }}
                   >
                     <span aria-hidden="true">+</span>
@@ -558,6 +568,23 @@ export function Hub({
                       placeholder="Ce que tu as fait une fois : « tuto sur la gestion de budget »"
                       aria-label={`Geste ponctuel pour ${goal.title}`}
                     />
+                    {ladder?.unit && (
+                      <input
+                        className="oneoff-value"
+                        inputMode="decimal"
+                        value={oneOffValueDraft}
+                        onChange={(e) => setOneOffValueDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            submitOneOff();
+                          }
+                          if (e.key === 'Escape') setOneOffFor(null);
+                        }}
+                        placeholder={ladder.unit}
+                        aria-label={`Quantité en ${ladder.unit} pour ce geste`}
+                      />
+                    )}
                     <button
                       className="btn btn-primary btn-sm"
                       onClick={submitOneOff}

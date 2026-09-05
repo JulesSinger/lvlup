@@ -1,7 +1,8 @@
 import { shiftDay } from './catchup';
+import { contribution, goalAmountCheckins } from './counters';
 import { getRank, rankByValue, type Rank } from './ranks';
 import { dayString } from './streak';
-import type { Checkin, Goal, Tier } from './types';
+import type { Action, Checkin, Goal, Tier } from './types';
 
 export interface GoalProgress {
   done: number;
@@ -365,4 +366,56 @@ export function weeklyPP(
     cursor = shiftDay(cursor, 7);
   }
   return out;
+}
+
+export interface GoalAmountWeek {
+  /** Lundi de la semaine (YYYY-MM-DD) */
+  monday: string;
+  amount: number;
+}
+
+export interface GoalAmountSummary {
+  weeks: GoalAmountWeek[];
+  total: number;
+}
+
+/**
+ * Le cumul multi-actions d'un objectif, semaine par semaine et depuis le
+ * début — « combien de km cette semaine, en tout » (voir CLAUDE.md, journal
+ * du 2026-09-06). Contrairement à un palier `cumul`, qui ne regarde qu'une
+ * seule échelle et exclut les gestes ponctuels, cette métrique traverse
+ * toutes les actions compatibles de l'objectif ET les gestes ponctuels
+ * quantifiés — voir `goalAmountCheckins`.
+ *
+ * `null` quand l'objectif ne dit rien à sommer : aucun palier comptable, ou
+ * aucune réalisation encore. Affiché nulle part sinon un cadre vide sans
+ * intérêt.
+ */
+export function weeklyGoalAmount(
+  goal: Goal,
+  checkins: Checkin[],
+  actions: Action[],
+  today: string = dayString(),
+): GoalAmountSummary | null {
+  const feeding = goalAmountCheckins(goal.id, checkins, actions).filter((c) => c.day <= today);
+  if (feeding.length === 0) return null;
+
+  const perWeek = new Map<string, number>();
+  let total = 0;
+  for (const c of feeding) {
+    const amount = contribution(c, actions);
+    total += amount;
+    const monday = mondayOf(c.day);
+    perWeek.set(monday, (perWeek.get(monday) ?? 0) + amount);
+  }
+
+  const semaines = [...perWeek.keys()].sort();
+  const weeks: GoalAmountWeek[] = [];
+  let cursor = semaines[0];
+  const fin = mondayOf(today);
+  while (cursor <= fin) {
+    weeks.push({ monday: cursor, amount: perWeek.get(cursor) ?? 0 });
+    cursor = shiftDay(cursor, 7);
+  }
+  return { weeks, total };
 }

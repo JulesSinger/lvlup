@@ -286,7 +286,7 @@ export class LocalGoals implements GoalsStore {
   }
 
 
-  async addOneOff(goalId: string, day: string, title: string, pp: number): Promise<Checkin> {
+  async addOneOff(goalId: string, day: string, title: string, pp: number, value: number | null = null): Promise<Checkin> {
     const snapshot = read();
     const checkin: Checkin = {
       id: newId(),
@@ -298,7 +298,7 @@ export class LocalGoals implements GoalsStore {
       day,
       note: '',
       createdAt: new Date().toISOString(),
-      value: null,
+      value,
       title: title.trim(),
     };
     snapshot.checkins.push(checkin);

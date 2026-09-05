@@ -387,3 +387,40 @@ pas des pixels.** `.picker-card` était bien au nombre de 7, chacune bien cliqua
 illisible. Six vérifications géométriques ont été ajoutées : trois colonnes distinctes dans
 l'aperçu, pas de puce native, cartes de hauteur réelle disposées en grille, champs de l'échelle
 alignés, marches de la cérémonie séparées, et le panneau qui tient dans 390 px de large.
+
+## 14. Le cumul multi-actions — une métrique de l'objectif, pas d'un palier
+
+Demande de Jules (2026-09-06) sur un objectif marathon dont les paliers sont en `performance`
+(la meilleure séance, jamais une somme — voir §11 de l'époque) : « je veux savoir combien j'ai
+couru de km dans toutes mes actions de l'objectif de la semaine, il peut y avoir plusieurs
+actions différentes, et même les actions ponctuelles ». Aucun des cinq `TierKind` ne répond à
+ça — `cumul` ne regarde qu'une seule échelle et exclut les gestes ponctuels (voir §6), et un
+geste ponctuel n'alimente d'ailleurs **aucun** palier, quelle que soit sa nature (garde
+explicite de `feedingCheckins`, testée dans `counters.test.ts`).
+
+La métrique est donc posée **au niveau de l'objectif**, pas d'un palier :
+
+- `goalAmountCheckins(goalId, checkins, actions)` (`lib/counters.ts`) reprend la règle de
+  `feedsByDefault` — une mesure (ex. la VMA) n'avance jamais un cumul — mais, à la différence de
+  `feedingCheckins`, **inclut** les gestes ponctuels : c'est tout l'objet de la demande. Une
+  action inconnue (supprimée) passe, comme partout ailleurs dans ce fichier.
+- `contribution` (déjà présente, désormais exportée) donne la quantité de chaque réalisation ;
+  pour un geste ponctuel sans quantité saisie, elle retombe naturellement sur zéro.
+- `weeklyGoalAmount(goal, checkins, actions, today)` (`lib/progress.ts`) agrège semaine par
+  semaine — même repli à trous comblés que `weeklyPP`, une pause doit se voir plutôt que
+  disparaître — et renvoie aussi le total depuis le début. `null` quand rien n'alimente
+  l'objectif, pour ne rien afficher plutôt qu'un cadre vide.
+- Affiché par `GoalAmountChart` (barres CSS, pas un SVG comme `PPChart` : ce widget peut se
+  répéter sur plusieurs cartes d'objectif à la fois) sur la carte, juste sous le sélecteur de
+  nature — mais seulement quand `ladderKind` résout une unité **non mixte** : une échelle mixte
+  n'a pas d'unité de confiance à sommer.
+
+Seule vraie extension de modèle : `addOneOff` gagne un `value: number | null` optionnel (le
+contrat `GoalsStore`, `LocalGoals`, `SupabaseGoals`, et `sync.ts` — l'outbox portait déjà un
+champ `value` générique, jamais branché côté geste ponctuel). La barre de saisie (`Hub.tsx`)
+affiche un champ de quantité **seulement** quand l'objectif a une unité connue, exactement comme
+le principe déjà établi pour les autres saisies quantifiées de ce fichier.
+
+Ce total ne remplace la barre de progression d'aucun palier existant, et peut légitimement en
+diverger : un geste ponctuel compte ici, jamais dans un palier `cumul`. C'est voulu, pas un bug
+à réconcilier.
