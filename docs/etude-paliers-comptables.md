@@ -452,3 +452,37 @@ le principe déjà établi pour les autres saisies quantifiées de ce fichier.
 Ce total ne remplace la barre de progression d'aucun palier existant, et peut légitimement en
 diverger : un geste ponctuel compte ici, jamais dans un palier `cumul`. C'est voulu, pas un bug
 à réconcilier.
+
+### Le vrai « Apprendre l'anglais » était un palier « Jours » (compte), pas un cumul
+
+Le correctif ci-dessus (masquer un total nul) traitait le symptôme. Le vrai cas de Jules,
+reformulé après coup, portait un palier **« Jours »** — c'est-à-dire `kind: 'compte'`, pas
+`cumul` (le sélecteur affiche « Jours » pour `compte` et « Total » pour `cumul`, voir
+`TierCounter.KINDS`). Cocher « Duolingo » affichait bien `0 jours cette semaine` malgré la coche
+— et c'était **structurellement impossible à corriger** par le mécanisme du dessus, pour une
+raison plus profonde : `starterActions` ne donne **jamais** d'unité aux actions d'un objectif
+`compte`/`serie` (« compter des jours ne demande aucune unité sur les actions », testé depuis
+l'étape 4) — le palier lui-même compte des **jours distincts** (`distinctDays`, dans
+`tierProgress`), jamais une somme. `weeklyGoalAmount`, lui, sommait `contribution` sans regarder
+le `kind` du palier : pour `compte`/`serie`, cette somme valait **toujours zéro**, quelle que
+soit la quantité de coches — masquer un zéro ne suffisait pas, il fallait compter autre chose.
+
+`weeklyGoalAmount` regarde donc maintenant `ladderKind(goal.tiers).kind` et bifurque :
+
+- **`compte`/`serie`** : compte les **jours distincts** touchés (même dédoublonnage que
+  `distinctDays` — deux actions ou un geste ponctuel le même jour ne comptent qu'une fois), pas
+  une somme de `contribution`.
+- **`cumul`/`performance`** : inchangé, somme `contribution` comme avant.
+- **`mesure`** : renvoie `null` — sommer des relevés (un poids, une VMA) n'a pas de sens ; leur
+  courbe propre, `MeasureChart`, existe déjà pour ça.
+
+Deuxième correctif, complémentaire : une action ajoutée **après la création** d'un objectif
+`cumul`/`performance` (via le formulaire d'ajout de `ActionEditor`) ne portait aucune quantité,
+contrairement aux deux actions génériques posées à la création par `starterActions` — le même
+défaut que celui documenté plus haut (§ 12 du plan), mais pour un ajout tardif. Nouvelle fonction
+`inheritedActionAmount(kind, unit, targets)` (`lib/quantities.ts`), même calcul que
+`starterActions` sans la nuance « petit pas à moitié prix » (une action seule n'a personne avec
+qui se partager le geste), appelée dans `ZenithScreen.tsx` au moment de la création d'une
+nouvelle action. Elle ne s'applique volontairement qu'à `cumul`/`performance` — pour
+`compte`/`serie`, aucune quantité n'est jamais nécessaire, et pour `mesure`, la nature
+« Relevé » reste un choix manuel de l'utilisateur dans l'éditeur d'actions.

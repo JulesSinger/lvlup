@@ -338,6 +338,34 @@ export function inheritedTier(title: string, ladder: LadderKind | null): Partial
  * le clavier à chaque coche, ce que tout le lot « un appui reste un appui »
  * cherche justement à éviter.
  */
+/**
+ * L'unité et la valeur habituelle qu'une action ajoutée *après coup* hérite
+ * de l'échelle de son objectif — le même besoin que ci-dessus, mais pour une
+ * action nommée par l'utilisateur (« Duolingo »), pas la paire générique
+ * « vrai effort »/« petit pas » posée à la création. Sans ça, ajouter une
+ * action à un objectif en cumul déjà en cours ne fait jamais monter le
+ * palier : la case se coche, mais `contribution` retombe sur zéro faute de
+ * valeur — signalé par Jules sur un objectif « Apprendre l'anglais ».
+ *
+ * Même calcul que `starterActions`, sans la nuance « petit pas » à moitié
+ * prix : une seule action n'a personne avec qui se partager le geste.
+ */
+export function inheritedActionAmount(
+  kind: TierKind,
+  unit: string,
+  targets: number[] = [],
+): { unit: string; defaultValue: number | null } {
+  const clean = unit.trim();
+  if (!clean || (kind !== 'cumul' && kind !== 'performance')) {
+    return { unit: '', defaultValue: null };
+  }
+  const plusPetite = Math.min(...targets.map((t) => Math.abs(t)).filter((t) => t > 0));
+  const reference = Number.isFinite(plusPetite) ? plusPetite : 10;
+  const part = kind === 'performance' ? reference / 2 : reference / 10;
+  const habituelle = Math.max(1, Math.round(part * 10) / 10);
+  return { unit: clean, defaultValue: habituelle };
+}
+
 export function starterActions(
   kind: TierKind,
   unit: string,

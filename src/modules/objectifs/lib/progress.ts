@@ -1,5 +1,6 @@
 import { shiftDay } from './catchup';
 import { contribution, goalAmountCheckins } from './counters';
+import { ladderKind } from './quantities';
 import { getRank, rankByValue, type Rank } from './ranks';
 import { dayString } from './streak';
 import type { Action, Checkin, Goal, Tier } from './types';
@@ -387,9 +388,16 @@ export interface GoalAmountSummary {
  * toutes les actions compatibles de l'objectif ET les gestes ponctuels
  * quantifiés — voir `goalAmountCheckins`.
  *
- * `null` quand l'objectif ne dit rien à sommer : aucun palier comptable, ou
- * aucune réalisation encore. Affiché nulle part sinon un cadre vide sans
- * intérêt.
+ * `null` quand l'objectif ne dit rien à sommer : aucun palier comptable,
+ * aucune réalisation encore, ou une nature `mesure` (une courbe de relevés
+ * a déjà la sienne, `MeasureChart` — la sommer n'aurait aucun sens, comme
+ * additionner des pesées).
+ *
+ * `compte`/`série` comptent des **jours distincts**, exactement comme le
+ * palier lui-même (`tierProgress`) : leurs actions ne portent jamais de
+ * quantité par construction (`starterActions` ne leur donne aucune unité —
+ * « on coche, c'est tout »), sommer `contribution` donnerait toujours zéro.
+ * `cumul`/`performance` sonnent, eux, une vraie quantité par réalisation.
  */
 export function weeklyGoalAmount(
   goal: Goal,
@@ -397,16 +405,29 @@ export function weeklyGoalAmount(
   actions: Action[],
   today: string = dayString(),
 ): GoalAmountSummary | null {
+  const ladder = ladderKind(goal.tiers);
+  if (!ladder || ladder.kind === 'mesure') return null;
   const feeding = goalAmountCheckins(goal.id, checkins, actions).filter((c) => c.day <= today);
   if (feeding.length === 0) return null;
 
   const perWeek = new Map<string, number>();
   let total = 0;
-  for (const c of feeding) {
-    const amount = contribution(c, actions);
-    total += amount;
-    const monday = mondayOf(c.day);
-    perWeek.set(monday, (perWeek.get(monday) ?? 0) + amount);
+  if (ladder.kind === 'compte' || ladder.kind === 'serie') {
+    // Un jour ne compte qu'une fois, même avec plusieurs actions ou gestes
+    // ce même jour — comme `distinctDays` côté palier.
+    const jours = [...new Set(feeding.map((c) => c.day))];
+    total = jours.length;
+    for (const day of jours) {
+      const monday = mondayOf(day);
+      perWeek.set(monday, (perWeek.get(monday) ?? 0) + 1);
+    }
+  } else {
+    for (const c of feeding) {
+      const amount = contribution(c, actions);
+      total += amount;
+      const monday = mondayOf(c.day);
+      perWeek.set(monday, (perWeek.get(monday) ?? 0) + amount);
+    }
   }
 
   const semaines = [...perWeek.keys()].sort();

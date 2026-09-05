@@ -363,13 +363,18 @@ describe('weeklyGoalAmount', () => {
     };
   }
 
+  /** Un palier réellement comptable — `tier()` seul renvoie un jalon (JALON). */
+  function compté(kind: 'cumul' | 'performance' | 'compte' | 'serie' | 'mesure', unit = 'km'): Tier {
+    return { ...tier('or', null), kind, unit, target: 100 };
+  }
+
   /**
    * L'objectif marathon (journal 2026-09-06) : plusieurs actions différentes
    * qui courent toutes des km, plus des gestes ponctuels quantifiés — tout
    * doit se retrouver dans le même cumul.
    */
   it('additionne plusieurs actions de l’objectif dans la même semaine', () => {
-    const g = goal([tier('or', null)]);
+    const g = goal([compté('cumul')]);
     const list = [
       amountCheckin(lundi, { actionId: 'a1', value: 8 }),
       amountCheckin('2026-05-20', { actionId: 'a2', value: 5 }),
@@ -380,7 +385,7 @@ describe('weeklyGoalAmount', () => {
   });
 
   it('inclut les gestes ponctuels quantifiés', () => {
-    const g = goal([tier('or', null)]);
+    const g = goal([compté('cumul')]);
     const list = [
       amountCheckin(lundi, { actionId: 'a1', value: 8 }),
       amountCheckin('2026-05-19', { actionId: null, title: 'sortie improvisée', value: 6 }),
@@ -390,14 +395,14 @@ describe('weeklyGoalAmount', () => {
   });
 
   it('exclut une mesure (ex. la VMA) du cumul', () => {
-    const g = goal([tier('or', null)]);
+    const g = goal([compté('cumul')]);
     const vma = action({ id: 'a1', unit: 'km/h', isMeasure: true });
     const list = [amountCheckin(lundi, { actionId: 'a1', value: 15 })];
     expect(weeklyGoalAmount(g, list, [vma], lundi)?.total).toBeUndefined();
   });
 
   it('remplit les semaines sans rien à zéro, comme weeklyPP', () => {
-    const g = goal([tier('or', null)]);
+    const g = goal([compté('cumul')]);
     const list = [
       amountCheckin('2026-05-18', { value: 10 }),
       amountCheckin('2026-06-08', { value: 20 }),
@@ -408,14 +413,66 @@ describe('weeklyGoalAmount', () => {
   });
 
   it('vaut null sans aucune réalisation à sommer', () => {
-    const g = goal([tier('or', null)]);
+    const g = goal([compté('cumul')]);
     expect(weeklyGoalAmount(g, [], [], '2026-05-20')).toBeNull();
   });
 
   it('ignore les réalisations d’un autre objectif', () => {
-    const g = goal([tier('or', null)]);
+    const g = goal([compté('cumul')]);
     const list = [amountCheckin(lundi, { goalId: 'g2', value: 8 })];
     expect(weeklyGoalAmount(g, list, [], '2026-05-20')).toBeNull();
+  });
+
+  it('vaut null sans aucun palier comptable (échelle à cocher)', () => {
+    const g = goal([tier('or', null)]); // jalon
+    const list = [amountCheckin(lundi, { actionId: 'a1', value: 8 })];
+    expect(weeklyGoalAmount(g, list, [], '2026-05-20')).toBeNull();
+  });
+
+  it('vaut null pour une mesure : sommer des relevés n’a pas de sens', () => {
+    const g = goal([compté('mesure', 'kg')]);
+    const list = [amountCheckin(lundi, { actionId: 'a1', value: 80 })];
+    expect(weeklyGoalAmount(g, list, [], '2026-05-20')).toBeNull();
+  });
+
+  /**
+   * Rapporté par Jules : « Apprendre l'anglais », un palier en jours
+   * (`compte`) avec une action « Duolingo » cochée sans quantité — sommer
+   * `contribution` (toujours 0, aucune action de ce genre n'est quantifiée)
+   * affichait un total et des semaines à zéro. Il faut compter des **jours**,
+   * pas sommer une valeur qui n'existe pas.
+   */
+  it('compte des jours distincts pour un palier « compte », pas une somme', () => {
+    const g = goal([compté('compte', 'jours')]);
+    const duolingo = action({ id: 'a1', unit: '', defaultValue: null, isMeasure: false });
+    const list = [
+      amountCheckin(lundi, { actionId: 'a1' }),
+      amountCheckin('2026-05-20', { actionId: 'a1' }),
+    ];
+    const summary = weeklyGoalAmount(g, list, [duolingo], '2026-05-20');
+    expect(summary?.total).toBe(2);
+    expect(summary?.weeks).toEqual([{ monday: lundi, amount: 2 }]);
+  });
+
+  it('un même jour, coché deux fois, ne compte qu’une fois', () => {
+    const g = goal([compté('compte', 'jours')]);
+    const list = [
+      amountCheckin(lundi, { actionId: 'a1' }),
+      amountCheckin(lundi, { actionId: 'a2' }),
+    ];
+    expect(weeklyGoalAmount(g, list, [], '2026-05-20')?.total).toBe(1);
+  });
+
+  it('une série compte aussi des jours, pas une somme', () => {
+    const g = goal([compté('serie', 'jours')]);
+    const list = [amountCheckin(lundi, { actionId: 'a1' }), amountCheckin('2026-05-20', { actionId: 'a1' })];
+    expect(weeklyGoalAmount(g, list, [], '2026-05-20')?.total).toBe(2);
+  });
+
+  it('un geste ponctuel compte aussi comme un jour, pour compte/série', () => {
+    const g = goal([compté('compte', 'jours')]);
+    const list = [amountCheckin(lundi, { actionId: null, title: 'un pas de côté' })];
+    expect(weeklyGoalAmount(g, list, [], '2026-05-20')?.total).toBe(1);
   });
 });
 

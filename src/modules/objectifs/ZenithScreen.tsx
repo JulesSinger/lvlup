@@ -25,7 +25,7 @@ import { flushOutbox } from './data/sync';
 import type { UnlockedAchievement } from './data/goalsStore';
 import { newlyUnlocked, unlockedAchievements } from './lib/achievements';
 import { isCountable, tierProgress } from './lib/counters';
-import { inheritedTier, ladderKind, tapValue } from './lib/quantities';
+import { inheritedActionAmount, inheritedTier, ladderKind, tapValue } from './lib/quantities';
 import { DEMO_GOALS } from './lib/demo';
 import { freezeOffer, goalProgress, ppForRank, profileRank, todayPP } from './lib/progress';
 import { getRank, ladderInsert, ladderMove } from './lib/ranks';
@@ -940,9 +940,21 @@ export function ZenithScreen({
                     actionEditor={
                       <ActionEditor
                         actions={actions.filter((a) => a.goalId === goal.id)}
-                        onCreate={(input: ActionInput) =>
-                          run(() => goalsStore.createAction(goal.id, input))
-                        }
+                        onCreate={(input: ActionInput) => {
+                          // Une action ajoutée après coup à un objectif en cumul
+                          // ou en performance doit déjà porter une quantité,
+                          // sinon la cocher ne fait jamais monter le palier.
+                          const ladder = ladderKind(goal.tiers);
+                          const targets = goal.tiers
+                            .map((t) => t.target)
+                            .filter((t): t is number => typeof t === 'number');
+                          const amount = ladder
+                            ? inheritedActionAmount(ladder.kind, ladder.unit, targets)
+                            : { unit: '', defaultValue: null };
+                          return run(() =>
+                            goalsStore.createAction(goal.id, { ...input, ...amount }),
+                          );
+                        }}
                         onUpdate={(id, patch) => run(() => goalsStore.updateAction(id, patch))}
                         onDelete={(id) => run(() => goalsStore.deleteAction(id))}
                       />

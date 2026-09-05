@@ -2355,12 +2355,25 @@ export async function run({ browser, check, BASE }) {
     await dismissCeremonies(en);
     await en.waitForTimeout(500);
 
-    // Une action ajoutée à la main, sans quantité — le cas réel signalé.
+    // Une action ajoutée à la main hérite désormais d'une quantité (le
+    // correctif du jour) — pour rejouer le cas vraiment sans quantité, on la
+    // repasse en « Simple » juste après, ce qui l'efface.
     await en.getByRole('button', { name: 'Objectifs' }).click();
     await en.waitForSelector('.action-editor');
     await en.locator('.action-add input').fill('Duolingo');
     await en.getByRole('button', { name: "Ajouter l'action" }).click();
     await en.waitForTimeout(400);
+    check(
+      'Une action ajoutée après coup hérite de l’unité de l’objectif',
+      ((await en.locator('.action-row-title', { hasText: 'Duolingo' }).textContent()) ?? '').includes(
+        'jours',
+      ),
+      await en.locator('.action-row-title', { hasText: 'Duolingo' }).textContent(),
+    );
+    await en.getByRole('button', { name: 'Quantifier Duolingo' }).click();
+    await en.waitForSelector('.action-quant');
+    await en.locator('.action-quant-natures').getByRole('button', { name: 'Simple' }).click();
+    await en.waitForTimeout(300);
 
     await en.getByRole('button', { name: 'Accueil' }).click();
     await en.waitForSelector('.checkin-chips');
@@ -2389,6 +2402,72 @@ export async function run({ browser, check, BASE }) {
       'Forcé, il s’affiche, à zéro — honnête plutôt que masqué en douce',
       (await carteEn.locator('.goal-amount-total').textContent())?.includes('0'),
       await carteEn.locator('.goal-amount-total').textContent(),
+    );
+    await fresh.close();
+  }
+
+  // --- Le cas réel signalé : un palier « Jours » (compte), pas un cumul ----
+  // Le vrai bug de Jules : un palier en jours est un `compte`, pas un
+  // `cumul` — son action n'est jamais quantifiée par construction (compter
+  // des jours ne demande aucune unité). Sommer une valeur inexistante
+  // donnait zéro ; il faut compter des jours distincts, comme le palier
+  // lui-même. Aucune manipulation de quantité requise ici : ça doit marcher
+  // tout de suite, coché une fois.
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+    const jr = await fresh.newPage();
+    jr.on('pageerror', (e) => errors.push(e.message));
+    await gotoZenith(jr, BASE);
+    await jr.waitForSelector('.onboarding-card');
+    await jr.getByRole('button', { name: 'Passer' }).click();
+    await jr.waitForSelector('.brand');
+    await jr.getByRole('button', { name: 'Nouvel objectif' }).click();
+    await jr.waitForSelector('.picker-grid');
+    await jr.getByRole('button', { name: 'Partir de zéro' }).click();
+    await jr.waitForSelector('.draft-tier');
+    await jr.locator('#goal-title').fill('Pratiquer l’anglais');
+    await jr.locator('.draft-tier > input').first().fill('Pratiquer 30 jours');
+    await jr.locator('#goal-kind').selectOption('compte');
+    await jr.waitForTimeout(300);
+    await jr.getByRole('button', { name: "Créer l'objectif" }).click();
+    await dismissCeremonies(jr);
+    await jr.waitForTimeout(500);
+
+    await jr.getByRole('button', { name: 'Objectifs' }).click();
+    await jr.waitForSelector('.action-editor');
+    await jr.locator('.action-add input').fill('Duolingo');
+    await jr.getByRole('button', { name: "Ajouter l'action" }).click();
+    await jr.waitForTimeout(400);
+
+    await jr.getByRole('button', { name: 'Accueil' }).click();
+    await jr.waitForSelector('.checkin-chips');
+    const blocJr = jr.locator('.today-goal', { hasText: 'Pratiquer l’anglais' });
+    await blocJr.locator('.checkin-chip', { hasText: 'Duolingo' }).click();
+    await jr.waitForTimeout(600);
+
+    await jr.getByRole('button', { name: 'Objectifs' }).click();
+    await jr.waitForSelector('.goal');
+    const carteJr = jr.locator('.goal', { hasText: 'Pratiquer l’anglais' });
+    if ((await carteJr.locator('.action-editor').count()) === 0) {
+      await carteJr.locator('.goal-head').click();
+      await jr.waitForTimeout(400);
+    }
+    check(
+      'Un jour coché s’affiche tout de suite, sans quantifier l’action',
+      (await carteJr.locator('.goal-amount').count()) === 1,
+      `${await carteJr.locator('.goal-amount').count()} cumul, ${await carteJr
+        .locator('.goal-amount-reveal')
+        .count()} lien`,
+    );
+    check(
+      'Le total compte un jour, pas une somme à zéro',
+      (await carteJr.locator('.goal-amount-total').textContent())?.includes('1'),
+      await carteJr.locator('.goal-amount-total').textContent(),
+    );
+    check(
+      'Et la semaine en cours aussi',
+      (await carteJr.locator('.goal-amount-foot').textContent())?.includes('1'),
+      await carteJr.locator('.goal-amount-foot').textContent(),
     );
     await fresh.close();
   }

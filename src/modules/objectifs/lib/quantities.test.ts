@@ -13,6 +13,7 @@ import {
   natureFields,
   needsInput,
   parseAmount,
+  inheritedActionAmount,
   starterActions,
   tapValue,
   targetForInput,
@@ -447,5 +448,33 @@ describe('les actions d’un objectif neuf portent son unité', () => {
     // Et il ne rapporte pas plus qu'un petit geste : on ne farme pas des PP
     // sur une balance.
     expect(releve?.pp).toBeLessThanOrEqual(MEASURE_PP);
+  });
+});
+
+/**
+ * Même garde-fou que `starterActions`, mais pour une action ajoutée après
+ * coup à un objectif déjà en cours (`ActionEditor`) — signalé par Jules sur
+ * un objectif « Apprendre l'anglais » : l'action « Duolingo », ajoutée sans
+ * unité, cochée sans jamais faire monter le palier en cumul.
+ */
+describe('une action ajoutée après coup hérite aussi de l’unité', () => {
+  it('un cumul en jours donne une action en jours, avec une valeur habituelle', () => {
+    expect(inheritedActionAmount('cumul', 'jours', [30])).toEqual({ unit: 'jours', defaultValue: 3 });
+  });
+
+  it('compter des jours ne demande aucune unité', () => {
+    expect(inheritedActionAmount('compte', 'jours', [30])).toEqual({ unit: '', defaultValue: null });
+  });
+
+  it('un jalon ne demande rien non plus', () => {
+    expect(inheritedActionAmount('jalon', '', [])).toEqual({ unit: '', defaultValue: null });
+  });
+
+  it('une mesure ne quantifie pas une action ordinaire : il lui faut un relevé dédié', () => {
+    expect(inheritedActionAmount('mesure', 'kg', [-5])).toEqual({ unit: '', defaultValue: null });
+  });
+
+  it('une valeur habituelle n’est jamais nulle ni négative', () => {
+    expect(inheritedActionAmount('cumul', 'km', []).defaultValue).toBeGreaterThan(0);
   });
 });
