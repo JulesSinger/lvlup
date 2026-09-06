@@ -878,8 +878,12 @@ export async function run({ browser, check, BASE }) {
     const totalRows = await ev.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
     check(
       'Trois mois affichés, du plus récent au plus ancien, total remonté correctement',
-      totalRows.join(' | ') === '-100,00 € | -100,00 € | -50,00 €',
+      totalRows.join(' | ') === '100,00 € | 100,00 € | 50,00 €',
       totalRows.join(' | '),
+    );
+    check(
+      'Aucun signe « - » dans le tableau non plus (retour de Jules, 06/09/2026)',
+      !totalRows.some((t) => t.includes('-')),
     );
 
     await ev.locator('#budget-evolution-category').selectOption({ label: '🛒 Courses' });
@@ -890,7 +894,7 @@ export async function run({ browser, check, BASE }) {
     const coursesRows = await ev.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
     check(
       'Courses seule : ses propres montants, pas ceux de Loisirs',
-      coursesRows.join(' | ') === '-100,00 € | -80,00 € | -50,00 €',
+      coursesRows.join(' | ') === '100,00 € | 80,00 € | 50,00 €',
       coursesRows.join(' | '),
     );
 
@@ -898,8 +902,25 @@ export async function run({ browser, check, BASE }) {
     const loisirsRows = await ev.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
     check(
       'Loisirs : un seul mois avec une dépense, les deux autres à zéro plutôt que sautés',
-      loisirsRows.join(' | ') === '0,00 € | -20,00 € | 0,00 €',
+      loisirsRows.join(' | ') === '0,00 € | 20,00 € | 0,00 €',
       loisirsRows.join(' | '),
+    );
+
+    // Le montant se lit directement sur le graphe, sans survoler une barre
+    // (retour de Jules, 06/09/2026) — et sans signe « - », ces montants ne
+    // pouvant être que des dépenses.
+    await ev.locator('#budget-evolution-category').selectOption({ label: '🛒 Courses' });
+    await ev.getByRole('button', { name: 'Voir le graphe' }).click();
+    await ev.waitForSelector('.budget-chart-bar-label');
+    const barLabels = await ev.locator('.budget-chart-bar-label').allTextContents();
+    check(
+      'Le montant de chaque mois est affiché directement sur le graphe, sans survol',
+      barLabels.join(' | ') === '50 € | 80 € | 100 €',
+      barLabels.join(' | '),
+    );
+    check(
+      'Aucun signe « - » sur ces montants : ce sont forcément des dépenses',
+      !barLabels.some((t) => t.includes('-')),
     );
 
     check('Aucune erreur JavaScript (Évolution)', evErrors.length === 0, evErrors.join(' | '));

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { formatCents } from '../lib/amount';
+import { centsToInputValue } from '../lib/amount';
 import { monthLabel } from '../lib/month';
 import type { TrendPoint } from '../lib/spendingTrend';
 
@@ -54,12 +54,17 @@ function shortLabel(monthKey: string): string {
 }
 
 /**
- * `formatCents` met un « + » devant un zéro non signé (`-0 < 0` vaut faux) —
- * un mois sans rien dépenser ne doit pourtant jamais afficher « +0,00 € »,
- * comme MonthScreen le fait déjà pour ses trois totaux.
+ * Sans signe : cet écran ne montre que des dépenses, le rappeler sur
+ * chaque montant (retour de Jules, 06/09/2026 : « pas besoin de mettre le
+ * "-" partout, on sait que c'est des dépenses ») n'apprend rien.
  */
 function formatSpent(cents: number): string {
-  return cents === 0 ? '0,00 €' : formatCents(-cents);
+  return `${centsToInputValue(cents)} €`;
+}
+
+/** Le montant directement sur la barre — arrondi à l'euro, pour tenir dans peu de place. */
+function barLabel(cents: number): string {
+  return `${Math.round(cents / 100).toLocaleString('fr-FR')} €`;
 }
 
 export function SpendingTrendChart({
@@ -205,6 +210,22 @@ export function SpendingTrendChart({
                 />
               ) : null,
             )}
+
+            {/* Le montant directement au-dessus de chaque barre — sans lui,
+                il fallait passer la souris dessus pour le lire (retour de
+                Jules, 06/09/2026). Toujours affiché, même à zéro. */}
+            {points.map((p, i) => (
+              <text
+                key={`label-${p.monthKey}`}
+                x={x(i) + barW / 2}
+                y={Math.max(PAD.top - 4, base - hauteur(p.cents) - 8)}
+                className="budget-chart-bar-label"
+                textAnchor="middle"
+                opacity={hover === null || hover === i ? 1 : 0.55}
+              >
+                {barLabel(p.cents)}
+              </text>
+            ))}
 
             <text x={PAD.left} y={HEIGHT - 10} className="budget-chart-tick" textAnchor="start">
               {shortLabel(points[0].monthKey)}

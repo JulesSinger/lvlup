@@ -485,3 +485,18 @@ socle non modifié, exception qui n'a pas eu lieu d'être cette fois.
 `formatMonthDelta` dans `monthlyBreakdown.test.ts` 10), `434/434` local → `445/445` (+11 :
 onglet Évolution 6, comparatif mensuel 4, plus la correction mobile qui ramène à zéro les six
 échecs qu'elle avait provoqués), `446/446` en mode comptes → `457/457` (+11).
+
+### Deux retouches immédiates : pas de signe, le montant sans survoler
+
+Retour de Jules dans la foulée : « pas besoin de mettre le "-" partout, on sait que c'est des
+dépenses », et « j'aimerais qu'on voie directement le montant sur ou au-dessus des barres ».
+
+- `formatSpent` n'utilise plus `formatCents` (qui préfixe toujours un signe) mais
+  `centsToInputValue` — la même fonction déjà utilisée pour la stat « Entré » de l'onglet Aperçu,
+  qui n'a jamais eu besoin de signe non plus.
+- Un `<text>` par mois, toujours affiché (même à zéro), positionné juste au-dessus du sommet de
+  chaque barre — arrondi à l'euro (`barLabel`) pour tenir dans peu de place, sans empêcher le
+  survol d'afficher le montant exact au centime près dans l'infobulle.
+
+`545/545` tests unitaires (inchangé, changement d'affichage sans nouvelle logique pure), `445/445`
+local → `448/448` (+3), `457/457` en mode comptes → `460/460` (+3).

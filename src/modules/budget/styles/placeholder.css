@@ -910,6 +910,14 @@
   fill: var(--text-faint);
 }
 
+/* Le montant au-dessus de chaque barre — demandé par Jules (06/09/2026)
+   pour ne plus avoir à passer la souris dessus pour le lire. */
+.budget-chart-bar-label {
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--text-dim);
+}
+
 .budget-chart-tooltip {
   position: absolute;
   transform: translate(-50%, -100%);
