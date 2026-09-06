@@ -372,3 +372,22 @@ est un invariant applicatif, vérifié aux deux implémentations et testé (`cat
 pas une contrainte SQL. `526/526` tests unitaires → (+19), `421/421` local → `427/427` (+14 :
 rollup du camembert, détail par sous-catégorie, gestion depuis l'écran Catégories, promotion à
 la suppression du parent), `433/433` en mode comptes → `439/439` (+14).
+
+## 10. Raccourci clavier « N » — nouvelle écriture (06/09/2026)
+
+Demande de Jules. Posé dans `EntriesView.tsx`, qui possède déjà l'état `editing` et le bouton
+flottant « + » : le raccourci n'existe donc que sur l'onglet Aperçu, là où « nouvelle écriture »
+a un sens — pas de plomberie à ajouter ailleurs. Trois garde-fous, alors qu'aucun raccourci
+lettre seule n'existait encore nulle part dans Atlas (seul `Escape` ferme déjà une fenêtre,
+partout, sans jamais vérifier où est le focus) :
+
+- **jamais pendant la frappe** — ignoré si le focus est sur un `<input>`, `<textarea>`,
+  `<select>` ou un élément éditable, sans quoi taper un mot contenant un « n » ré-ouvrirait
+  l'éditeur par-dessus lui-même ;
+- **jamais par-dessus un éditeur déjà ouvert** (`editing !== null`) ;
+- **jamais avec un modificateur** — Cmd/Ctrl+N reste la nouvelle fenêtre du navigateur.
+
+Le raccourci est annoncé dans le titre du bouton flottant (« Nouvelle écriture (N) ») plutôt que
+caché : un raccourci qu'on ne découvre jamais ne sert à personne. `427/427` local → `432/432`
+(+5 : ouverture au clavier, non-interférence en tapant un « n », fermeture, écriture réellement
+enregistrée), `439/439` en mode comptes → `444/444` (+5).

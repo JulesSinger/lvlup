@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { budgetStore } from '../data';
 import { formatCents } from '../lib/amount';
 import type { BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetRule } from '../lib/types';
@@ -37,6 +37,31 @@ export function EntriesView({
   emptyBody?: string;
 }) {
   const [editing, setEditing] = useState<BudgetEntry | 'new' | null>(null);
+
+  // Raccourci « N » : ouvre une nouvelle écriture sans passer par la souris.
+  // Ignoré pendant la frappe (un champ de texte, un menu…) et avec un
+  // modificateur (Cmd/Ctrl+N reste le « nouvelle fenêtre » du navigateur).
+  useEffect(() => {
+    function isTypingTarget(target: EventTarget | null): boolean {
+      if (!(target instanceof HTMLElement)) return false;
+      return (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      );
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key.toLowerCase() !== 'n') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (editing !== null) return;
+      if (isTypingTarget(document.activeElement)) return;
+      e.preventDefault();
+      setEditing('new');
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editing]);
 
   async function saveEntry(input: BudgetEntryInput) {
     if (editing !== null && editing !== 'new') {
@@ -112,7 +137,7 @@ export function EntriesView({
           <button
             className="btn btn-primary budget-add"
             onClick={() => setEditing('new')}
-            title="Nouvelle écriture"
+            title="Nouvelle écriture (N)"
             aria-label="Nouvelle écriture"
           >
             <span className="budget-add-icon" aria-hidden="true" />

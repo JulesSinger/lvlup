@@ -168,6 +168,43 @@ export async function run({ browser, check, BASE }) {
       '-50,00 €',
   );
 
+  // --- Raccourci clavier « N » : nouvelle écriture sans la souris -----------
+  await page.keyboard.press('n');
+  await page.waitForSelector('.budget-entry-editor');
+  check('« N » ouvre l’éditeur d’une nouvelle écriture', await page.locator('.budget-entry-editor').isVisible());
+
+  // Taper un « n » dans le champ ne doit rien déclencher d'autre : la lettre
+  // arrive normalement dans le libellé, un seul éditeur reste ouvert.
+  await page.locator('#budget-entry-label').fill('Annulation commande n°42');
+  check(
+    'Taper « n » dans un champ ne rouvre pas l’éditeur par-dessus lui-même',
+    (await page.locator('.budget-entry-editor').count()) === 1,
+  );
+  check(
+    'La lettre « n » arrive normalement dans le champ',
+    (await page.locator('#budget-entry-label').inputValue()) === 'Annulation commande n°42',
+  );
+  await page.getByRole('button', { name: 'Annuler' }).click();
+  await page.waitForTimeout(150);
+  check('« Annuler » referme bien l’éditeur ouvert au clavier', (await page.locator('.budget-entry-editor').count()) === 0);
+
+  // Le raccourci mène à une vraie écriture enregistrée, pas juste à l'ouverture.
+  await page.keyboard.press('n');
+  await page.waitForSelector('.budget-entry-editor');
+  await page.locator('#budget-entry-label').fill('Pressing');
+  await page.locator('#budget-entry-amount').fill('12');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForTimeout(200);
+  check(
+    'L’écriture créée au clavier est bien enregistrée',
+    (await page.locator('.budget-entry-row', { hasText: 'Pressing' }).count()) === 1,
+  );
+  // Retirée aussitôt : les totaux exacts du camembert ci-dessous comptent sur
+  // le jeu d'écritures précis construit avant ce bloc, pas sur un de plus.
+  page.once('dialog', (d) => d.accept());
+  await page.locator('.budget-entry-row', { hasText: 'Pressing' }).getByRole('button', { name: 'Supprimer' }).click();
+  await page.waitForTimeout(150);
+
   // --- Camembert du mois (étape 4) ------------------------------------------
   // Une dépense sans catégorie doit apparaître dans le camembert sous « À
   // classer » plutôt que disparaître du total (docs/etude-astra.md §2). Le
