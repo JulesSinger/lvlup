@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { budgetStore } from '../data';
 import { mostUsedCategoryIds } from '../lib/categoryPicker';
 import { currentMonthKey, monthKeyOf, monthLabel, shiftMonthKey } from '../lib/month';
-import { computeMonthlyBreakdown, subcategoryBreakdown } from '../lib/monthlyBreakdown';
+import { computeMonthlyBreakdown, deltaMap, formatMonthDelta, monthDelta, subcategoryBreakdown } from '../lib/monthlyBreakdown';
 import { centsToInputValue, formatCents } from '../lib/amount';
 import type { BudgetCategory, BudgetEntry, BudgetRule } from '../lib/types';
 import { EntriesView } from './EntriesView';
@@ -71,6 +71,23 @@ export function MonthScreen({
   const breakdown = computeMonthlyBreakdown(entries, categories, monthKey);
   const netCents = breakdown.totalIncomeCents - breakdown.totalSpentCents;
 
+  // Comparatif au mois précédent (demandé par Jules le 06/09/2026) — masqué
+  // en bloc tant qu'aucune écriture n'existe avant ce mois-ci : le tout
+  // premier mois utilisé n'a rien à comparer, un « nouveau » sur chaque
+  // ligne n'apprendrait rien.
+  const hasHistory = entries.some((e) => monthKeyOf(e.day) < monthKey);
+  const previousBreakdown = hasHistory
+    ? computeMonthlyBreakdown(entries, categories, shiftMonthKey(monthKey, -1))
+    : null;
+  const expenseDeltas = previousBreakdown ? deltaMap(breakdown.slices, previousBreakdown.slices) : undefined;
+  const incomeDeltas = previousBreakdown ? deltaMap(breakdown.incomeSlices, previousBreakdown.incomeSlices) : undefined;
+  const spentDeltaText = previousBreakdown
+    ? formatMonthDelta(monthDelta(breakdown.totalSpentCents, previousBreakdown.totalSpentCents))
+    : null;
+  const incomeDeltaText = previousBreakdown
+    ? formatMonthDelta(monthDelta(breakdown.totalIncomeCents, previousBreakdown.totalIncomeCents))
+    : null;
+
   // Une part du camembert est un total remonté (une sous-catégorie n'a
   // jamais sa propre part, voir `rollupKey` dans monthlyBreakdown.ts) :
   // cliquer « Loisirs » doit donc filtrer sur Loisirs ET toutes ses
@@ -126,6 +143,7 @@ export function MonthScreen({
           <span className="budget-month-stat-amount expense">
             {breakdown.totalSpentCents === 0 ? '0,00 €' : formatCents(-breakdown.totalSpentCents)}
           </span>
+          {spentDeltaText && <span className="budget-month-stat-delta">{spentDeltaText} vs mois dernier</span>}
         </div>
         <div className="budget-month-stat">
           <span className="budget-month-stat-label">Entré</span>
@@ -133,6 +151,7 @@ export function MonthScreen({
               dessous, une entrée n'a rien à contraster : elle est toujours
               positive par construction (§5 bis de monthlyBreakdown.ts). */}
           <span className="budget-month-stat-amount income">{centsToInputValue(breakdown.totalIncomeCents)} €</span>
+          {incomeDeltaText && <span className="budget-month-stat-delta">{incomeDeltaText} vs mois dernier</span>}
         </div>
         <div className="budget-month-stat">
           <span className="budget-month-stat-label">Solde</span>
@@ -162,6 +181,7 @@ export function MonthScreen({
             selectedCategoryId={selectedCategoryId}
             onSelect={toggleSlice}
             variant="expense"
+            deltas={expenseDeltas}
           />
         </div>
         <div className="budget-pie-card budget-pie-card-income">
@@ -172,6 +192,7 @@ export function MonthScreen({
             selectedCategoryId={selectedCategoryId}
             onSelect={toggleSlice}
             variant="income"
+            deltas={incomeDeltas}
           />
         </div>
       </div>

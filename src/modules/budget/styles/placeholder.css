@@ -22,11 +22,47 @@
   max-width: 1440px;
 }
 
+/* `.main` (socle) se centre avec `margin: 0 auto` — pensé pour un
+   `.layout` en ligne (bureau). Sur mobile, `.layout` passe en colonne
+   (`core/styles/mobile.css`), ce qui fait basculer l'axe secondaire du
+   flex sur l'horizontale : une marge automatique sur cet axe désactive
+   l'étirement (`align-items: stretch`) et `.main` reprend la largeur de
+   son contenu au lieu de celle du viewport — le même mécanisme que le bug
+   `.main` déjà corrigé le 24/08/2026 (CLAUDE.md), une cause différente,
+   repérée en mesurant l'onglet Évolution qui débordait de 390px. */
+@media (max-width: 760px) {
+  .budget-main {
+    width: 100%;
+  }
+}
+
 .budget-tabs {
   display: flex;
   gap: 4px;
   margin-bottom: 18px;
   border-bottom: 1px solid var(--border);
+}
+
+/* Cinq onglets (depuis l'ajout d'Évolution, 06/09/2026) débordent d'un
+   téléphone étroit — mesuré : 408px de barre dans un viewport à 390px. Un
+   défilement horizontal propre à la barre, plutôt qu'un retour à la ligne
+   qui casserait sa lecture en un coup d'œil. */
+@media (max-width: 520px) {
+  .budget-tabs {
+    /* Sans largeur explicite, un flex item se calcule à la largeur de son
+       contenu plutôt que celle de son parent (même défaut déjà rencontré sur
+       `.main` du socle, voir CLAUDE.md, journal du 24/08/2026) : `overflow-x`
+       seul ne suffit pas, il lui faut d'abord une boîte contrainte pour avoir
+       quelque chose à faire défiler. */
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .budget-tab {
+    flex-shrink: 0;
+  }
 }
 
 .budget-tab {
@@ -427,6 +463,14 @@
   color: #6fbf7f;
 }
 
+/* Le comparatif au mois précédent (demandé par Jules le 06/09/2026) — un
+   gris discret, pas une couleur d'alerte : informer, jamais culpabiliser
+   (voir monthlyBreakdown.ts, `monthDelta`). */
+.budget-month-stat-delta {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
 /* Deux camemberts (Dépenses, Entrées) côte à côte sur un écran large — le
    camembert seul laissait la moitié droite de la carte vide au-delà de
    ~700px (retour de Jules). Une seule colonne en dessous de 900px, où deux
@@ -548,6 +592,24 @@
 
 .budget-pie-legend-amount.income {
   color: #6fbf7f;
+}
+
+/* Le comparatif au mois précédent, en teinte discrète — pas la même
+   saturation que le montant à côté : un repère à lire en passant, pas une
+   alerte (voir monthlyBreakdown.ts, `monthDelta`). */
+.budget-pie-legend-delta {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.budget-pie-legend-delta.up {
+  color: #c98f8f;
+}
+
+.budget-pie-legend-delta.down {
+  color: #8fb89b;
 }
 
 .budget-filter-notice {
@@ -870,4 +932,67 @@
 
 .budget-chart-tooltip span {
   color: var(--text-faint);
+}
+
+/* --- courbe d'évolution des dépenses (onglet Évolution) ----------------- */
+
+.budget-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.budget-chart-table-wrap {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.budget-chart-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.budget-chart-table th,
+.budget-chart-table td {
+  text-align: left;
+  padding: 7px 10px 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.budget-chart-table th {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+}
+
+.budget-chart-table td {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+.budget-chart-table td:first-child {
+  color: var(--text);
+}
+
+.budget-chart-average {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.budget-evolution {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.budget-evolution-picker {
+  max-width: 280px;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { computeMonthlyBreakdown, subcategoryBreakdown } from './monthlyBreakdown';
+import { computeMonthlyBreakdown, deltaMap, formatMonthDelta, monthDelta, subcategoryBreakdown } from './monthlyBreakdown';
+import type { BudgetSlice } from './monthlyBreakdown';
 import type { BudgetCategory, BudgetEntry } from './types';
 
 function category(patch: Partial<BudgetCategory>): BudgetCategory {
@@ -240,5 +241,62 @@ describe('subcategoryBreakdown', () => {
     const result = subcategoryBreakdown([], [loisirs, onePiece], 'loisirs', '2026-07');
     expect(result.slices).toEqual([]);
     expect(result.incomeSlices).toEqual([]);
+  });
+});
+
+describe('monthDelta', () => {
+  test('calcule un pourcentage d’évolution', () => {
+    expect(monthDelta(11000, 10000)).toEqual({ kind: 'change', percent: 10 });
+    expect(monthDelta(8000, 10000)).toEqual({ kind: 'change', percent: -20 });
+  });
+
+  test('rien les deux mois : rien à comparer', () => {
+    expect(monthDelta(0, 0)).toEqual({ kind: 'none' });
+  });
+
+  test('rien le mois précédent, quelque chose ce mois-ci : « nouveau », pas un pourcentage', () => {
+    expect(monthDelta(5000, 0)).toEqual({ kind: 'new' });
+  });
+
+  test('une baisse à zéro reste un pourcentage exact (-100 %)', () => {
+    expect(monthDelta(0, 5000)).toEqual({ kind: 'change', percent: -100 });
+  });
+});
+
+function slice(patch: Partial<BudgetSlice>): BudgetSlice {
+  return { categoryId: 'c1', label: 'Courses', emoji: '🛒', color: '#ff0000', cents: 0, ...patch };
+}
+
+describe('deltaMap', () => {
+  test('associe chaque part du mois à celle du mois précédent, par catégorie', () => {
+    const current = [slice({ categoryId: 'c1', cents: 11000 }), slice({ categoryId: 'c2', cents: 3000 })];
+    const previous = [slice({ categoryId: 'c1', cents: 10000 })];
+    const map = deltaMap(current, previous);
+    expect(map.get('c1')).toEqual({ kind: 'change', percent: 10 });
+    expect(map.get('c2')).toEqual({ kind: 'new' });
+  });
+
+  test('« à classer » (categoryId null) se compare aussi, sous la clé vide', () => {
+    const current = [slice({ categoryId: null, cents: 2000 })];
+    const previous = [slice({ categoryId: null, cents: 4000 })];
+    expect(deltaMap(current, previous).get('')).toEqual({ kind: 'change', percent: -50 });
+  });
+});
+
+describe('formatMonthDelta', () => {
+  test('rien à dire pour « none »', () => {
+    expect(formatMonthDelta({ kind: 'none' })).toBeNull();
+  });
+
+  test('« nouveau » reste tel quel', () => {
+    expect(formatMonthDelta({ kind: 'new' })).toBe('nouveau');
+  });
+
+  test('un pourcentage positif porte son signe', () => {
+    expect(formatMonthDelta({ kind: 'change', percent: 12.4 })).toBe('+12 %');
+  });
+
+  test('un pourcentage négatif garde le sien, sans doublon', () => {
+    expect(formatMonthDelta({ kind: 'change', percent: -8.2 })).toBe('-8 %');
   });
 });

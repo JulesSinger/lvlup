@@ -178,3 +178,49 @@ export function subcategoryBreakdown(
   incomeSlices.sort((a, b) => b.cents - a.cents);
   return { slices, incomeSlices };
 }
+
+export type MonthDelta =
+  /** Rien à comparer — pas de mois précédent avec de l'activité. */
+  | { kind: 'none' }
+  /** Rien la période précédente, quelque chose cette fois — un pourcentage n'aurait aucun sens. */
+  | { kind: 'new' }
+  | { kind: 'change'; percent: number };
+
+/**
+ * Compare une part (en centimes) à celle du mois précédent — le comparatif
+ * demandé par Jules le 06/09/2026, à côté de chaque part du camembert et
+ * des trois totaux du mois. En pourcentage plutôt qu'en montant brut : plus
+ * parlant pour une évolution, et sans jugement de valeur porté par une
+ * couleur d'alerte — une étude citée par Jules montre qu'un plafond avec un
+ * voyant rouge ne change pas le comportement de dépense, contrairement à la
+ * comparaison à soi-même dans le temps.
+ */
+export function monthDelta(currentCents: number, previousCents: number): MonthDelta {
+  if (previousCents === 0) return currentCents === 0 ? { kind: 'none' } : { kind: 'new' };
+  return { kind: 'change', percent: ((currentCents - previousCents) / previousCents) * 100 };
+}
+
+/**
+ * Un `MonthDelta` par part (`slice.categoryId ?? ''` comme clé, la même
+ * convention que `computeMonthlyBreakdown`), pour l'afficher à côté de
+ * chaque ligne du camembert. Une part absente du mois précédent compare
+ * contre zéro — c'est exactement le cas « nouveau » que `monthDelta` sait
+ * déjà nommer.
+ */
+export function deltaMap(current: BudgetSlice[], previous: BudgetSlice[]): Map<string, MonthDelta> {
+  const previousByKey = new Map(previous.map((s) => [s.categoryId ?? '', s.cents]));
+  const map = new Map<string, MonthDelta>();
+  for (const slice of current) {
+    const key = slice.categoryId ?? '';
+    map.set(key, monthDelta(slice.cents, previousByKey.get(key) ?? 0));
+  }
+  return map;
+}
+
+/** Un texte prêt à afficher, ou `null` s'il n'y a rien à dire (`kind: 'none'`). */
+export function formatMonthDelta(delta: MonthDelta): string | null {
+  if (delta.kind === 'none') return null;
+  if (delta.kind === 'new') return 'nouveau';
+  const rounded = Math.round(delta.percent);
+  return `${rounded > 0 ? '+' : ''}${rounded} %`;
+}

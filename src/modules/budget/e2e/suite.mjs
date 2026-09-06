@@ -828,6 +828,147 @@ export async function run({ browser, check, BASE }) {
     await fresh.close();
   }
 
+  // --- Onglet Évolution (demandé par Jules le 06/09/2026) -------------------
+  // « Voir cette évolution au fil du temps » : trois mois de données
+  // injectées (dates relatives à aujourd'hui, comme les autres scénarios
+  // construits à la main), lus via le tableau plutôt que mesurés en pixels
+  // sur les barres — plus fiable, même motif que PPChart côté Zénith.
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const ev = await fresh.newPage();
+    const evErrors = [];
+    ev.on('pageerror', (e) => evErrors.push(e.message));
+    await enterAstra(ev, BASE);
+    await ev.waitForSelector('.empty h3');
+
+    await ev.evaluate(() => {
+      const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const monthsAgo = (n) => {
+        const d = new Date();
+        d.setDate(1); // évite qu'un 31 janvier devienne un 3 mars en reculant de deux mois
+        d.setMonth(d.getMonth() - n);
+        return fmt(d);
+      };
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      snap.budgetCategories = [
+        { id: 'c-courses', name: 'Courses', emoji: '🛒', color: '#e0724c', kind: 'variable', position: 0, parentId: null },
+        { id: 'c-loisirs', name: 'Loisirs', emoji: '🎉', color: '#d16fa8', kind: 'variable', position: 1, parentId: null },
+      ];
+      snap.budgetEntries = [
+        { id: 'e1', day: monthsAgo(2), label: 'Courses', amountCents: -5000, categoryId: 'c-courses', source: 'manuelle', importKey: null, note: '', createdAt: monthsAgo(2) },
+        { id: 'e2', day: monthsAgo(1), label: 'Courses', amountCents: -8000, categoryId: 'c-courses', source: 'manuelle', importKey: null, note: '', createdAt: monthsAgo(1) },
+        { id: 'e3', day: monthsAgo(1), label: 'Sortie', amountCents: -2000, categoryId: 'c-loisirs', source: 'manuelle', importKey: null, note: '', createdAt: monthsAgo(1) },
+        { id: 'e4', day: monthsAgo(0), label: 'Courses', amountCents: -10000, categoryId: 'c-courses', source: 'manuelle', importKey: null, note: '', createdAt: monthsAgo(0) },
+      ];
+      snap.budgetRules = [];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await ev.reload();
+    await ev.waitForSelector('.hub-picker-card');
+    await ev.getByRole('button', { name: /Astra/ }).click();
+    await ev.waitForSelector('.budget-tab', { hasText: 'Évolution' });
+    await ev.getByRole('button', { name: 'Évolution', exact: true }).click();
+    await ev.waitForSelector('.budget-evolution');
+
+    check(
+      'La vue par défaut est le total des dépenses',
+      (await ev.locator('.budget-chart-title').textContent()) === 'Total des dépenses',
+    );
+    await ev.getByRole('button', { name: 'Voir le tableau' }).click();
+    const totalRows = await ev.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
+    check(
+      'Trois mois affichés, du plus récent au plus ancien, total remonté correctement',
+      totalRows.join(' | ') === '-100,00 € | -100,00 € | -50,00 €',
+      totalRows.join(' | '),
+    );
+
+    await ev.locator('#budget-evolution-category').selectOption({ label: '🛒 Courses' });
+    check(
+      'Changer de catégorie change le titre du graphe',
+      (await ev.locator('.budget-chart-title').textContent()) === '🛒 Courses',
+    );
+    const coursesRows = await ev.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
+    check(
+      'Courses seule : ses propres montants, pas ceux de Loisirs',
+      coursesRows.join(' | ') === '-100,00 € | -80,00 € | -50,00 €',
+      coursesRows.join(' | '),
+    );
+
+    await ev.locator('#budget-evolution-category').selectOption({ label: '🎉 Loisirs' });
+    const loisirsRows = await ev.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
+    check(
+      'Loisirs : un seul mois avec une dépense, les deux autres à zéro plutôt que sautés',
+      loisirsRows.join(' | ') === '0,00 € | -20,00 € | 0,00 €',
+      loisirsRows.join(' | '),
+    );
+
+    check('Aucune erreur JavaScript (Évolution)', evErrors.length === 0, evErrors.join(' | '));
+    await fresh.close();
+  }
+
+  // --- Comparatif mois-à-mois (demandé par Jules le 06/09/2026) -------------
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const cmp = await fresh.newPage();
+    const cmpErrors = [];
+    cmp.on('pageerror', (e) => cmpErrors.push(e.message));
+    await enterAstra(cmp, BASE);
+    await cmp.waitForSelector('.empty h3');
+
+    await cmp.evaluate(() => {
+      const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const monthsAgo = (n) => {
+        const d = new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - n);
+        return fmt(d);
+      };
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      snap.budgetCategories = [
+        { id: 'c-courses', name: 'Courses', emoji: '🛒', color: '#e0724c', kind: 'variable', position: 0, parentId: null },
+        { id: 'c-loisirs', name: 'Loisirs', emoji: '🎉', color: '#d16fa8', kind: 'variable', position: 1, parentId: null },
+      ];
+      snap.budgetEntries = [
+        { id: 'e1', day: monthsAgo(1), label: 'Courses', amountCents: -10000, categoryId: 'c-courses', source: 'manuelle', importKey: null, note: '', createdAt: monthsAgo(1) },
+        { id: 'e2', day: monthsAgo(0), label: 'Courses', amountCents: -15000, categoryId: 'c-courses', source: 'manuelle', importKey: null, note: '', createdAt: monthsAgo(0) },
+        // Loisirs n'existait pas le mois dernier : « nouveau », pas un pourcentage.
+        { id: 'e3', day: monthsAgo(0), label: 'Sortie', amountCents: -2000, categoryId: 'c-loisirs', source: 'manuelle', importKey: null, note: '', createdAt: monthsAgo(0) },
+      ];
+      snap.budgetRules = [];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await cmp.reload();
+    await cmp.waitForSelector('.hub-picker-card');
+    await cmp.getByRole('button', { name: /Astra/ }).click();
+    await cmp.waitForSelector('.budget-pie-legend-item');
+
+    check(
+      'Le total dépensé affiche son évolution vs le mois dernier (10 000 → 17 000, +70 %)',
+      (await cmp.locator('.budget-month-stat-delta').first().textContent())?.trim() === '+70 % vs mois dernier',
+      await cmp.locator('.budget-month-stat-delta').first().textContent(),
+    );
+    check(
+      'Courses affiche son évolution en pourcentage (+50 %)',
+      (await cmp.locator('.budget-pie-legend-item', { hasText: 'Courses' }).locator('.budget-pie-legend-delta').textContent())?.trim() === '+50 %',
+    );
+    check(
+      'Loisirs, absente le mois dernier, est marquée « nouveau », pas un pourcentage absurde',
+      (await cmp.locator('.budget-pie-legend-item', { hasText: 'Loisirs' }).locator('.budget-pie-legend-delta').textContent())?.trim() === 'nouveau',
+    );
+
+    // Un mois plus tôt, rien avant lui dans les données : aucun comparatif à
+    // afficher, plutôt qu'un « nouveau » trompeur sur toute la ligne.
+    await cmp.getByRole('button', { name: 'Mois précédent' }).click();
+    await cmp.waitForTimeout(200);
+    check(
+      'Le tout premier mois avec des données n’affiche aucun comparatif',
+      (await cmp.locator('.budget-month-stat-delta').count()) === 0,
+    );
+
+    check('Aucune erreur JavaScript (comparatif mensuel)', cmpErrors.length === 0, cmpErrors.join(' | '));
+    await fresh.close();
+  }
+
   // --- Rendu mobile --------------------------------------------------------
   // Jamais vérifié jusqu'ici pour Astra, comme pour Orbite (31/08/2026) : les
   // quatre onglets, le bouton flottant et l'éditeur d'écriture (pastilles +

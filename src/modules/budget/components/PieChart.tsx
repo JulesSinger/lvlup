@@ -1,5 +1,6 @@
 import { formatCents } from '../lib/amount';
-import type { BudgetSlice } from '../lib/monthlyBreakdown';
+import { formatMonthDelta } from '../lib/monthlyBreakdown';
+import type { BudgetSlice, MonthDelta } from '../lib/monthlyBreakdown';
 
 interface Props {
   slices: BudgetSlice[];
@@ -13,6 +14,12 @@ interface Props {
    * symétrique (voir `computeMonthlyBreakdown` §5 bis dans monthlyBreakdown.ts).
    */
   variant?: 'expense' | 'income';
+  /**
+   * Le comparatif au mois précédent (demandé par Jules le 06/09/2026), une
+   * entrée par `slice.categoryId ?? ''`. Absent = rien à comparer (le tout
+   * premier mois avec des écritures) : pas de « nouveau » trompeur partout.
+   */
+  deltas?: Map<string, MonthDelta>;
 }
 
 const SIZE = 200;
@@ -28,7 +35,7 @@ function arcPoint(angleRadians: number): [number, number] {
  * graphique dans Atlas — `objectifs/components/PPChart.tsx` fait le même
  * choix pour sa courbe — quelques chemins SVG suffisent pour des parts.
  */
-export function PieChart({ slices, totalCents, selectedCategoryId, onSelect, variant = 'expense' }: Props) {
+export function PieChart({ slices, totalCents, selectedCategoryId, onSelect, variant = 'expense', deltas }: Props) {
   const isIncome = variant === 'income';
 
   if (totalCents <= 0 || slices.length === 0) {
@@ -99,23 +106,34 @@ export function PieChart({ slices, totalCents, selectedCategoryId, onSelect, var
         )}
       </svg>
       <ul className="budget-pie-legend">
-        {slices.map((slice) => (
-          <li key={slice.categoryId ?? '__uncategorized__'}>
-            <button
-              type="button"
-              className={`budget-pie-legend-item${selectedCategoryId === slice.categoryId ? ' selected' : ''}`}
-              onClick={() => onSelect(slice.categoryId)}
-            >
-              <span className="budget-row-swatch" style={{ background: slice.color }} aria-hidden="true">
-                {slice.emoji}
-              </span>
-              <span className="budget-pie-legend-label">{slice.label}</span>
-              <span className={`budget-pie-legend-amount${isIncome ? ' income' : ''}`}>
-                {formatCents(isIncome ? slice.cents : -slice.cents)}
-              </span>
-            </button>
-          </li>
-        ))}
+        {slices.map((slice) => {
+          const delta = deltas?.get(slice.categoryId ?? '');
+          const deltaText = delta ? formatMonthDelta(delta) : null;
+          return (
+            <li key={slice.categoryId ?? '__uncategorized__'}>
+              <button
+                type="button"
+                className={`budget-pie-legend-item${selectedCategoryId === slice.categoryId ? ' selected' : ''}`}
+                onClick={() => onSelect(slice.categoryId)}
+              >
+                <span className="budget-row-swatch" style={{ background: slice.color }} aria-hidden="true">
+                  {slice.emoji}
+                </span>
+                <span className="budget-pie-legend-label">{slice.label}</span>
+                {deltaText && (
+                  <span
+                    className={`budget-pie-legend-delta${delta?.kind === 'change' ? (delta.percent > 0 ? ' up' : ' down') : ''}`}
+                  >
+                    {deltaText}
+                  </span>
+                )}
+                <span className={`budget-pie-legend-amount${isIncome ? ' income' : ''}`}>
+                  {formatCents(isIncome ? slice.cents : -slice.cents)}
+                </span>
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

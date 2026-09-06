@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { CategoryEditor } from './components/CategoryEditor';
 import { EnvelopesScreen } from './components/EnvelopesScreen';
+import { EvolutionScreen } from './components/EvolutionScreen';
 import { ImportScreen } from './components/ImportScreen';
 import { MonthScreen } from './components/MonthScreen';
 import { budgetStore } from './data';
@@ -15,7 +16,7 @@ const GROUPS: { kind: BudgetCategoryKind; label: string }[] = BUDGET_CATEGORY_KI
   label: CATEGORY_KIND_LABELS[kind],
 }));
 
-type View = 'categories' | 'month' | 'import' | 'epargne';
+type View = 'categories' | 'month' | 'import' | 'epargne' | 'evolution';
 
 /**
  * Écran racine d'Astra. Depuis l'étape 4 (docs/etude-astra.md §7), « la V1
@@ -36,6 +37,11 @@ type View = 'categories' | 'month' | 'import' | 'epargne';
  * §8) : Épargne passe en deuxième position — un usage régulier, à côté
  * d'Aperçu — et Catégories, un réglage qu'on ne rouvre qu'occasionnellement
  * une fois les catégories de départ chargées, passe en dernier.
+ *
+ * Un onglet « Évolution » (06/09/2026, docs/etude-astra.md §12) répond à
+ * une question que « Aperçu » ne pose pas : pas seulement « où est parti
+ * l'argent ce mois-ci », mais « et par rapport à d'habitude ». Juste après
+ * Aperçu, dont c'est le prolongement naturel dans le temps.
  */
 export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
   const [view, setView] = useState<View>('month');
@@ -148,6 +154,12 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
             Aperçu
           </button>
           <button
+            className={`budget-tab${view === 'evolution' ? ' active' : ''}`}
+            onClick={() => setView('evolution')}
+          >
+            Évolution
+          </button>
+          <button
             className={`budget-tab${view === 'epargne' ? ' active' : ''}`}
             onClick={() => setView('epargne')}
           >
@@ -178,6 +190,8 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
 
         {view === 'import' ? null : view === 'month' ? (
           <MonthScreen categories={categories} onError={onError} reloadToken={reloadToken} />
+        ) : view === 'evolution' ? (
+          <EvolutionScreen categories={categories} onError={onError} reloadToken={reloadToken} />
         ) : view === 'epargne' ? (
           <EnvelopesScreen categories={categories} onError={onError} reloadToken={reloadToken} />
         ) : loading ? (

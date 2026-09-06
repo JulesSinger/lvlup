@@ -404,3 +404,84 @@ seule enveloppe (« Voiture »), toujours via le bouton de l'écran vide, jamais
 flottant. Corrigé à l'identique du motif déjà en place ailleurs (icône seule, nom accessible en
 `title`/`aria-label`), et une vérification ajoutée pour ne plus jamais perdre ce cas de vue.
 `432/432` local → `434/434` (+2), `444/444` en mode comptes → `446/446` (+2).
+
+## 12. Aller plus loin qu'un simple suivi (06/09/2026)
+
+Demande de Jules : « le but de faire un budget, c'est d'avoir de la visibilité sur ce que je
+dépense mais aussi pouvoir faire évoluer ma façon de dépenser et voir cette évolution au fil du
+temps » — avec une idée en tête, mais une recherche de marché demandée en premier, pour ne pas
+biaiser la réflexion.
+
+**Ce que la recherche a montré.** YNAB structure ses objectifs par catégorie en trois formes
+(plafond mensuel, recharge jusqu'à X, X € d'ici une date) ; Copilot Money détecte les charges
+récurrentes ; Monarch et Linxo (le comparable français le plus proche) mettent en avant des
+graphiques d'évolution mois par mois — Linxo vend même l'idée en ces termes, « une meilleure
+visibilité sur l'évolution globale du budget ». Le point le plus utile, et le moins attendu :
+une étude (Irrational Labs) a mesuré l'effet réel d'un budget chiffré sur le comportement de
+dépense, et n'a trouvé **aucun effet positif clair** — les catégories budgétées étaient même
+légèrement plus dépensées que les autres. Un plafond avec un voyant rouge n'a pas démontré
+grand-chose ; ce qui revient dans les retours UX, c'est la comparaison à soi-même dans le temps.
+Trois pistes proposées à Jules : une vue d'évolution multi-mois, un comparatif mois-à-mois
+immédiat, une détection des dépenses récurrentes. Les deux premières retenues ; la troisième
+mise de côté, Jules voulant y réfléchir davantage avant de trancher — un plafond par catégorie
+explicitement écarté, en cohérence avec ce que dit la recherche.
+
+### Un onglet Évolution, choisi parmi trois maquettes de placement
+
+Trois façons de matérialiser « voir l'évolution » proposées à Jules : un nouvel onglet dédié, un
+sparkline directement dans la liste des catégories, ou la courbe affichée à la place du détail
+des sous-catégories en cliquant une part du camembert. Choix de Jules : **le nouvel onglet** — le
+seul des trois qui montre une vraie plage de mois d'un coup, pas seulement un indice de
+tendance.
+
+- `computeSpendingTrend` (`lib/spendingTrend.ts`) rejoue `computeMonthlyBreakdown` mois par mois
+  plutôt que de recalculer ses règles à part : le rollup des sous-catégories, l'exclusion de
+  `transfert`/`epargne`, le fait qu'un remboursement ne fait jamais passer une part en négatif —
+  jamais deux calculs qui pourraient diverger. `revenu` est hors du périmètre : ce n'est pas une
+  dépense qui évolue, et l'épargne a déjà sa propre courbe (`SavingsChart`, onglet Épargne).
+- La fenêtre de temps commence au premier mois où une vraie dépense existe (pas au premier mois
+  où *n'importe quelle* écriture existe — un compte qui n'a encore que des virements internes
+  n'a rien à montrer), et **ne bouge jamais** quand on change de catégorie dans le sélecteur :
+  comparer, c'est garder le même axe des temps sous les yeux.
+- `SpendingTrendChart` reprend le langage visuel de `objectifs/components/PPChart.tsx` (barres,
+  survol, bascule tableau) — code entièrement réécrit, un module n'important jamais depuis un
+  autre — avec une ligne pointillée en plus : la moyenne de la période affichée, un repère plutôt
+  qu'un jugement.
+- Seules les catégories **sans parent**, de nature `variable`/`fixe`, sont proposées dans le
+  sélecteur : une sous-catégorie remonte déjà dans la courbe de son parent.
+
+### Le comparatif mois-à-mois, sans jugement de valeur
+
+À côté de chaque part du camembert et des trois totaux du mois : un pourcentage d'évolution par
+rapport au mois précédent (`monthDelta`, `deltaMap`, `formatMonthDelta` dans
+`monthlyBreakdown.ts`). Trois décisions directement héritées du point le plus utile de la
+recherche :
+
+- **Un pourcentage, pas un montant brut** — plus parlant pour une évolution.
+- **Une teinte discrète**, jamais la même saturation que le montant à côté : un repère à lire en
+  passant, pas une alerte. Directement en écho à l'étude citée plus haut.
+- **Masqué en bloc tant qu'aucune écriture n'existe avant le mois affiché** — le tout premier
+  mois d'usage n'a rien à comparer ; l'afficher quand même aurait annoncé un « nouveau » sur
+  chaque ligne, ce qui n'apprend rien. Une catégorie apparue ce mois-ci sans avoir existé le
+  mois d'avant reste, elle, marquée « nouveau » plutôt qu'un pourcentage absurde — la même
+  distinction que `monthDelta` pose déjà.
+
+### Un bug mobile trouvé en vérifiant le nouvel onglet — même famille que celui du 24/08/2026
+
+Le cinquième onglet a fait déborder `.budget-tabs` d'un téléphone étroit (408 px de barre dans
+un viewport à 390 px) — un `overflow-x: auto` scoped à la barre suffisait en théorie, mais
+l'ajouter seul n'a rien changé : mesuré, c'est `.main.budget-main` lui-même qui débordait (436 px
+au lieu de 390), pas seulement la barre d'onglets qu'il contient. Cause exacte, différente du bug
+déjà corrigé le 24/08/2026 mais de la même famille (`.main` mal contraint sur mobile) :
+`.main` (socle) se centre avec `margin: 0 auto`, pensé pour un `.layout` en ligne (bureau). Sur
+mobile, `.layout` passe en colonne (`core/styles/mobile.css`), ce qui fait basculer l'axe
+secondaire du flex sur l'horizontale — et une marge automatique sur cet axe **désactive
+l'étirement** (`align-items: stretch`) : `.main` reprend alors la largeur de son contenu plutôt
+que celle du viewport. Corrigé en donnant à `.budget-main` un `width: 100%` sous 760px (le même
+seuil que le socle), qui neutralise l'effet de la marge automatique sans y toucher — fichier du
+socle non modifié, exception qui n'a pas eu lieu d'être cette fois.
+
+`526/526` tests unitaires → `545/545` (+19 : `spendingTrend.test.ts` 9, `monthDelta`/`deltaMap`/
+`formatMonthDelta` dans `monthlyBreakdown.test.ts` 10), `434/434` local → `445/445` (+11 :
+onglet Évolution 6, comparatif mensuel 4, plus la correction mobile qui ramène à zéro les six
+échecs qu'elle avait provoqués), `446/446` en mode comptes → `457/457` (+11).
