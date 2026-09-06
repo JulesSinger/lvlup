@@ -391,3 +391,16 @@ Le raccourci est annoncé dans le titre du bouton flottant (« Nouvelle écritur
 caché : un raccourci qu'on ne découvre jamais ne sert à personne. `427/427` local → `432/432`
 (+5 : ouverture au clavier, non-interférence en tapant un « n », fermeture, écriture réellement
 enregistrée), `439/439` en mode comptes → `444/444` (+5).
+
+## 11. Le bouton flottant d'une enveloppe affichait encore son ancien texte (06/09/2026)
+
+Rapporté par Jules : « on voit "nouvelle..." qqchose écrit sur le bouton » sur l'onglet Épargne.
+Le bouton « + Nouvelle enveloppe » (`EnvelopesScreen.tsx`) n'avait jamais reçu la migration vers
+le bouton flottant icône-seule faite pour les catégories et les écritures (§8, « De la barre
+pleine largeur au bouton flottant ») : il gardait son texte d'origine tout en héritant la classe
+`.budget-add` (rond, 46 px) — le texte débordait du rond au lieu de disparaître derrière
+`aria-label`. Jamais couvert par les vérifications de bout en bout : la suite ne crée qu'une
+seule enveloppe (« Voiture »), toujours via le bouton de l'écran vide, jamais via ce bouton
+flottant. Corrigé à l'identique du motif déjà en place ailleurs (icône seule, nom accessible en
+`title`/`aria-label`), et une vérification ajoutée pour ne plus jamais perdre ce cas de vue.
+`432/432` local → `434/434` (+2), `444/444` en mode comptes → `446/446` (+2).

@@ -168,8 +168,13 @@ export function EnvelopesScreen({
       )}
 
       {envelopes.length > 0 && (
-        <button className="btn btn-primary budget-add" onClick={() => setEditing('new')}>
-          + Nouvelle enveloppe
+        <button
+          className="btn btn-primary budget-add"
+          onClick={() => setEditing('new')}
+          title="Nouvelle enveloppe"
+          aria-label="Nouvelle enveloppe"
+        >
+          <span className="budget-add-icon" aria-hidden="true" />
         </button>
       )}
 

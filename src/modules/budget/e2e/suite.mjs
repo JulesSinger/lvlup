@@ -453,6 +453,24 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.budget-envelope-row');
   check('L’enveloppe créée apparaît, solde nul', (await page.locator('.budget-envelope-row .budget-row-amount').textContent())?.trim() === '0,00 €');
 
+  // Le bouton flottant (une fois qu'il y a déjà une enveloppe) : icône seule,
+  // pas le texte d'origine qui débordait du rond de 46px (rapporté par Jules).
+  check(
+    'Le bouton flottant ne porte aucun texte visible',
+    (await page.locator('.budget-add').textContent())?.trim() === '',
+    JSON.stringify(await page.locator('.budget-add').textContent()),
+  );
+  await page.locator('.budget-add').click();
+  await page.waitForSelector('.budget-envelope-editor');
+  check(
+    'Le bouton flottant ouvre bien l’éditeur d’une nouvelle enveloppe',
+    (await page.locator('#budget-envelope-name').inputValue()) === '',
+  );
+  // Refermée sans l'enregistrer : les vérifications suivantes comptent sur
+  // une seule enveloppe (« Voiture »).
+  await page.getByRole('button', { name: 'Annuler' }).click();
+  await page.waitForTimeout(150);
+
   // Un virement vers l'épargne (§3) : une « Dépense » catégorisée Épargne,
   // comme n'importe quelle écriture — aucun champ ni écran dédié.
   await page.getByRole('button', { name: 'Aperçu' }).click();
