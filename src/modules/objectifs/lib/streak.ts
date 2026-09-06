@@ -66,15 +66,43 @@ export function activityDays(goals: Goal[], checkins: Checkin[]): string[] {
   return [...days].sort();
 }
 
-export function computeStreak(
+/** Décale un jour de `offset` jours (peut être négatif). */
+function shiftDay(day: string, offset: number): string {
+  const [y, m, d] = day.split('-').map(Number);
+  return dayString(new Date(y, m - 1, d + offset, 12));
+}
+
+export type DayStreakStatus = 'done' | 'frozen' | 'missed' | 'pending';
+
+export interface DayStreakEntry {
+  day: string;
+  status: DayStreakStatus;
+}
+
+interface StreakWalk {
+  result: Streak;
+  /** Jour par jour, du premier jour d'activité à aujourd'hui inclus. */
+  history: DayStreakEntry[];
+}
+
+/**
+ * Le calcul du streak, rejoué jour par jour. `computeStreak` n'en garde que
+ * le résultat final ; `recentStreakDays` en garde le détail — la même
+ * marche, jamais deux logiques qui pourraient diverger.
+ */
+function walkStreak(
   goals: Goal[],
   checkins: Checkin[],
-  today: string = dayString(),
-  purchases: FreezePurchase[] = [],
-): Streak {
+  today: string,
+  purchases: FreezePurchase[],
+): StreakWalk {
   const days = activityDays(goals, checkins).filter((d) => d <= today);
+  const history: DayStreakEntry[] = [];
   if (days.length === 0) {
-    return { current: 0, best: 0, freezes: 0, activeToday: false, atRisk: false };
+    return {
+      result: { current: 0, best: 0, freezes: 0, activeToday: false, atRisk: false },
+      history,
+    };
   }
 
   let current = 0;
@@ -110,6 +138,16 @@ export function computeStreak(
     achetes = Math.max(0, achetes - (n - surGagnes));
   }
 
+  /** Marque, du même statut, chaque jour strictement entre `from` et `to`. */
+  function markGap(from: string, to: string, status: DayStreakStatus) {
+    let cursor = from;
+    for (;;) {
+      cursor = shiftDay(cursor, 1);
+      if (cursor >= to) return;
+      history.push({ day: cursor, status });
+    }
+  }
+
   for (const day of days) {
     // Tout ce qui a été acheté jusqu'à ce jour inclus est disponible.
     while (achatsCredites < achats.length && achats[achatsCredites] <= day) {
@@ -120,9 +158,11 @@ export function computeStreak(
       const gap = daysBetween(previous, day) - 1;
       if (gap > 0) {
         if (gap <= reserve()) {
+          markGap(previous, day, 'frozen');
           consommer(gap); // les gels absorbent les jours manqués
         } else {
-          current = 0; // trou trop grand : le streak repart
+          markGap(previous, day, 'missed'); // trou trop grand : le streak repart
+          current = 0;
           freezeCredits = 0;
           // La réserve gagnée repart avec lui : un gel gagné récompense une
           // régularité installée, le garder après une rupture amortirait en
@@ -133,6 +173,7 @@ export function computeStreak(
         }
       }
     }
+    history.push({ day, status: 'done' });
     current += 1;
     if (current > best) best = current;
     // Un gel gagné à 7, 14, 21… jours consécutifs, plafonné à la réserve max.
@@ -152,19 +193,66 @@ export function computeStreak(
 
   if (!activeToday) {
     // Rien fait aujourd'hui : le streak n'est PAS cassé tant que la journée
-    // n'est pas finie. Il est « à risque » si les jours manqués depuis la
-    // dernière action (aujourd'hui exclu) restent absorbables par les gels.
+    // n'est pas finie — aujourd'hui reste « en attente », ni flamme ni gel.
+    // Il est « à risque » si les jours manqués depuis la dernière action
+    // (aujourd'hui exclu) restent absorbables par les gels.
     const missed = sinceLast - 1; // jours pleins manqués avant aujourd'hui
     if (missed > freezes) {
       // Série perdue : la réserve l'accompagne, comme au-dessus.
-      return { current: 0, best, freezes: 0, activeToday: false, atRisk: false };
+      markGap(last, today, 'missed');
+      history.push({ day: today, status: 'pending' });
+      return {
+        result: { current: 0, best, freezes: 0, activeToday: false, atRisk: false },
+        history,
+      };
     }
     // Les gels qui couvriront ces jours manqués sont déjà engagés : les
     // annoncer comme disponibles trompe l'utilisateur au seul moment où il
     // consulte ce chiffre — celui où il se demande s'il peut sauter un jour
     // de plus. La réserve annoncée est donc celle qui restera.
-    return { current, best, freezes: freezes - missed, activeToday: false, atRisk: true };
+    markGap(last, today, 'frozen');
+    history.push({ day: today, status: 'pending' });
+    return {
+      result: { current, best, freezes: freezes - missed, activeToday: false, atRisk: true },
+      history,
+    };
   }
 
-  return { current, best, freezes, activeToday: true, atRisk: false };
+  return { result: { current, best, freezes, activeToday: true, atRisk: false }, history };
+}
+
+export function computeStreak(
+  goals: Goal[],
+  checkins: Checkin[],
+  today: string = dayString(),
+  purchases: FreezePurchase[] = [],
+): Streak {
+  return walkStreak(goals, checkins, today, purchases).result;
+}
+
+/**
+ * Le détail jour par jour du streak, pour une bandelette visuelle sur
+ * l'accueil : une flamme allumée les jours faits, un gel les jours couverts
+ * par un gel, une flamme éteinte les jours vraiment manqués. `count` jours,
+ * aujourd'hui inclus, le plus ancien en premier.
+ *
+ * Un jour antérieur au tout premier jour d'activité (rien à raconter avant
+ * que le streak existe) est rendu `'pending'`, neutre — pas `'missed'`, qui
+ * laisserait croire à un jour manqué plutôt qu'à une app pas encore utilisée.
+ */
+export function recentStreakDays(
+  goals: Goal[],
+  checkins: Checkin[],
+  purchases: FreezePurchase[] = [],
+  today: string = dayString(),
+  count = 7,
+): DayStreakEntry[] {
+  const { history } = walkStreak(goals, checkins, today, purchases);
+  const byDay = new Map(history.map((h) => [h.day, h.status]));
+  const out: DayStreakEntry[] = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const day = shiftDay(today, -i);
+    out.push({ day, status: byDay.get(day) ?? 'pending' });
+  }
+  return out;
 }

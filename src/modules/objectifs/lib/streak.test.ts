@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_FREEZES, activityDays, computeStreak, dayString } from './streak';
+import { MAX_FREEZES, activityDays, computeStreak, dayString, recentStreakDays } from './streak';
 import { JALON, type Checkin, type Goal } from './types';
 
 /**
@@ -283,5 +283,79 @@ describe('gels achetés', () => {
     const jours = daysUpTo('2026-05-20', 3);
     const avec = computeStreak([], jours.map((d) => checkin(d)), '2026-05-20', [achat('2026-06-01')]);
     expect(avec.freezes).toBe(0);
+  });
+});
+
+/**
+ * Le détail jour par jour, pour la bandelette du bandeau d'accueil : la même
+ * marche que `computeStreak`, jamais une seconde logique qui pourrait
+ * diverger — ces tests rejouent les scénarios déjà couverts ci-dessus et
+ * vérifient le statut de chaque jour plutôt que le seul total.
+ */
+describe('recentStreakDays', () => {
+  const statuses = (goals: Goal[], checkins: Checkin[], today: string, count: number) =>
+    recentStreakDays(goals, checkins, [], today, count).map((d) => d.status);
+
+  it('un jour fait est « done »', () => {
+    const days = daysUpTo('2026-05-20', 3);
+    expect(statuses([], days.map((d) => checkin(d)), '2026-05-20', 3)).toEqual([
+      'done',
+      'done',
+      'done',
+    ]);
+  });
+
+  it('avant le premier jour d’activité, c’est « pending », pas « missed »', () => {
+    const days = daysUpTo('2026-05-20', 2); // 19 et 20 mai seulement
+    expect(statuses([], days.map((d) => checkin(d)), '2026-05-20', 4)).toEqual([
+      'pending',
+      'pending',
+      'done',
+      'done',
+    ]);
+  });
+
+  it('un jour couvert par un gel est « frozen », pas « missed »', () => {
+    // Même scénario que « un gel absorbe un jour manqué sans casser la
+    // série » : sept jours (11 → 17 mai, un gel gagné), le 18 sauté, repris
+    // les 19 et 20.
+    const first = daysUpTo('2026-05-17', 7);
+    const after = ['2026-05-19', '2026-05-20'];
+    const list = [...first, ...after].map((d) => checkin(d));
+    const out = recentStreakDays([], list, [], '2026-05-20', 10);
+    const byDay = Object.fromEntries(out.map((d) => [d.day, d.status]));
+    expect(byDay['2026-05-18']).toBe('frozen');
+    expect(byDay['2026-05-17']).toBe('done');
+    expect(byDay['2026-05-19']).toBe('done');
+  });
+
+  it('un jour non couvert (trou trop grand) est « missed »', () => {
+    // Même scénario que « un trou plus grand que la réserve de gels remet la
+    // série à zéro » : 1 gel gagné, un trou de 7 jours (11 → 17 mai).
+    const first = daysUpTo('2026-05-10', 7);
+    const after = ['2026-05-18', '2026-05-19', '2026-05-20'];
+    const list = [...first, ...after].map((d) => checkin(d));
+    const out = recentStreakDays([], list, [], '2026-05-20', 11);
+    const byDay = Object.fromEntries(out.map((d) => [d.day, d.status]));
+    expect(byDay['2026-05-11']).toBe('missed');
+    expect(byDay['2026-05-15']).toBe('missed');
+    expect(byDay['2026-05-10']).toBe('done');
+    expect(byDay['2026-05-18']).toBe('done');
+  });
+
+  it('aujourd’hui, rien fait mais la journée pas finie : « pending »', () => {
+    const days = daysUpTo('2026-05-19', 3);
+    expect(statuses([], days.map((d) => checkin(d)), '2026-05-20', 4).at(-1)).toBe('pending');
+  });
+
+  it('rend exactement `count` jours, le plus ancien en premier', () => {
+    const out = recentStreakDays([], [], [], '2026-05-20', 5);
+    expect(out.map((d) => d.day)).toEqual([
+      '2026-05-16',
+      '2026-05-17',
+      '2026-05-18',
+      '2026-05-19',
+      '2026-05-20',
+    ]);
   });
 });

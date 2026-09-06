@@ -139,6 +139,48 @@
   letter-spacing: 0.08em;
 }
 
+/* La bandelette des sept derniers jours : ce que la seule flamme du jour ne
+   raconte pas — quels jours ont vraiment été faits, lesquels ont coûté un
+   gel, lequel a cassé la série. */
+.streak-strip {
+  display: flex;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+}
+
+.streak-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg-2);
+  font-size: 14px;
+}
+
+.streak-day.done {
+  background: rgba(255, 157, 77, 0.16);
+}
+
+.streak-day.frozen {
+  background: rgba(88, 166, 255, 0.14);
+}
+
+/* Une flamme éteinte : même grisaille que celle du jour, en plus petit. */
+.streak-day.missed span {
+  filter: grayscale(0.85) opacity(0.55);
+}
+
+/* Ni fait, ni manqué : avant le début du streak, ou aujourd'hui, pas encore
+   décidé tant que la journée n'est pas finie. */
+.streak-day.pending span {
+  filter: grayscale(1) opacity(0.25);
+}
+
 /* ------------------------------------------------------ actions du jour */
 .today-goal {
   padding: 11px 0;

@@ -4,6 +4,7 @@ import { catchupDays, catchupLabel, ignoreDay, shiftDay } from '../lib/catchup';
 import { formatAmount, isCountable } from '../lib/counters';
 import { ladderKind, needsInput, parseAmount, tapValue } from '../lib/quantities';
 import {
+  formatDate,
   freezeFill,
   freezeOffer,
   goalProgress,
@@ -14,7 +15,8 @@ import {
   weekStats,
 } from '../lib/progress';
 import { getRank } from '../lib/ranks';
-import { MAX_FREEZES, computeStreak, dayString } from '../lib/streak';
+import { MAX_FREEZES, computeStreak, dayString, recentStreakDays } from '../lib/streak';
+import type { DayStreakStatus } from '../lib/streak';
 import { FREEZE_COST, ONE_OFF_PP } from '../lib/types';
 import type { Action, Checkin, FreezePurchase, Goal, Tier } from '../lib/types';
 import { useCountUp } from './useCountUp';
@@ -22,6 +24,22 @@ import { DailyRing } from './DailyRing';
 import { ProfileHeader } from './ProfileHeader';
 import { RankBadge } from './RankBadge';
 import { TierMeter } from './TierMeter';
+
+/** Ce que dit chaque jour de la bandelette de streak, au survol. */
+function streakDayTitle(entry: { day: string; status: DayStreakStatus }, today: string): string {
+  const date = formatDate(`${entry.day}T12:00:00`);
+  const etat =
+    entry.status === 'done'
+      ? 'fait'
+      : entry.status === 'frozen'
+        ? 'gel utilisé'
+        : entry.status === 'missed'
+          ? 'manqué'
+          : entry.day === today
+            ? 'à venir'
+            : 'avant le début du streak';
+  return `${date} : ${etat}`;
+}
 
 /**
  * Écran d'accueil — le hub. L'anneau du jour au premier plan (le quotidien),
@@ -178,6 +196,8 @@ export function Hub({
 
   const earned = todayPP(goals, checkins);
   const streak = computeStreak(goals, checkins, dayString(), freezePurchases);
+  /** Les sept derniers jours, pour la bandelette sous la flamme du jour. */
+  const recentDays = recentStreakDays(goals, checkins, freezePurchases, dayString(), 7);
   const remaining = Math.max(0, dailyGoal - earned);
   const dayDone = earned >= dailyGoal;
 
@@ -290,6 +310,22 @@ export function Hub({
               </button>
             )}
           </div>
+
+          {/* La bandelette des sept derniers jours : une flamme les jours
+              faits, un gel ceux couverts par un gel, une flamme éteinte les
+              jours vraiment manqués — le détail que la flamme du jour, seule,
+              ne peut pas raconter. */}
+          <ol className="streak-strip" aria-label="Les sept derniers jours">
+            {recentDays.map((entry) => (
+              <li
+                key={entry.day}
+                className={`streak-day ${entry.status}`}
+                title={streakDayTitle(entry, dayString())}
+              >
+                <span aria-hidden="true">{entry.status === 'frozen' ? '❄' : '🔥'}</span>
+              </li>
+            ))}
+          </ol>
         </div>
       </section>
 

@@ -133,6 +133,11 @@ et sa carte partageable. Un **calendrier du mois** montre les jours pleins, les 
 en version minimale (ambre) et les jours couverts par un gel ❄ — la vue « jardin »
 plutôt que la chaîne brisée.
 
+*Un premier pas livré le 2026-09-06 (voir CLAUDE.md) : une bandelette des sept
+derniers jours, sous la flamme du jour — flamme allumée, gel ❄, ou flamme éteinte.
+Pas encore le calendrier du mois complet, ni la « version minimale » ambre (ce
+troisième état n'existe pas dans le modèle actuel).*
+
 **Le streak sert enfin à quelque chose** — il applique un multiplicateur sur les PP
 gagnés : ×1,1 à partir de 7 jours, ×1,25 à 30, ×1,5 à 100. Ça répond du même coup à
 ton interrogation de la dernière fois sur le sens des PP : ils deviennent la monnaie

@@ -395,6 +395,22 @@ export async function run({ browser, check, BASE }) {
     ((await page.locator('.flame-count').textContent()) ?? '') === '1',
     await page.locator('.flame-count').textContent(),
   );
+  check(
+    'La bandelette montre sept jours',
+    (await page.locator('.streak-day').count()) === 7,
+    String(await page.locator('.streak-day').count()),
+  );
+  check(
+    'Aujourd’hui y est déjà « fait »',
+    await page.locator('.streak-day').last().evaluate((el) => el.classList.contains('done')),
+  );
+  check(
+    'Les jours d’avant la création sont neutres, pas « manqués »',
+    await page
+      .locator('.streak-day')
+      .first()
+      .evaluate((el) => el.classList.contains('pending')),
+  );
 
   // « Un vrai effort » vaut 15 PP
   check(
@@ -681,6 +697,67 @@ export async function run({ browser, check, BASE }) {
     await riskPage.locator('.streak-banner').isVisible(),
   );
   await riskCtx.close();
+
+  // Bandelette de streak : un jour manqué, et un jour couvert par un gel —
+  // reproduits avec des dates relatives à aujourd'hui, injectées directement
+  // (le seul moyen de simuler un historique sans attendre neuf jours pour de
+  // vrai). Sept jours d'affilée (un gel gagné), un jour sauté (couvert par ce
+  // gel), puis un vrai trou d'un jour, sans rien pour le couvrir.
+  const stripCtx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+  const stripPage = await stripCtx.newPage();
+  await gotoZenith(stripPage, BASE);
+  await stripPage.evaluate(() => {
+    const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const daysAgo = (n) => fmt(new Date(Date.now() - n * 86_400_000));
+    const now = new Date().toISOString();
+    const goal = {
+      id: 'g1',
+      title: 'Objectif test',
+      description: '',
+      emoji: '🎯',
+      position: 0,
+      archived: false,
+      createdAt: now,
+      tiers: [
+        { id: 't1', goalId: 'g1', title: 'Palier 1', rank: 'or', position: 0, completedAt: null, createdAt: now },
+      ],
+    };
+    // Sept jours d'affilée : J-8 à J-2 (un gel gagné le 7e, jour de la
+    // semaine complète). J-1 sauté, couvert par ce gel. Reprise aujourd'hui.
+    const run = [8, 7, 6, 5, 4, 3, 2].map(daysAgo); // J-8 … J-2, consécutifs
+    const checkins = [...run, daysAgo(0)].map((day, i) => ({
+      id: `c${i}`,
+      goalId: 'g1',
+      actionId: null,
+      pp: 10,
+      day,
+      note: '',
+      createdAt: `${day}T08:00:00.000Z`,
+      value: null,
+      title: null,
+    }));
+    localStorage.setItem(
+      'palier.v1',
+      JSON.stringify({ goals: [goal], checkins, achievements: [] }),
+    );
+  });
+  await reloadZenith(stripPage);
+  await stripPage.waitForSelector('.hub');
+  check(
+    'Un jour couvert par un gel affiche le gel, pas une flamme éteinte',
+    await stripPage
+      .locator('.streak-day')
+      .nth(5) // J-1 : avant-dernier jour de la bandelette de sept
+      .evaluate((el) => el.classList.contains('frozen')),
+  );
+  check(
+    'Et le run consécutif qui l’entoure reste « fait »',
+    await stripPage
+      .locator('.streak-day')
+      .nth(4) // J-2
+      .evaluate((el) => el.classList.contains('done')),
+  );
+  await stripCtx.close();
 
   const mobile = await page.context().newPage();
   await mobile.setViewportSize({ width: 390, height: 844 });
