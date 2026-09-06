@@ -39,14 +39,33 @@ export const CATEGORY_KIND_LABELS: Record<BudgetCategoryKind, string> = {
 export const BUDGET_ENTRY_SOURCES = ['import', 'manuelle'] as const;
 export type BudgetEntrySource = (typeof BUDGET_ENTRY_SOURCES)[number];
 
+/**
+ * Une catégorie peut avoir des sous-catégories (« Restaurants & bars » →
+ * « Restaurants », « Bar »), sur **un seul niveau** : une sous-catégorie ne
+ * peut jamais elle-même être parente. `parentId` porte cette relation ;
+ * `null` = catégorie normale.
+ *
+ * `kind` reste posé sur chaque ligne, y compris une sous-catégorie — jamais
+ * recalculé par une remontée vers le parent. Ce n'est pas un choix libre de
+ * l'interface (une sous-catégorie hérite toujours la nature de son parent,
+ * et n'a pas son propre sélecteur), mais un choix de stockage délibéré :
+ * supprimer un parent **promeut** ses sous-catégories en catégories
+ * normales (§ `deleteCategory`) plutôt que de les supprimer avec lui — rien
+ * de saisi par l'utilisateur ne disparaît jamais silencieusement. Une
+ * sous-catégorie promue doit donc déjà porter une nature valide, faute de
+ * quoi elle se retrouverait orpheline de la seule information qui lui
+ * manque pour continuer à fonctionner seule.
+ */
 export interface BudgetCategory {
   id: string;
   name: string;
   emoji: string;
   color: string;
   kind: BudgetCategoryKind;
-  /** Position d'affichage, 0 = première */
+  /** Position d'affichage, 0 = première — parmi ses sœurs (même parent, ou aucun). */
   position: number;
+  /** Catégorie parente, ou `null`. Voir la note ci-dessus : un seul niveau de profondeur. */
+  parentId: string | null;
 }
 
 export interface BudgetCategoryInput {
@@ -54,6 +73,7 @@ export interface BudgetCategoryInput {
   emoji?: string;
   color?: string;
   kind?: BudgetCategoryKind;
+  parentId?: string | null;
 }
 
 /**

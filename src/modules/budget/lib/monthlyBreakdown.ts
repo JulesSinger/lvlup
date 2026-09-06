@@ -53,7 +53,22 @@ export interface MonthlyBreakdown {
  * dépasse la dépense d'origine, ou une entrée isolée sans catégorie, qui
  * apparaît sous « À classer » plutôt que d'y disparaître, exactement comme
  * une dépense non catégorisée le fait côté dépenses.
+ *
+ * Une sous-catégorie (« Restaurants & bars » → « Restaurants ») ne fait
+ * jamais sa propre part : sa dépense remonte dans la part de son parent
+ * (`rollupKey`), pour ne pas faire exploser le nombre de parts au fil des
+ * sous-catégories créées — voir docs/etude-astra.md §3 (« une quinzaine de
+ * catégories, c'est le bon ordre de grandeur »). Le détail par
+ * sous-catégorie, quand on veut le voir, est le rôle de
+ * `subcategoryBreakdown` ci-dessous.
  */
+function rollupKey(categoryId: string | null, categoryById: Map<string, BudgetCategory>): string {
+  if (!categoryId) return '';
+  const category = categoryById.get(categoryId);
+  if (!category) return categoryId;
+  return category.parentId ?? categoryId;
+}
+
 export function computeMonthlyBreakdown(
   entries: BudgetEntry[],
   categories: BudgetCategory[],
@@ -66,7 +81,7 @@ export function computeMonthlyBreakdown(
     if (monthKeyOf(entry.day) !== monthKey) continue;
     const category = entry.categoryId ? categoryById.get(entry.categoryId) : undefined;
     if (category?.kind === 'transfert' || category?.kind === 'epargne') continue;
-    const key = entry.categoryId ?? '';
+    const key = rollupKey(entry.categoryId, categoryById);
     netByKey.set(key, (netByKey.get(key) ?? 0) + entry.amountCents);
   }
 
@@ -90,4 +105,76 @@ export function computeMonthlyBreakdown(
   const totalSpentCents = slices.reduce((sum, s) => sum + s.cents, 0);
   const totalIncomeCents = incomeSlices.reduce((sum, s) => sum + s.cents, 0);
   return { totalSpentCents, slices, totalIncomeCents, incomeSlices };
+}
+
+export interface SubcategorySlice {
+  /** `null` = écriture posée directement sur le parent, sans sous-catégorie précise. */
+  categoryId: string | null;
+  label: string;
+  emoji: string;
+  color: string;
+  cents: number;
+}
+
+export interface SubcategoryBreakdown {
+  slices: SubcategorySlice[];
+  incomeSlices: SubcategorySlice[];
+}
+
+/**
+ * Le détail d'une catégorie qui a des sous-catégories, pour le mois donné —
+ * ce que sa part unique du camembert (voir `rollupKey` ci-dessus) ne montre
+ * pas. Une écriture posée directement sur le parent, sans sous-catégorie
+ * précisée, devient une part « Non précisé » plutôt que de disparaître —
+ * même garantie que « À classer » au niveau du camembert.
+ *
+ * Même construction à deux temps (dépenses / entrées) que
+ * `computeMonthlyBreakdown`, pour la même raison : un remboursement dans une
+ * sous-catégorie peut légitimement en réduire la part sans devenir un
+ * revenu.
+ */
+export function subcategoryBreakdown(
+  entries: BudgetEntry[],
+  categories: BudgetCategory[],
+  parentId: string,
+  monthKey: string,
+): SubcategoryBreakdown {
+  const categoryById = new Map(categories.map((c) => [c.id, c]));
+  const netByKey = new Map<string, number>();
+
+  for (const entry of entries) {
+    if (monthKeyOf(entry.day) !== monthKey) continue;
+    if (!entry.categoryId) continue;
+    if (entry.categoryId === parentId) {
+      netByKey.set('', (netByKey.get('') ?? 0) + entry.amountCents);
+      continue;
+    }
+    const category = categoryById.get(entry.categoryId);
+    if (category?.parentId !== parentId) continue;
+    netByKey.set(entry.categoryId, (netByKey.get(entry.categoryId) ?? 0) + entry.amountCents);
+  }
+
+  // La couleur du parent, pas le gris neutre de « À classer » : « Non
+  // précisé » reste une écriture de Loisirs, juste pas détaillée plus loin —
+  // rien à voir avec une écriture qui n'a aucune catégorie du tout.
+  const parentColor = categoryById.get(parentId)?.color ?? UNCATEGORIZED_COLOR;
+
+  const slices: SubcategorySlice[] = [];
+  const incomeSlices: SubcategorySlice[] = [];
+  for (const [key, net] of netByKey) {
+    if (net === 0) continue;
+    const category = key ? categoryById.get(key) : undefined;
+    const slice: SubcategorySlice = {
+      categoryId: key || null,
+      label: category ? category.name : 'Non précisé',
+      emoji: category ? category.emoji : '—',
+      color: category ? category.color : parentColor,
+      cents: Math.abs(net),
+    };
+    (net < 0 ? slices : incomeSlices).push(slice);
+  }
+
+  slices.sort((a, b) => b.cents - a.cents);
+  incomeSlices.sort((a, b) => b.cents - a.cents);
+  return { slices, incomeSlices };
 }

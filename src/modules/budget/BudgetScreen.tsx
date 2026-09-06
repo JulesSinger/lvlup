@@ -42,8 +42,15 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingStarter, setLoadingStarter] = useState(false);
-  /** `null` = fermé, `'new'` = création, une catégorie = édition. */
-  const [editing, setEditing] = useState<BudgetCategory | 'new' | null>(null);
+  /**
+   * `null` = fermé. `{ mode: 'new', parent }` crée une catégorie normale
+   * (`parent: null`) ou une sous-catégorie (`parent` la catégorie visée).
+   * `{ mode: 'edit', category }` édite l'une ou l'autre — `category.parentId`
+   * dit laquelle.
+   */
+  const [editing, setEditing] = useState<
+    { mode: 'new'; parent: BudgetCategory | null } | { mode: 'edit'; category: BudgetCategory } | null
+  >(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -79,8 +86,8 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
   }
 
   async function saveCategory(input: BudgetCategoryInput) {
-    if (editing !== null && editing !== 'new') {
-      await budgetStore.updateCategory(editing.id, input);
+    if (editing?.mode === 'edit') {
+      await budgetStore.updateCategory(editing.category.id, input);
     } else {
       await budgetStore.createCategory(input);
     }
@@ -89,7 +96,15 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
   }
 
   async function removeCategory(category: BudgetCategory) {
-    if (!window.confirm(`Supprimer « ${category.name} » ? Les écritures déjà rangées dedans redeviendront « à classer ».`))
+    const hasChildren = categories.some((c) => c.parentId === category.id);
+    const warning = hasChildren
+      ? ` Ses sous-catégories deviendront des catégories normales.`
+      : '';
+    if (
+      !window.confirm(
+        `Supprimer « ${category.name} » ? Les écritures déjà rangées dedans redeviendront « à classer ».${warning}`,
+      )
+    )
       return;
     try {
       await budgetStore.deleteCategory(category.id);
@@ -99,8 +114,13 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
     }
   }
 
+  // Le regroupement par nature ne porte que les catégories normales — une
+  // sous-catégorie s'affiche sous la sienne, jamais dans sa propre section.
   const byKind = (kind: BudgetCategoryKind) =>
-    categories.filter((c) => c.kind === kind).sort((a, b) => a.position - b.position);
+    categories.filter((c) => c.kind === kind && c.parentId === null).sort((a, b) => a.position - b.position);
+
+  const childrenOf = (parentId: string) =>
+    categories.filter((c) => c.parentId === parentId).sort((a, b) => a.position - b.position);
 
   return (
     <div className="layout">
@@ -171,7 +191,7 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
               mois.
             </p>
             <div style={{ display: 'flex', gap: 9, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button className="btn btn-primary" onClick={() => setEditing('new')}>
+              <button className="btn btn-primary" onClick={() => setEditing({ mode: 'new', parent: null })}>
                 Créer ma première catégorie
               </button>
               <button className="btn" onClick={() => void loadStarterCategories()} disabled={loadingStarter}>
@@ -188,29 +208,74 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
                 <section key={kind} className="budget-group">
                   <h2 className="budget-group-title">{label}</h2>
                   <ul className="budget-list">
-                    {items.map((category) => (
-                      <li key={category.id} className="budget-row budget-category-row">
-                        <span
-                          className="budget-row-swatch"
-                          style={{ background: category.color }}
-                          aria-hidden="true"
-                        >
-                          {category.emoji}
-                        </span>
-                        <span className="budget-row-name">{category.name}</span>
-                        <span className="budget-row-actions">
-                          <button className="btn btn-ghost btn-sm" onClick={() => setEditing(category)}>
-                            Modifier
-                          </button>
-                          <button
-                            className="btn btn-ghost btn-sm btn-danger"
-                            onClick={() => void removeCategory(category)}
-                          >
-                            Supprimer
-                          </button>
-                        </span>
-                      </li>
-                    ))}
+                    {items.map((category) => {
+                      const children = childrenOf(category.id);
+                      return (
+                        <li key={category.id} className="budget-category-block">
+                          <div className="budget-row budget-category-row">
+                            <span
+                              className="budget-row-swatch"
+                              style={{ background: category.color }}
+                              aria-hidden="true"
+                            >
+                              {category.emoji}
+                            </span>
+                            <span className="budget-row-name">{category.name}</span>
+                            <span className="budget-row-actions">
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => setEditing({ mode: 'new', parent: category })}
+                              >
+                                + Sous-catégorie
+                              </button>
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => setEditing({ mode: 'edit', category })}
+                              >
+                                Modifier
+                              </button>
+                              <button
+                                className="btn btn-ghost btn-sm btn-danger"
+                                onClick={() => void removeCategory(category)}
+                              >
+                                Supprimer
+                              </button>
+                            </span>
+                          </div>
+
+                          {children.length > 0 && (
+                            <ul className="budget-list budget-sublist">
+                              {children.map((sub) => (
+                                <li key={sub.id} className="budget-row budget-category-row budget-subcategory-row">
+                                  <span
+                                    className="budget-row-swatch"
+                                    style={{ background: sub.color }}
+                                    aria-hidden="true"
+                                  >
+                                    {sub.emoji}
+                                  </span>
+                                  <span className="budget-row-name">{sub.name}</span>
+                                  <span className="budget-row-actions">
+                                    <button
+                                      className="btn btn-ghost btn-sm"
+                                      onClick={() => setEditing({ mode: 'edit', category: sub })}
+                                    >
+                                      Modifier
+                                    </button>
+                                    <button
+                                      className="btn btn-ghost btn-sm btn-danger"
+                                      onClick={() => void removeCategory(sub)}
+                                    >
+                                      Supprimer
+                                    </button>
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </section>
               );
@@ -218,7 +283,7 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
 
             <button
               className="btn btn-primary budget-add"
-              onClick={() => setEditing('new')}
+              onClick={() => setEditing({ mode: 'new', parent: null })}
               title="Nouvelle catégorie"
               aria-label="Nouvelle catégorie"
             >
@@ -239,7 +304,12 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
 
         {editing !== null && (
           <CategoryEditor
-            category={editing === 'new' ? null : editing}
+            category={editing.mode === 'edit' ? editing.category : null}
+            parent={
+              editing.mode === 'new'
+                ? editing.parent
+                : (categories.find((c) => c.id === editing.category.parentId) ?? null)
+            }
             onCancel={() => setEditing(null)}
             onSave={saveCategory}
           />

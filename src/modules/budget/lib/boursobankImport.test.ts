@@ -23,6 +23,7 @@ function category(patch: Partial<BudgetCategory>): BudgetCategory {
     color: '#000000',
     kind: 'variable',
     position: 0,
+    parentId: null,
     ...patch,
   };
 }

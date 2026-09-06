@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { budgetStore } from '../data';
 import { mostUsedCategoryIds } from '../lib/categoryPicker';
 import { currentMonthKey, monthKeyOf, monthLabel, shiftMonthKey } from '../lib/month';
-import { computeMonthlyBreakdown } from '../lib/monthlyBreakdown';
+import { computeMonthlyBreakdown, subcategoryBreakdown } from '../lib/monthlyBreakdown';
 import { centsToInputValue, formatCents } from '../lib/amount';
 import type { BudgetCategory, BudgetEntry, BudgetRule } from '../lib/types';
 import { EntriesView } from './EntriesView';
 import { PieChart } from './PieChart';
+import { SubcategoryDetail } from './SubcategoryDetail';
 
 function categoryName(categories: BudgetCategory[], id: string | null): string {
   if (id === null) return 'À classer';
@@ -68,9 +69,30 @@ export function MonthScreen({
 
   const monthEntries = entries.filter((e) => monthKeyOf(e.day) === monthKey);
   const breakdown = computeMonthlyBreakdown(entries, categories, monthKey);
-  const visibleEntries =
-    selectedCategoryId === undefined ? monthEntries : monthEntries.filter((e) => e.categoryId === selectedCategoryId);
   const netCents = breakdown.totalIncomeCents - breakdown.totalSpentCents;
+
+  // Une part du camembert est un total remonté (une sous-catégorie n'a
+  // jamais sa propre part, voir `rollupKey` dans monthlyBreakdown.ts) :
+  // cliquer « Loisirs » doit donc filtrer sur Loisirs ET toutes ses
+  // sous-catégories, pas seulement les écritures posées sur Loisirs même.
+  const childIds =
+    selectedCategoryId != null
+      ? categories.filter((c) => c.parentId === selectedCategoryId).map((c) => c.id)
+      : [];
+  const visibleEntries =
+    selectedCategoryId === undefined
+      ? monthEntries
+      : monthEntries.filter((e) =>
+          selectedCategoryId === null
+            ? e.categoryId === null
+            : e.categoryId === selectedCategoryId || childIds.includes(e.categoryId ?? ''),
+        );
+
+  const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+  const subdetail =
+    selectedCategoryId != null && childIds.length > 0
+      ? subcategoryBreakdown(entries, categories, selectedCategoryId, monthKey)
+      : null;
 
   return (
     <div className="budget-month">
@@ -162,6 +184,13 @@ export function MonthScreen({
               Retirer le filtre
             </button>
           </div>
+        )}
+
+        {subdetail && selectedCategory && (
+          <>
+            <SubcategoryDetail title={selectedCategory.name} slices={subdetail.slices} variant="expense" />
+            <SubcategoryDetail title={selectedCategory.name} slices={subdetail.incomeSlices} variant="income" />
+          </>
         )}
 
         <EntriesView

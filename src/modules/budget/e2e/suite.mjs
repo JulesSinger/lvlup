@@ -652,6 +652,127 @@ export async function run({ browser, check, BASE }) {
     await fresh.close();
   }
 
+  // --- Sous-catégories (« Restaurants & bars » → « Restaurants », « Bar ») -
+  // Étude comparée par trois maquettes (CLAUDE.md, journal) : la part du
+  // camembert reste unique par catégorie parente (rollup), le détail par
+  // sous-catégorie s'affiche juste au-dessus de la liste filtrée.
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const sc = await fresh.newPage();
+    const scErrors = [];
+    sc.on('pageerror', (e) => scErrors.push(e.message));
+    await enterAstra(sc, BASE);
+    await sc.waitForSelector('.empty h3');
+
+    await sc.evaluate(() => {
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      const today = new Date().toISOString().slice(0, 10);
+      snap.budgetCategories = [
+        { id: 'c-loisirs', name: 'Loisirs', emoji: '🎉', color: '#d16fa8', kind: 'variable', position: 0, parentId: null },
+        { id: 'c-courses', name: 'Courses', emoji: '🛒', color: '#e0724c', kind: 'variable', position: 1, parentId: null },
+        { id: 'c-onepiece', name: 'Cartes One Piece', emoji: '🃏', color: '#b06fd1', kind: 'variable', position: 0, parentId: 'c-loisirs' },
+      ];
+      snap.budgetEntries = [
+        { id: 'e1', day: today, label: 'Escape game', amountCents: -1500, categoryId: 'c-loisirs', source: 'manuelle', importKey: null, note: '', createdAt: today },
+        { id: 'e2', day: today, label: 'Boutique cartes', amountCents: -3800, categoryId: 'c-onepiece', source: 'manuelle', importKey: null, note: '', createdAt: today },
+        { id: 'e3', day: today, label: 'Monoprix', amountCents: -2000, categoryId: 'c-courses', source: 'manuelle', importKey: null, note: '', createdAt: today },
+      ];
+      snap.budgetRules = [];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await sc.reload();
+    await sc.waitForSelector('.hub-picker-card');
+    await sc.getByRole('button', { name: /Astra/ }).click();
+    await sc.waitForSelector('.budget-pie-legend-item');
+
+    check(
+      'Une seule part de camembert pour Loisirs, malgré sa sous-catégorie',
+      (await sc.locator('.budget-pie-legend-item', { hasText: 'Loisirs' }).count()) === 1,
+    );
+    check(
+      'La part de Loisirs additionne le direct et la sous-catégorie',
+      (await sc.locator('.budget-pie-legend-item', { hasText: 'Loisirs' }).locator('.budget-pie-legend-amount').textContent())?.includes('53'),
+      await sc.locator('.budget-pie-legend-item', { hasText: 'Loisirs' }).locator('.budget-pie-legend-amount').textContent(),
+    );
+    check(
+      'Cartes One Piece n’a pas sa propre part',
+      (await sc.locator('.budget-pie-legend-item', { hasText: 'One Piece' }).count()) === 0,
+    );
+
+    await sc.locator('.budget-pie-legend-item', { hasText: 'Loisirs' }).click();
+    await sc.waitForSelector('.budget-subdetail');
+    check(
+      'Le détail affiche la sous-catégorie',
+      (await sc.locator('.budget-subdetail-row', { hasText: 'One Piece' }).count()) === 1,
+    );
+    check(
+      'Et ce qui a été posé directement sur le parent, sous « Non précisé »',
+      (await sc.locator('.budget-subdetail-row', { hasText: 'Non précisé' }).count()) === 1,
+    );
+    check(
+      'La liste filtrée inclut les écritures du parent ET de la sous-catégorie',
+      (await sc.locator('.budget-entry-row').count()) === 2,
+      String(await sc.locator('.budget-entry-row').count()),
+    );
+
+    // --- Gestion depuis l'écran Catégories ---------------------------------
+    await sc.getByRole('button', { name: 'Catégories' }).click();
+    await sc.waitForSelector('.budget-category-block');
+    check(
+      'La sous-catégorie apparaît en retrait sous son parent',
+      (await sc.locator('.budget-subcategory-row', { hasText: 'One Piece' }).count()) === 1,
+    );
+
+    await sc
+      .locator('.budget-category-block', { hasText: 'Loisirs' })
+      .getByRole('button', { name: '+ Sous-catégorie' })
+      .click();
+    await sc.waitForSelector('.budget-category-editor');
+    check(
+      'Le titre annonce une sous-catégorie de Loisirs',
+      (await sc.locator('.modal-title').textContent()) === 'Nouvelle sous-catégorie de Loisirs',
+    );
+    check(
+      'Aucun sélecteur de nature — elle est héritée',
+      (await sc.locator('#budget-category-kind').count()) === 0,
+    );
+    check(
+      'La nature héritée est annoncée en toutes lettres',
+      (await sc.locator('.budget-subcategory-kind-note').textContent())?.includes('Loisirs'),
+    );
+    await sc.locator('#budget-category-name').fill('Cinéma');
+    await sc.getByRole('button', { name: 'Enregistrer' }).click();
+    await sc.waitForTimeout(300);
+    check(
+      'La nouvelle sous-catégorie rejoint Loisirs',
+      (await sc.locator('.budget-subcategory-row').count()) === 2,
+    );
+
+    // Supprimer le parent promeut ses sous-catégories plutôt que de les
+    // effacer — rien de saisi ne doit disparaître.
+    sc.once('dialog', (d) => d.accept());
+    // `.first()` : le bloc contient aussi les boutons « Supprimer » de ses
+    // sous-catégories désormais deux — celui du parent est le premier dans
+    // le DOM, avant sa propre liste d'enfants.
+    await sc
+      .locator('.budget-category-block', { hasText: 'Loisirs' })
+      .getByRole('button', { name: 'Supprimer', exact: true })
+      .first()
+      .click();
+    await sc.waitForTimeout(300);
+    check(
+      'Les sous-catégories promues deviennent des catégories normales',
+      (await sc.locator('.budget-subcategory-row').count()) === 0,
+    );
+    check(
+      'Cartes One Piece existe toujours, promue',
+      (await sc.locator('.budget-row-name', { hasText: 'One Piece' }).count()) === 1,
+    );
+
+    check('Aucune erreur JavaScript (sous-catégories)', scErrors.length === 0, scErrors.join(' | '));
+    await fresh.close();
+  }
+
   // --- Rendu mobile --------------------------------------------------------
   // Jamais vérifié jusqu'ici pour Astra, comme pour Orbite (31/08/2026) : les
   // quatre onglets, le bouton flottant et l'éditeur d'écriture (pastilles +

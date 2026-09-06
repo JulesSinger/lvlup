@@ -289,3 +289,86 @@ ne l'est pas dans sa propre boîte de texte — un défaut de métriques de poli
 page. Corrigé en dessinant le « + » en CSS pur (deux barres positionnées indépendamment via
 `::before`/`::after`, `.budget-add-icon`) plutôt qu'en ajoutant un décalage approximatif qui
 n'aurait tenu que par hasard sur une police et un navigateur donnés.
+
+## 9. Sous-catégories, un seul niveau (06/09/2026)
+
+Demande de Jules, avec deux exemples : « Divertissement / Loisir » puis « cartes One Piece »,
+ou « Restaurants / bars » puis « Restaurants », « Bar » en dessous — et la question ouverte
+« plusieurs catégories, ou catégories puis sous-catégories ? ». Étudié avant de coder.
+
+**Sous-catégories, pas multi-tag.** Les deux exemples sont strictement hiérarchiques : un achat
+de cartes One Piece **est** une dépense de loisir, il n'est jamais *en plus* autre chose. Le
+multi-tag (une écriture rattachée à plusieurs catégories indépendantes) poserait un problème que
+le modèle actuel n'a pas : `computeMonthlyBreakdown` agrège chaque écriture dans **une seule**
+catégorie, et un montant compté dans deux tags à la fois ferait mentir le total du mois — pour
+l'éviter il faudrait de toute façon désigner une catégorie « principale », ce qui réinvente une
+hiérarchie par un autre chemin. Tranché avec Jules : sous-catégories.
+
+**Un seul niveau de profondeur.** Une sous-catégorie ne peut jamais elle-même être parente —
+`isValidParent`/`hasChildren` (`lib/categoryHierarchy.ts`) le vérifient à la création et à
+l'édition, dans les deux implémentations. Collé aux deux exemples de Jules, ça évite un
+`<select>` à trois niveaux (un `<optgroup>` HTML ne s'imbrique pas — un deuxième niveau
+d'indentation, via un préfixe « ↳ », est déjà une concession visuelle ; un troisième serait
+illisible) et un camembert à quatre étages pour la même raison.
+
+**`kind` hérité, jamais un choix libre.** Une sous-catégorie de « Restaurants & bars »
+(`variable`) est forcément `variable` elle aussi — `CategoryEditor` n'affiche même pas le
+sélecteur de nature pour une sous-catégorie, juste un rappel (« Variable — comme
+« Restaurants & bars » »). Stocké quand même sur chaque ligne (pas recalculé par une remontée
+vers le parent) : voir le point suivant.
+
+**Supprimer un parent promeut ses sous-catégories, ne les efface jamais.** Même philosophie que
+« à classer » pour une écriture qui perd sa catégorie (§2 ci-dessus), un niveau plus haut :
+`deleteCategory` détache les enfants (`parent_id = null` côté Supabase, via `on delete set
+null` — jamais `cascade`) plutôt que de les supprimer avec leur parent. C'est précisément pour
+que la sous-catégorie promue reste utilisable seule que son `kind` est stocké en dur plutôt que
+recalculé : une catégorie qui vient de perdre son parent n'a alors aucune information à perdre.
+Changer la nature d'un parent existant cascade sur ses enfants pour la même raison, dans l'autre
+sens (`updateCategory`, les deux implémentations).
+
+### Le camembert : rollup, avec un détail à part (maquettes comparées)
+
+Question restée ouverte après la première réponse de Jules (« regroupé dans le parent, MAIS
+avoir une possibilité de voir le détail — encore à définir comment ») : trois maquettes
+publiées en artifact, recréant le vrai thème sombre d'Astra, comparant une petite liste sous le
+camembert, un camembert qui se transforme en drill-down, et un second camembert permanent à
+côté. Choix de Jules : **la petite liste**.
+
+- **Le camembert n'affiche jamais qu'une seule part par catégorie parente** —
+  `rollupKey` (`lib/monthlyBreakdown.ts`) fait remonter le montant d'une sous-catégorie dans la
+  part de son parent avant l'agrégation. Sans ça, une sous-catégorie créée pour chaque nouvel
+  achat un peu particulier ferait exploser le nombre de parts — exactement le risque que §3 met
+  en garde contre (« une quinzaine de catégories, c'est le bon ordre de grandeur »).
+- **Cliquer la part d'un parent** filtre la liste des écritures sur lui ET toutes ses
+  sous-catégories (`MonthScreen.tsx`), et affiche en plus, juste au-dessus,
+  `SubcategoryDetail` : le détail par sous-catégorie, une barre par ligne. Une écriture posée
+  directement sur le parent (sans sous-catégorie précisée) y devient « Non précisé » — jamais
+  masquée, même garantie que « À classer » au niveau du camembert — avec la couleur du parent,
+  pas le gris neutre de l'incatégorisé : elle reste une écriture de Loisirs, juste pas détaillée
+  plus loin.
+- `subcategoryBreakdown` reprend la même construction à deux temps (dépenses/entrées) que
+  `computeMonthlyBreakdown`, pour la même raison : un remboursement dans une sous-catégorie doit
+  pouvoir réduire sa part sans devenir un revenu.
+
+### Créer une sous-catégorie, et la retrouver à la saisie
+
+`CategoryEditor` ne demande jamais où vivra une sous-catégorie : le bouton « + Sous-catégorie »
+vit sur la ligne de son futur parent, dans `BudgetScreen.tsx` — le contexte suffit, aucun
+sélecteur de parent à remplir à la main. `EntryEditor` l'affiche juste après la sienne, dans le
+même `<optgroup>` de nature, en retrait (« ↳ Cartes One Piece ») ; le parent reste
+sélectionnable tel quel (choix de Jules) pour une dépense qu'on ne veut pas détailler à chaque
+fois.
+
+**Piège trouvé en vérifiant** : une catégorie enregistrée avant cette fonctionnalité n'a pas de
+champ `parentId` du tout (`undefined`, pas `null`) — `LocalBudget.read()` le normalise
+maintenant à la lecture (`c.parentId ?? null`), sans quoi toute catégorie plus ancienne que ce
+chantier aurait disparu des groupes (ni « normale » ni « sous-catégorie », invisible des deux
+filtres). Repéré par les six vérifications post-V1 existantes, cassées net avant ce correctif —
+la preuve que la suite e2e couvre aussi la compatibilité arrière, pas seulement les cas neufs.
+
+Migration `2026-09-06-budget-subcategories.sql` : une seule colonne nullable
+(`budget_categories.parent_id`), aucune contrainte `CHECK` nouvelle — la profondeur à un niveau
+est un invariant applicatif, vérifié aux deux implémentations et testé (`categoryHierarchy.test.ts`),
+pas une contrainte SQL. `526/526` tests unitaires → (+19), `421/421` local → `427/427` (+14 :
+rollup du camembert, détail par sous-catégorie, gestion depuis l'écran Catégories, promotion à
+la suppression du parent), `433/433` en mode comptes → `439/439` (+14).

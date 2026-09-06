@@ -25,17 +25,29 @@ const KIND_LABELS: Record<BudgetCategoryKind, string> = {
 
 interface Props {
   category: BudgetCategory | null;
+  /**
+   * Créer une sous-catégorie de ce parent (`category` reste `null` — c'est
+   * une création, pas une édition). Ignoré en édition : la nature d'une
+   * sous-catégorie ne change jamais indépendamment de son parent, voir
+   * `BudgetCategory`.
+   */
+  parent?: BudgetCategory | null;
   onCancel: () => void;
   onSave: (input: BudgetCategoryInput) => Promise<void>;
 }
 
-/** Créer ou éditer une catégorie : nom, emoji, couleur, nature. */
-export function CategoryEditor({ category, onCancel, onSave }: Props) {
+/**
+ * Créer ou éditer une catégorie : nom, emoji, couleur, nature. Une
+ * sous-catégorie (`parent` fourni, ou `category.parentId` en édition) n'a
+ * pas de sélecteur de nature — elle hérite toujours celle de son parent.
+ */
+export function CategoryEditor({ category, parent = null, onCancel, onSave }: Props) {
   const isEdit = category !== null;
+  const isSub = isEdit ? category.parentId !== null : parent !== null;
   const [name, setName] = useState(category?.name ?? '');
   const [emoji, setEmoji] = useState(category?.emoji ?? EMOJIS[0]);
   const [color, setColor] = useState(category?.color ?? COLORS[0]);
-  const [kind, setKind] = useState<BudgetCategoryKind>(category?.kind ?? 'variable');
+  const [kind, setKind] = useState<BudgetCategoryKind>(category?.kind ?? parent?.kind ?? 'variable');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -56,7 +68,13 @@ export function CategoryEditor({ category, onCancel, onSave }: Props) {
     setSaving(true);
     setError('');
     try {
-      await onSave({ name: trimmed, emoji, color, kind });
+      await onSave({
+        name: trimmed,
+        emoji,
+        color,
+        kind,
+        ...(isEdit ? {} : { parentId: parent?.id ?? null }),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Enregistrement impossible.');
       setSaving(false);
@@ -72,7 +90,15 @@ export function CategoryEditor({ category, onCancel, onSave }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
-          <span className="modal-title">{isEdit ? 'Modifier la catégorie' : 'Nouvelle catégorie'}</span>
+          <span className="modal-title">
+            {isEdit
+              ? isSub
+                ? 'Modifier la sous-catégorie'
+                : 'Modifier la catégorie'
+              : parent
+                ? `Nouvelle sous-catégorie de ${parent.name}`
+                : 'Nouvelle catégorie'}
+          </span>
           <button className="btn btn-ghost btn-sm" onClick={onCancel} aria-label="Fermer">
             ✕
           </button>
@@ -127,20 +153,31 @@ export function CategoryEditor({ category, onCancel, onSave }: Props) {
             </div>
           </div>
 
-          <div className="field">
-            <label htmlFor="budget-category-kind">Nature</label>
-            <select
-              id="budget-category-kind"
-              value={kind}
-              onChange={(e) => setKind(e.target.value as BudgetCategoryKind)}
-            >
-              {BUDGET_CATEGORY_KINDS.map((k) => (
-                <option key={k} value={k}>
-                  {KIND_LABELS[k]}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isSub ? (
+            // Une sous-catégorie hérite toujours la nature de son parent :
+            // rien à choisir, juste le rappel de ce qu'elle sera.
+            <div className="field">
+              <label>Nature</label>
+              <p className="budget-subcategory-kind-note">
+                {parent ? `${KIND_LABELS[kind]} — comme « ${parent.name} »` : KIND_LABELS[kind]}
+              </p>
+            </div>
+          ) : (
+            <div className="field">
+              <label htmlFor="budget-category-kind">Nature</label>
+              <select
+                id="budget-category-kind"
+                value={kind}
+                onChange={(e) => setKind(e.target.value as BudgetCategoryKind)}
+              >
+                {BUDGET_CATEGORY_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {KIND_LABELS[k]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {error && <div className="notice error">{error}</div>}
         </div>

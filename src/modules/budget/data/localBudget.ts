@@ -1,5 +1,6 @@
 import { newId } from '../../../core/data/coreStore';
 import { readRaw, writeRaw } from '../../../core/data/localSnapshot';
+import { hasChildren, isValidParent, reindexPositions } from '../lib/categoryHierarchy';
 import type {
   BudgetCategory,
   BudgetCategoryInput,
@@ -20,7 +21,14 @@ interface Snapshot extends BudgetBackup {}
 function read(): Snapshot {
   const raw = readRaw();
   return {
-    categories: Array.isArray(raw.budgetCategories) ? (raw.budgetCategories as BudgetCategory[]) : [],
+    // `parentId` normalisé ici, au seul point d'entrée : une catégorie
+    // enregistrée avant les sous-catégories n'a pas ce champ du tout (`undefined`,
+    // pas `null`), et le reste du module compare toujours à `null` pour dire
+    // « catégorie normale ». Sans cette normalisation, toute catégorie plus
+    // ancienne que cette fonctionnalité deviendrait invisible des groupes.
+    categories: (Array.isArray(raw.budgetCategories) ? (raw.budgetCategories as BudgetCategory[]) : []).map(
+      (c) => ({ ...c, parentId: c.parentId ?? null }),
+    ),
     entries: Array.isArray(raw.budgetEntries) ? (raw.budgetEntries as BudgetEntry[]) : [],
     rules: Array.isArray(raw.budgetRules) ? (raw.budgetRules as BudgetRule[]) : [],
     envelopes: Array.isArray(raw.budgetEnvelopes) ? (raw.budgetEnvelopes as BudgetEnvelope[]) : [],
@@ -50,13 +58,22 @@ export class LocalBudget implements BudgetStore {
 
   async createCategory(input: BudgetCategoryInput): Promise<BudgetCategory> {
     const snapshot = read();
+    const parentId = input.parentId ?? null;
+    if (parentId !== null && !isValidParent(snapshot.categories, parentId)) {
+      throw new Error('Une sous-catégorie ne peut pas elle-même être parente.');
+    }
     const category: BudgetCategory = {
       id: newId(),
       name: input.name,
       emoji: input.emoji ?? '💶',
       color: input.color ?? '#7c8cf8',
-      kind: input.kind ?? 'variable',
-      position: snapshot.categories.length,
+      // Une sous-catégorie hérite toujours la nature de son parent — jamais
+      // un choix libre de l'interface, voir la note sur `BudgetCategory`.
+      kind: parentId
+        ? (snapshot.categories.find((c) => c.id === parentId)?.kind ?? 'variable')
+        : (input.kind ?? 'variable'),
+      position: snapshot.categories.filter((c) => c.parentId === parentId).length,
+      parentId,
     };
     snapshot.categories.push(category);
     write(snapshot);
@@ -67,14 +84,38 @@ export class LocalBudget implements BudgetStore {
     const snapshot = read();
     const category = snapshot.categories.find((c) => c.id === id);
     if (!category) return;
+    if (patch.parentId !== undefined && patch.parentId !== null) {
+      if (!isValidParent(snapshot.categories, patch.parentId)) {
+        throw new Error('Une sous-catégorie ne peut pas elle-même être parente.');
+      }
+      if (hasChildren(snapshot.categories, id)) {
+        throw new Error('Une catégorie qui a des sous-catégories ne peut pas en devenir une.');
+      }
+    }
     Object.assign(category, patch);
+    // La nature d'une sous-catégorie n'est jamais éditée directement (voir
+    // CategoryEditor) ; mais si celle du parent change, ses enfants suivent —
+    // sans quoi une sous-catégorie promue plus tard porterait une nature
+    // devenue fausse depuis longtemps.
+    if (patch.kind !== undefined && category.parentId === null) {
+      for (const child of snapshot.categories) {
+        if (child.parentId === id) child.kind = patch.kind;
+      }
+    }
     write(snapshot);
   }
 
   async deleteCategory(id: string) {
     const snapshot = read();
+    // Une sous-catégorie n'est supprimée avec son parent nulle part dans ce
+    // module : supprimer une catégorie qui en a la promeut en catégorie
+    // normale plutôt que de l'emporter avec elle — même principe que « à
+    // classer » pour les écritures, appliqué un niveau plus haut.
+    for (const child of snapshot.categories) {
+      if (child.parentId === id) child.parentId = null;
+    }
     snapshot.categories = snapshot.categories.filter((c) => c.id !== id);
-    snapshot.categories.forEach((c, index) => (c.position = index));
+    reindexPositions(snapshot.categories);
     // Une écriture pointant sur la catégorie supprimée redevient « à
     // classer » plutôt que de référencer une catégorie fantôme.
     snapshot.entries = snapshot.entries.map((e) =>

@@ -70,6 +70,68 @@ describe('LocalBudget', () => {
     expect(await store.listRules()).toEqual([]);
   });
 
+  it('une sous-catégorie hérite la nature de son parent, jamais un choix libre', async () => {
+    const parent = await store.createCategory({ name: 'Loisirs', kind: 'variable' });
+    const sub = await store.createCategory({ name: 'Cartes One Piece', parentId: parent.id, kind: 'fixe' });
+    expect(sub.kind).toBe('variable'); // le kind demandé ('fixe') est ignoré : celui du parent prime
+    expect(sub.parentId).toBe(parent.id);
+  });
+
+  it('une sous-catégorie se numérote parmi ses sœurs, pas parmi toutes les catégories', async () => {
+    const loisirs = await store.createCategory({ name: 'Loisirs' });
+    await store.createCategory({ name: 'Courses' }); // une sœur d'un autre groupe (aucun parent)
+    const onePiece = await store.createCategory({ name: 'Cartes One Piece', parentId: loisirs.id });
+    const cinema = await store.createCategory({ name: 'Cinéma', parentId: loisirs.id });
+    expect(onePiece.position).toBe(0);
+    expect(cinema.position).toBe(1);
+  });
+
+  it('une sous-catégorie ne peut pas elle-même être parente', async () => {
+    const loisirs = await store.createCategory({ name: 'Loisirs' });
+    const onePiece = await store.createCategory({ name: 'Cartes One Piece', parentId: loisirs.id });
+    await expect(
+      store.createCategory({ name: 'Extension', parentId: onePiece.id }),
+    ).rejects.toThrow();
+  });
+
+  it('une catégorie qui a des sous-catégories ne peut pas en devenir une', async () => {
+    const loisirs = await store.createCategory({ name: 'Loisirs' });
+    await store.createCategory({ name: 'Cartes One Piece', parentId: loisirs.id });
+    const autre = await store.createCategory({ name: 'Sport' });
+    await expect(store.updateCategory(loisirs.id, { parentId: autre.id })).rejects.toThrow();
+  });
+
+  it('changer la nature d’un parent la répercute sur ses sous-catégories', async () => {
+    const loisirs = await store.createCategory({ name: 'Loisirs', kind: 'variable' });
+    const onePiece = await store.createCategory({ name: 'Cartes One Piece', parentId: loisirs.id });
+    await store.updateCategory(loisirs.id, { kind: 'fixe' });
+    const [updated] = (await store.listCategories()).filter((c) => c.id === onePiece.id);
+    expect(updated.kind).toBe('fixe');
+  });
+
+  it('supprimer un parent promeut ses sous-catégories, ne les efface pas', async () => {
+    const loisirs = await store.createCategory({ name: 'Loisirs' });
+    const onePiece = await store.createCategory({ name: 'Cartes One Piece', parentId: loisirs.id });
+    const entry = await store.createEntry({
+      day: '2026-09-01',
+      label: 'Boutique',
+      amountCents: -3800,
+      categoryId: onePiece.id,
+    });
+
+    await store.deleteCategory(loisirs.id);
+
+    const categories = await store.listCategories();
+    expect(categories).toHaveLength(1);
+    expect(categories[0].id).toBe(onePiece.id);
+    expect(categories[0].parentId).toBeNull();
+    // La sous-catégorie promue existe toujours, et l'écriture qui pointait
+    // dessus n'a pas été touchée — seul le lien de parenté a changé.
+    const [updatedEntry] = await store.listEntries();
+    expect(updatedEntry.id).toBe(entry.id);
+    expect(updatedEntry.categoryId).toBe(onePiece.id);
+  });
+
   it('exporte puis réimporte fidèlement, enveloppes et mouvements compris', async () => {
     await store.createCategory({ name: 'Salaire', kind: 'revenu' });
     await store.createEntry({ day: '2026-07-01', label: 'Virement', amountCents: 250000 });

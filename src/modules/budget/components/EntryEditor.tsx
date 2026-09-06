@@ -62,13 +62,24 @@ export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onC
     if (rule) setCategoryId(rule.categoryId);
   }, [label, rules, isEdit, categoryTouched]);
 
+  // Une sous-catégorie s'affiche juste après la sienne, en retrait (« ↳ ») —
+  // un `<optgroup>` HTML ne peut pas s'imbriquer, ce préfixe en tient lieu.
   const groupedCategories = useMemo(
     () =>
-      BUDGET_CATEGORY_KINDS.map((kind) => ({
-        kind,
-        label: CATEGORY_KIND_LABELS[kind],
-        items: categories.filter((c) => c.kind === kind),
-      })).filter((group) => group.items.length > 0),
+      BUDGET_CATEGORY_KINDS.map((kind) => {
+        const items: { category: BudgetCategory; indent: boolean }[] = [];
+        for (const category of categories
+          .filter((c) => c.kind === kind && c.parentId === null)
+          .sort((a, b) => a.position - b.position)) {
+          items.push({ category, indent: false });
+          for (const child of categories
+            .filter((c) => c.parentId === category.id)
+            .sort((a, b) => a.position - b.position)) {
+            items.push({ category: child, indent: true });
+          }
+        }
+        return { kind, label: CATEGORY_KIND_LABELS[kind], items };
+      }).filter((group) => group.items.length > 0),
     [categories],
   );
 
@@ -216,8 +227,9 @@ export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onC
               <option value="">À classer</option>
               {groupedCategories.map((group) => (
                 <optgroup key={group.kind} label={group.label}>
-                  {group.items.map((c) => (
+                  {group.items.map(({ category: c, indent }) => (
                     <option key={c.id} value={c.id}>
+                      {indent ? '↳ ' : ''}
                       {c.emoji} {c.name}
                     </option>
                   ))}

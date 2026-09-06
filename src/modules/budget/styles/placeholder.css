@@ -105,6 +105,33 @@
   flex-shrink: 0;
 }
 
+/* Une catégorie et ses sous-catégories (« Restaurants & bars » →
+   « Restaurants », « Bar ») : la liste des enfants est en retrait, avec un
+   fond légèrement distinct pour la détacher visuellement de son parent
+   sans dupliquer la bordure de `.budget-row`. */
+.budget-category-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.budget-sublist {
+  margin-left: 40px;
+}
+
+.budget-subcategory-row {
+  background: var(--bg-2);
+}
+
+.budget-subcategory-kind-note {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
 /* Ancré en bas du viewport plutôt qu'à sa position naturelle en fin de
    liste (amélioration post-V1, 31/08/2026) : sur un mois chargé ou avec
    beaucoup de catégories, il fallait scroller jusqu'au bout pour l'atteindre.
@@ -274,7 +301,15 @@
 
   .budget-category-row .budget-row-actions {
     flex: 1 1 100%;
+    flex-wrap: wrap;
     justify-content: flex-end;
+  }
+
+  /* La ligne d'un parent porte un bouton de plus (« + Sous-catégorie ») que
+     celle d'une écriture ou d'une catégorie sans enfant — le retrait de ses
+     sous-catégories doit aussi rester lisible sur un écran étroit. */
+  .budget-sublist {
+    margin-left: 20px;
   }
 }
 
@@ -524,6 +559,74 @@
   background: var(--surface-2);
   font-size: 13px;
   margin-bottom: 12px;
+}
+
+/* Le détail d'une catégorie qui a des sous-catégories (« Loisirs »), sous le
+   camembert : sa part y reste unique (rollup), ce petit récap montre ce
+   qu'elle contient sans faire exploser le nombre de parts. */
+.budget-subdetail {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.budget-subdetail-title {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+
+.budget-subdetail-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  margin-bottom: 7px;
+}
+
+.budget-subdetail-row:last-child {
+  margin-bottom: 0;
+}
+
+.budget-subdetail-name {
+  width: 150px;
+  flex-shrink: 0;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.budget-subdetail-track {
+  flex: 1;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.budget-subdetail-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.budget-subdetail-amount {
+  width: 70px;
+  flex-shrink: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+@media (max-width: 520px) {
+  .budget-subdetail-name {
+    width: 100px;
+  }
 }
 
 /* --- import (étape 5) ------------------------------------------------- */

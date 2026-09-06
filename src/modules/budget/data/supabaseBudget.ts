@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
+import { hasChildren, isValidParent } from '../lib/categoryHierarchy';
 import type {
   BudgetCategory,
   BudgetCategoryInput,
@@ -21,6 +22,7 @@ interface CategoryRow {
   color: string | null;
   kind: string;
   position: number;
+  parent_id: string | null;
 }
 
 interface EntryRow {
@@ -67,6 +69,7 @@ function toCategory(row: CategoryRow): BudgetCategory {
     color: row.color ?? '#7c8cf8',
     kind: row.kind as BudgetCategory['kind'],
     position: row.position,
+    parentId: row.parent_id,
   };
 }
 
@@ -133,9 +136,18 @@ export class SupabaseBudget implements BudgetStore {
 
   async createCategory(input: BudgetCategoryInput): Promise<BudgetCategory> {
     const userId = await this.requireUserId();
-    const { count } = await this.client
-      .from('budget_categories')
-      .select('id', { count: 'exact', head: true });
+    const parentId = input.parentId ?? null;
+    const existing = unwrap(await this.client.from('budget_categories').select('*')) as CategoryRow[];
+    const categories = existing.map(toCategory);
+    if (parentId !== null && !isValidParent(categories, parentId)) {
+      throw new Error('Une sous-catégorie ne peut pas elle-même être parente.');
+    }
+    // Une sous-catégorie hérite toujours la nature de son parent — jamais un
+    // choix libre de l'interface, voir la note sur `BudgetCategory`.
+    const kind = parentId
+      ? (categories.find((c) => c.id === parentId)?.kind ?? 'variable')
+      : (input.kind ?? 'variable');
+    const siblings = categories.filter((c) => c.parentId === parentId).length;
     const row = unwrap(
       await this.client
         .from('budget_categories')
@@ -144,8 +156,9 @@ export class SupabaseBudget implements BudgetStore {
           name: input.name,
           emoji: input.emoji ?? '💶',
           color: input.color ?? '#7c8cf8',
-          kind: input.kind ?? 'variable',
-          position: count ?? 0,
+          kind,
+          position: siblings,
+          parent_id: parentId,
         })
         .select()
         .single(),
@@ -159,11 +172,40 @@ export class SupabaseBudget implements BudgetStore {
     if (patch.emoji !== undefined) row.emoji = patch.emoji;
     if (patch.color !== undefined) row.color = patch.color;
     if (patch.kind !== undefined) row.kind = patch.kind;
+    if (patch.parentId !== undefined) {
+      row.parent_id = patch.parentId;
+      if (patch.parentId !== null) {
+        const existing = unwrap(
+          await this.client.from('budget_categories').select('*'),
+        ) as CategoryRow[];
+        const categories = existing.map(toCategory);
+        if (!isValidParent(categories, patch.parentId)) {
+          throw new Error('Une sous-catégorie ne peut pas elle-même être parente.');
+        }
+        if (hasChildren(categories, id)) {
+          throw new Error('Une catégorie qui a des sous-catégories ne peut pas en devenir une.');
+        }
+      }
+    }
     const { error } = await this.client.from('budget_categories').update(row).eq('id', id);
     if (error) throw new Error(error.message);
+    // La nature d'une sous-catégorie n'est jamais éditée directement (voir
+    // CategoryEditor) ; mais si celle du parent change, ses enfants suivent —
+    // sans quoi une sous-catégorie promue plus tard porterait une nature
+    // devenue fausse depuis longtemps.
+    if (patch.kind !== undefined) {
+      const { error: cascadeError } = await this.client
+        .from('budget_categories')
+        .update({ kind: patch.kind })
+        .eq('parent_id', id);
+      if (cascadeError) throw new Error(cascadeError.message);
+    }
   }
 
   async deleteCategory(id: string) {
+    // `on delete set null` (2026-09-06-budget-subcategories.sql) détache déjà
+    // les sous-catégories côté base — elles deviennent des catégories
+    // normales plutôt que de disparaître avec leur parent.
     const { error } = await this.client.from('budget_categories').delete().eq('id', id);
     if (error) throw new Error(error.message);
   }
@@ -356,8 +398,14 @@ export class SupabaseBudget implements BudgetStore {
     // supprimer les enveloppes suffit.
     await this.client.from('budget_envelopes').delete().eq('user_id', userId);
 
+    // Les catégories normales d'abord, pour que leurs sous-catégories
+    // puissent résoudre le nouvel id de leur parent au second passage.
     const categoryIdMap = new Map<string, string>();
-    for (const category of data.categories ?? []) {
+    const ordered = [
+      ...(data.categories ?? []).filter((c) => c.parentId === null),
+      ...(data.categories ?? []).filter((c) => c.parentId !== null),
+    ];
+    for (const category of ordered) {
       const row = unwrap(
         await this.client
           .from('budget_categories')
@@ -368,6 +416,7 @@ export class SupabaseBudget implements BudgetStore {
             color: category.color,
             kind: category.kind,
             position: category.position,
+            parent_id: category.parentId ? (categoryIdMap.get(category.parentId) ?? null) : null,
           })
           .select()
           .single(),

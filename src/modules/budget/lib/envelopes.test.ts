@@ -15,6 +15,7 @@ function category(patch: Partial<BudgetCategory>): BudgetCategory {
     color: '#000000',
     kind: 'epargne',
     position: 0,
+    parentId: null,
     ...patch,
   };
 }
