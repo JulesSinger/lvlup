@@ -12,6 +12,7 @@ import { ZenithSettingsSection } from './ZenithSettingsSection';
 export const objectifsModule: AtlasModule = {
   id: 'objectifs',
   label: 'Zénith',
+  description: 'Suivi d’objectifs, par paliers',
   emoji: '▲',
   data: goalsStore,
   Screen: ZenithScreen,

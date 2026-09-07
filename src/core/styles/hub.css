@@ -82,6 +82,17 @@
   font-weight: 600;
 }
 
+/* Sous le nom de marque, ce que le module fait (ajouté le 07/09/2026 —
+   Zénith, Astra, Orbite ne disent rien de leur domaine à qui ne les connaît
+   pas encore, voir CLAUDE.md §8). Rapproché du nom plutôt que de subir le
+   même espacement que celui-ci avec l'emoji, plus grand au-dessus. */
+.hub-picker-description {
+  margin-top: -6px;
+  color: var(--text-faint);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
 /* ----------------------------------------------------- réglages par module */
 
 .settings-module-title {

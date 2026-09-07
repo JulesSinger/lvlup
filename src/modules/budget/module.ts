@@ -14,6 +14,7 @@ import { budgetStore } from './data';
 export const budgetModule: AtlasModule = {
   id: 'budget',
   label: 'Astra',
+  description: 'Dépenses et budget',
   emoji: '✦',
   data: budgetStore,
   Screen: BudgetScreen,

@@ -58,6 +58,13 @@ export interface AtlasModule {
   id: string;
   /** Nom affiché — la marque. Le seul champ à toucher si elle évolue. */
   label: string;
+  /**
+   * Ce que fait le module, en quelques mots (`ModulePicker`, sous `label`).
+   * Ajouté le 07/09/2026 : un nom de marque seul (Zénith, Astra, Orbite) ne
+   * dit rien de son domaine à un utilisateur qui les voit tous les quatre
+   * côte à côte — voir CLAUDE.md §8.
+   */
+  description: string;
   emoji: string;
   data: ModuleDataStore;
   /** Écran racine du module. Le hub le rend sans rien savoir de son contenu. */

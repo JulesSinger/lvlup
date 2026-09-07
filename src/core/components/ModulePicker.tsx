@@ -6,7 +6,8 @@ import type { AppUser } from '../lib/types';
  *
  * Tant qu'il n'y en a qu'un, cliquer sa carte revient à y entrer directement.
  * Le composant ne suppose rien de leur contenu — il ne lit que `label`,
- * `emoji` et `id`, exactement ce que le socle est autorisé à connaître.
+ * `description`, `emoji` et `id`, exactement ce que le socle est autorisé à
+ * connaître.
  */
 export function ModulePicker({
   modules,
@@ -47,6 +48,7 @@ export function ModulePicker({
                 {m.emoji}
               </span>
               <span className="hub-picker-label">{m.label}</span>
+              <span className="hub-picker-description">{m.description}</span>
             </button>
           ))}
         </div>

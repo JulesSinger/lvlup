@@ -15,6 +15,7 @@ import { flashcardsStore } from './data';
 export const flashcardsModule: AtlasModule = {
   id: 'flashcards',
   label: 'Orbite',
+  description: 'Cartes de révision, répétition espacée',
   emoji: '🪐',
   data: flashcardsStore,
   Screen: FlashcardsScreen,

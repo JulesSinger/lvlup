@@ -32,6 +32,25 @@ export async function run({ browser, check, BASE }) {
     check('Une notification est toujours affichée (exigence iOS)', sw.includes('showNotification'));
   }
 
+  // Écran de choix des modules : chaque carte porte, sous son nom de marque,
+  // une description de son domaine (ajoutée le 07/09/2026 — un nom seul
+  // comme Zénith ou Astra ne dit rien à qui ne le connaît pas encore, voir
+  // CLAUDE.md §8). Trois modules enregistrés suffisent pour que le hub
+  // affiche l'écran de choix plutôt que d'entrer directement dans le seul.
+  await page.waitForSelector('.hub-picker-card');
+  const cardCount = await page.locator('.hub-picker-card').count();
+  check(
+    'Chaque carte du hub porte une description de son domaine',
+    (await page.locator('.hub-picker-description').count()) === cardCount,
+    String(cardCount),
+  );
+  const descriptions = await page.locator('.hub-picker-description').allTextContents();
+  check(
+    'Aucune description vide',
+    descriptions.every((d) => d.trim().length > 0),
+    descriptions.join(' | '),
+  );
+
   await context.close();
 
   // Écran d'authentification : il n'apparaît qu'en mode Supabase, on le vérifie
