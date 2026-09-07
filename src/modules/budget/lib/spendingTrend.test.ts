@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { computeSpendingTrend } from './spendingTrend';
+import { computeIncomeTrend, computeNetTrend, computeSpendingTrend } from './spendingTrend';
 import type { BudgetCategory, BudgetEntry } from './types';
 
 function category(patch: Partial<BudgetCategory>): BudgetCategory {
@@ -117,5 +117,99 @@ describe('computeSpendingTrend', () => {
     const courses = category({ id: 'c1' });
     const list = [entry({ day: '2026-09-05', categoryId: 'c1', amountCents: -1000 })];
     expect(computeSpendingTrend(list, [courses], null, '2026-07')).toEqual([]);
+  });
+});
+
+describe('computeIncomeTrend', () => {
+  test('le total additionne toutes les entrées du mois', () => {
+    const salaire = category({ id: 'c1', name: 'Salaire', kind: 'revenu' });
+    const list = [entry({ day: '2026-07-01', categoryId: 'c1', amountCents: 250000 })];
+    expect(computeIncomeTrend(list, [salaire], null, '2026-07')).toEqual([
+      { monthKey: '2026-07', cents: 250000 },
+    ]);
+  });
+
+  test('une seule catégorie ne compte que ses propres entrées', () => {
+    const salaire = category({ id: 'c1', name: 'Salaire', kind: 'revenu' });
+    const aides = category({ id: 'c2', name: 'Aides', kind: 'revenu' });
+    const list = [
+      entry({ id: 'e1', day: '2026-07-01', categoryId: 'c1', amountCents: 250000 }),
+      entry({ id: 'e2', day: '2026-07-05', categoryId: 'c2', amountCents: 10000 }),
+    ];
+    expect(computeIncomeTrend(list, [salaire, aides], 'c1', '2026-07')).toEqual([
+      { monthKey: '2026-07', cents: 250000 },
+    ]);
+  });
+
+  test('les mois sans rien reçu restent dans la courbe, à zéro', () => {
+    const salaire = category({ id: 'c1', name: 'Salaire', kind: 'revenu' });
+    const list = [
+      entry({ id: 'e1', day: '2026-05-01', categoryId: 'c1', amountCents: 200000 }),
+      entry({ id: 'e2', day: '2026-07-01', categoryId: 'c1', amountCents: 200000 }),
+    ];
+    const trend = computeIncomeTrend(list, [salaire], null, '2026-07');
+    expect(trend.map((p) => p.cents)).toEqual([200000, 0, 200000]);
+  });
+
+  test('transfert et épargne sont hors du périmètre', () => {
+    const transfert = category({ id: 'c1', kind: 'transfert' });
+    const epargne = category({ id: 'c2', kind: 'epargne' });
+    const list = [
+      entry({ id: 'e1', day: '2026-07-01', categoryId: 'c1', amountCents: 30000 }),
+      entry({ id: 'e2', day: '2026-07-02', categoryId: 'c2', amountCents: 20000 }),
+    ];
+    expect(computeIncomeTrend(list, [transfert, epargne], null, '2026-07')).toEqual([]);
+  });
+
+  test('un remboursement dans une catégorie de dépense compte aussi comme une entrée', () => {
+    // Le camembert des entrées d'Aperçu fait la même chose : la nature de
+    // la catégorie ne décide pas seule, le signe du net compte.
+    const restos = category({ id: 'c1', name: 'Restaurants', kind: 'variable' });
+    const depense = entry({ id: 'e1', day: '2026-07-01', categoryId: 'c1', amountCents: -3000 });
+    const remboursement = entry({ id: 'e2', day: '2026-07-05', categoryId: 'c1', amountCents: 5000 });
+    const trend = computeIncomeTrend([depense, remboursement], [restos], null, '2026-07');
+    expect(trend).toEqual([{ monthKey: '2026-07', cents: 2000 }]);
+  });
+});
+
+describe('computeNetTrend', () => {
+  test('additionne les entrées et soustrait les dépenses, comme le Solde d’Aperçu', () => {
+    const salaire = category({ id: 'c1', name: 'Salaire', kind: 'revenu' });
+    const courses = category({ id: 'c2', name: 'Courses', kind: 'variable' });
+    const list = [
+      entry({ id: 'e1', day: '2026-07-01', categoryId: 'c1', amountCents: 250000 }),
+      entry({ id: 'e2', day: '2026-07-05', categoryId: 'c2', amountCents: -80000 }),
+    ];
+    expect(computeNetTrend(list, [salaire, courses], '2026-07')).toEqual([
+      { monthKey: '2026-07', cents: 170000 },
+    ]);
+  });
+
+  test('un mois dans le rouge reste négatif, jamais ramené à zéro', () => {
+    const salaire = category({ id: 'c1', name: 'Salaire', kind: 'revenu' });
+    const loyer = category({ id: 'c2', name: 'Loyer', kind: 'fixe' });
+    const list = [
+      entry({ id: 'e1', day: '2026-07-01', categoryId: 'c1', amountCents: 100000 }),
+      entry({ id: 'e2', day: '2026-07-05', categoryId: 'c2', amountCents: -150000 }),
+    ];
+    expect(computeNetTrend(list, [salaire, loyer], '2026-07')).toEqual([
+      { monthKey: '2026-07', cents: -50000 },
+    ]);
+  });
+
+  test('épargne et transfert sont hors du différentiel, comme le Solde d’Aperçu', () => {
+    const epargne = category({ id: 'c1', kind: 'epargne' });
+    const list = [entry({ id: 'e1', day: '2026-07-01', categoryId: 'c1', amountCents: -50000 })];
+    expect(computeNetTrend(list, [epargne], '2026-07')).toEqual([]);
+  });
+
+  test('les mois sans rien restent dans la courbe, à zéro', () => {
+    const salaire = category({ id: 'c1', name: 'Salaire', kind: 'revenu' });
+    const list = [
+      entry({ id: 'e1', day: '2026-05-01', categoryId: 'c1', amountCents: 100000 }),
+      entry({ id: 'e2', day: '2026-07-01', categoryId: 'c1', amountCents: 50000 }),
+    ];
+    const trend = computeNetTrend(list, [salaire], '2026-07');
+    expect(trend.map((p) => p.cents)).toEqual([100000, 0, 50000]);
   });
 });

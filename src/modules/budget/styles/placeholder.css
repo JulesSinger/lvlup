@@ -1004,3 +1004,30 @@
 .budget-evolution-picker {
   max-width: 280px;
 }
+
+/* Dépenses, Entrées et Différentiel empilés (demandé par Jules le
+   07/09/2026 : « faire le différentiel entre les deux […] pour comparer »)
+   — les trois toujours visibles ensemble, jamais derrière un onglet ou une
+   bascule : comparer, c'est les garder sous les yeux en même temps. */
+.budget-evolution-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.budget-evolution-section + .budget-evolution-section {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* --- différentiel mensuel (onglet Évolution) ---------------------------- */
+
+/* Même teintes que le Solde de l'onglet Aperçu (`.budget-month-stat-net`) :
+   le signe est déjà porté par le nombre, la couleur ne fait que l'appuyer. */
+.budget-chart-table td.negative {
+  color: #ff8b8b;
+}
+
+.budget-chart-table td.positive {
+  color: #6fbf7f;
+}

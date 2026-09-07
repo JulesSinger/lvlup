@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { centsToInputValue } from '../lib/amount';
+import { formatCents } from '../lib/amount';
 import { monthLabel } from '../lib/month';
-import type { TrendPoint } from '../lib/spendingTrend';
+import type { NetPoint } from '../lib/spendingTrend';
 
 /**
- * L'évolution d'une dépense, mois par mois (onglet Évolution, demandé par
- * Jules le 06/09/2026). Même langage visuel que `objectifs/components/PPChart.tsx`
- * (barres, survol, bascule tableau) — pas le même code : un module n'importe
- * jamais depuis un autre.
- *
- * Une ligne pointillée marque la moyenne de la période affichée : elle
- * répond à la question que la courbe seule ne pose pas assez fort — « ce
- * mois-ci, par rapport à d'habitude ? » — sans jugement de valeur porté par
- * une couleur d'alerte, juste un repère.
+ * Le différentiel mensuel — entré moins dépensé (demandé par Jules le
+ * 07/09/2026 : « de combien je suis en négatif ou positif chaque mois, pour
+ * comparer »). Contrairement à `SpendingTrendChart`, la valeur peut être
+ * négative : les barres partent d'une ligne zéro au milieu du cadre, vers
+ * le haut pour un mois excédentaire, vers le bas pour un mois déficitaire —
+ * mêmes teintes que le « Solde » de l'onglet Aperçu, jamais un rouge
+ * d'alerte plus appuyé que le vert d'en face.
  */
 
+const POSITIVE = '#6fbf7f';
+const NEGATIVE = '#ff8b8b';
 const PAD = { top: 18, right: 16, bottom: 34, left: 56 };
 const HEIGHT = 220;
 const GAP = 3;
@@ -32,53 +32,14 @@ function niceTicks(max: number, count = 4): number[] {
   return ticks;
 }
 
-/** Une barre dont seul le bout haut est arrondi — le pied reste ancré à l'axe. */
-function barPath(x: number, base: number, w: number, h: number): string {
-  const r = Math.min(4, w / 2, h);
-  return [
-    `M${x},${base}`,
-    `V${base - h + r}`,
-    `Q${x},${base - h} ${x + r},${base - h}`,
-    `H${x + w - r}`,
-    `Q${x + w},${base - h} ${x + w},${base - h + r}`,
-    `V${base}`,
-    'Z',
-  ].join(' ');
-}
-
 /** « juil. 26 » — assez court pour tenir sous une douzaine de barres. */
 function shortLabel(monthKey: string): string {
-  const full = monthLabel(monthKey); // « juillet 2026 »
+  const full = monthLabel(monthKey);
   const [name, year] = full.split(' ');
   return `${name.slice(0, 4)}. ${year.slice(2)}`;
 }
 
-/**
- * Sans signe : cet écran ne montre que des dépenses, le rappeler sur
- * chaque montant (retour de Jules, 06/09/2026 : « pas besoin de mettre le
- * "-" partout, on sait que c'est des dépenses ») n'apprend rien.
- */
-function formatSpent(cents: number): string {
-  return `${centsToInputValue(cents)} €`;
-}
-
-/** Le montant directement sur la barre — arrondi à l'euro, pour tenir dans peu de place. */
-function barLabel(cents: number): string {
-  return `${Math.round(cents / 100).toLocaleString('fr-FR')} €`;
-}
-
-export function SpendingTrendChart({
-  title,
-  points,
-  color,
-  emptyMessage = 'Rien à montrer avant ta première dépense.',
-}: {
-  title: string;
-  points: TrendPoint[];
-  color: string;
-  /** Réutilisé tel quel pour la section Entrées (07/09/2026) — son propre message, la dépense n'y a pas sa place. */
-  emptyMessage?: string;
-}) {
+export function NetTrendChart({ points }: { points: NetPoint[] }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
   const [hover, setHover] = useState<number | null>(null);
@@ -102,23 +63,27 @@ export function SpendingTrendChart({
   if (points.length === 0) {
     return (
       <div className="budget-chart-card">
-        <h2 className="budget-chart-title">{title}</h2>
-        <p className="budget-chart-empty">{emptyMessage}</p>
+        <h2 className="budget-chart-title">Différentiel mensuel</h2>
+        <p className="budget-chart-empty">Rien à montrer avant ta première écriture.</p>
       </div>
     );
   }
 
-  const maxCents = Math.max(...points.map((p) => p.cents), average, 1);
-  const ticks = niceTicks(maxCents / 100).map((t) => t * 100); // niceTicks travaille en euros ronds
-  const yMax = ticks[ticks.length - 1];
+  const maxAbsCents = Math.max(...points.map((p) => Math.abs(p.cents)), 1);
+  const posTicks = niceTicks(maxAbsCents / 100).map((t) => t * 100);
+  const yMax = posTicks[posTicks.length - 1];
+  const ticks = [...posTicks.filter((t) => t > 0).map((t) => -t).reverse(), ...posTicks];
+
   const plotW = width - PAD.left - PAD.right;
   const plotH = HEIGHT - PAD.top - PAD.bottom;
-  const base = PAD.top + plotH;
+  const zeroY = PAD.top + plotH / 2;
+  const halfH = plotH / 2;
+  const barHeight = (cents: number) => (Math.abs(cents) / yMax) * halfH;
+  const tickY = (t: number) => zeroY - (t / yMax) * halfH;
 
   const slot = plotW / points.length;
   const barW = Math.max(3, Math.min(46, slot - GAP));
   const x = (i: number) => PAD.left + i * slot + (slot - barW) / 2;
-  const hauteur = (cents: number) => (cents / yMax) * plotH;
 
   const last = points[points.length - 1];
   const active = hover !== null ? points[hover] : null;
@@ -133,7 +98,7 @@ export function SpendingTrendChart({
   return (
     <div className="budget-chart-card">
       <div className="budget-chart-head">
-        <h2 className="budget-chart-title">{title}</h2>
+        <h2 className="budget-chart-title">Différentiel mensuel</h2>
         <button className="btn btn-ghost btn-sm" onClick={() => setShowTable((v) => !v)}>
           {showTable ? 'Voir le graphe' : 'Voir le tableau'}
         </button>
@@ -145,14 +110,16 @@ export function SpendingTrendChart({
             <thead>
               <tr>
                 <th scope="col">Mois</th>
-                <th scope="col">Dépensé</th>
+                <th scope="col">Différentiel</th>
               </tr>
             </thead>
             <tbody>
               {[...points].reverse().map((p) => (
                 <tr key={p.monthKey}>
                   <td>{monthLabel(p.monthKey)}</td>
-                  <td>{formatSpent(p.cents)}</td>
+                  <td className={p.cents < 0 ? 'negative' : p.cents > 0 ? 'positive' : ''}>
+                    {formatCents(p.cents)}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -164,7 +131,7 @@ export function SpendingTrendChart({
             width={width}
             height={HEIGHT}
             role="img"
-            aria-label={`${title} : ${formatSpent(last.cents)} en ${monthLabel(last.monthKey)}, moyenne ${formatSpent(Math.round(average))} sur ${points.length} mois`}
+            aria-label={`Différentiel mensuel : ${formatCents(last.cents)} en ${monthLabel(last.monthKey)}, moyenne ${formatCents(Math.round(average))} sur ${points.length} mois`}
             tabIndex={0}
             onPointerMove={(e) => setHover(pointerToIndex(e.clientX))}
             onPointerLeave={() => setHover(null)}
@@ -179,54 +146,45 @@ export function SpendingTrendChart({
                 <line
                   x1={PAD.left}
                   x2={width - PAD.right}
-                  y1={base - hauteur(t)}
-                  y2={base - hauteur(t)}
-                  stroke="#262e40"
+                  y1={tickY(t)}
+                  y2={tickY(t)}
+                  stroke={t === 0 ? '#36405a' : '#262e40'}
                   strokeWidth="1"
                 />
-                <text x={PAD.left - 10} y={base - hauteur(t) + 4} className="budget-chart-tick" textAnchor="end">
+                <text x={PAD.left - 10} y={tickY(t) + 4} className="budget-chart-tick" textAnchor="end">
                   {(t / 100).toLocaleString('fr-FR')}
                 </text>
               </g>
             ))}
 
-            {/* La moyenne de la période : un repère, pas un jugement. */}
-            {average > 0 && (
-              <line
-                x1={PAD.left}
-                x2={width - PAD.right}
-                y1={base - hauteur(average)}
-                y2={base - hauteur(average)}
-                stroke="#6a748c"
-                strokeWidth="1"
-                strokeDasharray="4 4"
-              />
-            )}
-
-            {points.map((p, i) =>
-              p.cents > 0 ? (
-                <path
+            {points.map((p, i) => {
+              const h = barHeight(p.cents);
+              if (h === 0) return null;
+              const y = p.cents > 0 ? zeroY - h : zeroY;
+              return (
+                <rect
                   key={p.monthKey}
-                  d={barPath(x(i), base, barW, hauteur(p.cents))}
-                  fill={color}
+                  x={x(i)}
+                  y={y}
+                  width={barW}
+                  height={h}
+                  rx={2}
+                  fill={p.cents > 0 ? POSITIVE : NEGATIVE}
                   opacity={hover === null || hover === i ? 1 : 0.55}
                 />
-              ) : null,
-            )}
+              );
+            })}
 
-            {/* Le montant directement au-dessus de chaque barre — sans lui,
-                il fallait passer la souris dessus pour le lire (retour de
-                Jules, 06/09/2026). Toujours affiché, même à zéro. */}
             {points.map((p, i) => (
               <text
                 key={`label-${p.monthKey}`}
                 x={x(i) + barW / 2}
-                y={Math.max(PAD.top - 4, base - hauteur(p.cents) - 8)}
+                y={p.cents >= 0 ? zeroY - barHeight(p.cents) - 8 : zeroY + barHeight(p.cents) + 16}
                 className="budget-chart-bar-label"
                 textAnchor="middle"
                 opacity={hover === null || hover === i ? 1 : 0.55}
               >
-                {barLabel(p.cents)}
+                {formatCents(p.cents)}
               </text>
             ))}
 
@@ -245,11 +203,11 @@ export function SpendingTrendChart({
               className="budget-chart-tooltip"
               style={{
                 left: Math.min(Math.max(x(hover as number) + barW / 2, 70), width - 70),
-                top: Math.max(8, base - hauteur(active.cents) - 46),
+                top: Math.max(8, (active.cents >= 0 ? zeroY - barHeight(active.cents) : zeroY) - 46),
               }}
               role="status"
             >
-              <strong>{formatSpent(active.cents)}</strong>
+              <strong>{formatCents(active.cents)}</strong>
               <span>{monthLabel(active.monthKey)}</span>
             </div>
           )}
@@ -257,7 +215,7 @@ export function SpendingTrendChart({
       )}
 
       <p className="budget-chart-average">
-        Moyenne sur {points.length} mois : {formatSpent(Math.round(average))}
+        Moyenne sur {points.length} mois : {formatCents(Math.round(average))}
       </p>
     </div>
   );

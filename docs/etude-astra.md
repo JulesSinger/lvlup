@@ -500,3 +500,57 @@ dépenses », et « j'aimerais qu'on voie directement le montant sur ou au-dessu
 
 `545/545` tests unitaires (inchangé, changement d'affichage sans nouvelle logique pure), `445/445`
 local → `448/448` (+3), `457/457` en mode comptes → `460/460` (+3).
+
+### Entrées et différentiel : comparer ce qui rentre à ce qui sort
+
+Retour de Jules le 07/09/2026 : « il me faudrait aussi l'évolution de l'épargne : combien j'ai eu
+de rentrés par mois, puis faire le différentiel entre les deux : de combien je suis en négatif ou
+positif chaque mois pour comparer ». « Épargne » est pris ici au sens large de Jules — l'argent
+qui rentre — pas la nature de catégorie `epargne` au sens strict, qui a déjà sa propre courbe
+dédiée sur l'onglet Épargne (`SavingsChart`). Trois sections empilées sur l'onglet Évolution,
+toujours visibles ensemble plutôt que derrière un onglet ou une bascule : comparer, c'est les
+garder sous les yeux en même temps.
+
+- **`computeIncomeTrend`** (`lib/spendingTrend.ts`) : le pendant exact de `computeSpendingTrend`
+  côté entrées — même construction (`monthRange` désormais partagée par les trois fonctions),
+  mêmes garanties (mois sans rien affiché à zéro, jamais sauté), juste `incomeSlices`/
+  `totalIncomeCents` au lieu de `slices`/`totalSpentCents`. Son sélecteur ne propose que les
+  catégories `revenu` de premier niveau.
+- **`computeNetTrend`** : le différentiel proprement dit, rejoue **exactement** la formule déjà
+  affichée sous « Solde » sur l'onglet Aperçu (`totalIncomeCents - totalSpentCents`), mois par
+  mois — jamais une nouvelle définition inventée à côté. Pas de sélecteur de catégorie : un seul
+  total signé, comparer une catégorie contre elle-même n'a pas de sens ici.
+- **`NetPoint` plutôt que `TrendPoint`** : le point commun aux deux autres trends
+  (`computeSpendingTrend`/`computeIncomeTrend`) est documenté comme une magnitude, jamais
+  négative — exactement ce qu'un différentiel doit pouvoir être. Un nouveau type plutôt qu'un
+  `Math.abs` qui aurait fait mentir le graphe (« de combien je suis en négatif » demande
+  justement de voir le négatif).
+- **`NetTrendChart`**, un nouveau composant plutôt qu'une variante de `SpendingTrendChart` :
+  celui-ci suppose des barres qui poussent vers le haut depuis un socle fixe en bas du cadre —
+  incompatible avec des valeurs des deux signes. Les barres du différentiel partent d'une ligne
+  zéro **au milieu** du cadre, vers le haut (excédent, vert) ou vers le bas (déficit, rouge-ish) —
+  mêmes teintes que `.budget-month-stat-net.positive`/`.negative`, pour rester cohérent avec le
+  Solde de l'onglet Aperçu. Contrairement au retrait du signe décidé la veille pour les dépenses
+  (§ précédent), le différentiel **garde** son signe partout (`formatCents`, pas
+  `centsToInputValue`) : ici, le signe est précisément l'information demandée.
+- **`SpendingTrendChart` gagne un `emptyMessage` optionnel** (par défaut inchangé, « avant ta
+  première dépense ») : le réutiliser tel quel pour les entrées aurait affiché ce message à
+  contresens tant qu'aucune entrée n'existe — la section Entrées passe son propre message
+  (« avant ta première entrée »).
+
+`545/545` tests unitaires → `554/554` (+9 : `computeIncomeTrend` 5, `computeNetTrend` 4, dans
+`spendingTrend.test.ts`), `448/448` local → `458/458` (+10 : les trois sections visibles
+ensemble, le total des entrées et le filtre par catégorie, l'absence de sélecteur sur le
+différentiel, le mois déficitaire resté négatif au tableau et sur le graphe avec sa classe CSS,
+plus l'onglet Évolution ajouté à la vérification de rendu mobile), `460/460` en mode comptes →
+`470/470` (+10).
+
+Un échec préexistant, sans rapport avec ce chantier, a été rencontré en vérifiant : `Aucune
+animation permanente sur mobile hors la flamme` (suite Zénith, `objectifs/e2e/suite.mjs`) échoue
+de façon intermittente (flaky), plus systématiquement en mode comptes qu'en local — confirmé en
+rejouant `npm run check`/`check:auth` sur `main` tel quel, sans aucune modification Astra
+appliquée (`git stash`), où l'échec se reproduit à l'identique. Vraisemblablement l'animation de
+`.checkin-chip.done` (0,42 s, `chip-done`) qui n'a pas toujours fini avant le délai fixe de 600 ms
+que le test attend, plus sensible à la latence réseau du mode comptes. Non corrigé ici — hors
+périmètre de ce chantier, touche un fichier d'un autre module (`objectifs`) qu'aucune règle
+n'autorise à modifier en passant.

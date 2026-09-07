@@ -869,13 +869,17 @@ export async function run({ browser, check, BASE }) {
     await ev.waitForSelector('.budget-tab', { hasText: 'Évolution' });
     await ev.getByRole('button', { name: 'Évolution', exact: true }).click();
     await ev.waitForSelector('.budget-evolution');
+    // Dès l'ajout des sections Entrées et Différentiel (07/09/2026), les
+    // sélecteurs génériques (titre, tableau, bascule) trouvent trois
+    // éléments au lieu d'un — cette section reste la première.
+    const spendSection = ev.locator('.budget-evolution-section').nth(0);
 
     check(
       'La vue par défaut est le total des dépenses',
-      (await ev.locator('.budget-chart-title').textContent()) === 'Total des dépenses',
+      (await spendSection.locator('.budget-chart-title').textContent()) === 'Total des dépenses',
     );
-    await ev.getByRole('button', { name: 'Voir le tableau' }).click();
-    const totalRows = await ev.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
+    await spendSection.getByRole('button', { name: 'Voir le tableau' }).click();
+    const totalRows = await spendSection.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
     check(
       'Trois mois affichés, du plus récent au plus ancien, total remonté correctement',
       totalRows.join(' | ') === '100,00 € | 100,00 € | 50,00 €',
@@ -886,20 +890,20 @@ export async function run({ browser, check, BASE }) {
       !totalRows.some((t) => t.includes('-')),
     );
 
-    await ev.locator('#budget-evolution-category').selectOption({ label: '🛒 Courses' });
+    await spendSection.locator('#budget-evolution-category').selectOption({ label: '🛒 Courses' });
     check(
       'Changer de catégorie change le titre du graphe',
-      (await ev.locator('.budget-chart-title').textContent()) === '🛒 Courses',
+      (await spendSection.locator('.budget-chart-title').textContent()) === '🛒 Courses',
     );
-    const coursesRows = await ev.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
+    const coursesRows = await spendSection.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
     check(
       'Courses seule : ses propres montants, pas ceux de Loisirs',
       coursesRows.join(' | ') === '100,00 € | 80,00 € | 50,00 €',
       coursesRows.join(' | '),
     );
 
-    await ev.locator('#budget-evolution-category').selectOption({ label: '🎉 Loisirs' });
-    const loisirsRows = await ev.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
+    await spendSection.locator('#budget-evolution-category').selectOption({ label: '🎉 Loisirs' });
+    const loisirsRows = await spendSection.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
     check(
       'Loisirs : un seul mois avec une dépense, les deux autres à zéro plutôt que sautés',
       loisirsRows.join(' | ') === '0,00 € | 20,00 € | 0,00 €',
@@ -909,10 +913,10 @@ export async function run({ browser, check, BASE }) {
     // Le montant se lit directement sur le graphe, sans survoler une barre
     // (retour de Jules, 06/09/2026) — et sans signe « - », ces montants ne
     // pouvant être que des dépenses.
-    await ev.locator('#budget-evolution-category').selectOption({ label: '🛒 Courses' });
-    await ev.getByRole('button', { name: 'Voir le graphe' }).click();
-    await ev.waitForSelector('.budget-chart-bar-label');
-    const barLabels = await ev.locator('.budget-chart-bar-label').allTextContents();
+    await spendSection.locator('#budget-evolution-category').selectOption({ label: '🛒 Courses' });
+    await spendSection.getByRole('button', { name: 'Voir le graphe' }).click();
+    await spendSection.locator('.budget-chart-bar-label').first().waitFor();
+    const barLabels = await spendSection.locator('.budget-chart-bar-label').allTextContents();
     check(
       'Le montant de chaque mois est affiché directement sur le graphe, sans survol',
       barLabels.join(' | ') === '50 € | 80 € | 100 €',
@@ -924,6 +928,103 @@ export async function run({ browser, check, BASE }) {
     );
 
     check('Aucune erreur JavaScript (Évolution)', evErrors.length === 0, evErrors.join(' | '));
+    await fresh.close();
+  }
+
+  // --- Entrées et différentiel (onglet Évolution, demandé par Jules le
+  // 07/09/2026 : « combien j'ai eu de rentrés par mois, puis faire le
+  // différentiel entre les deux »). Trois mois : deux excédentaires, un
+  // déficitaire, pour vérifier que le différentiel reste bien négatif ce
+  // mois-là plutôt que d'être ramené à zéro.
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const nt = await fresh.newPage();
+    const ntErrors = [];
+    nt.on('pageerror', (e) => ntErrors.push(e.message));
+    await enterAstra(nt, BASE);
+    await nt.waitForSelector('.empty h3');
+
+    await nt.evaluate(() => {
+      const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const monthsAgo = (n) => {
+        const d = new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - n);
+        return fmt(d);
+      };
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      snap.budgetCategories = [
+        { id: 'c-salaire', name: 'Salaire', emoji: '💼', color: '#6fbf7f', kind: 'revenu', position: 0, parentId: null },
+        { id: 'c-courses', name: 'Courses', emoji: '🛒', color: '#e0724c', kind: 'variable', position: 1, parentId: null },
+      ];
+      snap.budgetEntries = [
+        { id: 'e1', day: monthsAgo(2), label: 'Paye', amountCents: 200000, categoryId: 'c-salaire', source: 'manuelle', importKey: null, note: '', createdAt: monthsAgo(2) },
+        { id: 'e2', day: monthsAgo(2), label: 'Courses', amountCents: -50000, categoryId: 'c-courses', source: 'manuelle', importKey: null, note: '', createdAt: monthsAgo(2) },
+        { id: 'e3', day: monthsAgo(1), label: 'Paye', amountCents: 200000, categoryId: 'c-salaire', source: 'manuelle', importKey: null, note: '', createdAt: monthsAgo(1) },
+        { id: 'e4', day: monthsAgo(1), label: 'Courses', amountCents: -80000, categoryId: 'c-courses', source: 'manuelle', importKey: null, note: '', createdAt: monthsAgo(1) },
+        // Mois en cours : dans le rouge, la paye ne couvre pas les courses.
+        { id: 'e5', day: monthsAgo(0), label: 'Paye', amountCents: 100000, categoryId: 'c-salaire', source: 'manuelle', importKey: null, note: '', createdAt: monthsAgo(0) },
+        { id: 'e6', day: monthsAgo(0), label: 'Courses', amountCents: -150000, categoryId: 'c-courses', source: 'manuelle', importKey: null, note: '', createdAt: monthsAgo(0) },
+      ];
+      snap.budgetRules = [];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await nt.reload();
+    await nt.waitForSelector('.hub-picker-card');
+    await nt.getByRole('button', { name: /Astra/ }).click();
+    await nt.waitForSelector('.budget-tab', { hasText: 'Évolution' });
+    await nt.getByRole('button', { name: 'Évolution', exact: true }).click();
+    await nt.waitForSelector('.budget-evolution');
+
+    const sections = nt.locator('.budget-evolution-section');
+    check('Les trois sections (Dépenses, Entrées, Différentiel) sont toutes visibles ensemble', (await sections.count()) === 3);
+
+    const incomeSection = sections.nth(1);
+    check(
+      'La vue Entrées par défaut est le total',
+      (await incomeSection.locator('.budget-chart-title').textContent()) === 'Total des entrées',
+    );
+    await incomeSection.getByRole('button', { name: 'Voir le tableau' }).click();
+    const incomeRows = await incomeSection.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
+    check(
+      'Trois mois d’entrées, du plus récent au plus ancien',
+      incomeRows.join(' | ') === '1000,00 € | 2000,00 € | 2000,00 €',
+      incomeRows.join(' | '),
+    );
+
+    await incomeSection.locator('#budget-evolution-income-category').selectOption({ label: '💼 Salaire' });
+    const salaireRows = await incomeSection.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
+    check(
+      'Une seule catégorie de revenu : le même total, elle est la seule à alimenter les entrées',
+      salaireRows.join(' | ') === incomeRows.join(' | '),
+    );
+
+    const netSection = sections.nth(2);
+    check('Le différentiel n’a pas de sélecteur de catégorie', (await netSection.locator('select').count()) === 0);
+    await netSection.getByRole('button', { name: 'Voir le tableau' }).click();
+    const netRows = await netSection.locator('.budget-chart-table tbody tr td:nth-child(2)').allTextContents();
+    check(
+      'Le mois en cours reste négatif (paye 1 000, courses 1 500), jamais ramené à zéro',
+      netRows.join(' | ') === '-500,00 € | +1200,00 € | +1500,00 €',
+      netRows.join(' | '),
+    );
+    const netClasses = await netSection.locator('.budget-chart-table tbody tr td:nth-child(2)').evaluateAll((els) => els.map((el) => el.className));
+    check(
+      'Le mois négatif porte la classe "negative", les deux autres "positive"',
+      netClasses.join(' | ') === 'negative | positive | positive',
+      netClasses.join(' | '),
+    );
+
+    await netSection.getByRole('button', { name: 'Voir le graphe' }).click();
+    await netSection.locator('.budget-chart-bar-label').first().waitFor();
+    const netLabels = await netSection.locator('.budget-chart-bar-label').allTextContents();
+    check(
+      'Le différentiel garde son signe sur les barres (contrairement aux dépenses, sans signe)',
+      netLabels.join(' | ') === '+1500,00 € | +1200,00 € | -500,00 €',
+      netLabels.join(' | '),
+    );
+
+    check('Aucune erreur JavaScript (Entrées et différentiel)', ntErrors.length === 0, ntErrors.join(' | '));
     await fresh.close();
   }
 
@@ -1046,6 +1147,10 @@ export async function run({ browser, check, BASE }) {
     await mp.getByRole('button', { name: 'Épargne', exact: true }).click();
     await mp.waitForTimeout(300);
     check('Onglet Épargne sans débordement horizontal sur téléphone', await noOverflow());
+
+    await mp.getByRole('button', { name: 'Évolution', exact: true }).click();
+    await mp.waitForSelector('.budget-evolution');
+    check('Onglet Évolution (trois graphes empilés) sans débordement horizontal sur téléphone', await noOverflow());
 
     await mp.getByRole('button', { name: 'Importer', exact: true }).click();
     await mp.waitForTimeout(300);
