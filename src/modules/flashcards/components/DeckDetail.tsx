@@ -3,6 +3,7 @@ import { BoxDots } from './BoxDots';
 import { BulkImport } from './BulkImport';
 import { CardEditor } from './CardEditor';
 import { ReviewSession } from './ReviewSession';
+import { RichText } from './RichText';
 import { flashcardsStore } from '../data';
 import { SESSION_LIMIT, boxDistribution, dueCards } from '../lib/boxes';
 import { dayString } from '../lib/day';
@@ -167,8 +168,8 @@ export function DeckDetail({ deck, onBack, onError }: Props) {
               {shown.map((card) => (
                 <li key={card.id} className="flashcards-row flashcards-card-row">
                   <BoxDots box={card.box} />
-                  <span className="flashcards-card-front">{card.front}</span>
-                  <span className="flashcards-card-back">{card.back}</span>
+                  <RichText className="flashcards-card-front" html={card.front} />
+                  <RichText className="flashcards-card-back" html={card.back} />
                   <span className="flashcards-row-actions">
                     <button className="btn btn-ghost btn-sm" onClick={() => setEditing(card)}>
                       Modifier

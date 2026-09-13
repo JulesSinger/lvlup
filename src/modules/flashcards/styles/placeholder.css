@@ -432,7 +432,6 @@
   font-size: 1.3rem;
   font-weight: 550;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
 }
 
 .flashcards-review-hint {
@@ -448,6 +447,162 @@
 .flashcards-review-grade .btn {
   padding: 12px 26px;
   font-size: 15px;
+}
+
+/* --- mise en forme légère du recto/verso, rendu (post-V1, §17/§19) -------- */
+
+/* `.flashcards-richtext` affiche du HTML écrit par Tiptap (§19) : les
+   balises sont les siennes (p, ul/li, strong, u, mark), pas des classes à
+   nous — ce bloc les stylise sans les renommer. */
+
+.flashcards-richtext p {
+  margin: 0;
+}
+
+.flashcards-richtext p + p {
+  margin-top: 4px;
+}
+
+.flashcards-richtext p:empty::before {
+  content: '\00a0'; /* un paragraphe vide entre deux autres reste visible, comme le pre-wrap d'origine */
+}
+
+.flashcards-richtext ul {
+  margin: 4px 0;
+  padding-left: 22px;
+  text-align: left;
+}
+
+.flashcards-richtext li + li {
+  margin-top: 2px;
+}
+
+.flashcards-richtext mark {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.flashcards-richtext ol {
+  margin: 4px 0;
+  padding-left: 22px;
+  text-align: left;
+}
+
+.flashcards-richtext code {
+  background: var(--bg-2);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 0.9em;
+}
+
+/* --- l'éditeur riche et ses boutons d'aide à la rédaction (§18, §19, §20) - */
+
+/* `.flashcards-card-body` est la classe qu'on donne à l'élément éditable
+   lui-même (`editorProps.attributes.class`) — Tiptap y ajoute les siennes
+   (`tiptap`, `ProseMirror`), jamais un wrapper à cibler séparément. */
+.flashcards-card-body {
+  display: block;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  min-height: 70px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.flashcards-card-body:focus {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px rgba(242, 193, 78, 0.12);
+}
+
+.flashcards-card-body p {
+  margin: 0;
+}
+
+.flashcards-card-body ul,
+.flashcards-card-body ol {
+  margin: 4px 0;
+  padding-left: 22px;
+}
+
+.flashcards-card-body mark {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.flashcards-card-body code {
+  background: var(--bg);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 0.9em;
+}
+
+.flashcards-card-body p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.flashcards-format-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.flashcards-format-btn {
+  min-width: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.flashcards-format-btn:hover {
+  border-color: var(--border-strong);
+}
+
+.flashcards-format-btn.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.flashcards-format-btn-bold {
+  font-weight: 700;
+}
+
+.flashcards-format-btn-italic {
+  font-style: italic;
+}
+
+.flashcards-format-btn-underline {
+  text-decoration: underline;
+}
+
+.flashcards-format-btn-strike {
+  text-decoration: line-through;
+}
+
+.flashcards-format-btn-highlight {
+  font-size: 15px;
+}
+
+.flashcards-format-btn-code {
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
 }
 
 /* --- téléphone -------------------------------------------------------- */

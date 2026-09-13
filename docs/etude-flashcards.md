@@ -514,3 +514,182 @@ la même fonction que le code testé.
 correctif de date ci-dessus, qui ne change aucun compte), `365/365` local → `373/373` (+8 :
 absence de débordement sur cinq écrans, icônes seules sur la barre du haut, noms accessibles
 malgré le texte caché), `377/377` en mode comptes → `385/385` (+8).
+
+## 17. Mise en forme légère du recto/verso (post-V1, 12/09/2026)
+
+§3 excluait toute mise en forme de la V1 (« texte seul »). Demande de Jules après coup : « je
+veux pouvoir faire du markdown : je veux pouvoir faire des listes, souligner, surligner ». Trois
+règles seulement, pas du Markdown/CommonMark complet — `__texte__` y voudrait dire gras, pas
+souligné, et rien n'était demandé au-delà de ces trois usages :
+
+| Syntaxe | Effet |
+|---|---|
+| Une ligne commençant par `- ` ou `* ` | Item de liste (`<li>`) |
+| `__texte__` | Souligné (`<u>`) |
+| `==texte==` | Surligné (`<mark>`) |
+
+**Aucune migration, aucune méthode de stockage nouvelle** : `front`/`back` restent de simples
+chaînes (`lib/types.ts`) — cette syntaxe n'existe que dans l'interprétation qu'on en fait à
+l'affichage, exactement comme un import CSV d'Astra ne change rien au schéma de ses tables.
+
+**Bibliothèque pure d'abord** (`lib/richText.ts`, testée avant tout écran, même discipline que
+`lib/boxes.ts`) : `parseInlineSpans` coupe une ligne en portions marquées ou nues,
+`parseRichText` classe chaque ligne du texte en item de liste ou texte simple. Pas de notion de
+paragraphe (une ligne vide ne fusionne rien) : une carte est un texte court, chaque ligne
+d'origine reste une ligne affichée — ce que faisait déjà le `white-space: pre-wrap` qu'elle
+remplace, désormais porté par une structure de blocs explicite (`RichText.tsx`) plutôt que par
+du CSS sur du texte brut, pour ne jamais construire de HTML à partir d'une chaîne
+(`dangerouslySetInnerHTML` n'existe nulle part dans Atlas, et ce n'était pas le moment de
+l'introduire).
+
+`RichText` (composant, pas bibliothèque pure — il rend du JSX) est utilisé aux trois seuls
+endroits qui affichaient jusqu'ici du texte brut : la liste des cartes d'un paquet
+(`DeckDetail`), la liste agrégée par boîte (`FlashcardsScreen`), et l'écran de révision
+(`ReviewSession`). `CardEditor` gagne un aperçu qui se met à jour à la frappe (un `<textarea>`
+ne peut pas afficher lui-même du gras ou une puce) et un rappel de la syntaxe en `.field-hint`
+(classe déjà partagée par le socle) — sans ça, personne ne devine `==texte==` sans lire ce
+document.
+
+`554/554` tests unitaires → `566/566` (+12 : `lib/richText.test.ts`), `460/460` local →
+`462/462` (+2 : liste/souligné/surligné visibles dans l'aperçu de l'éditeur puis dans la liste
+des cartes une fois enregistrés), `472/472` en mode comptes → `474/474` (+2).
+
+## 18. Boutons d'aide à la rédaction (post-V1, 13/09/2026)
+
+§17 rendait la syntaxe, mais ne donnait aucun moyen de l'écrire sans la taper à la main. Jules,
+le lendemain : « on peut afficher du texte markdown mais est-ce qu'il y a les petits outils
+d'aide à la rédaction qui permettent de mettre en gras, faire une liste, souligner… ? » — « mettre
+en gras » n'existait pas encore, §17 n'ayant retenu que liste/souligné/surligné. Ajouté ici
+plutôt que refusé : une quatrième marque était de toute façon nécessaire pour que les boutons
+couvrent ce qui était demandé.
+
+**Le gras (`**texte**`) rejoint les trois marques existantes** dans `lib/richText.ts` — la
+seule des quatre qui coïncide avec CommonMark, l'occasion étant bonne puisqu'aucune autre
+marque n'utilisait encore `*`. `RichSpan` gagne `bold?: boolean`, rendu par un `<strong>` dans
+`RichText.tsx`. `isListLine` (le test qui reconnaît une puce) est exporté de `richText.ts`
+plutôt que dupliqué : `lib/textEditing.ts` (§18) en a besoin pour savoir si une ligne est déjà
+une liste avant de basculer.
+
+**Deux fonctions pures, testées avant l'écran** (même discipline que `lib/boxes.ts` et
+`lib/richText.ts`), dans `lib/textEditing.ts` :
+
+- `wrapSelection(text, start, end, marker)` entoure la sélection de la marque des deux côtés ;
+  sans sélection, insère la paire vide et place le curseur entre les deux pour taper directement
+  dedans. Ré-appliquer sur un texte déjà entouré **retire** la marque (bascule) — un même bouton
+  met en forme et défait, comme n'importe quel éditeur de texte enrichi.
+- `toggleListPrefix(text, start, end)` ajoute ou retire `- ` sur chaque ligne du bloc touché par
+  la sélection ; bascule vers le retrait seulement quand **toutes** les lignes non vides du bloc
+  sont déjà des puces — un bloc mixte devient entièrement puce, jamais l'inverse à la première
+  pression.
+
+**`FormatToolbar.tsx`**, un composant par `<textarea>` (recto et verso en ont chacun un),
+applique ces fonctions sur la sélection courante du champ puis restaure le focus et la position
+du curseur — un changement de `value` piloté par état ne le fait pas tout seul, et sans cette
+restauration chaque clic aurait fait perdre la position d'écriture. La sélection est lue sur
+l'élément DOM (`textareaRef.current.selectionStart/End`) au moment du clic : elle survit au
+transfert de focus vers le bouton, ce n'est donc pas un problème que le clic déplace
+momentanément le focus.
+
+Boutons : « G » en gras pour Gras, « S » soulignée pour Souligner, un émoji 🖍 pour Surligner
+(un « S » pour souligner et un « S » pour surligner se seraient confondus), « • Liste » en toutes
+lettres. Le rappel de syntaxe sous le verso reste affiché, pour qui préfère taper directement.
+
+`566/566` tests unitaires (après §17) → `580/580` (+14 : gras et `isListLine` dans
+`richText.test.ts`, `lib/textEditing.test.ts` en entier), `462/462` local (après §17) →
+`465/465` (+3 : gras et liste appliqués depuis les boutons, rendus dans l'aperçu puis dans la
+carte enregistrée), `474/474` en mode comptes (après §17) → `477/477` (+3).
+
+## 19. §17-§18 remplacés par un éditeur riche (Tiptap), 13/09/2026
+
+Un jour après §18, Jules essaie les boutons et revient avec deux défauts concrets : « il faut
+sélectionner un texte pour que ça marche [pour la liste], et si je fais entrée ça continue pas
+la liste ». Demande : « je préférerai une bibliothèque ». Le texte-brut-avec-syntaxe (§17) et
+ses boutons de manipulation de sélection (§18) sont **entièrement retirés** — `lib/richText.ts`,
+`lib/textEditing.ts` et `FormatToolbar.tsx`, jamais committés, simplement supprimés plutôt que
+dépréciés.
+
+**Bibliothèque choisie : Tiptap** (`@tiptap/react`, `@tiptap/starter-kit`,
+`@tiptap/extension-highlight`, `@tiptap/extension-placeholder`), pas react-quill — react-quill
+manipule le DOM lui-même (`findDOMNode`, retiré de React 18+) et n'a pas de fork officiellement
+maintenu pour React 19 ; Tiptap déclare React 19 dans ses `peerDependencies` (v3.31.3, vérifié
+avant d'installer). Licence MIT, gratuite — respecte la contrainte n°1 de ce document (§1).
+**Coût réel, à ne pas cacher** : le JS minifié gzippé passe de 186 ko à 310 ko (ProseMirror,
+sur lequel Tiptap s'appuie, n'est pas petit) — accepté sans discussion à ce stade, aucune
+contrainte de volumétrie n'existe pour une appli personnelle sur Cloudflare Pages, mais à garder
+en tête si `npm run build` alerte un jour sur la taille du bundle pour de bon.
+
+**Le recto/verso devient du HTML**, plus la syntaxe maison de §17 — `front`/`back` restent des
+chaînes (aucune migration), mais leur contenu est écrit par l'éditeur (`editor.getHTML()`) et
+affiché tel quel. `RichText.tsx` (le composant de rendu, gardé) passe de « interpréter une
+syntaxe » à « faire confiance à du HTML » : premier `dangerouslySetInnerHTML` d'Atlas, jugé sûr
+ici parce que ce HTML ne peut sortir que du schéma restreint de l'éditeur (§ci-dessous) — jamais
+d'une saisie brute copiée telle quelle, jamais de `<script>` possible tant que rien n'ouvre le
+schéma à du contenu arbitraire.
+
+**Schéma volontairement restreint** : `StarterKit.configure({...})` désactive tout ce qu'aucun
+bouton ne propose (titres, citation, code, lien, liste numérotée, italique, barré) — un schéma
+plus large que les boutons qui l'exposent serait un piège (un raccourci clavier ferait
+apparaître un titre qu'aucun bouton ne pourrait retirer). Restent : gras, souligné (déjà dans
+`StarterKit` en v3, plus besoin de l'ajouter à part), liste à puces, plus `Highlight` (surligné,
+absent de `StarterKit`) et `Placeholder` (texte d'exemple dans le champ vide, équivalent du
+`placeholder` d'un `<textarea>`).
+
+**`EditorToolbar.tsx`** remplace `FormatToolbar.tsx` : les boutons appellent directement les
+commandes Tiptap (`editor.chain().focus().toggleBold().run()`…) au lieu de manipuler du texte à
+la main, et `useEditorState` (l'API que Tiptap recommande pour ça) tient l'état « actif » de
+chaque bouton synchronisé avec la position du curseur — un clic sans rien sélectionner met en
+forme ce qui va être tapé ensuite, exactement ce que §18 ne savait pas faire pour la liste.
+**Entrée continue une liste nativement** (`ListKeymap`, dans `StarterKit`) : le deuxième défaut
+signalé par Jules disparaît sans code à écrire, c'est le comportement de base d'un éditeur
+structuré (une liste est un vrai nœud du document, pas une ligne qui commence par `- `).
+
+**Un vrai bug trouvé et corrigé en écrivant la suite e2e**, pas seulement un souci de test :
+cliquer un bouton de la barre déplace le focus du navigateur dessus (comportement natif d'un
+`<button>`) ; `editor.chain().focus()` est censé le redonner à l'éditeur, et le fait bien tant
+qu'un seul éditeur Tiptap existe sur la page — mais avec **deux** éditeurs (recto et verso), une
+fois que l'un des deux a été focus au moins une fois, ce retour de focus après un clic sur
+l'autre devient peu fiable. Conséquence concrète, reproduite : cliquer « Liste » sur le verso
+juste après avoir touché le recto, puis taper « vino » — le focus restait sur le bouton, les
+lettres ne faisaient rien, et l'espace de « vino » **réactivait le bouton** (un `<button>` répond
+nativement à la touche Espace), défaisant la liste qu'on venait de poser. Corrigé par le motif
+standard des barres d'outils de texte riche : `onMouseDown={(e) => e.preventDefault()}` sur
+chaque bouton, pour que le focus ne quitte jamais l'éditeur — plus fiable que de compter sur
+Tiptap pour le lui rendre après coup. Sans la suite e2e (qui enchaîne volontairement recto puis
+verso, comme un vrai usage), ce bug serait resté invisible en usage occasionnel à un seul champ
+à la fois.
+
+`554/554` tests unitaires (après §17-§18) → `554/554` (`richText.test.ts` et
+`textEditing.test.ts`, 26 tests, supprimés avec les fichiers qu'ils couvraient — rien à tester
+« à la main » sur une bibliothèque déjà testée par ses propres mainteneurs), `465/465` local
+(après §18) → `464/464` (la vérification sur l'aperçu séparé disparaît, l'éditeur riche EST
+l'aperçu ; deux vérifications plus complètes la remplacent, dont celle qui aurait attrapé le bug
+de focus ci-dessus), `477/477` en mode comptes (après §18) → `476/476`.
+
+## 20. Palette élargie : italique, barré, code, liste numérotée (13/09/2026)
+
+Question de Jules après §19 : « pourquoi y'a que 4 options de markdown ? » — réponse : parce que
+c'était exactement ce qui avait été demandé mot pour mot (§17 : liste/souligné/surligné, §18 :
+plus le gras), pas une limite technique. Demande immédiate : « rajoute quelques éléments souvent
+utilisés ». Choisis pour un recto/verso de carte, pas pour un document long : **italique**,
+**barré**, **code en ligne** (utile pour du contenu technique — Jules développe), **liste
+numérotée** (le pendant naturel de la liste à puces). Laissés de côté, jugés rares sur une
+carte courte : titres, citation, lien, règle horizontale.
+
+Coût quasi nul : `italic`, `strike`, `code`, `orderedList` étaient déjà dans `StarterKit`,
+simplement désactivés en §19 — il a suffi de retirer leur `: false` dans
+`bodyExtensions` (`CardEditor.tsx`) et d'ajouter les quatre boutons correspondants dans
+`EditorToolbar.tsx` (tableau `BUTTONS`, déjà piloté par une liste plutôt que par du JSX répété —
+le passage de 4 à 8 boutons n'a touché que ce tableau, aucune structure à changer). Étiquettes à
+une lettre choisies pour ne jamais se confondre : G (Gras), I (Italique), S (Souligner), B
+(Barré) — chacune stylée pour montrer son propre effet, comme les boutons déjà en place. Le
+code exclut nativement les autres marques dans le schéma ProseMirror (un span de code n'est
+normalement ni gras ni souligné) : non re-testé explicitement, comportement par défaut de
+l'extension `Code`, pas une règle écrite ici.
+
+`.flashcards-format-toolbar` gagne `flex-wrap: wrap` — huit boutons sur une largeur de modal
+mobile ne tiennent pas forcément sur une seule ligne, une deuxième ligne est plus sûre qu'un
+débordement horizontal.
+
+`554/554` tests unitaires (inchangé, aucune nouvelle logique pure — les nouvelles marques
+viennent telles quelles de Tiptap), `464/464` local → `466/466` (+2 : italique/barré cumulés au
+gras, code et liste numérotée), `476/476` en mode comptes → `478/478` (+2).

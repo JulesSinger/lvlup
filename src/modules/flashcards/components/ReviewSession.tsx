@@ -3,6 +3,7 @@ import { flashcardsStore } from '../data';
 import { applyReview } from '../lib/boxes';
 import { dayString } from '../lib/day';
 import type { Card, Deck } from '../lib/types';
+import { RichText } from './RichText';
 
 interface Props {
   /** Ce que dit le bouton de retour — le nom d'un paquet, ou « Aujourd'hui » pour une session tous paquets. */
@@ -96,7 +97,7 @@ export function ReviewSession({ title, queue, decks, onDone, onError }: Props) {
             onClick={() => setFlipped(true)}
             disabled={flipped}
           >
-            <span className="flashcards-review-face">{flipped ? current.back : current.front}</span>
+            <RichText className="flashcards-review-face" html={flipped ? current.back : current.front} />
             {!flipped && <span className="flashcards-review-hint">Toucher pour retourner</span>}
           </button>
 

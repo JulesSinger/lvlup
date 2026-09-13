@@ -27,6 +27,32 @@ async function reloadOrbite(p) {
   await p.getByRole('button', { name: /Orbite/ }).click();
 }
 
+/**
+ * Le recto/verso de l'éditeur de carte est un `<div>` éditable (Tiptap,
+ * §19 de l'étude), pas un `<textarea>` : `.fill()` n'a pas de prise dessus.
+ * Vide le champ (utile en édition, sans effet sur un champ déjà vide) puis
+ * tape le texte au clavier — pour de vrai, afin que les règles de saisie de
+ * Tiptap (ex. « - » qui démarre une liste) puissent s'appliquer si besoin.
+ */
+async function typeIntoCardField(p, id, text) {
+  const field = p.locator(`#${id}`);
+  await field.click();
+  await field.selectText();
+  await p.keyboard.press('Backspace');
+  if (text) await p.keyboard.type(text, { delay: 20 });
+}
+
+/**
+ * Un bouton de `EditorToolbar` redonne le focus à l'éditeur après coup
+ * (`editor.chain().focus()...`) — un court délai après le clic laisse cette
+ * reprise de focus se terminer avant la frappe suivante, sinon les premiers
+ * caractères tapés juste après un clic se perdent (observé en pratique).
+ */
+async function clickFormatButton(p, name, index) {
+  await p.getByRole('button', { name, exact: true }).nth(index).click();
+  await p.waitForTimeout(50);
+}
+
 export async function run({ browser, check, BASE }) {
   const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
   const page = await context.newPage();
@@ -79,8 +105,8 @@ export async function run({ browser, check, BASE }) {
 
   await page.getByRole('button', { name: 'Créer ma première carte' }).click();
   check("L'éditeur de carte s'ouvre", await page.locator('.flashcards-card-editor').isVisible());
-  await page.locator('#flashcards-card-front').fill('Hola');
-  await page.locator('#flashcards-card-back').fill('Bonjour');
+  await typeIntoCardField(page, 'flashcards-card-front', 'Hola');
+  await typeIntoCardField(page, 'flashcards-card-back', 'Bonjour');
   await page.getByRole('button', { name: 'Enregistrer' }).click();
 
   await page.waitForSelector('.flashcards-card-row');
@@ -129,14 +155,74 @@ export async function run({ browser, check, BASE }) {
   await page.getByRole('button', { name: 'Modifier' }).click();
   check(
     "L'éditeur de carte se pré-remplit",
-    (await page.locator('#flashcards-card-front').inputValue()) === 'Hola',
+    (await page.locator('#flashcards-card-front').textContent()) === 'Hola',
   );
-  await page.locator('#flashcards-card-back').fill('Bonjour / Salut');
+  await typeIntoCardField(page, 'flashcards-card-back', 'Bonjour / Salut');
   await page.getByRole('button', { name: 'Enregistrer' }).click();
   await page.waitForTimeout(200);
   check(
     'La modification est prise en compte',
     (await page.locator('.flashcards-card-back').first().textContent()) === 'Bonjour / Salut',
+  );
+
+  // --- Boutons d'aide à la rédaction (§18, réécrits sur Tiptap en §19) -----
+  await page.getByRole('button', { name: 'Modifier' }).click();
+
+  await page.locator('#flashcards-card-front').selectText();
+  await clickFormatButton(page, 'Gras', 0);
+  check(
+    'Le bouton Gras met en forme la sélection tout de suite',
+    (await page.locator('#flashcards-card-front strong').textContent()) === 'Hola',
+  );
+  await clickFormatButton(page, 'Italique', 0);
+  await clickFormatButton(page, 'Barré', 0);
+  check(
+    'Italique et barré se cumulent au gras (§20)',
+    (await page.locator('#flashcards-card-front em').textContent()) === 'Hola' &&
+      (await page.locator('#flashcards-card-front s').textContent()) === 'Hola',
+  );
+  await clickFormatButton(page, 'Liste à puces', 0);
+  check(
+    'Le bouton Liste transforme la ligne en puce',
+    (await page.locator('#flashcards-card-front li strong').textContent()) === 'Hola',
+  );
+  await typeIntoCardField(page, 'flashcards-card-front', 'Hola'); // remis en l'état attendu par la suite
+
+  await page.locator('#flashcards-card-front').selectText();
+  await clickFormatButton(page, 'Code', 0);
+  await clickFormatButton(page, 'Liste numérotée', 0);
+  check(
+    'Code et liste numérotée (§20)',
+    (await page.locator('#flashcards-card-front li code').textContent()) === 'Hola' &&
+      (await page.locator('#flashcards-card-front ol li').count()) === 1,
+  );
+  await typeIntoCardField(page, 'flashcards-card-front', 'Hola'); // remis en l'état attendu par la suite
+
+  await page.locator('#flashcards-card-back').click();
+  await page.locator('#flashcards-card-back').selectText();
+  await page.keyboard.press('Backspace');
+  // Le bouton Liste agit sur la ligne du curseur, vide au départ — aucune
+  // sélection à faire au préalable, contrairement à l'ancienne version.
+  await clickFormatButton(page, 'Liste à puces', 1);
+  await page.keyboard.type('vino ', { delay: 20 });
+  await clickFormatButton(page, 'Surligner', 1);
+  await page.keyboard.type('tinto', { delay: 20 });
+  await clickFormatButton(page, 'Surligner', 1); // repasse le surligné à off, pour qu'il ne suive pas sur la ligne suivante
+  await page.keyboard.press('Enter'); // continue la liste toute seule, sans recliquer « Liste »
+  await clickFormatButton(page, 'Souligner', 1);
+  await page.keyboard.type('caña', { delay: 20 });
+  check(
+    'La liste se met en forme sans sélection préalable, et Entrée continue la liste',
+    (await page.locator('#flashcards-card-back li mark').textContent()) === 'tinto' &&
+      (await page.locator('#flashcards-card-back li u').textContent()) === 'caña' &&
+      (await page.locator('#flashcards-card-back li').count()) === 2,
+  );
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForTimeout(200);
+  check(
+    'La puce, le surligné et le souligné sont rendus dans la liste des cartes',
+    (await page.locator('.flashcards-card-back li mark').textContent()) === 'tinto' &&
+      (await page.locator('.flashcards-card-back li u').textContent()) === 'caña',
   );
 
   // Un aller-retour, pour vérifier que la carte n'est pas seulement en mémoire.
@@ -424,8 +510,8 @@ export async function run({ browser, check, BASE }) {
     await sp.waitForSelector('.flashcards-row');
     await sp.locator('.flashcards-row', { hasText: 'Espagnol' }).click();
     await sp.getByRole('button', { name: 'Créer ma première carte' }).click();
-    await sp.locator('#flashcards-card-front').fill('Hola');
-    await sp.locator('#flashcards-card-back').fill('Bonjour');
+    await typeIntoCardField(sp, 'flashcards-card-front', 'Hola');
+    await typeIntoCardField(sp, 'flashcards-card-back', 'Bonjour');
     await sp.getByRole('button', { name: 'Enregistrer' }).click();
 
     await sp.locator('.flashcards-review-start').click();
@@ -543,8 +629,8 @@ export async function run({ browser, check, BASE }) {
     await mp.locator('.flashcards-row', { hasText: 'Vocabulaire espagnol' }).click();
     await mp.waitForSelector('.flashcards-deck-detail');
     await mp.getByRole('button', { name: 'Créer ma première carte' }).click();
-    await mp.locator('#flashcards-card-front').fill('Hola, ¿cómo estás?');
-    await mp.locator('#flashcards-card-back').fill('Bonjour, comment ça va ?');
+    await typeIntoCardField(mp, 'flashcards-card-front', 'Hola, ¿cómo estás?');
+    await typeIntoCardField(mp, 'flashcards-card-back', 'Bonjour, comment ça va ?');
     await mp.getByRole('button', { name: 'Enregistrer' }).click();
     await mp.waitForSelector('.flashcards-card-row');
     check(
