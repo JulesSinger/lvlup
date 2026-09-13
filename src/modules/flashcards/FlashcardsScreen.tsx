@@ -4,7 +4,7 @@ import { BoxDots } from './components/BoxDots';
 import { DeckDetail } from './components/DeckDetail';
 import { DeckEditor } from './components/DeckEditor';
 import { ReviewSession } from './components/ReviewSession';
-import { RichText } from './components/RichText';
+import { CardPreview } from './components/CardPreview';
 import { StatsPanel } from './components/StatsPanel';
 import { flashcardsStore } from './data';
 import { SESSION_LIMIT, boxDistribution, dueCards } from './lib/boxes';
@@ -268,7 +268,7 @@ export function FlashcardsScreen({
                         onClick={() => owner && setOpenDeck(owner)}
                       >
                         <BoxDots box={card.box} />
-                        <RichText className="flashcards-row-name" html={card.front} />
+                        <CardPreview className="flashcards-row-name" html={card.front} />
                         {owner && (
                           <span className="flashcards-row-deck">
                             {owner.emoji} {owner.name}

@@ -125,7 +125,11 @@
 
 .flashcards-row-name {
   flex: 1;
+  min-width: 0;
   font-weight: 550;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .flashcards-row-actions {
@@ -226,15 +230,13 @@
   gap: 22px;
 }
 
-.flashcards-card-row {
-  align-items: flex-start;
-}
-
 .flashcards-card-front,
 .flashcards-card-back {
   flex: 1;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .flashcards-card-back {
@@ -643,14 +645,6 @@
   }
 
   .flashcards-archived-name {
-    flex: 1 1 100%;
-  }
-
-  /* Le recto et le verso d'une carte, côte à côte sur grand écran, se
-     retrouveraient écrasés l'un contre l'autre en dessous de 480px : ils
-     passent chacun sur leur propre ligne. */
-  .flashcards-card-front,
-  .flashcards-card-back {
     flex: 1 1 100%;
   }
 

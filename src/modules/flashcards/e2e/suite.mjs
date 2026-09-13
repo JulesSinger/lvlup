@@ -220,9 +220,28 @@ export async function run({ browser, check, BASE }) {
   await page.getByRole('button', { name: 'Enregistrer' }).click();
   await page.waitForTimeout(200);
   check(
-    'La puce, le surligné et le souligné sont rendus dans la liste des cartes',
-    (await page.locator('.flashcards-card-back li mark').textContent()) === 'tinto' &&
-      (await page.locator('.flashcards-card-back li u').textContent()) === 'caña',
+    // La liste d'un paquet affiche un aperçu texte simple (§21), pas la
+    // mise en forme — celle-ci reste dans l'éditeur et l'écran de révision.
+    "L'aperçu dans la liste du paquet est du texte simple, sans la mise en forme",
+    (await page.locator('.flashcards-card-back').first().textContent()) === 'vino tinto caña',
+  );
+
+  // --- Réponse longue : aperçu tronqué, texte complet en infobulle (§21) ---
+  const longBack =
+    'Une reponse bien plus longue que ce qui tient sur une seule ligne, pour verifier que la liste du paquet ne l affiche pas en entier et reste lisible.';
+  await page.getByRole('button', { name: 'Modifier' }).click();
+  await typeIntoCardField(page, 'flashcards-card-back', longBack);
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForTimeout(200);
+  const backPreview = page.locator('.flashcards-card-back').first();
+  const previewText = (await backPreview.textContent()) ?? '';
+  check(
+    'Une réponse longue est tronquée dans la liste, pas affichée en entier',
+    previewText.length < longBack.length && previewText.endsWith('…'),
+  );
+  check(
+    'Le texte complet reste lisible en survolant (infobulle)',
+    (await backPreview.getAttribute('title')) === longBack,
   );
 
   // Un aller-retour, pour vérifier que la carte n'est pas seulement en mémoire.

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BoxDots } from './BoxDots';
 import { BulkImport } from './BulkImport';
 import { CardEditor } from './CardEditor';
+import { CardPreview } from './CardPreview';
 import { ReviewSession } from './ReviewSession';
-import { RichText } from './RichText';
 import { flashcardsStore } from '../data';
 import { SESSION_LIMIT, boxDistribution, dueCards } from '../lib/boxes';
 import { dayString } from '../lib/day';
@@ -168,8 +168,8 @@ export function DeckDetail({ deck, onBack, onError }: Props) {
               {shown.map((card) => (
                 <li key={card.id} className="flashcards-row flashcards-card-row">
                   <BoxDots box={card.box} />
-                  <RichText className="flashcards-card-front" html={card.front} />
-                  <RichText className="flashcards-card-back" html={card.back} />
+                  <CardPreview className="flashcards-card-front" html={card.front} />
+                  <CardPreview className="flashcards-card-back" html={card.back} />
                   <span className="flashcards-row-actions">
                     <button className="btn btn-ghost btn-sm" onClick={() => setEditing(card)}>
                       Modifier

@@ -693,3 +693,41 @@ débordement horizontal.
 `554/554` tests unitaires (inchangé, aucune nouvelle logique pure — les nouvelles marques
 viennent telles quelles de Tiptap), `464/464` local → `466/466` (+2 : italique/barré cumulés au
 gras, code et liste numérotée), `476/476` en mode comptes → `478/478` (+2).
+
+## 21. Aperçu tronqué dans la liste d'un paquet (13/09/2026)
+
+Jules, sur l'affichage des cartes dans un paquet : « pas du tout correct, j'ai souvent des
+longues réponses et ça rend très moche, il faut recentrer certains éléments et surtout ne pas
+afficher toute la réponse... juste le début et peut-être l'afficher entier si on clique sur
+modifier ou même en tooltip ». Le second point (« Modifier ») était déjà acquis — l'éditeur
+charge toujours le contenu complet ; restait à tronquer l'aperçu de la liste et infobuller le
+reste.
+
+**Le HTML lui-même n'est pas tronqué** — couper une chaîne HTML au milieu casserait des balises
+ouvertes. `lib/htmlPreview.ts` (bibliothèque pure, testée avant l'écran, même discipline que
+`lib/richText.ts`) réduit le HTML en texte simple (`htmlToPlainText` — les balises de bloc
+`p`/`div`/`li`/`br` deviennent une espace, pour ne pas coller deux mots de blocs différents),
+puis coupe à 70 caractères sur la dernière frontière de mot (`truncatePreview`). Le composant
+`CardPreview.tsx` affiche ce texte tronqué dans un `<span title={texte complet}>` — l'infobulle
+native du navigateur, sans bibliothèque ni composant à construire, exactement la deuxième option
+proposée par Jules. `RichText.tsx` (affichage intégral, mis en forme) reste utilisé là où le
+texte complet a sa place : l'écran de révision, où lire toute la réponse est le but même de
+l'écran.
+
+**« Recentrer certains éléments »** : `.flashcards-card-row { align-items: flex-start; }`
+existait pour ne pas couper le haut d'une réponse multi-lignes (§17-§18, quand le verso pouvait
+être un vrai bloc de texte formaté). Avec l'aperçu ramené à une seule ligne tronquée, cette
+raison d'être disparaît — la règle est retirée, la ligne retrouve le centrage vertical de
+`.flashcards-row` (points de boîte, recto, verso, boutons alignés au milieu). Une deuxième
+sécurité, en CSS pur cette fois, en plus de la coupe à 70 caractères : `overflow: hidden;
+white-space: nowrap; text-overflow: ellipsis` sur `.flashcards-card-front`/`-back` et
+`.flashcards-row-name` (l'aperçu agrégé par boîte, `FlashcardsScreen.tsx`, avait le même risque
+avec un recto long) — si l'estimation en caractères ne correspond pas exactement à la largeur
+réelle du conteneur sur un écran étroit, l'ellipse CSS referme proprement, sans jamais déborder.
+Le repli mobile qui empilait recto/verso chacun sur sa propre ligne (`@media max-width: 480px`)
+n'a plus de raison d'être non plus, pour la même raison : retiré, ils tiennent maintenant
+côte à côte à toute largeur.
+
+`554/554` tests unitaires → `564/564` (+10 : `lib/htmlPreview.test.ts`), `466/466` local →
+`468/468` (+2 : une réponse longue tronquée dans la liste, texte complet retrouvé en infobulle),
+`478/478` en mode comptes → `480/480` (+2).
