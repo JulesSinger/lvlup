@@ -9,6 +9,7 @@ function fakeModule(id: string, legacyKey?: string): AtlasModule {
     label: id,
     description: id,
     emoji: '·',
+    accent: '#888888',
     data: {
       exportData: vi.fn(async () => ({ from: id })),
       importData: vi.fn(async () => {}),

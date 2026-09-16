@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Landing } from './core/components/Landing';
 import { ModulePicker } from './core/components/ModulePicker';
 import { PasswordRecovery } from './core/components/PasswordRecovery';
 import { SettingsPanel } from './core/components/SettingsPanel';
@@ -8,12 +9,6 @@ import { DEFAULT_SETTINGS, type Settings } from './core/data/coreStore';
 import { timezoneOffsetMinutes } from './core/lib/push';
 import type { AppUser } from './core/lib/types';
 import { MODULES } from './modules';
-// Écran public d'avant connexion. Il reste porté par l'unique module
-// existant — voir CLAUDE.md §4 : le renommage des surfaces publiques est
-// volontairement reporté tant qu'Atlas n'a qu'un module à montrer. C'est le
-// seul import de module que la coquille garde, et il devra migrer vers une
-// page d'accueil propre au hub quand un second module la rendra visible.
-import { Landing } from './modules/objectifs/components/Landing';
 
 /**
  * La coquille du hub.
@@ -152,7 +147,7 @@ export default function App() {
     return <div className="auth-screen">Chargement…</div>;
   }
   if (coreStore.isRemote && !user) {
-    return <Landing />;
+    return <Landing modules={MODULES} />;
   }
 
   const activeModule = MODULES.find((m) => m.id === moduleId) ?? null;

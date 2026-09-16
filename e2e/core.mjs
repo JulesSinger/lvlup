@@ -60,6 +60,34 @@ export async function run({ browser, check, BASE }) {
     const authPage = await authContext.newPage();
     await authPage.goto(process.env.AUTH_BASE);
 
+    // La page d'accueil publique (Landing, socle depuis le 2026-09-16) pitche
+    // le hub, pas un seul module : elle porte la marque du hub et une carte
+    // par module du registre, chacune avec son nom, sa description et — quand
+    // le module en fournit un — un aperçu (`LandingPreview`).
+    await authPage.waitForSelector('.lp-hero');
+    check(
+      'La page d’accueil porte la marque du hub, pas celle d’un module',
+      (await authPage.locator('.lp-nav .brand-name').textContent()) === 'Atlas',
+    );
+    const moduleCardCount = await authPage.locator('.lp-module-card').count();
+    check('La page d’accueil montre une carte par module', moduleCardCount >= 3, String(moduleCardCount));
+    const moduleNames = await authPage.locator('.lp-module-name').allTextContents();
+    check(
+      'Chaque module du registre a sa carte, avec son vrai nom',
+      ['Zénith', 'Astra', 'Orbite'].every((label) => moduleNames.includes(label)),
+      moduleNames.join(' | '),
+    );
+    check(
+      'Chaque carte a un aperçu de son module',
+      (await authPage.locator('.lp-module-preview').count()) === moduleCardCount,
+    );
+    // L'effet « wow » du héros (2026-09-16) : un champ d'étoiles en canvas,
+    // préféré à une sphère armillaire en 3D CSS après comparaison sur maquette.
+    check(
+      'Le héros affiche son champ d’étoiles',
+      (await authPage.locator('.lp-starfield canvas').count()) === 1,
+    );
+
     // Chaque bouton de la présentation doit ouvrir le formulaire qu'il annonce.
     // « Créer mon compte » qui tombait sur la connexion obligeait à recliquer
     // sur « En créer un » — sur le tout premier écran, avant même le compte.

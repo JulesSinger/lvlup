@@ -1,4 +1,5 @@
 import type { AtlasModule } from '../../core/lib/module';
+import { OrbiteLandingPreview } from './components/OrbiteLandingPreview';
 import { FlashcardsScreen } from './FlashcardsScreen';
 import { flashcardsStore } from './data';
 
@@ -17,6 +18,8 @@ export const flashcardsModule: AtlasModule = {
   label: 'Orbite',
   description: 'Cartes de révision, répétition espacée',
   emoji: '🪐',
+  accent: '#52d6c8',
   data: flashcardsStore,
   Screen: FlashcardsScreen,
+  LandingPreview: OrbiteLandingPreview,
 };

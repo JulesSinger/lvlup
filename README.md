@@ -6,6 +6,7 @@ Un hub personnel, un module par domaine de la vie.
 |---|---|---|---|
 | `objectifs` | **Zénith** | suivi d'objectifs par paliers | en production |
 | `budget` | **Astra** | dépenses, catégories, import bancaire, enveloppes d'épargne | en production |
+| `flashcards` | **Orbite** | révision par répétition espacée, système de Leitner | en production |
 
 **Pour travailler sur ce dépôt, lis d'abord [`CLAUDE.md`](CLAUDE.md)** : il porte les
 conventions, les invariants à ne pas casser et le journal des décisions. Ce README décrit
@@ -32,6 +33,17 @@ automatiquement, catégorisation amorcée puis affinée par des règles). L'ongl
 la répartition du mois par catégorie ; l'onglet *Épargne* permet de répartir ce qui est mis de
 côté dans des enveloppes nommées (vacances, imprévus…), sans jamais toucher à un vrai compte
 bancaire.
+
+---
+
+## Orbite — le module flashcards
+
+Révision par répétition espacée, système de Leitner à 5 boîtes : une carte revue juste
+s'éloigne, une carte ratée retombe en boîte 1.
+
+Les paquets se créent, se renomment, s'archivent ; une carte se rédige dans un éditeur de texte
+riche (gras, italique, souligné, barré, surligné, code, listes). Un bandeau « Aujourd'hui »
+annonce tout de suite ce qu'il y a à réviser, tous paquets confondus.
 
 ---
 
@@ -176,14 +188,15 @@ src/
   styles.css           Uniquement des @import, dans un ordre qui fait la cascade
   modules/index.ts     Le registre : la liste des modules actifs
   core/                Le socle, commun à tous les modules
-    components/        AuthScreen, PasswordRecovery, ReminderSettings, SettingsPanel,
-                       ModulePicker (écran d'accueil du hub)
+    components/        Landing (page d'accueil publique), AuthScreen, PasswordRecovery,
+                       ReminderSettings, SettingsPanel, ModulePicker (écran du hub)
     data/              coreStore (comptes, réglages, notifications) + ses deux
                        implémentations, la sauvegarde, le client Supabase partagé
     lib/               module.ts (ce qu'un module déclare), push, sound, types
     styles/            Le style commun
   modules/objectifs/   Le module Zénith
   modules/budget/      Le module Astra
+  modules/flashcards/  Le module Orbite
     module.ts          Sa déclaration : id technique, nom affiché, accès aux données
     components/  data/  lib/  styles/  e2e/
 e2e/

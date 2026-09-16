@@ -1,4 +1,5 @@
 import type { AtlasModule } from '../../core/lib/module';
+import { AstraLandingPreview } from './components/AstraLandingPreview';
 import { BudgetScreen } from './BudgetScreen';
 import { budgetStore } from './data';
 
@@ -16,6 +17,8 @@ export const budgetModule: AtlasModule = {
   label: 'Astra',
   description: 'Dépenses et budget',
   emoji: '✦',
+  accent: '#9c8cf6',
   data: budgetStore,
   Screen: BudgetScreen,
+  LandingPreview: AstraLandingPreview,
 };

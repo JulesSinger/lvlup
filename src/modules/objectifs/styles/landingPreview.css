@@ -1,0 +1,61 @@
+/* Aperçu de Zénith sur la page d'accueil publique (core/components/Landing.tsx). */
+
+.objectifs-landing-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.objectifs-landing-ring {
+  position: relative;
+  width: 62px;
+  height: 62px;
+  flex-shrink: 0;
+}
+
+.objectifs-landing-ring svg {
+  width: 100%;
+  height: 100%;
+}
+
+.objectifs-landing-ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.1;
+}
+
+.objectifs-landing-ring-center b {
+  font-family: 'Cinzel', 'Inter', serif;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.objectifs-landing-side {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.objectifs-landing-flame {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.objectifs-landing-flame b {
+  color: var(--flame);
+}
+
+.objectifs-landing-label {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

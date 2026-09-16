@@ -66,11 +66,26 @@ export interface AtlasModule {
    */
   description: string;
   emoji: string;
+  /**
+   * Teinte d'accent du module (couleur CSS), utilisée par la page d'accueil
+   * publique (`Landing`, socle) pour distinguer un module d'un autre — une
+   * donnée déclarative au même titre que `label`/`emoji`, jamais une
+   * dépendance vers le contenu du module.
+   */
+  accent: string;
   data: ModuleDataStore;
   /** Écran racine du module. Le hub le rend sans rien savoir de son contenu. */
   Screen: ComponentType<ModuleScreenProps>;
   /** Section optionnelle ajoutée au panneau de réglages, sous `label`. */
   SettingsSection?: ComponentType<ModuleSettingsProps>;
+  /**
+   * Aperçu miniature optionnel affiché sur la page d'accueil publique, dans
+   * la carte du module — même principe que `SettingsSection` : le module
+   * apporte un fragment d'écran, le socle le rend sans connaître son
+   * contenu. Sans exemple à montrer (pas encore d'écran fini), la carte
+   * reste simplement emoji + nom + description.
+   */
+  LandingPreview?: ComponentType;
   /**
    * Retrouve la section du module dans une sauvegarde antérieure au format
    * versionné, où tout vivait à plat. C'est au module de savoir lire son

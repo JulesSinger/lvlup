@@ -1,6 +1,7 @@
 import type { AtlasModule } from '../../core/lib/module';
 import { goalsStore } from './data';
 import type { GoalsBackup } from './data/goalsStore';
+import { ZenithLandingPreview } from './components/ZenithLandingPreview';
 import { ZenithScreen } from './ZenithScreen';
 import { ZenithSettingsSection } from './ZenithSettingsSection';
 
@@ -14,9 +15,11 @@ export const objectifsModule: AtlasModule = {
   label: 'Zénith',
   description: 'Suivi d’objectifs, par paliers',
   emoji: '▲',
+  accent: '#f2c14e',
   data: goalsStore,
   Screen: ZenithScreen,
   SettingsSection: ZenithSettingsSection,
+  LandingPreview: ZenithLandingPreview,
 
   fromLegacyBackup(raw) {
     // Avant la v5, les objectifs occupaient la racine du fichier. Les

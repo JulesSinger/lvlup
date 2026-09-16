@@ -1,5 +1,5 @@
 {
-  "name": "zenith",
+  "name": "atlas",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -37,5 +37,5 @@
     "vite": "^8.1.1",
     "vitest": "^3.2.7"
   },
-  "description": "Zénith — suivi d'objectifs par paliers, chaque palier vaut un rang à décrocher"
+  "description": "Atlas — un hub personnel, un module par domaine : objectifs, budget, révision espacée"
 }

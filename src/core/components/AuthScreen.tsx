@@ -55,9 +55,9 @@ export function AuthScreen({
     <div className="auth-screen">
       <form className="auth-card" onSubmit={submit}>
         <div className="brand">
-          <span className="brand-mark">▲</span> Zénith
+          <span className="brand-mark">▲</span> Atlas
         </div>
-        <p className="auth-tagline">Chaque objectif est une montée. Atteins ton zénith.</p>
+        <p className="auth-tagline">Un module par domaine, un seul endroit qui t'appartient.</p>
 
         {error && <div className="notice error">{error}</div>}
         {info && <div className="notice success">{info}</div>}

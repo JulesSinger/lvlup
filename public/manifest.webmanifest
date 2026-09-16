@@ -1,7 +1,7 @@
 {
-  "name": "Zénith — tes objectifs, rang par rang",
-  "short_name": "Zénith",
-  "description": "Suivi d'objectifs par paliers : chaque palier vaut un rang à décrocher.",
+  "name": "Atlas — un module par domaine",
+  "short_name": "Atlas",
+  "description": "Un hub personnel : objectifs, budget, révision espacée, chacun dans son module.",
   "lang": "fr",
   "start_url": "/",
   "scope": "/",

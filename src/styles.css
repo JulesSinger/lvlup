@@ -63,3 +63,6 @@
 
 /* --- Orbite : signet d'étape 1, en attendant ses vrais écrans -------- */
 @import './modules/flashcards/styles/placeholder.css';
+
+/* --- Zénith : aperçu sur la page d'accueil publique (2026-09-16) ----- */
+@import './modules/objectifs/styles/landingPreview.css';
