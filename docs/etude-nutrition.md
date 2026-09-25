@@ -260,7 +260,7 @@ même philosophie que « à classer » dans Astra.
 |---|---|---|
 | `id`, `user_id` | uuid | |
 | `effective_from` | date | L'objectif s'applique à partir de ce jour |
-| `kcal`, `protein`, `carbs`, `fat` | par jour | |
+| `protein`, `carbs`, `fat` | grammes par jour | les kcal s'en déduisent (4/4/9) et ne sont pas stockées — décision du 25/09/2026 (§12) |
 
 Daté plutôt qu'une ligne unique : si Jules passe de 2 500 à 2 200 kcal en octobre, ses jours
 de septembre doivent rester jugés contre 2 500. L'objectif d'un jour est celui de la ligne la
@@ -337,6 +337,8 @@ L'ordre 4/5 peut s'inverser ; l'étape 7 peut remonter selon la réponse à §11
 
 ## 11. Questions ouvertes à trancher ensemble
 
+*Les questions 1 à 4 sont tranchées depuis : voir §12.*
+
 1. **Le nom** : Cérès, Vesta, Hélios, ou autre ?
 2. **iPhone ou Android ?** (pour Jules et les proches visés) — décide si le scan demande une
    bibliothèque WebAssembly ou peut s'appuyer sur l'API native.
@@ -349,6 +351,26 @@ L'ordre 4/5 peut s'inverser ; l'étape 7 peut remonter selon la réponse à §11
 7. **Lien avec Zénith** (par exemple « atteindre mon objectif protéines » comme action
    cochée) : impossible par import direct entre modules, il faudrait un mécanisme du socle —
    à écarter tant qu'il n'y a pas de besoin précis ?
+
+---
+
+## 12. Décisions prises avec Jules (25/09/2026)
+
+| Question (§11) | Décision | Conséquence |
+|---|---|---|
+| 1. Nom | **Cérès** | `label: 'Cérès'` dans `module.ts` ; le nom technique reste `nutrition` |
+| 2. iPhone ou Android | **iPhone** | le jour du scan, l'API native `BarcodeDetector` ne suffira pas : bibliothèque WebAssembly (famille zxing) chargée à la demande, et saisie du code chiffré en secours |
+| 3. Objectif en % ou en grammes | **En grammes** | on règle les grammes de protéines, glucides et lipides ; les kcal et les pourcentages en sont **déduits** (4/4/9), jamais l'inverse. Les repères ANSES en % ne sont qu'une aide affichée à côté |
+| 4. Scan en V1 | **Plus tard** | le périmètre V1 (§5) est inchangé ; le scan reste l'étape 6 |
+| 5. File hors ligne avant ou après la V1 | *pas encore tranché* | à trancher avant l'étape 3 |
+| 6–7. Poids adaptatif, lien avec Zénith | *pas encore tranchés* | hors V1 de toute façon |
+
+**Objectif en grammes : ce que ça change.** Le calculateur de §2 propose toujours un chiffre de
+départ en kcal, mais le réglage enregistré est un triplet de grammes. La cible kcal d'un jour
+vaut donc `4 × protéines + 4 × glucides + 9 × lipides` : elle ne peut jamais contredire les
+macros, puisqu'elle n'est pas stockée à part. Les protéines peuvent aussi se proposer en g/kg
+de poids, si l'utilisateur donne son poids au calculateur. Conséquence sur §6 :
+`nutrition_targets` perd sa colonne `kcal`.
 
 ---
 
