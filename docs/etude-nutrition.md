@@ -324,7 +324,7 @@ Pour le nom affiché, dans la famille céleste (Atlas, Zénith, Astra, Orbite) :
 | Étape | Contenu | Résultat |
 |---|---|---|
 | 1 ✅ | Migration datée, contrat `NutritionStore` + implémentations locale et Supabase, `module.ts` avec un écran signet, inscription au registre, tests exigés par `conventions.test.ts` | le module existe, vide — **livré le 25/09/2026** |
-| 2 | Script d'import CIQUAL → JSON, `lib/foodSearch.ts` + `lib/macros.ts` testées | la base est là, la règle est juste |
+| 2 ✅ | Script d'import CIQUAL → JSON, `lib/foodSearch.ts` + `lib/macros.ts` testées | la base est là, la règle est juste — **livré le 25/09/2026**, voir §13 |
 | 3 | Journal du jour : ajout par repas, totaux, changement de jour, copier un repas, récents/favoris | **la V1 est atteinte** |
 | 4 | Objectifs datés et calculateur, barres face à l'objectif | on se fixe un cap |
 | 5 | Aliments perso | tout se note |
@@ -371,6 +371,50 @@ vaut donc `4 × protéines + 4 × glucides + 9 × lipides` : elle ne peut jamais
 macros, puisqu'elle n'est pas stockée à part. Les protéines peuvent aussi se proposer en g/kg
 de poids, si l'utilisateur donne son poids au calculateur. Conséquence sur §6 :
 `nutrition_targets` perd sa colonne `kcal`.
+
+---
+
+## 13. Étape 2 : la table CIQUAL embarquée (25/09/2026)
+
+**Source.** Les fichiers XML officiels de la version 2025 (`alim_2025_11_03.xml` pour les noms,
+`compo_2025_11_03.xml` pour les teneurs), sur recherche.data.gouv.fr, Licence Ouverte /
+Etalab 2.0. Le script `src/modules/nutrition/scripts/import-ciqual.mjs` les convertit en
+`src/modules/nutrition/data/ciqual.json`, commité avec le code. Il ne se relance qu'à la
+sortie d'une nouvelle version de la table. Les XML eux-mêmes (70 Mo) ne sont pas commités.
+
+**Constituants retenus :** énergie règlement UE 1169/2011 en kcal (code 328), protéines
+N × facteur de Jones (25000), glucides (31000), lipides (40000), fibres (34100). L'alcool
+(60000) ne sert qu'à recalculer une énergie manquante.
+
+**Règles de conversion** (`lib/ciqualImport.ts`, testées) :
+
+| Valeur écrite par l'ANSES | Lue comme | Pourquoi |
+|---|---|---|
+| « 12,5 » | 12,5 | virgule décimale française |
+| « traces », « < 0,5 » | 0 | sous le seuil de mesure : moins que l'arrondi au décigramme qu'on en fait de toute façon |
+| « - » | **inconnue** | pas mesurée — ce n'est pas zéro |
+| kcal inconnues | recalculées | 4/4/9 + 7 pour l'alcool + 2 pour les fibres (règlement UE) : sans l'alcool, un pastis vaudrait 0 kcal. **62 aliments** concernés |
+| protéines, glucides ou lipides inconnus | **aliment écarté** | une fausse valeur qu'on ne voit pas est pire qu'un aliment absent, qu'on remplace par un aliment perso. **99 aliments** concernés (jus de canneberge, jarret de bœuf cru, riz précuit…) |
+| fibres inconnues | `null` | les fibres ne comptent pas dans les totaux, seulement dans l'affichage |
+
+**Résultat : 3 385 aliments sur 3 484**, triés par nom. Le fichier pèse **260 Ko bruts, 72 Ko
+compressés**. Chaque aliment est un tableau `[code, nom, kcal, protéines, glucides, lipides,
+fibres]` plutôt qu'un objet, ce qui divise le poids par deux. Le chargement passe par un import
+dynamique (`lib/ciqual.ts`, `loadCiqual`) : Vite en fera un fichier à part, téléchargé à la
+première recherche seulement. Son poids réel dans le build se mesurera à l'étape 3, quand un
+écran l'importera pour de bon.
+
+**Recherche** (`lib/foodSearch.ts`) : chaque mot tapé doit être le début d'un mot du nom,
+sans tenir compte des accents, de la casse, des ligatures (« oeuf » trouve « Œuf ») ni d'un
+pluriel en -s/-x. Ordre des résultats : priorité (récents, favoris, à brancher à l'étape 3),
+puis les noms qui commencent par le premier mot tapé, puis les plus courts (les plus
+génériques). Un test tourne sur la vraie table embarquée, pour qu'une régénération ratée
+(colonne décalée, mauvais fichier) casse un test plutôt que d'afficher de fausses valeurs.
+
+**Calculs** (`lib/macros.ts`) : valeurs pour une quantité (arrondies une seule fois, au moment
+de figer l'entrée), sommes, kcal d'un objectif en grammes, part de chaque macro dans l'énergie
+(calculée depuis les grammes, arrondie pour faire exactement 100 %), conversion
+pourcentage → grammes pour le futur calculateur.
 
 ---
 
