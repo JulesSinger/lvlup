@@ -323,7 +323,7 @@ Pour le nom affiché, dans la famille céleste (Atlas, Zénith, Astra, Orbite) :
 
 | Étape | Contenu | Résultat |
 |---|---|---|
-| 1 | Migration datée, contrat `NutritionStore` + implémentations locale et Supabase, `module.ts` avec un écran signet, inscription au registre, tests exigés par `conventions.test.ts` | le module existe, vide |
+| 1 ✅ | Migration datée, contrat `NutritionStore` + implémentations locale et Supabase, `module.ts` avec un écran signet, inscription au registre, tests exigés par `conventions.test.ts` | le module existe, vide — **livré le 25/09/2026** |
 | 2 | Script d'import CIQUAL → JSON, `lib/foodSearch.ts` + `lib/macros.ts` testées | la base est là, la règle est juste |
 | 3 | Journal du jour : ajout par repas, totaux, changement de jour, copier un repas, récents/favoris | **la V1 est atteinte** |
 | 4 | Objectifs datés et calculateur, barres face à l'objectif | on se fixe un cap |
@@ -337,7 +337,7 @@ L'ordre 4/5 peut s'inverser ; l'étape 7 peut remonter selon la réponse à §11
 
 ## 11. Questions ouvertes à trancher ensemble
 
-*Les questions 1 à 4 sont tranchées depuis : voir §12.*
+*Les questions 1 à 5 sont tranchées depuis : voir §12.*
 
 1. **Le nom** : Cérès, Vesta, Hélios, ou autre ?
 2. **iPhone ou Android ?** (pour Jules et les proches visés) — décide si le scan demande une
@@ -362,7 +362,7 @@ L'ordre 4/5 peut s'inverser ; l'étape 7 peut remonter selon la réponse à §11
 | 2. iPhone ou Android | **iPhone** | le jour du scan, l'API native `BarcodeDetector` ne suffira pas : bibliothèque WebAssembly (famille zxing) chargée à la demande, et saisie du code chiffré en secours |
 | 3. Objectif en % ou en grammes | **En grammes** | on règle les grammes de protéines, glucides et lipides ; les kcal et les pourcentages en sont **déduits** (4/4/9), jamais l'inverse. Les repères ANSES en % ne sont qu'une aide affichée à côté |
 | 4. Scan en V1 | **Plus tard** | le périmètre V1 (§5) est inchangé ; le scan reste l'étape 6 |
-| 5. File hors ligne avant ou après la V1 | *pas encore tranché* | à trancher avant l'étape 3 |
+| 5. File hors ligne avant ou après la V1 | **Après la V1** | l'étape 7 (§10) reste à sa place ; en attendant, une saisie qui échoue faute de réseau doit au minimum laisser le formulaire rempli, pour ne rien perdre de ce qui a été tapé |
 | 6–7. Poids adaptatif, lien avec Zénith | *pas encore tranchés* | hors V1 de toute façon |
 
 **Objectif en grammes : ce que ça change.** Le calculateur de §2 propose toujours un chiffre de
