@@ -1,8 +1,8 @@
 /**
  * Suite e2e du module nutrition (Cérès).
  *
- * Étapes 3 et 4 (docs/etude-nutrition.md §10) : le journal du jour et
- * l'objectif quotidien. Ces
+ * Étapes 3 à 5 (docs/etude-nutrition.md §10) : le journal du jour,
+ * l'objectif quotidien, les aliments perso et les favoris. Ces
  * vérifications suivent un vrai parcours — chercher un aliment dans la
  * table CIQUAL embarquée, l'ajouter, corriger sa quantité, le retirer,
  * retrouver ses récents, copier un repas de la veille — plus le rendu
@@ -199,6 +199,70 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.nutrition-target-editor', { state: 'detached' });
   check('Retirer l’objectif ramène aux totaux seuls', await page.locator('.nutrition-summary-hint').isVisible());
 
+  // --- Aliments perso et favoris (étape 5) --------------------------------
+  const dinner = page.locator('.nutrition-meal', { hasText: 'Dîner' });
+  await dinner.getByRole('button', { name: '+ Ajouter' }).click();
+  await page.locator('#nutrition-search').fill('poulet roti cantine');
+  await page.waitForSelector('.nutrition-create-food');
+  check('Une recherche sans résultat propose de créer l’aliment', (await page.locator('.nutrition-result').count()) === 0);
+  await page.getByRole('button', { name: '+ Créer « poulet roti cantine »' }).click();
+  check('Le formulaire reprend ce qui a été cherché comme nom', (await page.locator('#nutrition-food-name').inputValue()) === 'poulet roti cantine');
+  await page.locator('#nutrition-food-name').fill('Poulet rôti de la cantine');
+  await page.locator('#nutrition-food-protein').fill('27,5');
+  await page.locator('#nutrition-food-carbs').fill('0');
+  await page.locator('#nutrition-food-fat').fill('9,2');
+  await page.locator('.nutrition-food-kcal-suggest').click();
+  check('Les kcal se suggèrent d’après les macros, virgule comprise (27,5/0/9,2 g = 193 kcal)', (await page.locator('#nutrition-food-kcal').inputValue()) === '193');
+  await page.locator('.nutrition-food-favorite input').check();
+  await page.getByRole('button', { name: 'Créer et choisir' }).click();
+  await page.waitForSelector('#nutrition-grams');
+  check('Un aliment créé est aussitôt choisi', (await page.locator('.nutrition-quantity-food').textContent())?.includes('Poulet rôti de la cantine') ?? false);
+  await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await page.waitForSelector('.nutrition-add-dialog', { state: 'detached' });
+  const cantine = dinner.locator('.nutrition-entry', { hasText: 'Poulet rôti de la cantine' });
+  check('L’aliment perso s’ajoute au repas', (await cantine.textContent())?.includes('193 kcal') ?? false);
+
+  const snack = page.locator('.nutrition-meal', { hasText: 'Collation' });
+  await snack.getByRole('button', { name: '+ Ajouter' }).click();
+  await page.waitForSelector('.nutrition-results-title');
+  check('Sans rien taper, les favoris s’affichent en premier', (await page.locator('.nutrition-results-title').first().textContent()) === 'Favoris');
+  await page.locator('#nutrition-search').fill('poulet');
+  await page.waitForSelector('.nutrition-result');
+  check('Un favori passe devant la table dans la recherche', (await page.locator('.nutrition-result').first().textContent())?.includes('Poulet rôti de la cantine') ?? false);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.nutrition-add-dialog', { state: 'detached' });
+
+  await page.getByRole('button', { name: 'Mes aliments' }).click();
+  await page.waitForSelector('.nutrition-foods-dialog');
+  const foodRow = page.locator('.nutrition-food-row', { hasText: 'Poulet rôti de la cantine' });
+  check('« Mes aliments » liste l’aliment créé depuis la recherche', await foodRow.isVisible());
+  await foodRow.locator('.nutrition-favorite-toggle').click();
+  await page.waitForFunction(() => document.querySelector('.nutrition-favorite-toggle')?.getAttribute('aria-pressed') === 'false');
+  check('L’étoile retire des favoris', (await foodRow.locator('.nutrition-favorite-toggle').textContent()) === '☆');
+
+  await foodRow.getByRole('button', { name: 'Modifier' }).click();
+  check('Modifier reprend les valeurs, virgule française comprise', (await page.locator('#nutrition-food-protein').inputValue()) === '27,5');
+  await page.locator('#nutrition-food-kcal').fill('200');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.nutrition-foods-list');
+  check('La correction s’enregistre', (await foodRow.textContent())?.includes('200 kcal / 100 g') ?? false);
+
+  await page.getByRole('button', { name: '+ Nouvel aliment' }).click();
+  await page.getByRole('button', { name: 'Créer', exact: true }).click();
+  check('Un aliment sans nom est refusé avec une explication', (await page.locator('.nutrition-foods-dialog .notice.error').textContent()) === 'Le nom est obligatoire.');
+  await page.getByRole('button', { name: 'Annuler' }).click();
+
+  page.once('dialog', (d) => void d.accept());
+  await foodRow.getByRole('button', { name: 'Supprimer' }).click();
+  await page.waitForSelector('.nutrition-food-row', { state: 'detached' });
+  check('Supprimer retire l’aliment de la liste', (await page.locator('.nutrition-food-row').count()) === 0);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.nutrition-foods-dialog', { state: 'detached' });
+  check(
+    'Le journal garde l’aliment supprimé, avec ses valeurs d’origine (193 kcal, pas 200)',
+    (await cantine.textContent())?.includes('193 kcal') ?? false,
+  );
+
   await page.getByRole('button', { name: 'Modules' }).click();
   await page.waitForSelector('.hub-picker-card');
   check('Retour aux modules ramène sur l’écran de choix', await page.locator('.hub-picker').isVisible());
@@ -228,6 +292,15 @@ export async function run({ browser, check, BASE }) {
     'Fenêtre d’objectif et calculateur sans débordement sur téléphone',
     await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   );
+  await mp.keyboard.press('Escape');
+  await mp.getByRole('button', { name: 'Mes aliments' }).click();
+  await mp.getByRole('button', { name: '+ Nouvel aliment' }).click();
+  await mp.waitForSelector('.nutrition-food-form');
+  check(
+    'Formulaire d’aliment perso sans débordement sur téléphone',
+    await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+  );
+  await mp.keyboard.press('Escape');
   await mp.keyboard.press('Escape');
   await mBreakfast.getByRole('button', { name: '+ Ajouter' }).click();
   await mp.locator('#nutrition-search').fill('pomme');

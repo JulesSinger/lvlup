@@ -3,6 +3,7 @@ import type { ModuleScreenProps } from '../../core/lib/module';
 import { AddFoodDialog } from './components/AddFoodDialog';
 import { DaySummary } from './components/DaySummary';
 import { EntryEditor } from './components/EntryEditor';
+import { MyFoodsDialog } from './components/MyFoodsDialog';
 import { TargetEditor } from './components/TargetEditor';
 import { nutritionStore } from './data';
 import { CIQUAL_CREDIT } from './lib/ciqual';
@@ -12,7 +13,8 @@ import { MEALS, MEAL_LABELS, type Entry, type Meal, type Target, type TargetInpu
 
 /**
  * Écran racine de Cérès — le journal du jour, étape 3
- * (docs/etude-nutrition.md §5, §10) : la V1 ; l'objectif quotidien, étape 4.
+ * (docs/etude-nutrition.md §5, §10) : la V1 ; l'objectif quotidien, étape 4 ;
+ * « Mes aliments » et les favoris, étape 5.
  *
  * Un jour à la fois, découpé en quatre repas, avec son total en tête. Les
  * deux raccourcis qui font tenir une saisie quotidienne (étude §3) sont là
@@ -30,6 +32,7 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
   const [editing, setEditing] = useState<Entry | null>(null);
   const [copying, setCopying] = useState<Meal | null>(null);
   const [editingTarget, setEditingTarget] = useState(false);
+  const [showFoods, setShowFoods] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -121,6 +124,15 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
             >
               <span aria-hidden="true">←</span>
               <span className="nutrition-topbar-label">Modules</span>
+            </button>
+            <button
+              className="btn btn-ghost btn-sm nutrition-topbar-btn"
+              onClick={() => setShowFoods(true)}
+              title="Mes aliments"
+              aria-label="Mes aliments"
+            >
+              <span aria-hidden="true">🥫</span>
+              <span className="nutrition-topbar-label">Mes aliments</span>
             </button>
             <button
               className="btn btn-ghost btn-sm nutrition-topbar-btn"
@@ -244,6 +256,8 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
             }}
           />
         )}
+
+        {showFoods && <MyFoodsDialog onClose={() => setShowFoods(false)} />}
 
         {editingTarget && (
           <TargetEditor

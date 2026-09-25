@@ -327,7 +327,7 @@ Pour le nom affiché, dans la famille céleste (Atlas, Zénith, Astra, Orbite) :
 | 2 ✅ | Script d'import CIQUAL → JSON, `lib/foodSearch.ts` + `lib/macros.ts` testées | la base est là, la règle est juste — **livré le 25/09/2026**, voir §13 |
 | 3 ✅ | Journal du jour : ajout par repas, totaux, changement de jour, copier un repas, récents/favoris | **la V1 est atteinte** — livré le 25/09/2026, voir §14 (favoris reportés à l'étape 5) |
 | 4 ✅ | Objectifs datés et calculateur, barres face à l'objectif | on se fixe un cap — livré le 25/09/2026, voir §15 |
-| 5 | Aliments perso | tout se note |
+| 5 ✅ | Aliments perso | tout se note — livré le 25/09/2026 avec les favoris, voir §16 |
 | 6 | Code-barres : saisie du code puis caméra (OFF, mise en cache) | les produits emballés en un geste |
 | 7 | File hors ligne généralisée dans `core/`, historique de la semaine | la règle n°3 tient partout |
 
@@ -495,6 +495,34 @@ une barre sous les kcal et sous chaque macro, « / 140 g » à côté des gramme
 s'arrêtent pleines au-delà, sans changer de couleur (§8).
 
 Au passage, « Aujourd'hui » prend l'apostrophe typographique (’) comme le reste de l'interface.
+
+---
+
+## 16. Étape 5 : aliments perso et favoris (25/09/2026)
+
+**Deux entrées, un seul formulaire** (`components/FoodForm.tsx`) :
+
+- **depuis la recherche** : quand un aliment n'est pas dans la table, « + Créer « … » » ouvre le
+  formulaire sur place, avec ce qui a été tapé comme nom. « Créer et choisir » l'enregistre et
+  passe directement à la quantité : on n'a pas à relancer une recherche ;
+- **depuis « Mes aliments »** (🥫 dans la barre du haut, `components/MyFoodsDialog.tsx`) : la
+  liste, favoris d'abord, avec l'étoile, « Modifier » et « Supprimer ».
+
+**Le formulaire se recopie d'une étiquette** (`lib/foodForm.ts`, testé) : valeurs pour 100 g,
+virgule française acceptée (« 27,5 »), fibres et portion facultatives. Si les kcal ne sont pas
+tapées, un bouton propose « ≈ 193 kcal d'après les macros » (4/4/9). Les bornes sont celles
+des CHECK de `nutrition_foods` — kcal entières de 0 à 1 000, pas plus de 100 g de nutriments
+pour 100 g —, pour qu'une erreur s'affiche en français plutôt qu'un refus de Postgres.
+
+**Favoris.** Un aliment perso en favori s'affiche en tête de la fenêtre d'ajout (« Favoris »,
+puis « Récents » sans doublon) et passe devant tout le reste dans la recherche. **Seuls les
+aliments perso peuvent être favoris** : la colonne `favorite` est sur `nutrition_foods`, et
+marquer un aliment CIQUAL demanderait une table de plus (donc une migration à rejouer). Les
+récents font déjà remonter les aliments CIQUAL qu'on mange souvent. À rouvrir si ça manque à
+l'usage.
+
+**Corriger ou supprimer un aliment ne réécrit jamais le journal** (§6) : un repas noté à
+193 kcal le reste après une correction à 200, et après la suppression de l'aliment.
 
 ---
 

@@ -4,8 +4,10 @@ import { CIQUAL_CREDIT, loadCiqual, type CiqualFood } from '../lib/ciqual';
 import { shiftDay } from '../lib/day';
 import { buildIndex, searchFoods } from '../lib/foodSearch';
 import { recentFoods } from '../lib/journal';
+import { EMPTY_FOOD_FORM } from '../lib/foodForm';
 import { formatDg, valuesForGrams, type NutrientValues } from '../lib/macros';
-import { MEAL_LABELS, type Food, type Meal } from '../lib/types';
+import { MEAL_LABELS, type Food, type FoodInput, type Meal } from '../lib/types';
+import { FoodForm } from './FoodForm';
 
 interface Props {
   day: string;
@@ -25,6 +27,7 @@ interface Candidate {
   ciqualCode: string | null;
   foodId: string | null;
   servingGrams: number | null;
+  favorite: boolean;
 }
 
 /** Jusqu'où remonter dans le journal pour retrouver les aliments récents. */
@@ -40,6 +43,7 @@ function fromCiqual(f: CiqualFood): Candidate {
     ciqualCode: f.code,
     foodId: null,
     servingGrams: null,
+    favorite: false,
   };
 }
 
@@ -47,11 +51,12 @@ function fromFood(f: Food): Candidate {
   return {
     key: `food:${f.id}`,
     label: f.brand ? `${f.name} (${f.brand})` : f.name,
-    detail: `${f.kcal} kcal / 100 g · mon aliment`,
+    detail: `${f.kcal} kcal / 100 g · mon aliment${f.favorite ? ' ★' : ''}`,
     per100g: f,
     ciqualCode: null,
     foodId: f.id,
     servingGrams: f.servingGrams,
+    favorite: f.favorite,
   };
 }
 
@@ -63,6 +68,10 @@ function fromFood(f: Food): Candidate {
  * la recherche et s'affichent seuls tant que rien n'est tapé, avec la
  * quantité de la dernière fois — la moitié du remède à la friction de
  * saisie (docs/etude-nutrition.md §3).
+ *
+ * Les favoris (étape 5) s'affichent en tête et passent devant dans la
+ * recherche ; un aliment introuvable se crée sur place, sans quitter la
+ * fenêtre, puis se choisit aussitôt.
  *
  * Un échec d'enregistrement laisse la fenêtre ouverte et remplie : la file
  * hors ligne vient après la V1 (étude §12), en attendant rien de ce qui a
@@ -79,14 +88,19 @@ export function AddFoodDialog({ day, today, meal, onCancel, onAdded }: Props) {
   const [grams, setGrams] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  /** La recherche n'a rien trouvé : on crée l'aliment sur place (étape 5). */
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
+      if (e.key !== 'Escape') return;
+      // Échap referme d'abord le formulaire de création, puis la fenêtre.
+      if (creating) setCreating(false);
+      else onCancel();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+  }, [onCancel, creating]);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,17 +141,37 @@ export function AddFoodDialog({ day, today, meal, onCancel, onAdded }: Props) {
   const byKey = useMemo(() => new Map(candidates.map((c) => [c.key, c])), [candidates]);
   const index = useMemo(() => buildIndex(candidates, (c) => c.label), [candidates]);
 
-  const results = useMemo(() => {
-    if (query.trim() === '') {
-      return recentOrder
+  const favorites = useMemo(
+    () => candidates.filter((c) => c.favorite).sort((a, b) => a.label.localeCompare(b.label, 'fr')),
+    [candidates],
+  );
+
+  /** Sans rien taper : les récents, hors favoris (déjà affichés au-dessus). */
+  const recents = useMemo(
+    () =>
+      recentOrder
         .map((key) => byKey.get(key))
-        .filter((c): c is Candidate => c !== undefined)
-        .slice(0, RECENT_SHOWN);
-    }
-    // Plus un aliment a été mangé récemment, plus il remonte.
+        .filter((c): c is Candidate => c !== undefined && !c.favorite)
+        .slice(0, RECENT_SHOWN),
+    [recentOrder, byKey],
+  );
+
+  const results = useMemo(() => {
+    if (query.trim() === '') return [];
+    // Les favoris d'abord, puis plus un aliment a été mangé récemment, plus il remonte.
     const rank = new Map(recentOrder.map((key, i) => [key, recentOrder.length - i]));
-    return searchFoods(index, query, { priority: (c) => rank.get(c.key) ?? 0 });
-  }, [query, index, byKey, recentOrder]);
+    const favoriteBoost = recentOrder.length + 1;
+    return searchFoods(index, query, {
+      priority: (c) => (c.favorite ? favoriteBoost : 0) + (rank.get(c.key) ?? 0),
+    });
+  }, [query, index, recentOrder]);
+
+  async function createFood(input: FoodInput) {
+    const food = await nutritionStore.createFood(input);
+    setFoods((list) => [...list, food]);
+    setCreating(false);
+    choose(fromFood(food));
+  }
 
   function choose(candidate: Candidate) {
     setSelected(candidate);
@@ -191,7 +225,14 @@ export function AddFoodDialog({ day, today, meal, onCancel, onAdded }: Props) {
         </div>
 
         <div className="modal-body">
-          {selected ? (
+          {creating ? (
+            <FoodForm
+              initial={{ ...EMPTY_FOOD_FORM, name: query.trim() }}
+              submitLabel="Créer et choisir"
+              onCancel={() => setCreating(false)}
+              onSubmit={createFood}
+            />
+          ) : selected ? (
             <div className="nutrition-quantity">
               <div className="nutrition-quantity-food">
                 <b>{selected.label}</b>
@@ -243,26 +284,39 @@ export function AddFoodDialog({ day, today, meal, onCancel, onAdded }: Props) {
                 <div className="notice error">{loadError}</div>
               ) : table === null ? (
                 <p className="nutrition-search-hint">Chargement de la table des aliments…</p>
+              ) : query.trim() === '' ? (
+                favorites.length === 0 && recents.length === 0 ? (
+                  <p className="nutrition-search-hint">
+                    Tape le nom d’un aliment. Ceux que tu as déjà mangés apparaîtront ici.
+                  </p>
+                ) : (
+                  <>
+                    {favorites.length > 0 && (
+                      <>
+                        <h3 className="nutrition-results-title">Favoris</h3>
+                        <ResultList items={favorites} onChoose={choose} />
+                      </>
+                    )}
+                    {recents.length > 0 && (
+                      <>
+                        <h3 className="nutrition-results-title">Récents</h3>
+                        <ResultList items={recents} onChoose={choose} />
+                      </>
+                    )}
+                  </>
+                )
               ) : results.length === 0 ? (
                 <p className="nutrition-search-hint">
-                  {query.trim() === ''
-                    ? 'Tape le nom d’un aliment. Ceux que tu as déjà mangés apparaîtront ici.'
-                    : 'Aucun aliment trouvé. Essaie un mot plus court ou sans détail (« yaourt » plutôt que « yaourt grec »).'}
+                  Aucun aliment trouvé. Essaie un mot plus court (« yaourt » plutôt que « yaourt
+                  grec »), ou crée-le.
                 </p>
               ) : (
-                <>
-                  {query.trim() === '' && <h3 className="nutrition-results-title">Récents</h3>}
-                  <ul className="nutrition-results">
-                    {results.map((c) => (
-                      <li key={c.key}>
-                        <button type="button" className="nutrition-result" onClick={() => choose(c)}>
-                          <span className="nutrition-result-name">{c.label}</span>
-                          <span className="nutrition-result-detail">{c.detail}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
+                <ResultList items={results} onChoose={choose} />
+              )}
+              {table !== null && (
+                <button type="button" className="btn btn-sm nutrition-create-food" onClick={() => setCreating(true)}>
+                  {query.trim() ? `+ Créer « ${query.trim()} »` : '+ Créer un aliment'}
+                </button>
               )}
               <p className="nutrition-credit">Données : {CIQUAL_CREDIT}</p>
             </>
@@ -271,7 +325,7 @@ export function AddFoodDialog({ day, today, meal, onCancel, onAdded }: Props) {
           {error && <div className="notice error">{error}</div>}
         </div>
 
-        {selected && (
+        {selected && !creating && (
           <div className="modal-foot">
             <button className="btn" onClick={onCancel}>
               Annuler
@@ -287,5 +341,20 @@ export function AddFoodDialog({ day, today, meal, onCancel, onAdded }: Props) {
         )}
       </div>
     </div>
+  );
+}
+
+function ResultList({ items, onChoose }: { items: Candidate[]; onChoose: (c: Candidate) => void }) {
+  return (
+    <ul className="nutrition-results">
+      {items.map((c) => (
+        <li key={c.key}>
+          <button type="button" className="nutrition-result" onClick={() => onChoose(c)}>
+            <span className="nutrition-result-name">{c.label}</span>
+            <span className="nutrition-result-detail">{c.detail}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }

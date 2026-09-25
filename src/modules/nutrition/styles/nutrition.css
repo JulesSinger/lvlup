@@ -478,3 +478,127 @@
     gap: 0;
   }
 }
+
+/* --- Aliments perso et favoris (étape 5) ------------------------------ */
+
+.nutrition-food-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.nutrition-food-form-grid input {
+  width: 100%;
+}
+
+.nutrition-food-form-wide {
+  grid-column: 1 / -1;
+}
+
+.nutrition-food-form-caption {
+  margin: 4px 0 8px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.nutrition-food-kcal-suggest {
+  margin-top: 4px;
+  padding-left: 0;
+}
+
+.nutrition-food-favorite {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+/* Le socle donne une largeur pleine à tout `input` : une case à cocher
+   s'étirait alors sur toute la ligne, son texte repoussé à droite. */
+.nutrition-food-favorite input {
+  flex: none;
+  width: auto;
+  margin: 0;
+}
+
+.nutrition-food-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.nutrition-create-food {
+  margin-top: 10px;
+}
+
+.nutrition-foods-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+}
+
+.nutrition-food-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.nutrition-food-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.nutrition-food-row-brand,
+.nutrition-food-row-kcal {
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+.nutrition-food-row-kcal {
+  white-space: nowrap;
+}
+
+.nutrition-food-row-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* Une étoile, pas une case à cocher : le geste attendu pour un favori. */
+.nutrition-favorite-toggle {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-faint);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.nutrition-favorite-toggle.on {
+  color: #e8c267;
+}
+
+.nutrition-favorite-toggle:hover,
+.nutrition-favorite-toggle:focus-visible {
+  background: var(--surface-2);
+}
+
+@media (max-width: 520px) {
+  .nutrition-food-row {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .nutrition-food-row-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
