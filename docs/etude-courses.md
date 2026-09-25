@@ -269,7 +269,7 @@ Cette règle vit dans `lib/trip.ts`, testée avant tout écran (§6).
 | Étape | Contenu | Résultat |
 |---|---|---|
 | 1 ✅ | Migration, contrat et ses deux implémentations, module signet | le module existe, vide — **livré le 25/09/2026**, voir §13 |
-| 2 | Bibliothèques pures : rayons, clôture d'une course et récurrence, prix et estimation, statistiques | la règle est juste |
+| 2 ✅ | Bibliothèques pures : rayons, clôture d'une course et récurrence, prix et estimation, statistiques | la règle est juste — livré le 25/09/2026, voir §14 |
 | 3 | Écran de la liste : ajouter, récurrence, rayons, cocher, prix | **la V1 est atteinte** |
 | 4 | Terminer la course (magasin, total proposé), historique | on sait ce que coûte une course |
 | 5 | Statistiques : par mois, panier moyen, par magasin, prix d'un article dans le temps | on voit l'évolution |
@@ -304,6 +304,37 @@ Cette règle vit dans `lib/trip.ts`, testée avant tout écran (§6).
   tableau `as const`, comparés par un test aux deux contraintes de la migration.
 
 **Migration à appliquer** dans Supabase Studio avant d'utiliser Comète en mode comptes.
+
+---
+
+## 14. Étape 2 : les règles, testées avant tout écran (25/09/2026)
+
+Cinq bibliothèques pures, 47 tests, aucun écran.
+
+- **`lib/trip.ts` — la clôture et la récurrence**, la règle centrale (§3, §12). `isDue` : un
+  habituel acheté à la course n° *k* avec une récurrence *N* est dû pour la course n° *k + N* ;
+  jamais acheté, il est toujours dû ; un ponctuel ne l'est jamais. `buildClosePlan` calcule tout
+  ce que « terminer la course » écrit : lignes cochées archivées avec leurs prix et retirées,
+  lignes non cochées laissées, habituels remis s'ils sont dus à la **course suivante**, jamais
+  en double. Le total du ticket l'emporte sur la somme des prix. **Une course sans rien de coché
+  est refusée** : elle serait vide, et ferait en plus avancer l'horloge de la récurrence pour
+  rien. `RECURRENCE_CHOICES` : ponctuel, puis toutes les 1, 2, 3, 4, 6 ou 8 courses.
+- **`lib/aisles.ts` — les rayons.** `guessAisle` devine le rayon d'après le nom, sans accents ni
+  majuscules, au pluriel comme au singulier, **sur des mots entiers** (« thé » ne reconnaît pas
+  « thon ») et **le mot-clé le plus long l'emporte** (« lait de coco » va en épicerie, « eau de
+  Javel » en entretien, « légumes surgelés » en surgelés). Ce n'est qu'une proposition, corrigée
+  d'un geste. `groupByAisle` range la liste dans l'ordre d'un parcours de magasin : dans un rayon,
+  ce qui reste à prendre d'abord, puis ce qui est déjà dans le panier.
+- **`lib/prices.ts` — les prix.** Historique d'un article (par magasin), dernier prix connu dans ce
+  magasin ou à défaut ailleurs (en le disant), **estimation de la liste** avant d'y aller, qui
+  compte à part les articles sans prix connu. Un prix est celui **d'une ligne** — la quantité est
+  un texte libre (« 2 », « 1 kg ») qu'on ne sait pas diviser : l'estimation est juste pour les
+  habituels, qu'on achète à peu près pareil à chaque fois.
+- **`lib/stats.ts` — les chiffres.** Dépense par mois (un mois sans course vaut zéro, il n'est pas
+  sauté), panier moyen, par magasin (regroupé par nom figé : un magasin supprimé depuis reste
+  compté).
+- **`lib/money.ts` — euros et centimes**, sans flottant, recopié de la logique d'Astra plutôt
+  qu'importé (règle entre modules).
 
 ---
 
