@@ -70,5 +70,5 @@
 /* --- Cérès : le journal du jour (étape 3) ---------------------------- */
 @import './modules/nutrition/styles/nutrition.css';
 
-/* --- Comète : signet d'étape 1 ---------------------------------------- */
+/* --- Comète : la liste de courses (étape 3) --------------------------- */
 @import './modules/courses/styles/courses.css';

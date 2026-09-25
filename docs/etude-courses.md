@@ -270,7 +270,7 @@ Cette règle vit dans `lib/trip.ts`, testée avant tout écran (§6).
 |---|---|---|
 | 1 ✅ | Migration, contrat et ses deux implémentations, module signet | le module existe, vide — **livré le 25/09/2026**, voir §13 |
 | 2 ✅ | Bibliothèques pures : rayons, clôture d'une course et récurrence, prix et estimation, statistiques | la règle est juste — livré le 25/09/2026, voir §14 |
-| 3 | Écran de la liste : ajouter, récurrence, rayons, cocher, prix | **la V1 est atteinte** |
+| 3 ✅ | Écran de la liste : ajouter, récurrence, rayons, cocher, prix | **la V1 est atteinte** — livré le 25/09/2026, voir §15 |
 | 4 | Terminer la course (magasin, total proposé), historique | on sait ce que coûte une course |
 | 5 | Statistiques : par mois, panier moyen, par magasin, prix d'un article dans le temps | on voit l'évolution |
 | 6 | Le lien avec Astra : mécanisme du socle, puis rapprochement en lecture seule | — |
@@ -335,6 +335,37 @@ Cinq bibliothèques pures, 47 tests, aucun écran.
   compté).
 - **`lib/money.ts` — euros et centimes**, sans flottant, recopié de la logique d'Astra plutôt
   qu'importé (règle entre modules).
+
+---
+
+## 15. Étape 3 : la liste, la V1 (25/09/2026)
+
+**L'écran** (`CoursesScreen`) : un champ d'ajout en tête, un résumé (à prendre, dans le panier,
+prix du panier, reste estimé), puis la liste **par rayon**, dans l'ordre d'un parcours de magasin.
+
+- **Ajouter** (`components/AddItemBar.tsx`) : taper un nom puis Entrée. Le rayon se devine
+  (`guessAisle`) ; un nom déjà au catalogue reprend l'article existant, à la casse et aux accents
+  près (`lib/catalog.ts`, `findItemByName`), et **un article déjà sur la liste n'y est jamais mis
+  deux fois** — défaut trouvé par la suite de bout en bout : retaper « PILES aa » ajoutait une
+  seconde ligne. Au focus, les articles connus sont proposés, les habituels dus d'abord
+  (`suggestItems`) : le raccourci pour refaire la liste de la semaine.
+- **En magasin** (`components/ListLine.tsx`) : une case large, pensée pour un pouce. Cochée, la
+  ligne se barre, descend en bas de son rayon, et **un petit champ attend son prix**, avec le
+  dernier prix payé en indice. Un prix illisible est signalé en rouge, pas enregistré. Cocher et
+  saisir un prix s'affichent **tout de suite**, sans attendre le serveur ; en cas d'échec, l'écran
+  revient en arrière et l'erreur s'affiche (pas de mode hors ligne, décision §12).
+- **Modifier un article** (`components/ItemEditor.tsx`) : ce qui vaut pour cette fois (quantité,
+  note) et ce qui vaut toujours (nom, rayon, **récurrence** — ponctuel, ou toutes les 1, 2, 3, 4,
+  6, 8 courses —, quantité habituelle, reprise quand l'article revient). « Retirer de la liste »
+  garde l'article au catalogue ; « Supprimer l'article » l'efface (les courses passées le gardent,
+  figé).
+- **Le résumé** : « 6 à prendre · 2 dans le panier », le **panier** (somme des prix saisis, et
+  combien n'en ont pas), et le **reste à prendre estimé** d'après les prix des courses passées.
+  Ce dernier ne porte que sur les lignes non cochées : l'appliquer à toute la liste ne faisait,
+  à la première course, que répéter les prix tout juste tapés — repéré à l'œil sur une capture.
+
+« Terminer la course » (magasin, total, archivage, retour des habituels) arrive à l'étape 4 : la
+règle est prête (`buildClosePlan`, étape 2), il ne manque que l'écran.
 
 ---
 
