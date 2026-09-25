@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayLabel, shiftDay } from './day';
+import { dayLabel, rangeLabel, shiftDay, shortDayLabel } from './day';
 
 describe('shiftDay', () => {
   it('traverse les fins de mois et d’année', () => {
@@ -28,5 +28,22 @@ describe('dayLabel', () => {
 
   it('précise l’année seulement quand ce n’est pas la même', () => {
     expect(dayLabel('2025-12-31', today)).toBe('mercredi 31 décembre 2025');
+  });
+});
+
+describe('shortDayLabel', () => {
+  it('abrège le jour de la semaine', () => {
+    expect(shortDayLabel('2026-09-21')).toBe('lun 21');
+  });
+});
+
+describe('rangeLabel', () => {
+  it('dans un même mois', () => {
+    expect(rangeLabel('2026-09-19', '2026-09-25')).toBe('du 19 au 25 septembre');
+  });
+
+  it('à cheval sur deux mois, puis sur deux années', () => {
+    expect(rangeLabel('2026-09-29', '2026-10-05')).toBe('du 29 septembre au 5 octobre');
+    expect(rangeLabel('2026-12-29', '2027-01-04')).toBe('du 29 décembre 2026 au 4 janvier 2027');
   });
 });

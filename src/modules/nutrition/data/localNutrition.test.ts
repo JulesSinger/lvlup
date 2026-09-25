@@ -131,3 +131,15 @@ describe('LocalNutrition', () => {
     expect(raw.nutritionFoods).toHaveLength(1);
   });
 });
+
+describe('LocalNutrition — écriture rejouable (étape 7)', () => {
+  it('une entrée créée avec un id choisi peut être renvoyée sans doublon', async () => {
+    memory.clear();
+    const store = new LocalNutrition();
+    const first = await store.createEntry(entry(), 'id-choisi');
+    const again = await store.createEntry(entry({ grams: 999 }), 'id-choisi');
+    expect(first.id).toBe('id-choisi');
+    expect(again).toEqual(first);
+    expect(await store.listEntries('2026-09-25', '2026-09-25')).toHaveLength(1);
+  });
+});

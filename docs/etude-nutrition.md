@@ -329,7 +329,7 @@ Pour le nom affiché, dans la famille céleste (Atlas, Zénith, Astra, Orbite) :
 | 4 ✅ | Objectifs datés et calculateur, barres face à l'objectif | on se fixe un cap — livré le 25/09/2026, voir §15 |
 | 5 ✅ | Aliments perso | tout se note — livré le 25/09/2026 avec les favoris, voir §16 |
 | 6 ✅ | Code-barres : saisie du code puis caméra (OFF, mise en cache) | les produits emballés en un geste — livré le 25/09/2026, voir §17 |
-| 7 | File hors ligne généralisée dans `core/`, historique de la semaine | la règle n°3 tient partout |
+| 7 ✅ | File hors ligne généralisée dans `core/`, historique de la semaine | la règle n°3 tient partout — livré le 25/09/2026, voir §18 |
 
 L'ordre 4/5 peut s'inverser ; l'étape 7 peut remonter selon la réponse à §11.
 
@@ -569,6 +569,67 @@ suite automatique : il demande de lancer Chromium avec des options que le lanceu
 (`e2e/run.mjs`, socle) ne passe pas. La suite couvre le reste (saisie des chiffres, clé de
 contrôle, Open Food Facts simulé, reprise sans appel, produit inconnu). **Reste à essayer sur un
 vrai iPhone.**
+
+---
+
+## 18. Étape 7 : la file hors ligne et la semaine (25/09/2026)
+
+### La file hors ligne, rendue commune
+
+Comme prévu par `CLAUDE.md` §6, la file de Zénith n'a pas été dupliquée : sa mécanique est
+remontée dans le socle, **`core/data/outbox.ts`**, et les deux modules s'en servent.
+
+- **Le socle** garde ce qui est commun : le stockage d'une file sous une clé (`createOutbox`),
+  la notification des changements, la distinction coupure réseau / refus du serveur
+  (`isNetworkError`), et le vidage avec ses deux règles (`createFlusher` : une coupure garde la
+  suite, un refus retire l'opération et remonte son message ; un seul vidage à la fois).
+- **Zénith** garde ce qui lui est propre — la forme de ses opérations (coches), leur
+  dédoublonnage, leur réapplication — et **sa clé `zenith.outbox.v1`, inchangée**. Ses fonctions
+  publiques n'ont pas changé non plus : ses 16 tests existants passent sans modification.
+- **Cérès** a sa propre file, sous **`nutrition.outbox.v1`** (`data/entryOutbox.ts`), pour les
+  seules écritures du journal : ajouter, corriger, retirer une ligne. Un aliment perso ou un
+  objectif se crée à tête reposée ; en cas d'échec, leur formulaire reste rempli.
+
+**Rejouer sans doublon.** L'id d'une nouvelle entrée est choisi par l'application **avant** le
+premier essai d'envoi, et `createEntry(input, id)` est devenue rejouable (côté Supabase :
+`upsert … on conflict (id) do nothing`, puis relecture). Si la réponse se perd alors que le
+serveur a bien écrit, le rejeu ne crée rien de plus. Aucune migration : la colonne `id` accepte
+déjà un id fourni.
+
+**Fusionner plutôt qu'empiler.** Une correction d'une entrée pas encore partie se fond dans sa
+création ; deux corrections n'en font qu'une ; une entrée ajoutée puis retirée hors ligne
+disparaît de la file sans que rien ne parte.
+
+**Garder l'ordre.** Une entrée qui a déjà quelque chose en attente passe toujours par la file,
+même avec du réseau (`data/journalWriter.ts`) : sinon une correction écrite directement serait
+écrasée ensuite par une correction plus ancienne rejouée au retour du réseau.
+
+**À l'écran.** Une entrée en attente s'affiche aussitôt, en italique avec ⏳, et un bandeau dit
+« N saisies en attente d'envoi : elles partiront dès le retour du réseau ». La file est
+réappliquée par-dessus les dernières données reçues du serveur à chaque relecture — y compris
+quand cette relecture échoue faute de réseau. L'envoi se déclenche au démarrage, au retour du
+réseau (`online`) et au retour sur l'application (`visibilitychange`).
+
+**Ce qui n'est pas testé de bout en bout.** En mode local, le réseau ne manque jamais, et le
+mode comptes des vérifications n'a pas de vrai serveur : comme pour Zénith, la file est couverte
+par des tests unitaires (socle : 9, Cérès : 15, dont un faux stockage qui perd le réseau puis le
+retrouve). **Reste à l'essayer pour de vrai** : mode avion, ajouter un aliment, le voir en
+attente, rallumer le réseau, le voir partir.
+
+### La semaine
+
+Un onglet **Jour / Semaine** au-dessus du journal. La vue Semaine (`components/WeekView.tsx`,
+logique dans `lib/week.ts`) montre les sept jours qui finissent par le jour affiché : une barre
+de kcal par jour, l'objectif de chaque jour en pointillé (celui de son époque), puis la moyenne
+et la liste des jours, chacun cliquable pour l'ouvrir. Les flèches avancent d'une semaine.
+
+- **La moyenne ne compte que les jours notés** — un jour oublié n'est pas un jour à 0 kcal, et
+  le compter ferait croire à une semaine de jeûne. Le nombre de jours retenus est écrit à côté.
+- Un jour sans rien de noté n'a pas de barre, seulement un tiret.
+- Comme ailleurs, aucune barre ne change de couleur au-delà de l'objectif (§8).
+- Graphique dessiné à la main en SVG, sans bibliothèque ni emprunt aux autres modules.
+
+**Le découpage de §10 est terminé.**
 
 ---
 

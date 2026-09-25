@@ -87,9 +87,11 @@ export class LocalNutrition implements NutritionStore {
     return read().entries.filter((e) => e.day >= from && e.day <= to);
   }
 
-  async createEntry(input: EntryInput): Promise<Entry> {
+  async createEntry(input: EntryInput, id?: string): Promise<Entry> {
     const snapshot = read();
-    const entry: Entry = { ...input, id: newId(), createdAt: new Date().toISOString() };
+    const existing = id ? snapshot.entries.find((e) => e.id === id) : undefined;
+    if (existing) return existing; // rejouée : déjà là, rien à refaire
+    const entry: Entry = { ...input, id: id ?? newId(), createdAt: new Date().toISOString() };
     snapshot.entries.push(entry);
     write(snapshot);
     return entry;

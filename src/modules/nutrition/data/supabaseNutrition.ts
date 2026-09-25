@@ -174,8 +174,20 @@ export class SupabaseNutrition implements NutritionStore {
     return rows.map(toEntry);
   }
 
-  async createEntry(input: EntryInput): Promise<Entry> {
+  async createEntry(input: EntryInput, id?: string): Promise<Entry> {
     const userId = await this.requireUserId();
+    if (id) {
+      // Rejouable : `on conflict do nothing` sur l'id, puis relecture. Un
+      // second envoi de la même entrée ne crée rien et rend la première.
+      const { error } = await this.client
+        .from('nutrition_entries')
+        .upsert({ id, user_id: userId, ...entryColumns(input) }, { onConflict: 'id', ignoreDuplicates: true });
+      if (error) throw new Error(error.message);
+      const saved = unwrap(
+        await this.client.from('nutrition_entries').select('*').eq('id', id).single(),
+      ) as EntryRow;
+      return toEntry(saved);
+    }
     const row = unwrap(
       await this.client
         .from('nutrition_entries')

@@ -1,61 +1,30 @@
+import { createFlusher, type FlushResult } from '../../../core/data/outbox';
 import { goalsStore } from './index';
-import { isNetworkError, listPending, removeOp } from './outbox';
+import { zenithOutbox, type PendingOp } from './outbox';
 
 /**
  * Vidage de la file d'attente : on rejoue les coches mises de côté pendant une
  * coupure, dans l'ordre où elles ont été faites.
  *
- * Deux règles :
- *  · une erreur réseau interrompt le vidage et garde la suite pour plus tard —
- *    inutile de marteler un serveur injoignable ;
- *  · une erreur du serveur (droits, contrainte) retire l'opération, parce
- *    qu'elle ne réussira jamais et bloquerait la file pour toujours. Le
- *    message remonte à l'appelant, qui l'affiche une fois.
+ * Les règles de vidage (une erreur réseau garde la suite, une erreur du
+ * serveur retire l'opération) vivent dans le socle depuis le 25/09/2026
+ * (`core/data/outbox.ts#createFlusher`) ; reste ici la façon d'envoyer une
+ * coche, qui n'appartient qu'à Zénith.
  */
-export interface FlushResult {
-  sent: number;
-  remaining: number;
-  /** Opérations abandonnées parce que le serveur les a refusées */
-  dropped: string[];
-}
+export type { FlushResult };
 
-let running: Promise<FlushResult> | null = null;
-
-export function flushOutbox(): Promise<FlushResult> {
-  // Un seul vidage à la fois : « online » et « visibilitychange » se
-  // déclenchent souvent coup sur coup au réveil du téléphone.
-  if (running) return running;
-  running = run().finally(() => {
-    running = null;
-  });
-  return running;
-}
-
-async function run(): Promise<FlushResult> {
-  const dropped: string[] = [];
-  let sent = 0;
-
-  for (const op of listPending()) {
-    try {
-      if (op.kind === 'add' && op.actionId === null) {
-        // Geste ponctuel : pas d'action, donc pas d'upsert possible. Le
-        // dédoublonnage se fait en amont, dans `applyPending`.
-        await goalsStore.addOneOff(op.goalId, op.day, op.title ?? '', op.pp, op.value);
-      } else if (op.kind === 'add') {
-        // `addCheckin` est un upsert : rejouer deux fois la même coche ne
-        // crée pas de doublon.
-        await goalsStore.addCheckin(op.goalId, op.day, op.actionId as string, op.pp, op.value);
-      } else {
-        await goalsStore.deleteCheckin(op.checkinId);
-      }
-      removeOp(op.id);
-      sent += 1;
-    } catch (error) {
-      if (isNetworkError(error)) break; // toujours hors ligne : on reprendra
-      removeOp(op.id);
-      dropped.push(error instanceof Error ? error.message : 'Envoi refusé.');
-    }
+async function send(op: PendingOp) {
+  if (op.kind === 'add' && op.actionId === null) {
+    // Geste ponctuel : pas d'action, donc pas d'upsert possible. Le
+    // dédoublonnage se fait en amont, dans `applyPending`.
+    await goalsStore.addOneOff(op.goalId, op.day, op.title ?? '', op.pp, op.value);
+  } else if (op.kind === 'add') {
+    // `addCheckin` est un upsert : rejouer deux fois la même coche ne
+    // crée pas de doublon.
+    await goalsStore.addCheckin(op.goalId, op.day, op.actionId as string, op.pp, op.value);
+  } else {
+    await goalsStore.deleteCheckin(op.checkinId);
   }
-
-  return { sent, remaining: listPending().length, dropped };
 }
+
+export const flushOutbox: () => Promise<FlushResult> = createFlusher(zenithOutbox, send);

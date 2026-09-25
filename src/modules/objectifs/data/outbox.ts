@@ -1,3 +1,4 @@
+import { createOutbox, isNetworkError, newOpId } from '../../../core/data/outbox';
 import type { Checkin } from '../lib/types';
 
 /**
@@ -18,6 +19,11 @@ import type { Checkin } from '../lib/types';
  * font en mobilité, à une main, et qu'on ne refera pas si elles disparaissent.
  * Créer un objectif hors ligne échouera toujours — et c'est acceptable, on ne
  * crée pas un objectif dans le métro.
+ *
+ * Depuis le 25/09/2026, le stockage, la notification et les règles de vidage
+ * vivent dans le socle (`core/data/outbox.ts`), partagés avec Cérès. Ce
+ * fichier garde ce qui est propre aux coches — la forme des opérations, leur
+ * dédoublonnage, leur réapplication — et sa clé, qui ne bouge pas.
  */
 
 const KEY = 'zenith.outbox.v1';
@@ -48,41 +54,18 @@ export type PendingOp =
 /** Préfixe des check-ins qui n'existent que dans la file. */
 export const PENDING_PREFIX = 'attente-';
 
-type Listener = (ops: PendingOp[]) => void;
-const listeners = new Set<Listener>();
+/** La file de Zénith, dans le socle — vidée par `sync.ts`. */
+export const zenithOutbox = createOutbox<PendingOp>(KEY);
 
-function read(): PendingOp[] {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as PendingOp[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function write(ops: PendingOp[]) {
-  try {
-    if (ops.length === 0) localStorage.removeItem(KEY);
-    else localStorage.setItem(KEY, JSON.stringify(ops));
-  } catch {
-    // Stockage plein ou refusé : on ne peut rien garantir de plus.
-  }
-  listeners.forEach((l) => l(ops));
-}
+const read = () => zenithOutbox.list();
+const write = (ops: PendingOp[]) => zenithOutbox.replace(ops);
 
 export function listPending(): PendingOp[] {
   return read();
 }
 
-export function onPendingChange(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-function newOpId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+export function onPendingChange(listener: (ops: PendingOp[]) => void): () => void {
+  return zenithOutbox.onChange(listener);
 }
 
 /** Range une coche à envoyer plus tard. Renvoie l'id provisoire du check-in. */
@@ -184,17 +167,5 @@ export function applyPending(serverCheckins: Checkin[], ops: PendingOp[] = read(
   return result;
 }
 
-/**
- * Panne de réseau, ou refus du serveur ?
- *
- * La distinction compte : une panne de réseau se met en file et se rejoue, un
- * refus du serveur (droits, contrainte violée) ne se rejouera jamais et doit
- * remonter à l'utilisateur. `fetch` échoue avec un TypeError quand la requête
- * n'a pas pu partir — c'est notre signal.
- */
-export function isNetworkError(error: unknown): boolean {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
-  if (error instanceof TypeError) return true;
-  const message = error instanceof Error ? error.message : String(error ?? '');
-  return /failed to fetch|networkerror|network request failed|load failed|réseau/i.test(message);
-}
+/** Remontée dans le socle ; réexportée pour les appelants existants. */
+export { isNetworkError };

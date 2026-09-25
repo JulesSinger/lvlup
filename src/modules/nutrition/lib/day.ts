@@ -41,3 +41,20 @@ export function dayLabel(day: string, today: string): string {
   const year = day.slice(0, 4) === today.slice(0, 4) ? '' : ` ${y}`;
   return `${weekday} ${d} ${MONTH_NAMES[m - 1]}${year}`;
 }
+
+const DAY_SHORT = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
+
+/** « lun 21 » — l'étiquette d'un jour sous une barre du graphique. */
+export function shortDayLabel(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  return `${DAY_SHORT[new Date(y, m - 1, d, 12).getDay()]} ${d}`;
+}
+
+/** « du 19 au 25 septembre », « du 29 septembre au 5 octobre », années comprises si elles diffèrent. */
+export function rangeLabel(from: string, to: string): string {
+  const [fy, fm, fd] = from.split('-').map(Number);
+  const [ty, tm, td] = to.split('-').map(Number);
+  if (fy !== ty) return `du ${fd} ${MONTH_NAMES[fm - 1]} ${fy} au ${td} ${MONTH_NAMES[tm - 1]} ${ty}`;
+  if (fm !== tm) return `du ${fd} ${MONTH_NAMES[fm - 1]} au ${td} ${MONTH_NAMES[tm - 1]}`;
+  return `du ${fd} au ${td} ${MONTH_NAMES[tm - 1]}`;
+}

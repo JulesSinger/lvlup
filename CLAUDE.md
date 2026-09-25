@@ -20,7 +20,7 @@ ses données et sa logique.
 | `objectifs` | **Zénith** | suivi d'objectifs par paliers, rangs Fer → Challenger | en production |
 | `budget` | **Astra** | dépenses, catégories, comparaison mensuelle | V1 (5/5) livrée ; chantier enveloppes d'épargne terminé (3/3, voir `docs/etude-astra-epargne.md` §8) |
 | `flashcards` | **Orbite** | révision par répétition espacée, système de Leitner à 5 boîtes | découpage complet livré, rendu mobile vérifié, recto/verso en éditeur de texte riche (Tiptap, 8 mises en forme), aperçu tronqué dans la liste d'un paquet — voir `docs/etude-flashcards.md` §9, §15, §16, §19-§21 (remplacent §17-§18) |
-| `nutrition` | **Cérès** | calories et macronutriments, objectif quotidien en grammes | **V1 livrée**, étapes 1-6/7 : journal du jour par repas, recherche dans la table CIQUAL embarquée, récents, copie de la veille, objectif quotidien en grammes avec calculateur, aliments perso et favoris, code-barres (caméra, Open Food Facts) — voir `docs/etude-nutrition.md` §10, §12-§17 |
+| `nutrition` | **Cérès** | calories et macronutriments, objectif quotidien en grammes | **découpage complet livré** (7/7) : journal du jour par repas, recherche dans la table CIQUAL embarquée, récents, copie de la veille, objectif quotidien en grammes avec calculateur, aliments perso et favoris, code-barres (caméra, Open Food Facts), file hors ligne, vue Semaine — voir `docs/etude-nutrition.md` §10, §12-§18 |
 | — | — | sport, et d'autres plus tard | envisagé |
 
 Les noms affichés forment une famille céleste — Atlas porte la voûte, Zénith en est le point
@@ -132,6 +132,8 @@ src/
       localCore.ts      implémentation navigateur
       supabaseCore.ts   implémentation Supabase
       localSnapshot.ts  le blob `palier.v1`, lu et écrit par section
+      outbox.ts         ⭐ file hors ligne commune : stockage par clé, envoi,
+                        coupure réseau vs refus du serveur (depuis le 2026-09-25)
       supabaseClient.ts client unique + helpers partagés
       index.ts          bascule locale/Supabase ; seul lecteur des variables d'env
     lib/             types (AppUser), push, sound, confetti, onboarding
@@ -148,8 +150,8 @@ src/
     data/
       goalsStore.ts     contrat du module + GoalsBackup
       localGoals.ts, supabaseGoals.ts, index.ts
-      outbox.ts         file d'attente hors-ligne (encore propre au domaine)
-      sync.ts           vidage de la file à la reconnexion
+      outbox.ts         ses opérations (coches) sur la file du socle, clé inchangée
+      sync.ts           comment envoyer une coche ; le vidage est au socle
     lib/             ranks, progress, streak, counters, templates, types… + tests
     styles/          11 fichiers — style propre au module
 supabase/
@@ -256,6 +258,7 @@ silencieusement les données existantes :
 | Clé | Fichier | Ce qu'on perdrait |
 |---|---|---|
 | `zenith.outbox.v1` | `data/outbox.ts` | **les coches en attente d'envoi** — le bug impardonnable |
+| `nutrition.outbox.v1` | `modules/nutrition/data/entryOutbox.ts` | **les repas notés hors ligne, pas encore envoyés** |
 | `palier.v1` | `data/localStore.ts` | toutes les données du mode local |
 | `zenith.onboarded*` | `lib/onboarding.ts` | l'onboarding se rejoue à chaque ouverture |
 | `zenith.catchup.ignores` | `lib/catchup.ts` | les rattrapages déjà écartés reviennent |
@@ -329,13 +332,16 @@ mais c'est un changement à vérifier à l'œil, pas un simple rangement.
 
 ## 6. Points sensibles à ne pas casser
 
-- **File d'attente hors-ligne** (`modules/objectifs/data/outbox.ts` et `sync.ts`). Une coche
-  prise sans réseau est mise de côté et rejouée. Règle : une *erreur réseau* interrompt le
+- **File d'attente hors-ligne** (`core/data/outbox.ts`, depuis le 2026-09-25). Une écriture
+  faite sans réseau est mise de côté et rejouée. Règle : une *erreur réseau* interrompt le
   vidage et garde la suite ; une *erreur serveur* retire l'opération, qui ne réussira jamais
-  et bloquerait la file. ⚠ Elle est encore **écrite pour le domaine objectifs** (ses
-  opérations parlent de check-ins). Le jour où Astra devra écrire en mobilité, il faudra la
-  généraliser dans `core/` plutôt que la dupliquer — la clé `zenith.outbox.v1`, elle, ne
-  bouge pas.
+  et bloquerait la file. Le socle porte le stockage (une clé par file) et ces règles ; chaque
+  module porte ses opérations et leur réapplication à l'écran — Zénith
+  (`modules/objectifs/data/outbox.ts`, clé `zenith.outbox.v1`, **qui ne bouge pas**) et Cérès
+  (`modules/nutrition/data/entryOutbox.ts`, clé `nutrition.outbox.v1`). Un module qui écrit en
+  mobilité s'y branche plutôt que d'en écrire une autre. Une opération mise en file doit être
+  **rejouable sans doublon** (upsert chez Zénith, id choisi par l'app avant le premier envoi
+  chez Cérès).
 - **Variables d'environnement Vite = variables de *build*.** Elles sont figées dans le
   JavaScript à la compilation. Sur Cloudflare, elles vont dans *Settings → Build*, pas dans
   *Settings → Variables and Secrets*. Mal placées, le build réussit et le site déployé
@@ -406,6 +412,7 @@ Une session lancée « sur votre ordinateur » n'a aucun de ces trois problèmes
 
 Le plus récent en haut. Une ligne par décision, avec sa raison.
 
+| 2026-09-25 | Étape 7 de Cérès livrée, **découpage de l'étude terminé** (`docs/etude-nutrition.md` §18) : (1) la file hors ligne **remonte dans le socle** (`core/data/outbox.ts` : `createOutbox`, `createFlusher`, `isNetworkError`), comme §6 l'exigeait le jour où un deuxième module écrirait en mobilité ; Zénith s'y branche sans changer ni sa clé `zenith.outbox.v1` ni ses fonctions publiques, Cérès y ajoute sa file `nutrition.outbox.v1` pour les écritures du journal ; (2) une vue **Semaine** (sept jours en barres, objectif de chaque jour en pointillé, moyenne des jours notés) | Rejeu sans doublon : l'id d'une entrée est choisi par l'app avant le premier envoi, et `createEntry(input, id)` devient idempotente (`upsert … ignoreDuplicates` + relecture côté Supabase, les deux implémentations du contrat) — aucune migration. Une entrée qui a déjà quelque chose en attente passe toujours par la file, même en ligne, pour qu'une correction récente ne soit jamais écrasée par une plus ancienne rejouée ensuite. L'écran réapplique la file sur les dernières données du serveur à chaque relecture, même quand celle-ci échoue faute de réseau ; il ne le fait **pas** à chaque changement de la file, sinon une entrée tout juste envoyée disparaîtrait un instant avant la relecture. La moyenne de la semaine ne compte que les jours notés. Le chemin hors ligne n'est pas couvert de bout en bout (mode local sans réseau à perdre, mode comptes sans vrai serveur) : tests unitaires seulement, comme Zénith — **à essayer pour de vrai en mode avion**. Les 16 tests de la file de Zénith passent sans modification. `664/664` tests unitaires → `696/696` (+32), 542 → 551 vérifications en local et 559 → 568 en mode comptes (+9). Sur plusieurs passages, les échecs tournent et touchent uniquement des vérifications à minutage serré, dans des modules que ce chantier ne modifie pas (diff vide avec `main` pour Orbite, Astra et `e2e/`) : « Le +PP s'envole au clic » (Zénith, attend 120 ms), les deux d'Orbite déjà notées, une fois un délai dépassé dans la suite d'Orbite. Un passage local complet a donné 551/551, et un en mode comptes 568/568 : ces échecs ne sont donc plus « systématiques sur ce Mac », mais sensibles à la charge du processeur quand cinq suites tournent en parallèle — à traiter à part |
 | 2026-09-25 | Étape 6 de Cérès livrée (`docs/etude-nutrition.md` §17) : le code-barres — caméra ou chiffres tapés, produit déjà recopié repris sans appel réseau, fiche Open Food Facts en formulaire pré-rempli **à relire** avant d'en faire une copie perso, produit inconnu en formulaire vide qui garde le code. Deux dépendances ajoutées, gratuites et MIT : `barcode-detector` (l'API `BarcodeDetector` pour les navigateurs qui ne l'ont pas, dont **Safari sur iPhone**) et `zxing-wasm`, épinglé à la version exacte qu'attend la première | Le `.wasm` de zxing (1 Mo, 464 Ko compressés) est **servi par l'application** via un import `?url`, alors que la bibliothèque le prend par défaut sur un CDN ; lui et `ponyfill` ne se chargent qu'à la première ouverture du scanner, puis le service worker les garde (cache de `/assets/`). L'API native sert quand elle existe (Chrome). La clé de contrôle EAN arrête une faute de frappe avant tout appel. L'appel à Open Food Facts vit dans `data/openFoodFacts.ts`, pas dans le contrat de stockage : ce n'est pas un stockage. Une vraie lecture a été vérifiée à la main (image d'EAN-13 donnée à Chromium comme caméra, lue par le lecteur natif et par le chemin WebAssembly) ; elle n'est pas dans la suite automatique, qui demanderait des options de lancement de Chromium dans `e2e/run.mjs` (socle). La suite simule Open Food Facts (`page.route`) pour ne jamais dépendre d'un service extérieur. **Pas encore essayé sur un vrai iPhone.** `655/655` tests unitaires → `664/664` (+9), 530 → 542 vérifications en local et 547 → 559 en mode comptes (+12), dont passent 540 et 557 — les deux mêmes échecs d'Orbite |
 | 2026-09-25 | Étape 5 de Cérès livrée (`docs/etude-nutrition.md` §16) : aliments perso (`FoodForm`, `MyFoodsDialog`, bouton 🥫 « Mes aliments »), créables aussi sur place depuis une recherche sans résultat (« + Créer « … » », puis choisis aussitôt) ; favoris en tête de la fenêtre d'ajout et devant tout le reste dans la recherche | Validation pure dans `lib/foodForm.ts` (virgule française, kcal suggérées d'après les macros, bornes calquées sur les CHECK de `nutrition_foods` pour afficher une erreur lisible plutôt qu'un refus de Postgres). **Favoris réservés aux aliments perso** : la colonne existe déjà sur `nutrition_foods`, alors que marquer un aliment CIQUAL demanderait une table et une migration de plus ; les récents couvrent les aliments CIQUAL mangés souvent. Piège CSS noté : le socle donne `width: 100%` à tout `input`, une case à cocher s'étirait donc sur toute la ligne — corrigé localement (`.nutrition-food-favorite input`). `644/644` tests unitaires → `655/655` (+11), 515 → 530 vérifications en local et 532 → 547 en mode comptes (+15), dont passent 528 et 545 — les deux mêmes échecs d'Orbite |
 | 2026-09-25 | Étape 4 de Cérès livrée (`docs/etude-nutrition.md` §15) : l'objectif quotidien (`TargetEditor`), réglé en grammes, kcal et parts d'énergie déduites en direct avec le repère ANSES de chaque macro ; daté (« À partir du », aujourd'hui par défaut), historique avec « Retirer » ; calculateur replié (`lib/targets.ts` : Mifflin-St Jeor × activité × but, protéines en g/kg, lipides à 35 %, glucides pour le reste). La migration de l'étape 1 est appliquée sur Supabase (confirmé par Jules) | Le calculateur **propose**, n'enregistre rien : ses kcal sont celles des grammes proposés (jamais la dépense brute, pour que les deux chiffres ne se contredisent pas), et poids, taille, âge ne sont stockés nulle part — pas de donnée de santé en base pour un point de départ. But en pourcentage (−15 %/+10 %) plutôt qu'en kcal fixes. Repères ANSES affichés, jamais bloquants ni colorés. « Aujourd'hui » passe à l'apostrophe typographique, comme le reste de l'interface. Piège noté pour les tests e2e : `toLocaleString('fr-FR')` sépare les milliers par une espace fine insécable (U+202F), d'où un `text()` qui normalise les espaces dans la suite. `636/636` tests unitaires → `644/644` (+8), 500 → 515 vérifications en local et 517 → 532 en mode comptes (+15), dont passent 513 et 530 — les deux mêmes échecs d'Orbite |

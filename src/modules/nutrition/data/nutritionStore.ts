@@ -25,8 +25,13 @@ export interface NutritionStore {
   /**
    * Les valeurs (kcal, macros) arrivent déjà calculées : ce contrat ne
    * connaît pas la règle de calcul, il écrit ce qu'on lui donne.
+   *
+   * `id`, choisi par l'appelant, rend l'écriture **rejouable** (étape 7,
+   * file hors ligne) : une entrée dont l'envoi a abouti juste avant une
+   * coupure peut être renvoyée sans créer de doublon — si l'id existe déjà,
+   * l'entrée existante est rendue telle quelle.
    */
-  createEntry(input: EntryInput): Promise<Entry>;
+  createEntry(input: EntryInput, id?: string): Promise<Entry>;
   updateEntry(id: string, patch: Partial<EntryInput>): Promise<void>;
   deleteEntry(id: string): Promise<void>;
 

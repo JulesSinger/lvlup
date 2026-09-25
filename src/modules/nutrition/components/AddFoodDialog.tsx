@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { nutritionStore } from '../data';
+import { journalWriter } from '../data/journalWriter';
 import { CIQUAL_CREDIT, loadCiqual, type CiqualFood } from '../lib/ciqual';
 import { shiftDay } from '../lib/day';
 import { buildIndex, searchFoods } from '../lib/foodSearch';
@@ -78,9 +79,9 @@ function fromFood(f: Food): Candidate {
  * recherche ; un aliment introuvable se crée sur place, sans quitter la
  * fenêtre, puis se choisit aussitôt.
  *
- * Un échec d'enregistrement laisse la fenêtre ouverte et remplie : la file
- * hors ligne vient après la V1 (étude §12), en attendant rien de ce qui a
- * été tapé ne doit se perdre.
+ * Sans réseau, l'ajout part dans la file hors ligne (étape 7) et s'affiche
+ * aussitôt, marqué « en attente ». Un refus du serveur, lui, laisse la
+ * fenêtre ouverte et remplie : rien de ce qui a été tapé ne se perd.
  */
 export function AddFoodDialog({ day, today, meal, onCancel, onAdded }: Props) {
   const [table, setTable] = useState<CiqualFood[] | null>(null);
@@ -215,7 +216,9 @@ export function AddFoodDialog({ day, today, meal, onCancel, onAdded }: Props) {
     setSaving(true);
     setError('');
     try {
-      await nutritionStore.createEntry({
+      // Sans réseau, l'entrée part en file et s'affiche déjà au journal
+      // (étape 7) : la fenêtre se ferme comme après un envoi réussi.
+      await journalWriter.add({
         day,
         meal,
         foodId: selected.foodId,

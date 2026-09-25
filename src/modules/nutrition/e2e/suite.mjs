@@ -1,8 +1,10 @@
 /**
  * Suite e2e du module nutrition (Cérès).
  *
- * Étapes 3 à 6 (docs/etude-nutrition.md §10) : le journal du jour,
- * l'objectif quotidien, les aliments perso, les favoris et le code-barres. Ces
+ * Étapes 3 à 7 (docs/etude-nutrition.md §10) : le journal du jour,
+ * l'objectif quotidien, les aliments perso, les favoris, le code-barres et
+ * la semaine. La file hors ligne (étape 7) n'y est pas : en mode local, le
+ * réseau ne manque jamais — elle est couverte par des tests unitaires. Ces
  * vérifications suivent un vrai parcours — chercher un aliment dans la
  * table CIQUAL embarquée, l'ajouter, corriger sa quantité, le retirer,
  * retrouver ses récents, copier un repas de la veille — plus le rendu
@@ -349,6 +351,35 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.nutrition-foods-dialog', { state: 'detached' });
   await page.unroute('https://world.openfoodfacts.org/**');
 
+  // --- La semaine (étape 7) -------------------------------------------------
+  check('En mode local, rien n’attend jamais le réseau', (await page.locator('.nutrition-pending-notice').count()) === 0);
+  const todayKcal = await text(page.locator('.nutrition-summary-kcal-value'));
+  await page.getByRole('tab', { name: 'Semaine' }).click();
+  await page.waitForSelector('.nutrition-week');
+  check('La vue Semaine montre sept jours', (await page.locator('.nutrition-week-day').count()) === 7);
+  check('Son titre est la période (« du … au … »)', (await page.locator('.nutrition-day-label').textContent())?.startsWith('du ') ?? false);
+  check(
+    'La barre d’aujourd’hui reprend le total du jour',
+    (await text(page.locator('.nutrition-week-day.today .nutrition-week-value'))) === todayKcal,
+    todayKcal,
+  );
+  check('La veille, notée plus haut, a sa barre', (await page.locator('.nutrition-week-bar').count()) === 2);
+  check(
+    'La moyenne ne compte que les jours notés (2 sur 7)',
+    (await page.locator('.nutrition-week-average').textContent())?.includes('Moyenne sur 2 jours notés') ?? false,
+  );
+  check('Un jour sans rien de noté n’affiche pas 0 kcal', (await page.locator('.nutrition-week-row', { hasText: 'rien de noté' }).count()) === 5);
+  await page.locator('.nutrition-week-row').nth(1).click();
+  await page.waitForSelector('.nutrition-summary');
+  check('Choisir un jour de la semaine l’ouvre dans la vue Jour', (await page.locator('.nutrition-day-label').textContent()) === 'Hier');
+  await page.getByRole('tab', { name: 'Semaine' }).click();
+  await page.getByRole('button', { name: 'Semaine précédente' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.nutrition-week-bar').length <= 1);
+  await page.locator('.nutrition-day-today').click();
+  await page.waitForSelector('.nutrition-week-day.today');
+  await page.getByRole('tab', { name: 'Jour' }).click();
+  await page.waitForSelector('.nutrition-summary');
+
   await page.getByRole('button', { name: 'Modules' }).click();
   await page.waitForSelector('.hub-picker-card');
   check('Retour aux modules ramène sur l’écran de choix', await page.locator('.hub-picker').isVisible());
@@ -388,6 +419,13 @@ export async function run({ browser, check, BASE }) {
   );
   await mp.keyboard.press('Escape');
   await mp.keyboard.press('Escape');
+  await mp.getByRole('tab', { name: 'Semaine' }).click();
+  await mp.waitForSelector('.nutrition-week');
+  check(
+    'Vue Semaine sans débordement sur téléphone',
+    await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+  );
+  await mp.getByRole('tab', { name: 'Jour' }).click();
   await mBreakfast.getByRole('button', { name: '+ Ajouter' }).click();
   await mp.locator('#nutrition-search').fill('pomme');
   await mp.waitForSelector('.nutrition-result');

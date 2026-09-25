@@ -687,3 +687,170 @@
 .nutrition-barcode-foot .nutrition-credit {
   margin: 0;
 }
+
+/* --- File hors ligne (étape 7) ----------------------------------------- */
+
+.nutrition-pending-notice {
+  margin-bottom: 14px;
+}
+
+/* Une entrée qui attend le réseau : là, comptée, mais visiblement pas encore
+   partie. Pas d'alerte : elle partira seule. */
+.nutrition-entry.pending .nutrition-entry-label {
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+.nutrition-entry-pending {
+  font-size: 12px;
+}
+
+/* --- Jour / Semaine (étape 7) ----------------------------------------- */
+
+.nutrition-view-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.nutrition-view-tab {
+  padding: 6px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.nutrition-view-tab.on {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.nutrition-week {
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.nutrition-week-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.nutrition-week-axis {
+  stroke: var(--border-strong);
+}
+
+.nutrition-week-hit {
+  fill: transparent;
+}
+
+.nutrition-week-day {
+  cursor: pointer;
+}
+
+.nutrition-week-day:hover .nutrition-week-hit {
+  fill: rgba(255, 255, 255, 0.03);
+}
+
+.nutrition-week-bar {
+  fill: #9bd16a;
+  opacity: 0.75;
+}
+
+.nutrition-week-day.today .nutrition-week-bar {
+  opacity: 1;
+}
+
+.nutrition-week-goal {
+  stroke: var(--text-dim);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+
+.nutrition-week-value,
+.nutrition-week-label {
+  text-anchor: middle;
+  font-size: 13px;
+  fill: var(--text-dim);
+}
+
+.nutrition-week-value {
+  fill: var(--text);
+  font-weight: 600;
+}
+
+.nutrition-week-day.today .nutrition-week-label {
+  fill: var(--text);
+  font-weight: 700;
+}
+
+.nutrition-week-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.nutrition-week-legend-goal {
+  display: inline-block;
+  width: 18px;
+  border-top: 2px dashed var(--text-dim);
+}
+
+.nutrition-week-average {
+  margin: 14px 0 6px;
+}
+
+.nutrition-week-average p {
+  margin: 0 0 4px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.nutrition-week-average-kcal b {
+  color: var(--text);
+  font-size: 20px;
+}
+
+.nutrition-week-days {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.nutrition-week-row .nutrition-entry-label {
+  flex: none;
+  width: 56px;
+}
+
+.nutrition-week-row .nutrition-entry-grams {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 520px) {
+  .nutrition-week {
+    padding: 12px;
+  }
+
+  /* Unités du viewBox (700 de large) : le SVG est réduit de moitié environ
+     sur un téléphone, les étiquettes doivent grossir d'autant. */
+  .nutrition-week-value,
+  .nutrition-week-label {
+    font-size: 23px;
+  }
+}

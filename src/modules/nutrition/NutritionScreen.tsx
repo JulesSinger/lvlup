@@ -1,20 +1,26 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isNetworkError } from '../../core/data/outbox';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { AddFoodDialog } from './components/AddFoodDialog';
 import { DaySummary } from './components/DaySummary';
 import { EntryEditor } from './components/EntryEditor';
+import { WeekView } from './components/WeekView';
 import { MyFoodsDialog } from './components/MyFoodsDialog';
 import { TargetEditor } from './components/TargetEditor';
 import { nutritionStore } from './data';
+import { applyPendingEntries, pendingEntryIds } from './data/entryOutbox';
+import { journalWriter } from './data/journalWriter';
 import { CIQUAL_CREDIT } from './lib/ciqual';
-import { dayLabel, dayString, shiftDay } from './lib/day';
+import { dayLabel, dayString, rangeLabel, shiftDay } from './lib/day';
 import { copyMeal, groupByMeal, rescaleEntry, targetForDay, totalOf } from './lib/journal';
+import { weekSummary } from './lib/week';
 import { MEALS, MEAL_LABELS, type Entry, type Meal, type Target, type TargetInput } from './lib/types';
 
 /**
  * Écran racine de Cérès — le journal du jour, étape 3
  * (docs/etude-nutrition.md §5, §10) : la V1 ; l'objectif quotidien, étape 4 ;
- * « Mes aliments » et les favoris, étape 5.
+ * « Mes aliments » et les favoris, étape 5 ; la file hors ligne et la vue
+ * « Semaine », étape 7.
  *
  * Un jour à la fois, découpé en quatre repas, avec son total en tête. Les
  * deux raccourcis qui font tenir une saisie quotidienne (étude §3) sont là
@@ -24,7 +30,12 @@ import { MEALS, MEAL_LABELS, type Entry, type Meal, type Target, type TargetInpu
 export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
   const today = dayString();
   const [day, setDay] = useState(today);
-  /** Le jour affiché et la veille : la veille sert à « Copier la veille ». */
+  /** Un jour, ou les sept jours qui finissent par `day` (étape 7). */
+  const [view, setView] = useState<'day' | 'week'>('day');
+  /**
+   * Les sept jours qui finissent par le jour affiché : la veille sert à
+   * « Copier la veille », les sept à la vue « Semaine ».
+   */
   const [entries, setEntries] = useState<Entry[]>([]);
   const [targets, setTargets] = useState<Target[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,18 +44,34 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
   const [copying, setCopying] = useState<Meal | null>(null);
   const [editingTarget, setEditingTarget] = useState(false);
   const [showFoods, setShowFoods] = useState(false);
+  /**
+   * Les dernières entrées reçues du serveur. La file hors ligne est
+   * réappliquée par-dessus à chaque relecture — y compris quand celle-ci
+   * échoue faute de réseau, pour qu'un ajout hors ligne s'affiche quand même.
+   */
+  const serverEntries = useRef<Entry[]>([]);
+  /** Les entrées qui attendent le réseau (étape 7). */
+  const [pendingIds, setPendingIds] = useState(() => pendingEntryIds(journalWriter.pending()));
 
   const refresh = useCallback(async () => {
     try {
       const [nextEntries, nextTargets] = await Promise.all([
-        nutritionStore.listEntries(shiftDay(day, -1), day),
+        nutritionStore.listEntries(shiftDay(day, -6), day),
         nutritionStore.listTargets(),
       ]);
-      setEntries(nextEntries);
+      // La file par-dessus le serveur : un rafraîchissement n'efface jamais
+      // ce qui n'est pas encore parti.
+      serverEntries.current = nextEntries;
+      setEntries(applyPendingEntries(nextEntries, journalWriter.pending()));
       setTargets(nextTargets);
       onError('');
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'Chargement impossible.');
+      if (isNetworkError(err)) {
+        setEntries(applyPendingEntries(serverEntries.current, journalWriter.pending()));
+        onError('Hors ligne : le journal montre les dernières données connues, les nouvelles saisies partiront au retour du réseau.');
+      } else {
+        onError(err instanceof Error ? err.message : 'Chargement impossible.');
+      }
     } finally {
       setLoading(false);
     }
@@ -58,6 +85,37 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
     void refresh();
   }, [refresh, reloadToken]);
 
+  // --- File hors ligne (étape 7) ------------------------------------------
+  /** Envoie ce qui attend, puis relit : même motif que Zénith. */
+  const sync = useCallback(async () => {
+    const result = await journalWriter.flush();
+    if (result.dropped.length > 0) onError(result.dropped[0]);
+    if (result.sent > 0 || result.dropped.length > 0) await refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh]);
+
+  // Au démarrage (une saisie peut attendre depuis la dernière session), au
+  // retour du réseau, et au retour sur l'application.
+  useEffect(() => {
+    void sync();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void sync();
+    };
+    const onOnline = () => void sync();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onOnline);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [sync]);
+
+  // Seuls les repères « en attente » suivent la file en direct. Les entrées,
+  // elles, se recalculent à chaque relecture (après chaque écriture, et
+  // après un envoi) : les recalculer ici ferait disparaître un instant une
+  // entrée tout juste envoyée, avant que la relecture la ramène du serveur.
+  useEffect(() => journalWriter.onPendingChange((ops) => setPendingIds(pendingEntryIds(ops))), []);
+
   const previousDay = shiftDay(day, -1);
   const dayEntries = useMemo(() => entries.filter((e) => e.day === day), [entries, day]);
   const previousEntries = useMemo(() => entries.filter((e) => e.day === previousDay), [entries, previousDay]);
@@ -65,6 +123,8 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
   const previousByMeal = useMemo(() => groupByMeal(previousEntries), [previousEntries]);
   const total = useMemo(() => totalOf(dayEntries), [dayEntries]);
   const target = useMemo(() => targetForDay(targets, day), [targets, day]);
+  const week = useMemo(() => weekSummary(entries, targets, day), [entries, targets, day]);
+  const step = view === 'week' ? 7 : 1;
 
   async function copyFromPreviousDay(meal: Meal) {
     setCopying(meal);
@@ -72,7 +132,7 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
       // Une à une, dans l'ordre : si le réseau lâche au milieu, ce qui est
       // déjà copié reste, et l'erreur dit que la suite manque.
       for (const input of copyMeal(previousEntries, meal, day)) {
-        await nutritionStore.createEntry(input);
+        await journalWriter.add(input);
       }
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Copie impossible.');
@@ -83,13 +143,13 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
   }
 
   async function saveGrams(entry: Entry, grams: number) {
-    await nutritionStore.updateEntry(entry.id, rescaleEntry(entry, grams));
+    await journalWriter.update(entry.id, rescaleEntry(entry, grams));
     setEditing(null);
     await refresh();
   }
 
   async function removeEntry(entry: Entry) {
-    await nutritionStore.deleteEntry(entry.id);
+    await journalWriter.remove(entry.id);
     setEditing(null);
     await refresh();
   }
@@ -155,21 +215,45 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
           </div>
         )}
 
+        {pendingIds.size > 0 && (
+          <div className="notice info nutrition-pending-notice" role="status">
+            {pendingIds.size} saisie{pendingIds.size > 1 ? 's' : ''} en attente d’envoi : elle
+            {pendingIds.size > 1 ? 's partiront' : ' partira'} dès le retour du réseau.
+          </div>
+        )}
+
+        <div className="nutrition-view-tabs" role="tablist" aria-label="Affichage">
+          {(['day', 'week'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              aria-selected={view === v}
+              className={`nutrition-view-tab${view === v ? ' on' : ''}`}
+              onClick={() => setView(v)}
+            >
+              {v === 'day' ? 'Jour' : 'Semaine'}
+            </button>
+          ))}
+        </div>
+
         <div className="nutrition-day-nav">
           <button
             type="button"
             className="btn btn-ghost btn-sm"
-            onClick={() => setDay((d) => shiftDay(d, -1))}
-            aria-label="Jour précédent"
+            onClick={() => setDay((d) => shiftDay(d, -step))}
+            aria-label={view === 'week' ? 'Semaine précédente' : 'Jour précédent'}
           >
             ←
           </button>
-          <span className="nutrition-day-label">{dayLabel(day, today)}</span>
+          <span className="nutrition-day-label">
+            {view === 'week' ? rangeLabel(shiftDay(day, -6), day) : dayLabel(day, today)}
+          </span>
           <button
             type="button"
             className="btn btn-ghost btn-sm"
-            onClick={() => setDay((d) => shiftDay(d, 1))}
-            aria-label="Jour suivant"
+            onClick={() => setDay((d) => shiftDay(d, step))}
+            aria-label={view === 'week' ? 'Semaine suivante' : 'Jour suivant'}
           >
             →
           </button>
@@ -182,6 +266,15 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
 
         {loading ? (
           <p>Chargement…</p>
+        ) : view === 'week' ? (
+          <WeekView
+            summary={week}
+            today={today}
+            onOpenDay={(d) => {
+              setDay(d);
+              setView('day');
+            }}
+          />
         ) : (
           <>
             <DaySummary total={total} target={target} onEditTarget={() => setEditingTarget(true)} />
@@ -204,10 +297,15 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
                           <li key={entry.id}>
                             <button
                               type="button"
-                              className="nutrition-entry"
+                              className={`nutrition-entry${pendingIds.has(entry.id) ? ' pending' : ''}`}
                               onClick={() => setEditing(entry)}
-                              title="Modifier la quantité"
+                              title={pendingIds.has(entry.id) ? 'En attente d’envoi — modifier la quantité' : 'Modifier la quantité'}
                             >
+                              {pendingIds.has(entry.id) && (
+                                <span className="nutrition-entry-pending" aria-label="En attente d’envoi">
+                                  ⏳
+                                </span>
+                              )}
                               <span className="nutrition-entry-label">{entry.label}</span>
                               <span className="nutrition-entry-grams">{entry.grams} g</span>
                               <span className="nutrition-entry-kcal">{entry.kcal} kcal</span>
