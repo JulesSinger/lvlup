@@ -1,5 +1,6 @@
 import type { AtlasModule } from '../core/lib/module';
 import { budgetModule } from './budget/module';
+import { coursesModule } from './courses/module';
 import { flashcardsModule } from './flashcards/module';
 import { nutritionModule } from './nutrition/module';
 import { objectifsModule } from './objectifs/module';
@@ -16,4 +17,5 @@ export const MODULES: readonly AtlasModule[] = [
   budgetModule,
   flashcardsModule,
   nutritionModule,
+  coursesModule,
 ];

@@ -268,12 +268,42 @@ Cette règle vit dans `lib/trip.ts`, testée avant tout écran (§6).
 
 | Étape | Contenu | Résultat |
 |---|---|---|
-| 1 | Migration, contrat et ses deux implémentations, module signet | le module existe, vide |
+| 1 ✅ | Migration, contrat et ses deux implémentations, module signet | le module existe, vide — **livré le 25/09/2026**, voir §13 |
 | 2 | Bibliothèques pures : rayons, clôture d'une course et récurrence, prix et estimation, statistiques | la règle est juste |
 | 3 | Écran de la liste : ajouter, récurrence, rayons, cocher, prix | **la V1 est atteinte** |
 | 4 | Terminer la course (magasin, total proposé), historique | on sait ce que coûte une course |
 | 5 | Statistiques : par mois, panier moyen, par magasin, prix d'un article dans le temps | on voit l'évolution |
 | 6 | Le lien avec Astra : mécanisme du socle, puis rapprochement en lecture seule | — |
+
+---
+
+## 13. Étape 1 : le module existe (25/09/2026)
+
+- **Migration** `supabase/2026-09-25-courses-tables.sql` : les cinq tables du modèle révisé
+  (§12), RLS complet, et une **fonction `courses_close_trip`** qui applique la clôture d'une
+  course **en une seule transaction**. Terminer une course écrit à cinq endroits (la course, ce
+  qui a été acheté, le catalogue, la liste — retirer et remettre) : faites une par une depuis le
+  navigateur, ces écritures pourraient s'arrêter au milieu, et une course enregistrée dont la
+  liste n'a pas été vidée serait terminée une seconde fois. Avec la fonction, tout passe ou rien
+  ne passe. Elle tourne avec les droits de l'appelant (`security invoker`), donc sous le RLS.
+  C'est aussi ce qui compense l'absence de mode hors ligne (décision §12) : une coupure ne laisse
+  jamais une course à moitié écrite.
+- **Numéro de course unique par compte** (`courses_trips_number_key`) : une même clôture envoyée
+  deux fois (double clic, réseau qui hésite) est refusée plutôt que de créer deux courses.
+- **Le plan de clôture est calculé côté application** (`ClosePlan`, écrit à l'étape 2 par
+  `lib/trip.ts`) ; le stockage ne fait que l'appliquer, sans connaître la règle de récurrence —
+  même séparation que `reviewCard` d'Orbite ou les valeurs figées de Cérès.
+- **Jamais deux fois un article sur la liste** : un habituel à remettre qui y est déjà (pas coché
+  cette fois) n'est pas ajouté une seconde fois — dans la fonction SQL comme dans la version
+  locale.
+- **Contrat** `CoursesStore` et ses deux implémentations, `LocalCourses` (toute la clôture en une
+  seule écriture du stockage local, l'équivalent de la transaction) et `SupabaseCourses`
+  (clôture par `rpc('courses_close_trip')`, restauration qui reconstitue les liens entre
+  tables).
+- **Module inscrit au registre**, avec un signet et un aperçu sur la page d'accueil ; rayons en
+  tableau `as const`, comparés par un test aux deux contraintes de la migration.
+
+**Migration à appliquer** dans Supabase Studio avant d'utiliser Comète en mode comptes.
 
 ---
 
