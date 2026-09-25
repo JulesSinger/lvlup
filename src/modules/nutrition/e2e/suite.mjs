@@ -1,7 +1,8 @@
 /**
  * Suite e2e du module nutrition (Cérès).
  *
- * Étape 3 (docs/etude-nutrition.md §10) : le journal du jour, la V1. Ces
+ * Étapes 3 et 4 (docs/etude-nutrition.md §10) : le journal du jour et
+ * l'objectif quotidien. Ces
  * vérifications suivent un vrai parcours — chercher un aliment dans la
  * table CIQUAL embarquée, l'ajouter, corriger sa quantité, le retirer,
  * retrouver ses récents, copier un repas de la veille — plus le rendu
@@ -10,6 +11,15 @@
 
 /** Pomme, chair et peau, crue : 54 kcal / 100 g dans la table CIQUAL 2025. */
 const APPLE = 'Pomme, chair et peau, crue';
+
+/**
+ * Texte d'un élément, espaces normalisées : les milliers s'affichent avec
+ * l'espace fine insécable du français (« 2 190 »), qu'une comparaison avec
+ * une espace ordinaire raterait.
+ */
+async function text(locator) {
+  return ((await locator.textContent()) ?? '').replace(/\s/g, ' ');
+}
 
 export async function run({ browser, check, BASE }) {
   const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
@@ -33,7 +43,7 @@ export async function run({ browser, check, BASE }) {
 
   await card.click();
   await page.waitForSelector('.nutrition-summary');
-  check('Le journal s’ouvre sur aujourd’hui', (await page.locator('.nutrition-day-label').textContent()) === 'Aujourd\'hui');
+  check('Le journal s’ouvre sur aujourd’hui', (await page.locator('.nutrition-day-label').textContent()) === 'Aujourd’hui');
   check('Les quatre repas sont affichés', (await page.locator('.nutrition-meal').count()) === 4);
   check('Un jour vide totalise 0 kcal', (await page.locator('.nutrition-summary-kcal-value').textContent()) === '0');
   check('Sans objectif, le total le dit plutôt que d’afficher des barres vides', await page.locator('.nutrition-summary-hint').isVisible());
@@ -107,7 +117,7 @@ export async function run({ browser, check, BASE }) {
   check('Un aliment s’ajoute à un autre jour qu’aujourd’hui', (await lunch.locator('.nutrition-entry').count()) === 1);
 
   await page.locator('.nutrition-day-today').click();
-  await page.waitForFunction(() => document.querySelector('.nutrition-day-label')?.textContent === "Aujourd'hui");
+  await page.waitForFunction(() => document.querySelector('.nutrition-day-label')?.textContent === 'Aujourd’hui');
   const copyButton = lunch.getByRole('button', { name: /Copier d’hier/ });
   check('Un repas de la veille peut être copié', await copyButton.isVisible());
   check(
@@ -125,6 +135,69 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.nutrition-entry-editor', { state: 'detached' });
   check('Retirer une entrée la fait disparaître du repas', (await lunch.locator('.nutrition-entry').count()) === 0);
   check('Le total du jour la retire aussi', (await page.locator('.nutrition-summary-kcal-value').textContent()) === '108');
+
+  // --- Objectif quotidien (étape 4) --------------------------------------
+  await page.getByRole('button', { name: 'Fixer un objectif' }).click();
+  await page.waitForSelector('.nutrition-target-editor');
+  await page.locator('#nutrition-target-protein').fill('140');
+  await page.locator('#nutrition-target-carbs').fill('250');
+  await page.locator('#nutrition-target-fat').fill('70');
+  check(
+    'Les kcal de l’objectif se déduisent des grammes (140/250/70 g = 2 190 kcal)',
+    (await text(page.locator('.nutrition-target-kcal'))).includes('2 190 kcal'),
+  );
+  check(
+    'Chaque macro affiche sa part de l’énergie et le repère ANSES',
+    (await page.locator('.nutrition-target-editor .field-hint').first().textContent())?.includes('25 % de l’énergie · repère ANSES 10–20 %') ?? false,
+  );
+
+  // Le calculateur propose, sans rien enregistrer.
+  await page.locator('.nutrition-calculator summary').click();
+  await page.locator('#nutrition-calc-age').fill('30');
+  await page.locator('#nutrition-calc-weight').fill('75');
+  await page.locator('#nutrition-calc-height').fill('180');
+  await page.locator('#nutrition-calc-activity').selectOption('1.55');
+  await page.locator('#nutrition-calc-protein').selectOption('1.6');
+  check(
+    'Le calculateur propose des grammes (Mifflin-St Jeor, 75 kg × 1,6 g/kg = 120 g de protéines)',
+    (await page.locator('.nutrition-calculator-result').textContent())?.includes('protéines 120 g, glucides 316 g, lipides 104 g') ?? false,
+  );
+  await page.getByRole('button', { name: 'Utiliser ces valeurs' }).click();
+  check('« Utiliser ces valeurs » remplit les grammes', (await page.locator('#nutrition-target-protein').inputValue()) === '120');
+  await page.locator('#nutrition-target-protein').fill('140');
+  await page.locator('#nutrition-target-carbs').fill('250');
+  await page.locator('#nutrition-target-fat').fill('70');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.nutrition-target-editor', { state: 'detached' });
+
+  check('Le total se lit face à l’objectif', (await text(page.locator('.nutrition-summary-kcal-unit'))).includes('/ 2 190 kcal'));
+  check('Une barre par chiffre (kcal et trois macros)', (await page.locator('.nutrition-summary .nutrition-bar').count()) === 4);
+  check('Chaque macro montre son objectif en grammes', (await page.locator('.nutrition-summary-macro.protein').textContent())?.includes('/ 140 g') ?? false);
+  check('Le message « pas d’objectif » disparaît', (await page.locator('.nutrition-summary-hint').count()) === 0);
+
+  await page.getByRole('button', { name: 'Jour précédent' }).click();
+  await page.waitForFunction(() => document.querySelector('.nutrition-day-label')?.textContent === 'Hier');
+  check('Un objectif posé aujourd’hui ne rejuge pas la veille', await page.locator('.nutrition-summary-hint').isVisible());
+  await page.locator('.nutrition-day-today').click();
+  await page.waitForFunction(() => document.querySelector('.nutrition-day-label')?.textContent === 'Aujourd’hui');
+
+  // Reposer un objectif le même jour le remplace plutôt que d'en empiler deux.
+  await page.locator('.nutrition-summary').getByRole('button', { name: 'Objectif' }).click();
+  await page.waitForSelector('.nutrition-target-editor');
+  check('La fenêtre reprend l’objectif en vigueur', (await page.locator('#nutrition-target-protein').inputValue()) === '140');
+  await page.locator('#nutrition-target-protein').fill('150');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.nutrition-target-editor', { state: 'detached' });
+  check('Modifier l’objectif du jour le remplace', (await text(page.locator('.nutrition-summary-kcal-unit'))).includes('/ 2 230 kcal'));
+  await page.locator('.nutrition-summary').getByRole('button', { name: 'Objectif' }).click();
+  await page.waitForSelector('.nutrition-target-history');
+  check('Un seul objectif enregistré pour ce jour', (await page.locator('.nutrition-target-history-row').count()) === 1);
+  check('L’historique dit depuis quand', (await page.locator('.nutrition-target-history-row').textContent())?.includes('Depuis aujourd’hui') ?? false);
+  await page.locator('.nutrition-target-history-row').getByRole('button', { name: 'Retirer' }).click();
+  await page.waitForSelector('.nutrition-target-history', { state: 'detached' });
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.nutrition-target-editor', { state: 'detached' });
+  check('Retirer l’objectif ramène aux totaux seuls', await page.locator('.nutrition-summary-hint').isVisible());
 
   await page.getByRole('button', { name: 'Modules' }).click();
   await page.waitForSelector('.hub-picker-card');
@@ -149,6 +222,13 @@ export async function run({ browser, check, BASE }) {
     await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   );
   check('La barre du haut passe en icônes seules sur téléphone', !(await mp.locator('.nutrition-topbar-label').first().isVisible()));
+  await mp.getByRole('button', { name: 'Fixer un objectif' }).click();
+  await mp.locator('.nutrition-calculator summary').click();
+  check(
+    'Fenêtre d’objectif et calculateur sans débordement sur téléphone',
+    await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+  );
+  await mp.keyboard.press('Escape');
   await mBreakfast.getByRole('button', { name: '+ Ajouter' }).click();
   await mp.locator('#nutrition-search').fill('pomme');
   await mp.waitForSelector('.nutrition-result');

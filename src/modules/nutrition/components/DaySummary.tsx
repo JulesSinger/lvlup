@@ -4,6 +4,7 @@ import type { Target } from '../lib/types';
 interface Props {
   total: NutrientValues;
   target: Target | null;
+  onEditTarget: () => void;
 }
 
 const MACROS = [
@@ -23,17 +24,24 @@ const kcalText = (kcal: number) => kcal.toLocaleString('fr-FR');
  * et peut culpabiliser (docs/etude-nutrition.md §8). Le dépassement se lit
  * dans les chiffres, dans la même teinte que le reste.
  */
-export function DaySummary({ total, target }: Props) {
+export function DaySummary({ total, target, onEditTarget }: Props) {
   const shares = energyShares(total);
   const goalKcal = target ? targetKcal(target) : null;
 
   return (
     <section className="nutrition-summary" aria-label="Total du jour">
       <div className="nutrition-summary-kcal">
-        <b className="nutrition-summary-kcal-value">{kcalText(total.kcal)}</b>
-        <span className="nutrition-summary-kcal-unit">
-          {goalKcal !== null ? ` / ${kcalText(goalKcal)} kcal` : ' kcal'}
+        <span>
+          <b className="nutrition-summary-kcal-value">{kcalText(total.kcal)}</b>
+          <span className="nutrition-summary-kcal-unit">
+            {goalKcal !== null ? ` / ${kcalText(goalKcal)} kcal` : ' kcal'}
+          </span>
         </span>
+        {target !== null && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onEditTarget}>
+            Objectif
+          </button>
+        )}
       </div>
       {goalKcal !== null && <Bar value={total.kcal} goal={goalKcal} className="kcal" />}
 
@@ -58,7 +66,10 @@ export function DaySummary({ total, target }: Props) {
 
       {target === null && (
         <p className="nutrition-summary-hint">
-          Pas encore d’objectif quotidien : les totaux s’affichent seuls pour l’instant.
+          Pas d’objectif pour ce jour : les totaux s’affichent seuls.{' '}
+          <button type="button" className="btn btn-sm" onClick={onEditTarget}>
+            Fixer un objectif
+          </button>
         </p>
       )}
     </section>

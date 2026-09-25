@@ -27,13 +27,13 @@ const MONTH_NAMES = [
 ];
 
 /**
- * Le nom d'un jour tel qu'on le dit : « Aujourd'hui », « Hier », « Demain »,
+ * Le nom d'un jour tel qu'on le dit : « Aujourd’hui », « Hier », « Demain »,
  * sinon « jeudi 24 septembre » (l'année seulement si ce n'est pas celle de
  * `today`). Écrit à la main plutôt qu'avec `toLocaleDateString`, dont le
  * résultat dépend de la langue de l'appareil.
  */
 export function dayLabel(day: string, today: string): string {
-  if (day === today) return "Aujourd'hui";
+  if (day === today) return 'Aujourd’hui';
   if (day === shiftDay(today, -1)) return 'Hier';
   if (day === shiftDay(today, 1)) return 'Demain';
   const [y, m, d] = day.split('-').map(Number);

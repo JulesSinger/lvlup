@@ -3,15 +3,16 @@ import type { ModuleScreenProps } from '../../core/lib/module';
 import { AddFoodDialog } from './components/AddFoodDialog';
 import { DaySummary } from './components/DaySummary';
 import { EntryEditor } from './components/EntryEditor';
+import { TargetEditor } from './components/TargetEditor';
 import { nutritionStore } from './data';
 import { CIQUAL_CREDIT } from './lib/ciqual';
 import { dayLabel, dayString, shiftDay } from './lib/day';
 import { copyMeal, groupByMeal, rescaleEntry, targetForDay, totalOf } from './lib/journal';
-import { MEALS, MEAL_LABELS, type Entry, type Meal, type Target } from './lib/types';
+import { MEALS, MEAL_LABELS, type Entry, type Meal, type Target, type TargetInput } from './lib/types';
 
 /**
  * Écran racine de Cérès — le journal du jour, étape 3
- * (docs/etude-nutrition.md §5, §10) : la V1.
+ * (docs/etude-nutrition.md §5, §10) : la V1 ; l'objectif quotidien, étape 4.
  *
  * Un jour à la fois, découpé en quatre repas, avec son total en tête. Les
  * deux raccourcis qui font tenir une saisie quotidienne (étude §3) sont là
@@ -28,6 +29,7 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
   const [adding, setAdding] = useState<Meal | null>(null);
   const [editing, setEditing] = useState<Entry | null>(null);
   const [copying, setCopying] = useState<Meal | null>(null);
+  const [editingTarget, setEditingTarget] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -86,6 +88,17 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
   async function removeEntry(entry: Entry) {
     await nutritionStore.deleteEntry(entry.id);
     setEditing(null);
+    await refresh();
+  }
+
+  async function saveTarget(input: TargetInput) {
+    await nutritionStore.setTarget(input);
+    setEditingTarget(false);
+    await refresh();
+  }
+
+  async function removeTarget(t: Target) {
+    await nutritionStore.deleteTarget(t.id);
     await refresh();
   }
 
@@ -159,7 +172,7 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
           <p>Chargement…</p>
         ) : (
           <>
-            <DaySummary total={total} target={target} />
+            <DaySummary total={total} target={target} onEditTarget={() => setEditingTarget(true)} />
 
             <div className="nutrition-meals">
               {MEALS.map((meal) => {
@@ -229,6 +242,17 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
               setAdding(null);
               await refresh();
             }}
+          />
+        )}
+
+        {editingTarget && (
+          <TargetEditor
+            today={today}
+            current={targetForDay(targets, today)}
+            targets={targets}
+            onCancel={() => setEditingTarget(false)}
+            onSave={saveTarget}
+            onDelete={removeTarget}
           />
         )}
 

@@ -380,3 +380,101 @@
   text-align: right;
   color: var(--text);
 }
+
+/* --- Objectif quotidien (étape 4) -------------------------------------- */
+
+.nutrition-summary-kcal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nutrition-target-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.nutrition-target-fields input,
+.nutrition-calculator-grid input {
+  width: 100%;
+}
+
+.nutrition-target-kcal {
+  margin: 0 0 16px;
+  color: var(--text-dim);
+}
+
+.nutrition-target-kcal b {
+  color: var(--text);
+}
+
+.nutrition-calculator {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+}
+
+.nutrition-calculator summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.nutrition-calculator[open] summary {
+  margin-bottom: 10px;
+}
+
+.nutrition-calculator select {
+  width: 100%;
+}
+
+.nutrition-calculator-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.nutrition-calculator-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.nutrition-calculator-result b {
+  color: var(--text);
+}
+
+.nutrition-target-history ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nutrition-target-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.nutrition-target-history-row b {
+  color: var(--text);
+}
+
+@media (max-width: 520px) {
+  .nutrition-target-fields {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

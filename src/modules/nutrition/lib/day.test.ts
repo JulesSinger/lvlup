@@ -17,7 +17,7 @@ describe('dayLabel', () => {
   const today = '2026-09-25';
 
   it('nomme les jours proches comme on les dit', () => {
-    expect(dayLabel('2026-09-25', today)).toBe("Aujourd'hui");
+    expect(dayLabel('2026-09-25', today)).toBe('Aujourd’hui');
     expect(dayLabel('2026-09-24', today)).toBe('Hier');
     expect(dayLabel('2026-09-26', today)).toBe('Demain');
   });

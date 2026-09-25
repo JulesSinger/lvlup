@@ -326,7 +326,7 @@ Pour le nom affiché, dans la famille céleste (Atlas, Zénith, Astra, Orbite) :
 | 1 ✅ | Migration datée, contrat `NutritionStore` + implémentations locale et Supabase, `module.ts` avec un écran signet, inscription au registre, tests exigés par `conventions.test.ts` | le module existe, vide — **livré le 25/09/2026** |
 | 2 ✅ | Script d'import CIQUAL → JSON, `lib/foodSearch.ts` + `lib/macros.ts` testées | la base est là, la règle est juste — **livré le 25/09/2026**, voir §13 |
 | 3 ✅ | Journal du jour : ajout par repas, totaux, changement de jour, copier un repas, récents/favoris | **la V1 est atteinte** — livré le 25/09/2026, voir §14 (favoris reportés à l'étape 5) |
-| 4 | Objectifs datés et calculateur, barres face à l'objectif | on se fixe un cap |
+| 4 ✅ | Objectifs datés et calculateur, barres face à l'objectif | on se fixe un cap — livré le 25/09/2026, voir §15 |
 | 5 | Aliments perso | tout se note |
 | 6 | Code-barres : saisie du code puis caméra (OFF, mise en cache) | les produits emballés en un geste |
 | 7 | File hors ligne généralisée dans `core/`, historique de la semaine | la règle n°3 tient partout |
@@ -457,6 +457,44 @@ un aperçu des valeurs avant d'ajouter.
 
 **Une limite de la table, pas de l'app :** CIQUAL 2025 n'a par exemple pas de « poulet rôti »,
 seulement cru et grillé/poêlé. Ce genre de trou se comblera avec les aliments perso (étape 5).
+
+---
+
+## 15. Étape 4 : l'objectif quotidien (25/09/2026)
+
+**La fenêtre** (`components/TargetEditor.tsx`) s'ouvre depuis le total du jour : « Fixer un
+objectif » quand il n'y en a pas, « Objectif » sinon. On y règle **trois nombres en grammes**
+(décision §12) ; les kcal (« Soit 2 190 kcal par jour ») et la part de chaque macro dans
+l'énergie se calculent à côté, en direct, avec le repère ANSES de chacune (« 25 % de
+l'énergie · repère ANSES 10–20 % »). Le repère est une aide : rien n'est bloqué ni coloré
+quand on en sort.
+
+**Daté.** « À partir du » vaut aujourd'hui par défaut. Un objectif posé aujourd'hui ne change
+rien aux jours d'avant ; en reposer un le même jour le remplace (une seule ligne par jour, §6).
+La fenêtre liste les objectifs enregistrés (« Depuis aujourd'hui — 2 190 kcal (140 / 250 /
+70 g) »), chacun avec « Retirer ».
+
+**Le calculateur** (`lib/targets.ts`, testé), replié par défaut sous « M'aider à calculer » :
+sexe, âge, poids, taille, niveau d'activité (1,2 à 1,9), but (perdre −15 %, maintenir, prendre
++10 % : en pourcentage plutôt qu'en kcal fixes, un même écart ne pèse pas pareil sur 1 700 et
+sur 3 000 kcal), protéines en g/kg (0,83 / 1,6 / 2). Il calcule :
+
+1. dépense = métabolisme de base (Mifflin-St Jeor) × activité × but ;
+2. protéines = poids × g/kg ;
+3. lipides = 35 % de l'énergie, le bas de la fourchette ANSES ;
+4. glucides = le reste, jamais négatif.
+
+Les kcal affichées sont celles des grammes proposés, pas la dépense brute : les deux chiffres ne
+peuvent pas se contredire. « Utiliser ces valeurs » remplit les trois champs, **rien n'est
+enregistré sans « Enregistrer »**, et le poids, la taille et l'âge ne sont stockés nulle part —
+pas de nouvelle donnée de santé en base pour un simple point de départ. Le texte le dit :
+estimation à ±10–15 %, pas un avis médical.
+
+**Au journal**, dès qu'un objectif est en vigueur pour le jour affiché : « 824 / 2 190 kcal »,
+une barre sous les kcal et sous chaque macro, « / 140 g » à côté des grammes. Les barres
+s'arrêtent pleines au-delà, sans changer de couleur (§8).
+
+Au passage, « Aujourd'hui » prend l'apostrophe typographique (’) comme le reste de l'interface.
 
 ---
 
