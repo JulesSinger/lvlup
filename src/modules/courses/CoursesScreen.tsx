@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { AddItemBar } from './components/AddItemBar';
+import { CloseTripDialog, type CloseForm } from './components/CloseTripDialog';
 import { ItemEditor } from './components/ItemEditor';
 import { ListLine } from './components/ListLine';
+import { TripsView } from './components/TripsView';
 import { coursesStore } from './data';
 import { groupByAisle, guessAisle } from './lib/aisles';
 import { formatEuros } from './lib/money';
 import { estimateList, lastPrice } from './lib/prices';
-import { nextTripNumber, suggestedTotal } from './lib/trip';
+import { buildClosePlan, nextTripNumber, suggestedTotal } from './lib/trip';
 import {
   AISLE_LABELS,
   type Item,
   type ItemInput,
   type ListEntry,
   type ListEntryPatch,
+  type Store,
   type Trip,
   type TripItem,
 } from './lib/types';
@@ -24,8 +27,9 @@ import {
  *
  * Une seule liste, rangée par rayon dans l'ordre d'un parcours de magasin.
  * On ajoute en tapant (le rayon se devine), on coche en magasin, on note le
- * prix de ce qu'on met dans le panier. « Terminer la course » arrive à
- * l'étape 4.
+ * prix de ce qu'on met dans le panier. « Terminer la course » (étape 4)
+ * enregistre la course et remet les habituels ; l'onglet « Courses » en
+ * garde l'historique.
  *
  * Pas de mode hors ligne (décision du 25/09/2026) : une écriture qui échoue
  * est annulée à l'écran et l'erreur s'affiche, sans rien perdre de ce qui
@@ -38,15 +42,23 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
   const [tripItems, setTripItems] = useState<TripItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<ListEntry | null>(null);
+  const [stores, setStores] = useState<Store[]>([]);
+  /** La liste, ou l'historique des courses (étape 4). */
+  const [view, setView] = useState<'list' | 'trips'>('list');
+  const [closing, setClosing] = useState(false);
+  /** Le compte rendu de la dernière course terminée, jusqu'à la prochaine action. */
+  const [notice, setNotice] = useState('');
 
   const refresh = useCallback(async () => {
     try {
-      const [nextItems, nextEntries, nextTrips, nextTripItems] = await Promise.all([
+      const [nextItems, nextEntries, nextTrips, nextTripItems, nextStores] = await Promise.all([
         coursesStore.listItems(),
         coursesStore.listEntries(),
         coursesStore.listTrips(),
         coursesStore.listTripItems(),
+        coursesStore.listStores(),
       ]);
+      setStores(nextStores);
       setItems(nextItems);
       setEntries(nextEntries);
       setTrips(nextTrips);
@@ -123,6 +135,43 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
     await refresh();
   }
 
+  /**
+   * Terminer la course : le plan (archivage, retrait, retour des habituels)
+   * est calculé par `buildClosePlan` et appliqué d'un bloc par le stockage.
+   * Un nouveau magasin est créé juste avant ; si la clôture échoue ensuite,
+   * il existe déjà et sera simplement repris au nouvel essai.
+   */
+  async function closeTrip(form: CloseForm) {
+    let store = form.store.existing;
+    if (!store && form.store.name) store = await coursesStore.createStore(form.store.name);
+    const plan = buildClosePlan({
+      items,
+      entries,
+      trips,
+      day: form.day,
+      store: { id: store?.id ?? null, name: store?.name ?? '' },
+      totalCents: form.totalCents,
+      note: form.note,
+    });
+    await coursesStore.closeTrip(plan);
+    setClosing(false);
+    const back = plan.addItemIds.length;
+    setNotice(
+      `Course enregistrée : ${formatEuros(plan.trip.totalCents)}${store ? ` chez ${store.name}` : ''}.` +
+        (back > 0 ? ` ${back} habituel${back > 1 ? 's' : ''} remis sur la liste.` : ''),
+    );
+    await refresh();
+  }
+
+  async function deleteTrip(trip: Trip) {
+    try {
+      await coursesStore.deleteTrip(trip.id);
+      await refresh();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Suppression impossible.');
+    }
+  }
+
   const editingItem = editing ? itemById.get(editing.itemId) : undefined;
 
   return (
@@ -164,8 +213,34 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
           </div>
         )}
 
+        <div className="courses-view-tabs" role="tablist" aria-label="Affichage">
+          {(['list', 'trips'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              aria-selected={view === v}
+              className={`courses-view-tab${view === v ? ' on' : ''}`}
+              onClick={() => {
+                setView(v);
+                setNotice('');
+              }}
+            >
+              {v === 'list' ? 'Liste' : `Courses${trips.length > 0 ? ` (${trips.length})` : ''}`}
+            </button>
+          ))}
+        </div>
+
+        {notice && (
+          <div className="notice info courses-notice" role="status">
+            {notice}
+          </div>
+        )}
+
         {loading ? (
           <p>Chargement…</p>
+        ) : view === 'trips' ? (
+          <TripsView trips={trips} tripItems={tripItems} onDelete={deleteTrip} />
         ) : (
           <>
             <AddItemBar items={items} entries={entries} nextTrip={nextTrip} onAdd={addItem} />
@@ -180,6 +255,18 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
                     Panier : <b>{formatEuros(basket.totalCents)}</b>
                     {basket.unpriced > 0 && ` (${basket.unpriced} sans prix)`}
                   </span>
+                )}
+                {inCart > 0 && (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm courses-close-btn"
+                    onClick={() => {
+                      setNotice('');
+                      setClosing(true);
+                    }}
+                  >
+                    Terminer la course
+                  </button>
                 )}
                 {estimate.known > 0 && (
                   <span className="courses-summary-estimate" title="D’après les derniers prix payés">
@@ -221,6 +308,16 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
               </div>
             )}
           </>
+        )}
+
+        {closing && (
+          <CloseTripDialog
+            entries={entries}
+            stores={stores}
+            trips={trips}
+            onCancel={() => setClosing(false)}
+            onConfirm={closeTrip}
+          />
         )}
 
         {editing && editingItem && (

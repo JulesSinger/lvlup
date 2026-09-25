@@ -34,6 +34,10 @@ export function AddItemBar({ items, entries, nextTrip, onAdd }: Props) {
     try {
       await onAdd(trimmed, existing ?? findItemByName(items, trimmed));
       setText('');
+      // Refermer les suggestions : restées ouvertes, elles recouvraient
+      // l'article tout juste ajouté, qu'on ne pouvait plus cocher. Elles
+      // reviennent dès qu'on tape à nouveau.
+      setOpen(false);
     } catch {
       // L'erreur est affichée par l'écran ; le texte reste pour réessayer.
     } finally {
@@ -50,7 +54,10 @@ export function AddItemBar({ items, entries, nextTrip, onAdd }: Props) {
           aria-label="Ajouter un article"
           placeholder="Ajouter un article : lait, pommes, lessive…"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            setOpen(true);
+          }}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={(e) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findItemByName, suggestItems } from './catalog';
+import { findItemByName, findStoreByName, storesByUse, suggestItems } from './catalog';
 import type { Item, ListEntry } from './types';
 
 const item = (id: string, name: string, recurrence: number | null = null, lastTripNumber: number | null = null): Item => ({
@@ -56,5 +56,33 @@ describe('suggestItems', () => {
 
   it('respecte la limite', () => {
     expect(suggestItems(items, [], '', 4, 2)).toHaveLength(2);
+  });
+});
+
+describe('findStoreByName', () => {
+  const stores = [{ id: 's1', name: 'Leclerc Drive', createdAt: '' }];
+  it('retrouve un magasin à la casse et aux accents près', () => {
+    expect(findStoreByName(stores, ' leclerc DRIVE ')?.id).toBe('s1');
+    expect(findStoreByName(stores, 'Lidl')).toBeNull();
+  });
+});
+
+describe('storesByUse', () => {
+  const store = (id: string, name: string) => ({ id, name, createdAt: '' });
+  const trip = (number: number, storeId: string | null) => ({
+    id: `t${number}`,
+    number,
+    day: '2026-09-01',
+    storeId,
+    storeName: '',
+    totalCents: 0,
+    note: '',
+    createdAt: '',
+  });
+
+  it('le plus fréquenté d’abord, puis le plus récent, puis par nom', () => {
+    const stores = [store('a', 'Auchan'), store('c', 'Carrefour'), store('l', 'Leclerc'), store('m', 'Monoprix')];
+    const trips = [trip(1, 'c'), trip(2, 'l'), trip(3, 'l'), trip(4, 'a'), trip(5, null)];
+    expect(storesByUse(stores, trips).map((s) => s.name)).toEqual(['Leclerc', 'Auchan', 'Carrefour', 'Monoprix']);
   });
 });

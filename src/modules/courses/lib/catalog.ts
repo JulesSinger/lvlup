@@ -5,7 +5,7 @@
  */
 import { normalize } from './aisles';
 import { isDue } from './trip';
-import type { Item, ListEntry } from './types';
+import type { Item, ListEntry, Store, Trip } from './types';
 
 /** L'article du catalogue qui porte ce nom, à la casse et aux accents près. */
 export function findItemByName(items: readonly Item[], name: string): Item | null {
@@ -38,4 +38,34 @@ export function suggestItems(
   return matches
     .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'fr'))
     .slice(0, limit);
+}
+
+/** Le magasin qui porte ce nom, à la casse et aux accents près. */
+export function findStoreByName(stores: readonly Store[], name: string): Store | null {
+  const key = normalize(name);
+  if (!key) return null;
+  return stores.find((s) => normalize(s.name) === key) ?? null;
+}
+
+/**
+ * Les magasins, le plus fréquenté d'abord (nombre de courses), puis le plus
+ * récemment visité, puis par nom — ceux qu'on propose en terminant une
+ * course. Le premier est le choix par défaut.
+ */
+export function storesByUse(stores: readonly Store[], trips: readonly Trip[]): Store[] {
+  const count = new Map<string, number>();
+  const last = new Map<string, number>();
+  for (const t of trips) {
+    if (!t.storeId) continue;
+    count.set(t.storeId, (count.get(t.storeId) ?? 0) + 1);
+    last.set(t.storeId, Math.max(last.get(t.storeId) ?? 0, t.number));
+  }
+  return stores
+    .slice()
+    .sort(
+      (a, b) =>
+        (count.get(b.id) ?? 0) - (count.get(a.id) ?? 0) ||
+        (last.get(b.id) ?? 0) - (last.get(a.id) ?? 0) ||
+        a.name.localeCompare(b.name, 'fr'),
+    );
 }

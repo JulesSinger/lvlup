@@ -271,7 +271,7 @@ Cette règle vit dans `lib/trip.ts`, testée avant tout écran (§6).
 | 1 ✅ | Migration, contrat et ses deux implémentations, module signet | le module existe, vide — **livré le 25/09/2026**, voir §13 |
 | 2 ✅ | Bibliothèques pures : rayons, clôture d'une course et récurrence, prix et estimation, statistiques | la règle est juste — livré le 25/09/2026, voir §14 |
 | 3 ✅ | Écran de la liste : ajouter, récurrence, rayons, cocher, prix | **la V1 est atteinte** — livré le 25/09/2026, voir §15 |
-| 4 | Terminer la course (magasin, total proposé), historique | on sait ce que coûte une course |
+| 4 ✅ | Terminer la course (magasin, total proposé), historique | on sait ce que coûte une course — livré le 25/09/2026, voir §16 |
 | 5 | Statistiques : par mois, panier moyen, par magasin, prix d'un article dans le temps | on voit l'évolution |
 | 6 | Le lien avec Astra : mécanisme du socle, puis rapprochement en lecture seule | — |
 
@@ -366,6 +366,44 @@ prix du panier, reste estimé), puis la liste **par rayon**, dans l'ordre d'un p
 
 « Terminer la course » (magasin, total, archivage, retour des habituels) arrive à l'étape 4 : la
 règle est prête (`buildClosePlan`, étape 2), il ne manque que l'écran.
+
+---
+
+## 16. Étape 4 : terminer la course, l'historique (25/09/2026)
+
+**« Terminer la course »** apparaît dans le résumé dès qu'un article est dans le panier
+(`components/CloseTripDialog.tsx`). La fenêtre récapitule (« 3 articles dans le panier · 1 reste
+sur la liste pour la prochaine fois ») et demande :
+
+- **le magasin** : les magasins déjà utilisés en pastilles, le plus fréquenté choisi par défaut
+  (`storesByUse`), ou un autre à taper — créé à l'enregistrement, et repris s'il existe déjà à
+  la casse près (`findStoreByName`) ;
+- **le total payé**, proposé comme la somme des prix saisis, avec en indice « Somme des prix
+  saisis : 11,37 € (1 article sans prix). Le ticket fait foi. » Sans total lisible, la course est
+  refusée avec une explication ;
+- la **date** (aujourd'hui par défaut) et une **note**.
+
+Le plan est calculé par `buildClosePlan` (étape 2) et appliqué d'un bloc (`courses_close_trip`,
+étape 1). Un compte rendu s'affiche ensuite : « Course enregistrée : 12,50 € chez Leclerc.
+1 habituel remis sur la liste. » Si le magasin tout juste créé est enregistré mais que la
+clôture échoue, il sera simplement repris au nouvel essai.
+
+**L'onglet « Courses (n) »** (`components/TripsView.tsx`) : la plus récente d'abord, avec le jour,
+le magasin, le nombre d'articles et le total ; toucher une course déplie ce qui a été acheté,
+avec les rayons et les prix figés, et « Supprimer cette course ». Supprimer une course ne touche
+ni la liste ni l'horloge de la récurrence : c'est l'historique qu'on corrige, pas le passé qu'on
+rejoue.
+
+**Vérifié sur trois courses d'affilée** dans la suite de bout en bout : le lait (à chaque course)
+revient après chacune ; la lessive (toutes les 3 courses), achetée à la n° 1, n'est pas revenue
+après la n° 2 et revient après la n° 3, pour la n° 4.
+
+**Un vrai défaut trouvé en faisant les captures**, et que la suite laissait passer : après un
+ajout avec Entrée, la liste de suggestions restait ouverte et **recouvrait l'article tout juste
+ajouté**, impossible à cocher. Elle se referme désormais après chaque ajout et revient dès qu'on
+tape ; une vérification le contrôle. Une autre vérification (la suggestion d'un article retiré)
+lisait la suggestion en deux temps et pouvait la manquer sous la charge des suites en parallèle :
+elle attend désormais le bon texte en une seule fois.
 
 ---
 
