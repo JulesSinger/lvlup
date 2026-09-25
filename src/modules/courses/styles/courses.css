@@ -472,3 +472,178 @@
     display: none;
   }
 }
+
+/* --- Chiffres (étape 5) ----------------------------------------------- */
+
+.courses-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.courses-stats-keys {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.courses-stats-key,
+.courses-stats-block {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.courses-stats-key {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.courses-stats-key-label,
+.courses-stats-title {
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.courses-stats-title {
+  margin: 0 0 10px;
+}
+
+.courses-stats-key-value {
+  font-size: 24px;
+}
+
+.courses-stats-key-detail,
+.courses-stats-hint {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.courses-stats-hint {
+  margin: 8px 0 0;
+}
+
+.courses-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.courses-chart-axis {
+  stroke: var(--border-strong);
+}
+
+.courses-chart-bar {
+  fill: #6fb6ff;
+  opacity: 0.7;
+}
+
+.courses-chart-month.current .courses-chart-bar {
+  opacity: 1;
+}
+
+.courses-chart-value,
+.courses-chart-label {
+  text-anchor: middle;
+  font-size: 13px;
+  fill: var(--text-dim);
+}
+
+.courses-chart-value {
+  fill: var(--text);
+  font-weight: 600;
+}
+
+.courses-chart-month.current .courses-chart-label {
+  fill: var(--text);
+  font-weight: 700;
+}
+
+.courses-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.courses-stats-table th {
+  padding: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-align: right;
+}
+
+.courses-stats-table td {
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  text-align: right;
+}
+
+.courses-stats-table th:first-child,
+.courses-stats-table td:first-child {
+  text-align: left;
+}
+
+.courses-stats-select {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.courses-price-summary {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
+.courses-price-summary b {
+  color: var(--text);
+}
+
+.courses-price-line {
+  fill: none;
+  stroke: #6fb6ff;
+  stroke-width: 3;
+}
+
+.courses-price-dot {
+  fill: #6fb6ff;
+}
+
+.courses-price-points {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.courses-price-point {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.courses-price-point-store {
+  color: var(--text-faint);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 520px) {
+  .courses-chart-value,
+  .courses-chart-label {
+    font-size: 22px;
+  }
+
+  .courses-stats-table th:nth-child(4),
+  .courses-stats-table td:nth-child(4) {
+    display: none;
+  }
+}

@@ -1,8 +1,8 @@
 /**
  * Suite e2e du module courses (Comète).
  *
- * Étapes 3 et 4 (docs/etude-courses.md §12) : la liste de courses et la
- * clôture d'une course. Un vrai parcours — ajouter (rayon deviné), reprendre
+ * Étapes 3 à 5 (docs/etude-courses.md §12) : la liste de courses, la
+ * clôture d'une course et les chiffres. Un vrai parcours — ajouter (rayon deviné), reprendre
  * un article connu sans doublon, régler une récurrence, cocher, noter un
  * prix, retirer, puis trois courses terminées d'affilée pour vérifier que
  * chaque habituel revient à son tour — plus le rendu téléphone.
@@ -212,6 +212,26 @@ export async function run({ browser, check, BASE }) {
   check('Supprimer une course la retire de l’historique', (await page.locator('.courses-trip').count()) === 2);
   await page.getByRole('tab', { name: 'Liste' }).click();
 
+  // --- Chiffres (étape 5) --------------------------------------------------------
+  // Restent deux courses, toutes deux ce mois-ci chez Leclerc : 12,50 € et 2,50 €.
+  await page.getByRole('tab', { name: 'Chiffres' }).click();
+  await page.waitForSelector('.courses-stats');
+  const keys = await page.locator('.courses-stats-key').allTextContents();
+  check('Ce mois-ci : le total et le nombre de courses', (keys[0] ?? '').replace(/\s/g, ' ').includes('15,00 €2 courses'), keys[0]);
+  check('Le panier moyen, et sur combien de courses', (keys[1] ?? '').replace(/\s/g, ' ').includes('7,50 €sur 2 courses'), keys[1]);
+  check('La barre du mois en cours porte son total, arrondi à l’euro', (await text(page.locator('.courses-chart-month.current .courses-chart-value'))) === '15 €');
+  check(
+    'Le tableau par magasin compte les courses, le total et le panier moyen',
+    (await text(page.locator('.courses-stats-table tbody tr').first())) === 'Leclerc215,00 €7,50 €',
+    await text(page.locator('.courses-stats-table tbody tr').first()),
+  );
+  const tracked = await page.locator('.courses-stats-select option').allTextContents();
+  check('Seuls les articles avec un prix se suivent, par ordre alphabétique', JSON.stringify(tracked) === JSON.stringify(['Lait demi-écrémé', 'Lessive']), tracked.join(' | '));
+  check('Le dernier prix d’un article et son magasin', (await text(page.locator('.courses-price-summary'))).includes('Dernier prix 2,38 € chez Leclerc'));
+  await page.locator('.courses-stats-select').selectOption({ label: 'Lessive' });
+  check('Changer d’article change son historique', (await text(page.locator('.courses-price-summary'))).includes('8,99 €'));
+  await page.getByRole('tab', { name: 'Liste' }).click();
+
   await page.getByRole('button', { name: 'Modules' }).click();
   await page.waitForSelector('.hub-picker-card');
   check('Retour aux modules ramène sur l’écran de choix', await page.locator('.hub-picker').isVisible());
@@ -243,6 +263,12 @@ export async function run({ browser, check, BASE }) {
   await mp.locator('.courses-trip-head').first().click();
   check(
     'Historique déplié sans débordement sur téléphone',
+    await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+  );
+  await mp.getByRole('tab', { name: 'Chiffres' }).click();
+  await mp.waitForSelector('.courses-stats');
+  check(
+    'Chiffres sans débordement sur téléphone',
     await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   );
   await mp.getByRole('tab', { name: 'Liste' }).click();

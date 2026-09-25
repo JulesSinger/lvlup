@@ -90,3 +90,41 @@ export function estimateList(
   }
   return { totalCents, known, unknown };
 }
+
+export interface PriceSummary {
+  first: PricePoint;
+  last: PricePoint;
+  minCents: number;
+  maxCents: number;
+  /** Évolution du premier au dernier prix, en pourcentage entier ; `null` avec un seul prix */
+  changePercent: number | null;
+}
+
+/**
+ * Le résumé d'un historique de prix. L'évolution compare le premier et le
+ * dernier prix payés, tous magasins confondus — un changement de magasin
+ * peut donc l'expliquer autant qu'une hausse : l'écran montre le magasin de
+ * chaque prix à côté.
+ */
+export function priceSummary(points: readonly PricePoint[]): PriceSummary | null {
+  if (points.length === 0) return null;
+  const first = points[0];
+  const last = points[points.length - 1];
+  const cents = points.map((p) => p.priceCents);
+  return {
+    first,
+    last,
+    minCents: Math.min(...cents),
+    maxCents: Math.max(...cents),
+    changePercent:
+      points.length < 2 || first.priceCents === 0
+        ? null
+        : Math.round(((last.priceCents - first.priceCents) / first.priceCents) * 100),
+  };
+}
+
+/** Les articles dont on connaît au moins un prix, par ordre alphabétique — ceux qu'on peut suivre. */
+export function pricedItems<T extends { id: string; name: string }>(items: readonly T[], tripItems: readonly TripItem[]): T[] {
+  const priced = new Set(tripItems.filter((ti) => ti.priceCents !== null && ti.itemId).map((ti) => ti.itemId));
+  return items.filter((i) => priced.has(i.id)).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+}

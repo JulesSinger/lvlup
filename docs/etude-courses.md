@@ -272,7 +272,7 @@ Cette règle vit dans `lib/trip.ts`, testée avant tout écran (§6).
 | 2 ✅ | Bibliothèques pures : rayons, clôture d'une course et récurrence, prix et estimation, statistiques | la règle est juste — livré le 25/09/2026, voir §14 |
 | 3 ✅ | Écran de la liste : ajouter, récurrence, rayons, cocher, prix | **la V1 est atteinte** — livré le 25/09/2026, voir §15 |
 | 4 ✅ | Terminer la course (magasin, total proposé), historique | on sait ce que coûte une course — livré le 25/09/2026, voir §16 |
-| 5 | Statistiques : par mois, panier moyen, par magasin, prix d'un article dans le temps | on voit l'évolution |
+| 5 ✅ | Statistiques : par mois, panier moyen, par magasin, prix d'un article dans le temps | on voit l'évolution — livré le 25/09/2026, voir §17 |
 | 6 | Le lien avec Astra : mécanisme du socle, puis rapprochement en lecture seule | — |
 
 ---
@@ -404,6 +404,32 @@ ajouté**, impossible à cocher. Elle se referme désormais après chaque ajout 
 tape ; une vérification le contrôle. Une autre vérification (la suggestion d'un article retiré)
 lisait la suggestion en deux temps et pouvait la manquer sous la charge des suites en parallèle :
 elle attend désormais le bon texte en une seule fois.
+
+---
+
+## 17. Étape 5 : les chiffres (25/09/2026)
+
+Un troisième onglet, **« Chiffres »** (`components/StatsView.tsx`), tout recalculé depuis les
+courses enregistrées — rien n'est stocké à part :
+
+- **Ce mois-ci** (total et nombre de courses) et **le panier moyen** (sur toutes les courses) ;
+- **par mois** : les douze derniers mois en barres, le total arrondi à l'euro au-dessus de chacune,
+  le mois en cours mis en avant, un mois sans course compté à zéro plutôt que sauté ;
+- **par magasin** : courses, total, panier moyen, le plus fréquenté d'abord ;
+- **le prix d'un article** : un menu des articles qui ont au moins un prix (`pricedItems`), le
+  dernier prix et son magasin, la fourchette, l'**évolution en pourcentage** depuis le premier prix
+  (`priceSummary`), une courbe, et la liste des prix avec leur date et leur magasin.
+
+**L'évolution d'un prix compare le premier et le dernier prix payés, tous magasins confondus** :
+un changement de magasin peut l'expliquer autant qu'une hausse, d'où le magasin affiché à côté de
+chaque prix. Et comme le prix est celui d'une ligne (§14), l'écran le rappelle : « pas un prix au
+kilo ».
+
+Graphiques dessinés à la main en SVG, sans bibliothèque ni emprunt aux autres modules. Sur
+téléphone, les étiquettes grossissent et la colonne « panier moyen » du tableau par magasin
+s'efface pour que rien ne déborde.
+
+**Il ne reste que l'étape 6, le lien avec Astra**, dont la forme est à reconfirmer (§12).
 
 ---
 

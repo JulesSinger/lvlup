@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { estimateList, lastPrice, priceHistory } from './prices';
+import { estimateList, lastPrice, priceHistory, priceSummary, pricedItems } from './prices';
 import type { ListEntry, Trip, TripItem } from './types';
 
 const trip = (id: string, number: number, storeId: string | null, storeName: string, day: string): Trip => ({
@@ -84,5 +84,30 @@ describe('estimateList', () => {
 
   it('un prix déjà saisi sur la ligne l’emporte sur l’historique', () => {
     expect(estimateList([entry('lait', 99)], tripItems, trips, 'leclerc').totalCents).toBe(99);
+  });
+});
+
+describe('priceSummary', () => {
+  it('premier, dernier, plus bas, plus haut, et l’évolution en pourcentage', () => {
+    const summary = priceSummary(priceHistory('lait', tripItems, trips));
+    expect(summary).toMatchObject({ minCents: 115, maxCents: 129, changePercent: 3 }); // 115 → 119
+    expect(summary?.first.storeName).toBe('Leclerc');
+    expect(summary?.last.priceCents).toBe(119);
+  });
+
+  it('un seul prix : pas d’évolution ; aucun prix : rien', () => {
+    expect(priceSummary(priceHistory('lait', tripItems, trips).slice(0, 1))?.changePercent).toBeNull();
+    expect(priceSummary([])).toBeNull();
+  });
+});
+
+describe('pricedItems', () => {
+  it('seuls les articles avec au moins un prix, par ordre alphabétique', () => {
+    const items = [
+      { id: 'lait', name: 'Lait' },
+      { id: 'cafe', name: 'Café' },
+      { id: 'pain', name: 'Pain' },
+    ];
+    expect(pricedItems(items, tripItems).map((i) => i.id)).toEqual(['lait']);
   });
 });

@@ -4,6 +4,7 @@ import { AddItemBar } from './components/AddItemBar';
 import { CloseTripDialog, type CloseForm } from './components/CloseTripDialog';
 import { ItemEditor } from './components/ItemEditor';
 import { ListLine } from './components/ListLine';
+import { StatsView } from './components/StatsView';
 import { TripsView } from './components/TripsView';
 import { coursesStore } from './data';
 import { groupByAisle, guessAisle } from './lib/aisles';
@@ -29,7 +30,7 @@ import {
  * On ajoute en tapant (le rayon se devine), on coche en magasin, on note le
  * prix de ce qu'on met dans le panier. « Terminer la course » (étape 4)
  * enregistre la course et remet les habituels ; l'onglet « Courses » en
- * garde l'historique.
+ * garde l'historique, l'onglet « Chiffres » (étape 5) en tire les totaux.
  *
  * Pas de mode hors ligne (décision du 25/09/2026) : une écriture qui échoue
  * est annulée à l'écran et l'erreur s'affiche, sans rien perdre de ce qui
@@ -44,7 +45,7 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
   const [editing, setEditing] = useState<ListEntry | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
   /** La liste, ou l'historique des courses (étape 4). */
-  const [view, setView] = useState<'list' | 'trips'>('list');
+  const [view, setView] = useState<'list' | 'trips' | 'stats'>('list');
   const [closing, setClosing] = useState(false);
   /** Le compte rendu de la dernière course terminée, jusqu'à la prochaine action. */
   const [notice, setNotice] = useState('');
@@ -214,7 +215,7 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
         )}
 
         <div className="courses-view-tabs" role="tablist" aria-label="Affichage">
-          {(['list', 'trips'] as const).map((v) => (
+          {(['list', 'trips', 'stats'] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -226,7 +227,7 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
                 setNotice('');
               }}
             >
-              {v === 'list' ? 'Liste' : `Courses${trips.length > 0 ? ` (${trips.length})` : ''}`}
+              {v === 'list' ? 'Liste' : v === 'stats' ? 'Chiffres' : `Courses${trips.length > 0 ? ` (${trips.length})` : ''}`}
             </button>
           ))}
         </div>
@@ -239,6 +240,8 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
 
         {loading ? (
           <p>Chargement…</p>
+        ) : view === 'stats' ? (
+          <StatsView trips={trips} tripItems={tripItems} items={items} />
         ) : view === 'trips' ? (
           <TripsView trips={trips} tripItems={tripItems} onDelete={deleteTrip} />
         ) : (
