@@ -602,3 +602,88 @@
     justify-content: flex-end;
   }
 }
+
+/* --- Code-barres (étape 6) --------------------------------------------- */
+
+.nutrition-add-extra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.nutrition-add-extra .nutrition-create-food {
+  margin-top: 0;
+}
+
+.nutrition-barcode-camera {
+  position: relative;
+  margin-bottom: 14px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 4 / 3;
+  max-height: 46vh;
+}
+
+.nutrition-barcode-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Un cadre indicatif, large et bas comme un code-barres. */
+.nutrition-barcode-frame {
+  position: absolute;
+  inset: 32% 12%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 8px;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+.nutrition-barcode-status {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  margin: 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+.nutrition-barcode-message,
+.nutrition-barcode-notice {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.nutrition-barcode-notice b {
+  color: var(--text);
+}
+
+.nutrition-barcode-manual {
+  display: flex;
+  gap: 8px;
+}
+
+.nutrition-barcode-manual input {
+  flex: 1;
+  min-width: 0;
+}
+
+.nutrition-barcode-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nutrition-barcode-foot .nutrition-credit {
+  margin: 0;
+}

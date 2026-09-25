@@ -1,8 +1,8 @@
 /**
  * Suite e2e du module nutrition (Cérès).
  *
- * Étapes 3 à 5 (docs/etude-nutrition.md §10) : le journal du jour,
- * l'objectif quotidien, les aliments perso et les favoris. Ces
+ * Étapes 3 à 6 (docs/etude-nutrition.md §10) : le journal du jour,
+ * l'objectif quotidien, les aliments perso, les favoris et le code-barres. Ces
  * vérifications suivent un vrai parcours — chercher un aliment dans la
  * table CIQUAL embarquée, l'ajouter, corriger sa quantité, le retirer,
  * retrouver ses récents, copier un repas de la veille — plus le rendu
@@ -262,6 +262,92 @@ export async function run({ browser, check, BASE }) {
     'Le journal garde l’aliment supprimé, avec ses valeurs d’origine (193 kcal, pas 200)',
     (await cantine.textContent())?.includes('193 kcal') ?? false,
   );
+
+  // --- Code-barres (étape 6) -----------------------------------------------
+  // Open Food Facts est simulé : une vérification ne dépend jamais d'un
+  // service extérieur (disponibilité, limite d'appels, fiche modifiée).
+  const offCalls = [];
+  await page.route('https://world.openfoodfacts.org/**', (route) => {
+    const url = route.request().url();
+    offCalls.push({ url, agent: route.request().headers()['x-user-agent'] ?? '' });
+    if (url.includes('/3017620422003.json')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({
+          status: 1,
+          product: {
+            product_name_fr: 'Pâte à tartiner aux noisettes',
+            brands: 'Nutella, Ferrero',
+            serving_quantity: 15,
+            nutriments: { 'energy-kcal_100g': 539, proteins_100g: 6.3, carbohydrates_100g: 57.5, fat_100g: 30.9 },
+          },
+        }),
+      });
+    }
+    return route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': '*' },
+      body: JSON.stringify({ status: 0, status_verbose: 'product not found' }),
+    });
+  });
+
+  await snack.getByRole('button', { name: '+ Ajouter' }).click();
+  await page.getByRole('button', { name: '📷 Code-barres' }).click();
+  await page.waitForSelector('.nutrition-barcode');
+  // Sans caméra (navigateur de test), le scanner le dit et laisse taper le code.
+  await page.waitForSelector('.nutrition-barcode-message, .nutrition-barcode-camera');
+  check('Le scanner s’ouvre, avec la saisie des chiffres toujours possible', await page.locator('#nutrition-barcode-input').isVisible());
+
+  await page.locator('#nutrition-barcode-input').fill('3017620422004');
+  await page.getByRole('button', { name: 'Chercher' }).click();
+  check(
+    'Une faute de frappe est détectée par la clé de contrôle, sans appel réseau',
+    (await page.locator('.nutrition-barcode .notice.error').textContent())?.includes('ne semble pas valide') === true && offCalls.length === 0,
+  );
+
+  await page.locator('#nutrition-barcode-input').fill('3017 6204 22003');
+  await page.getByRole('button', { name: 'Chercher' }).click();
+  await page.waitForSelector('.nutrition-barcode-notice');
+  check('Le produit est demandé à Open Food Facts', offCalls.length === 1 && offCalls[0].url.includes('/api/v2/product/3017620422003.json'));
+  check('L’application s’identifie auprès d’Open Food Facts', offCalls[0]?.agent.startsWith('Atlas-Ceres/') ?? false);
+  check('La fiche trouvée pré-remplit le formulaire, au format français', (await page.locator('#nutrition-food-protein').inputValue()) === '6,3' && (await page.locator('#nutrition-food-name').inputValue()) === 'Pâte à tartiner aux noisettes');
+  check('On est invité à relire des données participatives', (await page.locator('.nutrition-barcode-notice').textContent())?.includes('relis-les avec l’étiquette') ?? false);
+  await page.getByRole('button', { name: 'Enregistrer et choisir' }).click();
+  await page.waitForSelector('#nutrition-grams');
+  check('La portion de la fiche est proposée comme quantité (15 g)', (await page.locator('#nutrition-grams').inputValue()) === '15');
+  await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await page.waitForSelector('.nutrition-add-dialog', { state: 'detached' });
+  check('Le produit scanné s’ajoute au repas (15 g = 81 kcal)', (await snack.locator('.nutrition-entry', { hasText: 'Pâte à tartiner' }).textContent())?.includes('81 kcal') ?? false);
+
+  await snack.getByRole('button', { name: '+ Ajouter' }).click();
+  await page.getByRole('button', { name: '📷 Code-barres' }).click();
+  await page.locator('#nutrition-barcode-input').fill('3017620422003');
+  await page.getByRole('button', { name: 'Chercher' }).click();
+  await page.waitForSelector('#nutrition-grams');
+  check('Un produit déjà recopié est repris directement, sans nouvel appel', offCalls.length === 1);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.nutrition-add-dialog', { state: 'detached' });
+
+  await snack.getByRole('button', { name: '+ Ajouter' }).click();
+  await page.getByRole('button', { name: '📷 Code-barres' }).click();
+  await page.locator('#nutrition-barcode-input').fill('96385074');
+  await page.getByRole('button', { name: 'Chercher' }).click();
+  await page.waitForSelector('.nutrition-barcode-notice');
+  check('Un produit inconnu propose de recopier l’étiquette', (await page.locator('.nutrition-barcode-notice').textContent())?.includes('Produit inconnu') ?? false);
+  check('… avec un formulaire vide', (await page.locator('#nutrition-food-name').inputValue()) === '');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.nutrition-add-dialog', { state: 'detached' });
+
+  await page.getByRole('button', { name: 'Mes aliments' }).click();
+  check('Le produit scanné rejoint « Mes aliments »', (await page.locator('.nutrition-food-row', { hasText: 'Pâte à tartiner' }).count()) === 1);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.nutrition-foods-dialog', { state: 'detached' });
+  await page.unroute('https://world.openfoodfacts.org/**');
 
   await page.getByRole('button', { name: 'Modules' }).click();
   await page.waitForSelector('.hub-picker-card');

@@ -328,7 +328,7 @@ Pour le nom affiché, dans la famille céleste (Atlas, Zénith, Astra, Orbite) :
 | 3 ✅ | Journal du jour : ajout par repas, totaux, changement de jour, copier un repas, récents/favoris | **la V1 est atteinte** — livré le 25/09/2026, voir §14 (favoris reportés à l'étape 5) |
 | 4 ✅ | Objectifs datés et calculateur, barres face à l'objectif | on se fixe un cap — livré le 25/09/2026, voir §15 |
 | 5 ✅ | Aliments perso | tout se note — livré le 25/09/2026 avec les favoris, voir §16 |
-| 6 | Code-barres : saisie du code puis caméra (OFF, mise en cache) | les produits emballés en un geste |
+| 6 ✅ | Code-barres : saisie du code puis caméra (OFF, mise en cache) | les produits emballés en un geste — livré le 25/09/2026, voir §17 |
 | 7 | File hors ligne généralisée dans `core/`, historique de la semaine | la règle n°3 tient partout |
 
 L'ordre 4/5 peut s'inverser ; l'étape 7 peut remonter selon la réponse à §11.
@@ -523,6 +523,52 @@ l'usage.
 
 **Corriger ou supprimer un aliment ne réécrit jamais le journal** (§6) : un repas noté à
 193 kcal le reste après une correction à 200, et après la suppression de l'aliment.
+
+---
+
+## 17. Étape 6 : le code-barres (25/09/2026)
+
+**Le parcours.** Dans la fenêtre d'ajout, « 📷 Code-barres » ouvre la caméra arrière avec un cadre
+de visée ; les chiffres sous le code peuvent toujours être tapés à la place (caméra refusée,
+absente, code abîmé). Un code lu ou tapé passe par trois cas (`components/BarcodeLookup.tsx`) :
+
+1. **déjà recopié** chez l'utilisateur : repris tel quel, directement à la quantité, **sans
+   appel réseau** — donc aussi hors ligne ;
+2. **trouvé sur Open Food Facts** : un formulaire d'aliment **pré-rempli, à relire** (« ces
+   données sont participatives : relis-les avec l'étiquette »), avec ce qui manque sur la fiche
+   nommé en toutes lettres plutôt que remplacé par des zéros. « Enregistrer et choisir » en fait
+   une copie perso (`source: 'off'`, avec son code), corrigeable ensuite dans « Mes aliments » ;
+3. **inconnu** : le même formulaire, vide, qui garde le code — le prochain scan retrouvera
+   l'aliment recopié.
+
+Une faute de frappe est arrêtée par la **clé de contrôle** de l'EAN avant tout appel
+(`lib/barcode.ts`, testé), sinon elle donnerait un « produit inconnu » trompeur.
+
+**Open Food Facts** (`data/openFoodFacts.ts`) : une lecture par code, en-tête `X-User-Agent`
+pour s'identifier (un navigateur interdit de toucher à `User-Agent`), messages clairs pour une
+coupure réseau ou la limite d'appels (429). Un produit inconnu répond 404 avec `status: 0` —
+vérifié sur l'API réelle — et n'est pas traité comme une panne. Énergie : les kcal de la fiche,
+sinon ses kJ convertis. Mention « Produits : Open Food Facts (ODbL) » sous le scanner.
+
+**La lecture d'image, et l'iPhone** (§8, §12). Sur un navigateur qui a l'API native
+`BarcodeDetector` (Chrome), elle sert directement. Sinon — Safari sur iPhone, et tous les
+navigateurs iOS — la même API est fournie par **`barcode-detector`** (MIT), qui lit l'image avec
+**zxing compilé en WebAssembly** (`zxing-wasm`, MIT, version épinglée à celle qu'attend
+`barcode-detector`, le binaire devant correspondre au code qui le charge). Par défaut, cette
+bibliothèque télécharge son `.wasm` depuis un CDN : il est ici **servi par l'application**
+(`import … ?url`), jamais par un tiers. Coûts mesurés au build : `ponyfill-….js` 15 Ko et
+`zxing_reader-….wasm` 464 Ko compressés, tous deux chargés à la première ouverture du scanner
+seulement, puis gardés par le service worker (qui met en cache tout `/assets/`) — le scanner
+marche donc hors ligne pour les produits déjà recopiés.
+
+**Vérifié avec une vraie lecture**, pas seulement en simulation : une image d'EAN-13 générée
+puis donnée à Chromium comme caméra (`--use-file-for-fake-video-capture`) est lue par le lecteur
+natif, **et** par le chemin WebAssembly une fois `BarcodeDetector` retiré de la page — ce second
+cas chargeant bien `ponyfill` et le `.wasm` depuis l'application. Ce test caméra n'est pas dans la
+suite automatique : il demande de lancer Chromium avec des options que le lanceur commun
+(`e2e/run.mjs`, socle) ne passe pas. La suite couvre le reste (saisie des chiffres, clé de
+contrôle, Open Food Facts simulé, reprise sans appel, produit inconnu). **Reste à essayer sur un
+vrai iPhone.**
 
 ---
 

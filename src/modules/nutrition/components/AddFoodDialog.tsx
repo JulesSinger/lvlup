@@ -7,6 +7,7 @@ import { recentFoods } from '../lib/journal';
 import { EMPTY_FOOD_FORM } from '../lib/foodForm';
 import { formatDg, valuesForGrams, type NutrientValues } from '../lib/macros';
 import { MEAL_LABELS, type Food, type FoodInput, type Meal } from '../lib/types';
+import { BarcodeLookup, type BarcodeResult } from './BarcodeLookup';
 import { FoodForm } from './FoodForm';
 
 interface Props {
@@ -69,6 +70,10 @@ function fromFood(f: Food): Candidate {
  * quantité de la dernière fois — la moitié du remède à la friction de
  * saisie (docs/etude-nutrition.md §3).
  *
+ * Le code-barres (étape 6) passe par `BarcodeLookup` : un produit déjà
+ * recopié est repris directement, un produit d'Open Food Facts s'affiche en
+ * formulaire pré-rempli à relire, un produit inconnu en formulaire vide.
+ *
  * Les favoris (étape 5) s'affichent en tête et passent devant dans la
  * recherche ; un aliment introuvable se crée sur place, sans quitter la
  * fenêtre, puis se choisit aussitôt.
@@ -90,17 +95,23 @@ export function AddFoodDialog({ day, today, meal, onCancel, onAdded }: Props) {
   const [saving, setSaving] = useState(false);
   /** La recherche n'a rien trouvé : on crée l'aliment sur place (étape 5). */
   const [creating, setCreating] = useState(false);
+  /** Le scanner est ouvert (étape 6). */
+  const [scanning, setScanning] = useState(false);
+  /** Un code lu, pas encore recopié : son formulaire à relire (étape 6). */
+  const [scanned, setScanned] = useState<Exclude<BarcodeResult, { kind: 'known' }> | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      // Échap referme d'abord le formulaire de création, puis la fenêtre.
-      if (creating) setCreating(false);
+      // Échap referme d'abord le formulaire ou le scanner, puis la fenêtre.
+      if (scanned) setScanned(null);
+      else if (creating) setCreating(false);
+      else if (scanning) setScanning(false);
       else onCancel();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel, creating]);
+  }, [onCancel, creating, scanning, scanned]);
 
   useEffect(() => {
     let cancelled = false;
@@ -170,7 +181,19 @@ export function AddFoodDialog({ day, today, meal, onCancel, onAdded }: Props) {
     const food = await nutritionStore.createFood(input);
     setFoods((list) => [...list, food]);
     setCreating(false);
+    setScanning(false);
+    setScanned(null);
     choose(fromFood(food));
+  }
+
+  function onBarcode(result: BarcodeResult) {
+    if (result.kind === 'known') {
+      // Déjà recopié : ni appel réseau, ni formulaire — directement la quantité.
+      setScanning(false);
+      choose(fromFood(result.food));
+    } else {
+      setScanned(result);
+    }
   }
 
   function choose(candidate: Candidate) {
@@ -225,7 +248,31 @@ export function AddFoodDialog({ day, today, meal, onCancel, onAdded }: Props) {
         </div>
 
         <div className="modal-body">
-          {creating ? (
+          {scanned ? (
+            <>
+              {scanned.kind === 'off' ? (
+                <p className="nutrition-barcode-notice">
+                  Trouvé sur Open Food Facts. Ces données sont participatives :{' '}
+                  <b>relis-les avec l’étiquette</b> avant d’enregistrer
+                  {scanned.missing.length > 0 && <>, et complète {scanned.missing.join(', ')}</>}.
+                </p>
+              ) : (
+                <p className="nutrition-barcode-notice">
+                  Produit inconnu d’Open Food Facts ({scanned.barcode}). Recopie l’étiquette : le
+                  prochain scan le retrouvera.
+                </p>
+              )}
+              <FoodForm
+                initial={scanned.kind === 'off' ? scanned.values : EMPTY_FOOD_FORM}
+                submitLabel="Enregistrer et choisir"
+                extra={{ source: scanned.kind === 'off' ? 'off' : 'custom', barcode: scanned.barcode }}
+                onCancel={() => setScanned(null)}
+                onSubmit={createFood}
+              />
+            </>
+          ) : scanning && !selected ? (
+            <BarcodeLookup foods={foods} onResult={onBarcode} onBack={() => setScanning(false)} />
+          ) : creating ? (
             <FoodForm
               initial={{ ...EMPTY_FOOD_FORM, name: query.trim() }}
               submitLabel="Créer et choisir"
@@ -314,9 +361,14 @@ export function AddFoodDialog({ day, today, meal, onCancel, onAdded }: Props) {
                 <ResultList items={results} onChoose={choose} />
               )}
               {table !== null && (
-                <button type="button" className="btn btn-sm nutrition-create-food" onClick={() => setCreating(true)}>
-                  {query.trim() ? `+ Créer « ${query.trim()} »` : '+ Créer un aliment'}
-                </button>
+                <div className="nutrition-add-extra">
+                  <button type="button" className="btn btn-sm" onClick={() => setScanning(true)}>
+                    📷 Code-barres
+                  </button>
+                  <button type="button" className="btn btn-sm nutrition-create-food" onClick={() => setCreating(true)}>
+                    {query.trim() ? `+ Créer « ${query.trim()} »` : '+ Créer un aliment'}
+                  </button>
+                </div>
               )}
               <p className="nutrition-credit">Données : {CIQUAL_CREDIT}</p>
             </>
@@ -325,7 +377,7 @@ export function AddFoodDialog({ day, today, meal, onCancel, onAdded }: Props) {
           {error && <div className="notice error">{error}</div>}
         </div>
 
-        {selected && !creating && (
+        {selected && !creating && !scanned && (
           <div className="modal-foot">
             <button className="btn" onClick={onCancel}>
               Annuler

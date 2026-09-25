@@ -5,6 +5,11 @@ import type { FoodInput } from '../lib/types';
 interface Props {
   initial: FoodFormValues;
   submitLabel: string;
+  /**
+   * Ce que le formulaire n'affiche pas mais qui accompagne l'aliment : son
+   * code-barres et sa provenance (Open Food Facts), étape 6.
+   */
+  extra?: Pick<FoodInput, 'source' | 'barcode'>;
   onCancel: () => void;
   /** Rejette en cas d'échec : le formulaire reste rempli et affiche l'erreur. */
   onSubmit: (input: FoodInput) => Promise<void>;
@@ -23,7 +28,7 @@ const NUMBER_FIELDS = [
  * bien dans « Mes aliments » que dans la fenêtre d'ajout, quand la recherche
  * ne trouve rien.
  */
-export function FoodForm({ initial, submitLabel, onCancel, onSubmit }: Props) {
+export function FoodForm({ initial, submitLabel, extra, onCancel, onSubmit }: Props) {
   const [values, setValues] = useState<FoodFormValues>(initial);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -42,7 +47,7 @@ export function FoodForm({ initial, submitLabel, onCancel, onSubmit }: Props) {
     setSaving(true);
     setError('');
     try {
-      await onSubmit(result.input);
+      await onSubmit({ ...result.input, ...extra });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Enregistrement impossible.');
       setSaving(false);
