@@ -206,6 +206,8 @@ Pour le nom affiché, dans la famille céleste (Atlas, Zénith, Astra, Orbite, C
 
 ## 11. Questions ouvertes à trancher ensemble
 
+*Tranchées depuis : voir §12.*
+
 1. **Le nom** : Comète, Pléiades, Luna, ou autre ?
 2. **Partage à deux** : faut-il une liste commune avec quelqu'un d'autre ? (gros chantier, §8)
 3. **Lien avec Astra** : aucun pour l'instant (recommandé), ou prévoir le rapprochement en
@@ -216,6 +218,62 @@ Pour le nom affiché, dans la famille céleste (Atlas, Zénith, Astra, Orbite, C
    branchement à faire.)
 7. **Récurrence** : « à chaque course » suffit, ou faut-il une fréquence (toutes les N courses,
    tous les N jours) ?
+
+---
+
+## 12. Décisions prises avec Jules (25/09/2026)
+
+| Question (§11) | Décision | Conséquence |
+|---|---|---|
+| 1. Nom | **Comète** | `label: 'Comète'` ; nom technique `courses` |
+| 2. Partage à deux | **Non** | le RLS reste « une ligne, un compte », comme partout dans Atlas |
+| 3. Lien avec Astra | **Oui** | consigné sous la forme du **rapprochement en lecture seule** (§7, option 3), la seule qui ne compte pas deux fois un paiement déjà importé par la banque — **à confirmer avec Jules avant l'étape qui le construit**. Demande un mécanisme du socle |
+| 4. Listes | **Une seule liste**, mais **le magasin de chaque course** | une table des magasins ; chaque course en désigne un |
+| 5. Coût | **Le prix de chaque article** | voir ci-dessous : prix par ligne, total proposé, estimation avant d'acheter |
+| 6. Hors-ligne | **Pas de mode sans réseau** | l'étape 5 du découpage disparaît. Conséquence assumée : sans réseau, cocher ou terminer une course échoue avec un message, et le formulaire reste rempli. Le branchement sur la file du socle reste possible plus tard, sans migration |
+| 7. Récurrence | **Plusieurs options** : à chaque course, toutes les 2, 3, 4… courses | voir ci-dessous |
+
+### Le prix de chaque article
+
+- En magasin ou au retour, chaque ligne cochée peut recevoir **son prix** (celui payé pour la
+  quantité achetée, en centimes entiers).
+- **Le total de la course est proposé** comme la somme des prix saisis, mais reste modifiable :
+  **le ticket fait foi**. Une promotion au total, ou un article oublié, ne doit pas forcer à
+  tout ressaisir.
+- **Les prix sont figés** dans l'historique (`courses_trip_items`), avec le magasin de la course :
+  on en tire l'historique du prix d'un article, **par magasin**, sans table supplémentaire.
+- Cela ouvre, sans rien stocker de plus, **l'estimation avant d'acheter** (le total probable de la
+  liste, d'après les derniers prix connus dans ce magasin) — la fonctionnalité de Listonic, avec de
+  vrais prix plutôt que des prix inventés.
+
+### La récurrence, en nombre de courses
+
+Un article porte une récurrence : **aucune** (ponctuel), **1** (à chaque course), **2**, **3**,
+**4**… courses. Les courses sont numérotées dans l'ordre. Un article habituel acheté à la course
+n° *k* revient sur la liste pour la course n° *k + N* : à la clôture de la course n° *j*, il y
+est remis si `(j + 1) − k ≥ N`. Un habituel pas encore acheté du tout est simplement sur la liste.
+Cette règle vit dans `lib/trip.ts`, testée avant tout écran (§6).
+
+### Modèle révisé (remplace §5)
+
+| Table | Rôle | Colonnes principales |
+|---|---|---|
+| `courses_items` | le catalogue | nom, rayon (CHECK), `recurrence` (entier ≥ 1, ou nul = ponctuel), quantité par défaut, numéro de la dernière course où il a été acheté |
+| `courses_stores` | les magasins | nom |
+| `courses_list` | la liste en cours | article, quantité, note, `checked`, prix saisi (facultatif) |
+| `courses_trips` | une course faite | numéro, jour, magasin, **total en centimes entiers** (celui du ticket) |
+| `courses_trip_items` | ce qui a été acheté | nom, quantité, rayon et **prix figés** |
+
+### Découpage révisé (remplace §10)
+
+| Étape | Contenu | Résultat |
+|---|---|---|
+| 1 | Migration, contrat et ses deux implémentations, module signet | le module existe, vide |
+| 2 | Bibliothèques pures : rayons, clôture d'une course et récurrence, prix et estimation, statistiques | la règle est juste |
+| 3 | Écran de la liste : ajouter, récurrence, rayons, cocher, prix | **la V1 est atteinte** |
+| 4 | Terminer la course (magasin, total proposé), historique | on sait ce que coûte une course |
+| 5 | Statistiques : par mois, panier moyen, par magasin, prix d'un article dans le temps | on voit l'évolution |
+| 6 | Le lien avec Astra : mécanisme du socle, puis rapprochement en lecture seule | — |
 
 ---
 
