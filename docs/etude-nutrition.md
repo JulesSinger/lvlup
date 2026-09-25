@@ -325,7 +325,7 @@ Pour le nom affiché, dans la famille céleste (Atlas, Zénith, Astra, Orbite) :
 |---|---|---|
 | 1 ✅ | Migration datée, contrat `NutritionStore` + implémentations locale et Supabase, `module.ts` avec un écran signet, inscription au registre, tests exigés par `conventions.test.ts` | le module existe, vide — **livré le 25/09/2026** |
 | 2 ✅ | Script d'import CIQUAL → JSON, `lib/foodSearch.ts` + `lib/macros.ts` testées | la base est là, la règle est juste — **livré le 25/09/2026**, voir §13 |
-| 3 | Journal du jour : ajout par repas, totaux, changement de jour, copier un repas, récents/favoris | **la V1 est atteinte** |
+| 3 ✅ | Journal du jour : ajout par repas, totaux, changement de jour, copier un repas, récents/favoris | **la V1 est atteinte** — livré le 25/09/2026, voir §14 (favoris reportés à l'étape 5) |
 | 4 | Objectifs datés et calculateur, barres face à l'objectif | on se fixe un cap |
 | 5 | Aliments perso | tout se note |
 | 6 | Code-barres : saisie du code puis caméra (OFF, mise en cache) | les produits emballés en un geste |
@@ -415,6 +415,48 @@ génériques). Un test tourne sur la vraie table embarquée, pour qu'une régén
 de figer l'entrée), sommes, kcal d'un objectif en grammes, part de chaque macro dans l'énergie
 (calculée depuis les grammes, arrondie pour faire exactement 100 %), conversion
 pourcentage → grammes pour le futur calculateur.
+
+---
+
+## 14. Étape 3 : le journal du jour, la V1 (25/09/2026)
+
+**Ce que fait l'écran.** Un jour à la fois (flèches, plus un bouton « Aujourd'hui » dès qu'on
+s'en éloigne), le total en tête : kcal, puis protéines, glucides et lipides en grammes, avec leur
+part de l'énergie. En dessous, les quatre repas, chacun avec son total, ses aliments (nom,
+quantité, kcal), un bouton « + Ajouter », et « Copier d'hier (n) » quand la veille a quelque
+chose sous ce repas. Toucher une ligne ouvre la correction de quantité, avec « Retirer ».
+
+**Ajouter un aliment** (`components/AddFoodDialog.tsx`). La table CIQUAL se télécharge à la
+première ouverture de cette fenêtre, pas avant : elle est dans son propre fichier au build
+(`ciqual-….js`, 243 Ko, **73 Ko compressés**), la mesure prévue en §13 est faite. Sans rien
+taper, la fenêtre propose les aliments mangés dans les 60 derniers jours, le plus récent
+d'abord. En tapant, ces mêmes aliments passent devant dans les résultats. Choisir un aliment
+propose la quantité de la dernière fois, sinon la portion de l'aliment perso, sinon 100 g, avec
+un aperçu des valeurs avant d'ajouter.
+
+**Choix faits en chemin :**
+
+- **Corriger une quantité remet à l'échelle les valeurs figées** (`rescaleEntry`), sans relire
+  l'aliment d'origine, qui a pu être corrigé ou supprimé depuis. L'entrée reste l'aliment tel
+  qu'il était quand on l'a noté (§6).
+- **« Copier » ne propose que la veille** du jour affiché, repas par repas, en reprenant les
+  valeurs figées. Copier depuis n'importe quel jour pourra venir plus tard si le besoin se fait
+  sentir ; la veille couvre le cas « même petit-déjeuner qu'hier ».
+- **Les favoris attendent l'étape 5.** La colonne `favorite` n'existe que sur les aliments perso,
+  et les récents couvrent déjà l'essentiel du besoin. Marquer un aliment CIQUAL comme favori
+  demanderait un stockage de plus, à décider avec les aliments perso.
+- **Pas encore d'écran d'objectif** (étape 4), mais le total sait déjà en afficher un : dès qu'un
+  objectif existe, chaque chiffre gagne une barre et un « / objectif ». Sans objectif, une ligne
+  le dit plutôt que d'afficher des barres vides. Au-delà de l'objectif, la barre reste pleine et
+  de la même couleur, jamais rouge (§8).
+- **Une erreur d'enregistrement laisse la fenêtre ouverte et remplie** (décision §12 : la file
+  hors ligne vient après la V1). La copie d'un repas écrit ligne par ligne : si le réseau lâche
+  au milieu, ce qui est copié reste et l'erreur s'affiche.
+- La mention « Ciqual 2025, ANSES » et « des estimations, pas un avis médical » sont en pied de
+  page (§4, §8).
+
+**Une limite de la table, pas de l'app :** CIQUAL 2025 n'a par exemple pas de « poulet rôti »,
+seulement cru et grillé/poêlé. Ce genre de trou se comblera avec les aliments perso (étape 5).
 
 ---
 

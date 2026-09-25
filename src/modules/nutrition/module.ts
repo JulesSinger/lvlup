@@ -6,8 +6,9 @@ import { NutritionScreen } from './NutritionScreen';
 /**
  * Déclaration du module nutrition.
  *
- * Étape 1 (docs/etude-nutrition.md §10) : le module existe, vide — stockage
- * dans les deux modes, un écran signet. Cérès n'a aucune sauvegarde
+ * Étape 3 (docs/etude-nutrition.md §10, §14) : la V1 — le journal du jour,
+ * avec la table CIQUAL embarquée pour chercher les aliments. Objectifs,
+ * aliments perso et code-barres viennent aux étapes suivantes. Cérès n'a aucune sauvegarde
  * antérieure à relire : c'est un module neuf, donc pas de `fromLegacyBackup`.
  */
 export const nutritionModule: AtlasModule = {

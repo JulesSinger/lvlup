@@ -19,3 +19,25 @@ export function shiftDay(day: string, offset: number): string {
   // Midi local : neutralise les changements d'heure été/hiver.
   return dayString(new Date(y, m - 1, d + offset, 12));
 }
+
+const DAY_NAMES = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+const MONTH_NAMES = [
+  'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+  'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+];
+
+/**
+ * Le nom d'un jour tel qu'on le dit : « Aujourd'hui », « Hier », « Demain »,
+ * sinon « jeudi 24 septembre » (l'année seulement si ce n'est pas celle de
+ * `today`). Écrit à la main plutôt qu'avec `toLocaleDateString`, dont le
+ * résultat dépend de la langue de l'appareil.
+ */
+export function dayLabel(day: string, today: string): string {
+  if (day === today) return "Aujourd'hui";
+  if (day === shiftDay(today, -1)) return 'Hier';
+  if (day === shiftDay(today, 1)) return 'Demain';
+  const [y, m, d] = day.split('-').map(Number);
+  const weekday = DAY_NAMES[new Date(y, m - 1, d, 12).getDay()];
+  const year = day.slice(0, 4) === today.slice(0, 4) ? '' : ` ${y}`;
+  return `${weekday} ${d} ${MONTH_NAMES[m - 1]}${year}`;
+}

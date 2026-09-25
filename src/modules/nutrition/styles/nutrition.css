@@ -1,0 +1,382 @@
+/* Cérès — le journal du jour (étape 3, docs/etude-nutrition.md §10). */
+
+/* Un journal se lit mieux sur une colonne étroite que sur les 1080px de
+   `.main` (socle). Classe ajoutée par-dessus, importée après le socle dans
+   `styles.css`, comme `.budget-main` d'Astra. */
+.nutrition-main {
+  max-width: 780px;
+}
+
+/* Même piège qu'Astra (CLAUDE.md §8, 06/09/2026) : sur mobile, la marge
+   automatique de `.main` désactive l'étirement une fois `.layout` passé en
+   colonne, et la page reprend la largeur de son contenu. */
+@media (max-width: 760px) {
+  .nutrition-main {
+    width: 100%;
+  }
+
+  .nutrition-topbar-btn {
+    width: 40px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .nutrition-topbar-label {
+    display: none;
+  }
+}
+
+/* --- Changer de jour -------------------------------------------------- */
+
+.nutrition-day-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.nutrition-day-label {
+  min-width: 170px;
+  text-align: center;
+  font-weight: 650;
+  font-size: 16px;
+}
+
+.nutrition-day-label::first-letter {
+  text-transform: uppercase;
+}
+
+/* --- Total du jour ---------------------------------------------------- */
+
+.nutrition-summary {
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.nutrition-summary-kcal {
+  margin-bottom: 8px;
+  color: var(--text-dim);
+}
+
+.nutrition-summary-kcal-value {
+  color: var(--text);
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.nutrition-summary-macros {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.nutrition-summary-macro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.nutrition-summary-macro-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.nutrition-summary-macro-grams {
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.nutrition-summary-macro-goal {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+.nutrition-summary-macro-share {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.nutrition-summary-hint {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+/* Une barre pleine au-delà de l'objectif, jamais rouge (étude §8). */
+.nutrition-bar {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-strong);
+  overflow: hidden;
+}
+
+.nutrition-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: #9bd16a;
+}
+
+.nutrition-bar-fill.carbs {
+  background: #e8c267;
+}
+
+.nutrition-bar-fill.fat {
+  background: #e79a6b;
+}
+
+.nutrition-bar-fill.kcal {
+  background: var(--text-dim);
+}
+
+/* --- Les repas -------------------------------------------------------- */
+
+.nutrition-meals {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nutrition-meal {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+}
+
+.nutrition-meal-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.nutrition-meal-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.nutrition-meal-kcal {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.nutrition-entries {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+/* Toute la ligne est cliquable (modifier la quantité) : une cible large,
+   pensée pour un pouce plutôt qu'un petit bouton « Modifier ». */
+.nutrition-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nutrition-entry:hover,
+.nutrition-entry:focus-visible {
+  background: var(--surface);
+}
+
+.nutrition-entry-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.nutrition-entry-grams {
+  color: var(--text-faint);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.nutrition-entry-kcal {
+  min-width: 64px;
+  text-align: right;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.nutrition-meal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nutrition-credit {
+  margin: 18px 0 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+/* --- Fenêtre d'ajout -------------------------------------------------- */
+
+.nutrition-results-title {
+  margin: 4px 0 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.nutrition-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+}
+
+.nutrition-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nutrition-result:hover,
+.nutrition-result:focus-visible {
+  background: var(--surface-2);
+}
+
+.nutrition-result-detail,
+.nutrition-quantity-detail {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.nutrition-search-hint {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.nutrition-quantity-food {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 14px;
+}
+
+.nutrition-quantity-preview {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.nutrition-quantity-preview b {
+  color: var(--text);
+}
+
+/* « Retirer » à gauche, loin de « Enregistrer » : pas de suppression par
+   un pouce qui glisse. */
+.nutrition-entry-delete {
+  margin-right: auto;
+}
+
+@media (max-width: 520px) {
+  .nutrition-summary-macros {
+    gap: 10px;
+  }
+
+  .nutrition-summary-macro-grams {
+    font-size: 15px;
+  }
+
+  .nutrition-summary-macro-goal {
+    display: block;
+  }
+}
+
+/* --- Aperçu sur la page d'accueil publique (CeresLandingPreview) ----- */
+
+.nutrition-landing-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 190px;
+  margin: 0 auto;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.nutrition-landing-total {
+  margin-bottom: 2px;
+  text-align: center;
+  color: var(--text-faint);
+}
+
+.nutrition-landing-total b {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.nutrition-landing-row {
+  display: grid;
+  grid-template-columns: 58px 1fr 36px;
+  align-items: center;
+  gap: 6px;
+}
+
+.nutrition-landing-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-strong);
+  overflow: hidden;
+}
+
+.nutrition-landing-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.nutrition-landing-fill.protein {
+  background: #9bd16a;
+}
+
+.nutrition-landing-fill.carbs {
+  background: #e8c267;
+}
+
+.nutrition-landing-fill.fat {
+  background: #e79a6b;
+}
+
+.nutrition-landing-grams {
+  text-align: right;
+  color: var(--text);
+}
