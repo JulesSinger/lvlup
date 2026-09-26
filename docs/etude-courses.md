@@ -227,7 +227,7 @@ Pour le nom affiché, dans la famille céleste (Atlas, Zénith, Astra, Orbite, C
 |---|---|---|
 | 1. Nom | **Comète** | `label: 'Comète'` ; nom technique `courses` |
 | 2. Partage à deux | **Non** | le RLS reste « une ligne, un compte », comme partout dans Atlas |
-| 3. Lien avec Astra | **Oui** | consigné sous la forme du **rapprochement en lecture seule** (§7, option 3), la seule qui ne compte pas deux fois un paiement déjà importé par la banque — **à confirmer avec Jules avant l'étape qui le construit**. Demande un mécanisme du socle |
+| 3. Lien avec Astra | **Oui** | d'abord consigné comme un rapprochement en lecture seule ; **reconfirmé le 26/09/2026 sous la forme d'une dépense créée par course** (option 1), le double comptage avec un relevé importé étant assumé — voir §18 |
 | 4. Listes | **Une seule liste**, mais **le magasin de chaque course** | une table des magasins ; chaque course en désigne un |
 | 5. Coût | **Le prix de chaque article** | voir ci-dessous : prix par ligne, total proposé, estimation avant d'acheter |
 | 6. Hors-ligne | **Pas de mode sans réseau** | l'étape 5 du découpage disparaît. Conséquence assumée : sans réseau, cocher ou terminer une course échoue avec un message, et le formulaire reste rempli. Le branchement sur la file du socle reste possible plus tard, sans migration |
@@ -273,7 +273,7 @@ Cette règle vit dans `lib/trip.ts`, testée avant tout écran (§6).
 | 3 ✅ | Écran de la liste : ajouter, récurrence, rayons, cocher, prix | **la V1 est atteinte** — livré le 25/09/2026, voir §15 |
 | 4 ✅ | Terminer la course (magasin, total proposé), historique | on sait ce que coûte une course — livré le 25/09/2026, voir §16 |
 | 5 ✅ | Statistiques : par mois, panier moyen, par magasin, prix d'un article dans le temps | on voit l'évolution — livré le 25/09/2026, voir §17 |
-| 6 | Le lien avec Astra : mécanisme du socle, puis rapprochement en lecture seule | — |
+| 6 ✅ | Le lien avec Astra : mécanisme du socle, puis ~~rapprochement en lecture seule~~ **une dépense par course** (décision du 26/09/2026) | la course arrive au budget — livré le 26/09/2026, voir §18 |
 
 ---
 
@@ -430,6 +430,66 @@ téléphone, les étiquettes grossissent et la colonne « panier moyen » du tab
 s'efface pour que rien ne déborde.
 
 **Il ne reste que l'étape 6, le lien avec Astra**, dont la forme est à reconfirmer (§12).
+
+---
+
+## 18. Étape 6 : chaque course devient une dépense d'Astra (26/09/2026)
+
+**La décision de Jules**, qui remplace le rapprochement en lecture seule consigné en §12 :
+« j'utilise peu l'import bancaire, et même si je l'utilise, au pire je peux enlever juste cette
+ligne ». Chaque course terminée **crée donc une dépense dans Astra**. Le double comptage avec un
+relevé importé ensuite est assumé : Jules supprime alors l'une des deux lignes.
+
+### Un mécanisme du socle : les services entre modules
+
+Un module n'a pas le droit d'importer un autre module (`conventions.test.ts`). D'où un nouveau
+mécanisme, **`core/lib/services.ts`**, sur le même principe que `SettingsSection` ou
+`LandingPreview` :
+
+- le socle définit **la forme** d'un service — ici `ExpenseService` : `record`, `remove`,
+  `recorded` — sans aucune implémentation ;
+- un module **déclare** ce qu'il fournit dans sa fiche : Astra déclare
+  `provides: { expenses: createExpenseService(budgetStore) }` ;
+- le socle **rassemble** ces déclarations (`collectServices`, une fois pour toutes dans
+  `App.tsx`) et les passe à l'écran de chaque module (`ModuleScreenProps.services`) ;
+- un module qui s'en sert **supporte son absence** : sans Astra dans le registre, Comète
+  n'affiche simplement ni la case ni le repère.
+
+Ce mécanisme servira à d'autres liens entre modules (Cérès ↔ Zénith, par exemple).
+
+### Sans doublon, même envoyé deux fois
+
+Chaque dépense porte une **référence stable**, `comete:course:<numéro>`, rangée côté Astra dans
+`import_key` — la colonne qui rend déjà l'import bancaire rejouable, avec son index unique : même
+garantie, **aucune migration**. Le numéro de course plutôt que l'identifiant en base, parce
+qu'une restauration de sauvegarde régénère les identifiants mais garde les numéros. Les
+empreintes bancaires n'ont jamais de préfixe « module: », les deux ne peuvent pas se confondre,
+et le service ne touche jamais une écriture importée (testé).
+
+### Ce qui se voit
+
+- **En terminant la course**, une case « Ajouter la dépense au budget (Astra, catégorie
+  Courses) », **cochée par défaut** ; le compte rendu dit « Ajoutée au budget. ». La décocher
+  sert le jour où le relevé bancaire a déjà amené ce paiement.
+- **Dans Astra**, une dépense « Courses — Leclerc » du montant du ticket, au jour de la course,
+  avec la note « Comète, course n° 3 », rangée dans la catégorie **« Courses »** si elle existe
+  (trouvée sans casse ni accents), sinon **« à classer »** — jamais une catégorie devinée.
+- **Dans l'historique** de Comète, « Dans le budget (Astra) ✓ », ou un bouton **« Ajouter au
+  budget »** pour une course terminée sans, ou dont l'envoi a échoué : la course est enregistrée
+  quoi qu'il arrive, et la référence rend l'envoi rejouable sans doublon.
+- **Supprimer une course retire aussi sa dépense** d'Astra (la confirmation le dit). La dépense
+  est retirée d'abord : si ce retrait échoue, la course reste et l'on peut réessayer ; dans
+  l'autre ordre, la dépense resterait orpheline.
+
+### Vérifié
+
+Des deux côtés dans la suite de bout en bout : après trois courses envoyées, une supprimée, une
+terminée sans envoi puis envoyée après coup et supprimée à son tour, **Astra montre exactement
+les dépenses des deux courses restantes** (−12,50 € et −2,50 €), « à classer » faute de
+catégorie « Courses » dans ce compte de test. C'est la seule vérification de la suite de Comète
+qui entre dans l'écran d'un autre module : c'est l'objet même du lien.
+
+**Le découpage de §12 est terminé.**
 
 ---
 

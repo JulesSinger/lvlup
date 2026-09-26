@@ -10,6 +10,7 @@ import { coursesStore } from './data';
 import { groupByAisle, guessAisle } from './lib/aisles';
 import { formatEuros } from './lib/money';
 import { estimateList, lastPrice } from './lib/prices';
+import { expenseForTrip, tripRef } from './lib/budgetLink';
 import { buildClosePlan, nextTripNumber, suggestedTotal } from './lib/trip';
 import {
   AISLE_LABELS,
@@ -36,7 +37,8 @@ import {
  * est annulée à l'écran et l'erreur s'affiche, sans rien perdre de ce qui
  * était tapé.
  */
-export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
+export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, services }: ModuleScreenProps) {
+  const expenses = services.expenses;
   const [items, setItems] = useState<Item[]>([]);
   const [entries, setEntries] = useState<ListEntry[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -154,18 +156,35 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
       totalCents: form.totalCents,
       note: form.note,
     });
-    await coursesStore.closeTrip(plan);
+    const trip = await coursesStore.closeTrip(plan);
     setClosing(false);
     const back = plan.addItemIds.length;
+    let budget = '';
+    if (form.sendToBudget && expenses) {
+      // La course est enregistrée quoi qu'il arrive ; un échec ici se
+      // rattrape depuis l'historique (« Ajouter au budget »), sans rien
+      // ressaisir — la référence rend l'envoi rejouable sans doublon.
+      try {
+        await expenses.record(expenseForTrip(trip));
+        budget = ' Ajoutée au budget.';
+      } catch (err) {
+        budget = ` Pas encore dans le budget (${err instanceof Error ? err.message : 'erreur'}) : réessaie depuis l’onglet Courses.`;
+      }
+    }
     setNotice(
       `Course enregistrée : ${formatEuros(plan.trip.totalCents)}${store ? ` chez ${store.name}` : ''}.` +
-        (back > 0 ? ` ${back} habituel${back > 1 ? 's' : ''} remis sur la liste.` : ''),
+        (back > 0 ? ` ${back} habituel${back > 1 ? 's' : ''} remis sur la liste.` : '') +
+        budget,
     );
     await refresh();
   }
 
   async function deleteTrip(trip: Trip) {
     try {
+      // La dépense du budget d'abord : si elle échoue, la course reste là
+      // et l'on peut réessayer ; dans l'autre ordre, la dépense resterait
+      // orpheline, sans course pour la retirer.
+      await expenses?.remove(tripRef(trip));
       await coursesStore.deleteTrip(trip.id);
       await refresh();
     } catch (err) {
@@ -243,7 +262,7 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
         ) : view === 'stats' ? (
           <StatsView trips={trips} tripItems={tripItems} items={items} />
         ) : view === 'trips' ? (
-          <TripsView trips={trips} tripItems={tripItems} onDelete={deleteTrip} />
+          <TripsView trips={trips} tripItems={tripItems} onDelete={deleteTrip} expenses={expenses} onError={onError} />
         ) : (
           <>
             <AddItemBar items={items} entries={entries} nextTrip={nextTrip} onAdd={addItem} />
@@ -318,6 +337,7 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
             entries={entries}
             stores={stores}
             trips={trips}
+            canSendToBudget={expenses !== undefined}
             onCancel={() => setClosing(false)}
             onConfirm={closeTrip}
           />

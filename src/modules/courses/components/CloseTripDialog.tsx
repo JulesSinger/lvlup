@@ -11,12 +11,16 @@ export interface CloseForm {
   store: { existing: Store | null; name: string };
   totalCents: number;
   note: string;
+  /** Ajouter la course comme dépense au budget (Astra), étape 6 */
+  sendToBudget: boolean;
 }
 
 interface Props {
   entries: ListEntry[];
   stores: Store[];
   trips: Trip[];
+  /** Le budget sait-il enregistrer une dépense ? (service du socle présent) */
+  canSendToBudget: boolean;
   onCancel: () => void;
   /** Rejette en cas d'échec : la fenêtre reste ouverte et remplie. */
   onConfirm: (form: CloseForm) => Promise<void>;
@@ -32,7 +36,7 @@ interface Props {
  * fait foi** : une promotion au total, un article sans prix, et on corrige
  * ici sans tout ressaisir.
  */
-export function CloseTripDialog({ entries, stores, trips, onCancel, onConfirm }: Props) {
+export function CloseTripDialog({ entries, stores, trips, canSendToBudget, onCancel, onConfirm }: Props) {
   const ranked = storesByUse(stores, trips);
   const suggestion = suggestedTotal(entries);
   const [storeId, setStoreId] = useState<string | null>(ranked[0]?.id ?? null);
@@ -40,6 +44,9 @@ export function CloseTripDialog({ entries, stores, trips, onCancel, onConfirm }:
   const [total, setTotal] = useState(suggestion.totalCents > 0 ? centsToInput(suggestion.totalCents) : '');
   const [day, setDay] = useState(dayString());
   const [note, setNote] = useState('');
+  // Coché par défaut : c'est ce que Jules a demandé (26/09/2026). Décocher
+  // sert le jour où le relevé bancaire a déjà amené ce paiement.
+  const [sendToBudget, setSendToBudget] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -74,6 +81,7 @@ export function CloseTripDialog({ entries, stores, trips, onCancel, onConfirm }:
         store: { existing, name: existing?.name ?? typed },
         totalCents,
         note: note.trim(),
+        sendToBudget: canSendToBudget && sendToBudget,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Enregistrement impossible.');
@@ -173,6 +181,13 @@ export function CloseTripDialog({ entries, stores, trips, onCancel, onConfirm }:
               placeholder="promo, bon de réduction…"
             />
           </div>
+
+          {canSendToBudget && (
+            <label className="courses-budget-toggle">
+              <input type="checkbox" checked={sendToBudget} onChange={(e) => setSendToBudget(e.target.checked)} />
+              Ajouter la dépense au budget (Astra, catégorie Courses)
+            </label>
+          )}
 
           {error && <div className="notice error">{error}</div>}
         </div>

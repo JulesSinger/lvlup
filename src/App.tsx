@@ -7,8 +7,15 @@ import { coreStore } from './core/data';
 import { exportBackup, importBackup, readBackupFile } from './core/data/backup';
 import { DEFAULT_SETTINGS, type Settings } from './core/data/coreStore';
 import { timezoneOffsetMinutes } from './core/lib/push';
+import { collectServices } from './core/lib/services';
 import type { AppUser } from './core/lib/types';
 import { MODULES } from './modules';
+
+/**
+ * Les services que les modules se rendent (`core/lib/services.ts`). Calculés
+ * une fois : le registre ne change pas pendant la vie de l'application.
+ */
+const SERVICES = collectServices(MODULES);
 
 /**
  * La coquille du hub.
@@ -170,6 +177,7 @@ export default function App() {
           onOpenSettings={() => setShowSettings(true)}
           onBackToHub={() => setModuleId(null)}
           reloadToken={reloadToken}
+          services={SERVICES}
         />
       )}
 

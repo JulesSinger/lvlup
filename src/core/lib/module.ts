@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import type { Settings } from '../data/coreStore';
+import type { AtlasServices } from './services';
 import type { AppUser } from './types';
 
 /**
@@ -41,6 +42,12 @@ export interface ModuleScreenProps {
    * module de relire ses propres données, que le hub ne connaît pas.
    */
   reloadToken: number;
+  /**
+   * Les services rendus par les autres modules (`core/lib/services.ts`) —
+   * par exemple enregistrer une dépense au budget. Chacun peut manquer :
+   * un module qui s'en sert fonctionne aussi sans.
+   */
+  services: AtlasServices;
 }
 
 /** Ce qu'un module ajoute au panneau de réglages, sous son propre intitulé. */
@@ -94,4 +101,9 @@ export interface AtlasModule {
    * Rend `null` si le fichier ne contient rien pour ce module.
    */
   fromLegacyBackup?(raw: Record<string, unknown>): unknown | null;
+  /**
+   * Ce que le module rend aux autres (`core/lib/services.ts`), par
+   * déclaration : le socle le transmet sans en connaître l'implémentation.
+   */
+  provides?: Partial<AtlasServices>;
 }
