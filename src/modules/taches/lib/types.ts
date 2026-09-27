@@ -1,0 +1,74 @@
+/**
+ * Types du module tâches (Polaris). Conception complète :
+ * docs/etude-taches.md, décisions de Jules au §12.
+ *
+ * Jours au format `AAAA-MM-JJ`, heures au format `HH:MM`, toujours LOCAUX.
+ */
+import type { Recurrence } from '../../../core/lib/recurrence';
+
+export type { Recurrence };
+
+/** Couleurs d'une liste, par nom — pendant de `taches_lists_color_check`. */
+export const LIST_COLORS = ['bleu', 'vert', 'orange', 'rose', 'violet', 'gris'] as const;
+export type ListColor = (typeof LIST_COLORS)[number];
+
+/**
+ * Priorité, facultative (décision du 27/09/2026) : une tâche sans priorité
+ * est « normale ». Pendant de `taches_tasks_priority_check`.
+ */
+export const PRIORITIES = ['normale', 'importante', 'urgente'] as const;
+export type Priority = (typeof PRIORITIES)[number];
+
+/**
+ * D'où repart une tâche répétée quand on la coche (étude §3) : de sa règle
+ * (« tous les lundis », qu'on l'ait faite à temps ou non) ou du jour où on
+ * l'a faite (« 10 jours après »). Pendant de `taches_tasks_repeat_from_check`.
+ */
+export const REPEAT_FROM = ['schedule', 'completion'] as const;
+export type RepeatFrom = (typeof REPEAT_FROM)[number];
+
+/** Une liste de tâches. */
+export interface TaskList {
+  id: string;
+  name: string;
+  color: ListColor;
+  position: number;
+  archived: boolean;
+  createdAt: string;
+}
+
+export interface ListInput {
+  name: string;
+  color?: ListColor;
+}
+
+/** Une tâche, ou une sous-tâche si `parentId` n'est pas nul (un seul niveau). */
+export interface Task {
+  id: string;
+  /** `null` : la boîte de réception */
+  listId: string | null;
+  parentId: string | null;
+  title: string;
+  note: string;
+  /** Le jour où l'on compte la faire : c'est lui qui la fait entrer dans « Aujourd'hui » */
+  plannedDay: string | null;
+  /** Seulement avec un jour prévu */
+  plannedTime: string | null;
+  /** L'échéance, facultative : le jour où elle doit être faite */
+  dueDay: string | null;
+  priority: Priority;
+  /** Exige un jour prévu */
+  recurrence: Recurrence | null;
+  repeatFrom: RepeatFrom;
+  position: number;
+  /** `null` : pas encore faite */
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export type TaskInput = Pick<Task, 'title'> &
+  Partial<
+    Pick<Task, 'listId' | 'parentId' | 'note' | 'plannedDay' | 'plannedTime' | 'dueDay' | 'priority' | 'recurrence' | 'repeatFrom' | 'position'>
+  >;
+
+export type TaskPatch = Partial<Omit<TaskInput, 'title'> & Pick<Task, 'title' | 'completedAt'>>;

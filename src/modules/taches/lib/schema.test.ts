@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FREQUENCIES } from '../../../core/lib/recurrence';
-import { EVENT_COLORS, EXCEPTION_KINDS } from './types';
+import { LIST_COLORS, PRIORITIES, REPEAT_FROM } from './types';
 
 /**
  * Le type TypeScript et la contrainte Postgres doivent dire la même chose —
@@ -13,11 +13,7 @@ import { EVENT_COLORS, EXCEPTION_KINDS } from './types';
 
 const SQL_DIR = new URL('../../../../supabase', import.meta.url).pathname;
 
-/**
- * Les valeurs autorisées par la dernière définition de la contrainte : la
- * liste de `in (…)` ou de `any (array[…])` — pas les autres chaînes de la
- * contrainte, comme le nom du champ JSON dans `recurrence->>'freq'`.
- */
+/** Les valeurs autorisées par la dernière définition de la contrainte : la liste de `in (…)` ou de `any (array[…])`. */
 function allowedBy(constraint: string): string[] | null {
   const pattern = new RegExp(`constraint\\s+${constraint}\\s+check\\s*\\(([\\s\\S]*?)\\)\\s*(?:,|\\n\\s*\\))`, 'gi');
   let last: string | null = null;
@@ -32,16 +28,20 @@ function allowedBy(constraint: string): string[] | null {
   return [...list.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
 }
 
-describe('le type et la base disent la même chose (Éclipse)', () => {
-  it('les couleurs d’un événement', () => {
-    expect(allowedBy('calendar_events_color_check')).toEqual([...EVENT_COLORS].sort());
+describe('le type et la base disent la même chose (Polaris)', () => {
+  it('les couleurs d’une liste', () => {
+    expect(allowedBy('taches_lists_color_check')).toEqual([...LIST_COLORS].sort());
   });
 
-  it('les fréquences de récurrence', () => {
-    expect(allowedBy('calendar_events_freq_check')).toEqual([...FREQUENCIES].sort());
+  it('les priorités', () => {
+    expect(allowedBy('taches_tasks_priority_check')).toEqual([...PRIORITIES].sort());
   });
 
-  it('la nature d’une exception', () => {
-    expect(allowedBy('calendar_exceptions_kind_check')).toEqual([...EXCEPTION_KINDS].sort());
+  it('d’où repart une tâche répétée', () => {
+    expect(allowedBy('taches_tasks_repeat_from_check')).toEqual([...REPEAT_FROM].sort());
+  });
+
+  it('les fréquences de récurrence, celles du moteur commun', () => {
+    expect(allowedBy('taches_tasks_freq_check')).toEqual([...FREQUENCIES].sort());
   });
 });

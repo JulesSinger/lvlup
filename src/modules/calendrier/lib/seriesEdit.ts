@@ -11,8 +11,9 @@
  * occurrence déplacée à 19 h ne ramène donc pas toute la série à 19 h ; la
  * décaler d'un jour décale la série d'un jour.
  */
-import { daysBetween, shiftDay } from './day';
-import { baseOccurrence, splitSeries } from './recurrence';
+import { daysBetween, shiftDay } from '../../../core/lib/day';
+import { splitSeries } from '../../../core/lib/recurrence';
+import { baseOccurrence } from './recurrence';
 import type { CalendarEvent, EventException, EventInput, EventOverride, ExceptionKind, Recurrence } from './types';
 import { validateEvent } from './validation';
 

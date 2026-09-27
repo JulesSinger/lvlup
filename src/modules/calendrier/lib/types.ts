@@ -1,3 +1,9 @@
+import type { Recurrence } from '../../../core/lib/recurrence';
+
+// La règle de récurrence vit dans le socle depuis le 27/09/2026, partagée avec
+// Polaris ; réexportée ici parce qu'elle fait partie d'un événement.
+export type { Recurrence };
+
 /**
  * Types du module calendrier (Éclipse). Conception complète :
  * docs/etude-calendrier.md.
@@ -14,25 +20,6 @@
  */
 export const EVENT_COLORS = ['bleu', 'vert', 'orange', 'rose', 'violet', 'gris'] as const;
 export type EventColor = (typeof EVENT_COLORS)[number];
-
-/** Fréquences de récurrence — pendant de `calendar_events_freq_check`. */
-export const FREQUENCIES = ['daily', 'weekly', 'monthly', 'yearly'] as const;
-export type Frequency = (typeof FREQUENCIES)[number];
-
-/**
- * Une règle de récurrence : le sous-ensemble utile de la RRULE (RFC 5545,
- * étude §3). `byWeekday` : jours de la semaine, 0 = dimanche … 6 = samedi
- * (convention de `Date.getDay`). `until` (jour inclus) et `count` sont
- * exclusifs ; sans l'un ni l'autre, la série ne finit pas.
- */
-export interface Recurrence {
-  freq: Frequency;
-  /** Tous les N (jours, semaines, mois, ans) ; 1 par défaut */
-  interval: number;
-  byWeekday?: number[];
-  until?: string;
-  count?: number;
-}
 
 /** Un événement, ou une série si `recurrence` n'est pas nulle. */
 export interface CalendarEvent {

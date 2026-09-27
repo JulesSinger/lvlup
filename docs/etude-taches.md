@@ -286,7 +286,7 @@ explication concrète).
 
 | Étape | Contenu | Résultat |
 |---|---|---|
-| 1 | Migration, contrat et ses deux implémentations (ids choisis par l'application), module signet ; **la récurrence d'Éclipse remontée dans le socle** | le module existe |
+| 1 ✅ | Migration, contrat et ses deux implémentations (ids choisis par l'application), module signet ; **la récurrence d'Éclipse remontée dans le socle** | le module existe — livré le 27/09/2026, voir §13 |
 | 2 | Bibliothèques pures : prochaine date (les deux répétitions), contenu et ordre d'Aujourd'hui, **analyseur de dates en français** (`chrono-node` éprouvé sur une batterie de phrases, sinon fait maison) | la règle est juste |
 | 3 | Ajout rapide en langage naturel, vues Aujourd'hui, À venir, Boîte de réception, Listes ; cocher, modifier, supprimer ; **sous-tâches et priorités** | **la V1** |
 | 4 | Répétition à l'écran, vue Terminées, réordonner ; « Faire le point » | les tâches de fond |
@@ -294,6 +294,38 @@ explication concrète).
 | 6 | Calque dans Éclipse, puis **cocher depuis le calendrier** | le lien attendu |
 | 7 | File hors ligne | noter sans réseau |
 | plus tard | rappels d'Éclipse sur le même mécanisme ; le pont avec Zénith ; poser une tâche sur un créneau | — |
+
+---
+
+## 13. Étape 1 : le module existe (27/09/2026)
+
+**La récurrence remontée dans le socle.** `core/lib/recurrence.ts` porte désormais le moteur
+d'Éclipse : le type `Recurrence` et `FREQUENCIES`, `ruleDays` (les jours d'une série),
+`splitSeries` (« tous les suivants »), `validateRecurrence` et `describeRecurrence` ; et
+`core/lib/day.ts` les outils de jours dont il dépend. Le moteur ne connaît plus un événement mais
+une **série** (`{ startDay, recurrence }`), ce qu'une tâche répétée est aussi. Éclipse n'en garde
+que ce qui est propre à un calendrier : la durée d'un événement, ses exceptions, la traduction
+pour FullCalendar. Rien ne change à l'écran : les tests du moteur ont suivi (un de plus, pour la
+validation seule), et la suite de bout en bout d'Éclipse passe à l'identique.
+
+**La migration** `supabase/2026-09-27-taches-tables.sql` : `taches_lists` (nom, couleur,
+position, archivée) et `taches_tasks`, RLS complet. La base refuse d'elle-même : une heure sans
+jour prévu, une répétition sans jour prévu, une fréquence inconnue, une tâche qui serait sa
+propre sous-tâche. Supprimer une liste renvoie ses tâches à la boîte de réception ; supprimer une
+tâche emporte ses sous-tâches.
+
+**Le contrat** `TachesStore` et ses deux implémentations. `createTask(input, id)` est
+**rejouable** : l'identifiant est choisi par l'application, et un second envoi ne crée rien et
+rend la première — comme les entrées de Cérès, pour brancher la file hors ligne plus tard sans
+migration. Couleurs, priorités, `repeat_from` et fréquences sont des tableaux `as const` comparés
+par un test aux contraintes de la migration. La restauration d'une sauvegarde garde les
+identifiants (des uuid) : tâches, listes et sous-tâches se retrouvent sans table de
+correspondance.
+
+**Le module** `taches`, nom affiché **Polaris**, emoji ⭐, couleur corail `#ff9f7a` (la seule
+teinte encore libre dans le hub), un écran signet et un aperçu pour la page d'accueil.
+
+**Migration à appliquer** dans Supabase Studio avant d'utiliser Polaris en mode comptes.
 
 ---
 

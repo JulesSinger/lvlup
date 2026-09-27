@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { COLOR_LABELS, type EventSpan } from '../lib/calendarBridge';
-import { daysBetween, shiftDay, weekday } from '../lib/day';
+import { daysBetween, shiftDay, weekday } from '../../../core/lib/day';
 import { sameRule, type Scope } from '../lib/seriesEdit';
 import { EVENT_COLORS, type EventColor, type EventInput, type Recurrence } from '../lib/types';
 import { validateEvent } from '../lib/validation';

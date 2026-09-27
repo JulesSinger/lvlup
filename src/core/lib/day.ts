@@ -1,9 +1,12 @@
 /**
- * Jours du calendrier, au format `AAAA-MM-JJ` — toujours des jours LOCAUX.
+ * Jours au format `AAAA-MM-JJ` — toujours des jours LOCAUX.
  *
- * `dayString`/`shiftDay` sont copiés de `modules/nutrition/lib/day.ts` : un
- * module n'importe jamais depuis un autre (`conventions.test.ts`). Les
- * écarts entre jours se calculent en UTC pur (`Date.UTC`), jamais avec des
+ * Remonté d'Éclipse dans le socle le 27/09/2026, avec le moteur de
+ * récurrence (`recurrence.ts`) qui en dépend : Polaris en a besoin aussi, et
+ * une pièce dont deux modules ont besoin appartient au socle. Les autres
+ * modules gardent leur propre `dayString`, recopié avant ce déplacement.
+ *
+ * Les écarts entre jours se calculent en UTC pur (`Date.UTC`), jamais avec des
  * `Date` locales : un changement d'heure ferait sinon durer un jour 23 ou
  * 25 heures, et une division par 24 h tomberait à côté.
  */

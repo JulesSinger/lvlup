@@ -5,6 +5,7 @@ import { coursesModule } from './courses/module';
 import { flashcardsModule } from './flashcards/module';
 import { nutritionModule } from './nutrition/module';
 import { objectifsModule } from './objectifs/module';
+import { tachesModule } from './taches/module';
 
 /**
  * Le registre : la liste des modules actifs d'Atlas.
@@ -20,4 +21,5 @@ export const MODULES: readonly AtlasModule[] = [
   nutritionModule,
   coursesModule,
   calendrierModule,
+  tachesModule,
 ];

@@ -4,7 +4,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
-import { dayString, shiftDay } from '../lib/day';
+import { dayString, shiftDay } from '../../../core/lib/day';
 import { spanFromRange, spanFromSelection, type CalendarItem, type EventSpan } from '../lib/calendarBridge';
 
 export const VIEWS = ['dayGridMonth', 'timeGridWeek', 'timeGridDay', 'listWeek'] as const;

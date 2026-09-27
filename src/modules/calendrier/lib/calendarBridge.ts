@@ -6,7 +6,7 @@
  * l'UTC : une date affichée à 9 h est lue à 9 h, changement d'heure ou pas.
  */
 import type { CalendarMark, CalendarSource } from '../../../core/lib/services';
-import { dayString, shiftDay } from './day';
+import { dayString, shiftDay } from '../../../core/lib/day';
 import { occurrenceRange, type Occurrence } from './recurrence';
 import type { EventColor, EventInput } from './types';
 

@@ -1,6 +1,5 @@
-import { describeRecurrence } from '../lib/describe';
-import { weekday } from '../lib/day';
-import { FREQUENCIES, type Frequency, type Recurrence } from '../lib/types';
+import { describeRecurrence, FREQUENCIES, type Frequency, type Recurrence } from '../../../core/lib/recurrence';
+import { weekday } from '../../../core/lib/day';
 
 interface Props {
   value: Recurrence | null;

@@ -75,3 +75,6 @@
 
 /* --- Éclipse : le calendrier (étape 3) --------------------------------- */
 @import './modules/calendrier/styles/calendrier.css';
+
+/* --- Polaris : les tâches (étape 1) ------------------------------------ */
+@import './modules/taches/styles/taches.css';

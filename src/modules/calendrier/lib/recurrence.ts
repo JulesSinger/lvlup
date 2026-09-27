@@ -1,71 +1,16 @@
 /**
- * La récurrence — bibliothèque pure, la règle la plus délicate du module
- * (docs/etude-calendrier.md §3, §7). On stocke la règle d'une série et ses
- * exceptions ; les occurrences se calculent ici, à l'affichage, et ne sont
- * jamais stockées.
+ * Les occurrences d'Éclipse — bibliothèque pure (docs/etude-calendrier.md
+ * §7, §14). On stocke la règle d'une série et ses exceptions ; les
+ * occurrences se calculent ici, à l'affichage, et ne sont jamais stockées.
  *
- * Le moteur parcourt les jours un à un et demande à chacun « es-tu dans la
- * série ? », plutôt que de sauter d'occurrence en occurrence. Plus lent en
- * théorie, négligeable pour un calendrier personnel, et bien plus facile à
- * rendre juste sur les cas piégeux :
- *  · un « 31 de chaque mois » saute les mois sans 31 (comme la RFC 5545 et
- *    Google Agenda), il ne glisse pas au 30 ;
- *  · un « 29 février chaque année » n'a lieu que les années bissextiles ;
- *  · `count` compte les occurrences de la règle depuis le début, exceptions
- *    comprises : supprimer une occurrence n'en ajoute pas une à la fin.
- *
- * Tout est en jours et heures LOCAUX : une série « tous les mardis à 9 h »
- * reste à 9 h après le changement d'heure, puisqu'aucune heure n'est jamais
- * convertie.
+ * La règle elle-même (quels jours, `count`, `until`, couper une série) est
+ * le moteur commun du socle (`core/lib/recurrence.ts`) ; ce fichier y ajoute
+ * ce qui est propre à un calendrier : la durée d'un événement, ses
+ * exceptions, et la traduction pour FullCalendar.
  */
-import { daysBetween, maxDay, mondayOf, monthsBetween, shiftDay, weekday } from './day';
-import type { CalendarEvent, EventException, EventOverride, Recurrence } from './types';
-
-/** Garde-fou : une série est dépliée au plus sur ce nombre de jours. */
-const MAX_SPAN_DAYS = 366 * 30;
-
-/** Le jour appartient-il au motif de la règle ? (sans tenir compte de la fin de série) */
-function matches(rule: Recurrence, start: string, day: string): boolean {
-  const interval = Math.max(1, rule.interval || 1);
-  switch (rule.freq) {
-    case 'daily':
-      return daysBetween(start, day) % interval === 0;
-    case 'weekly': {
-      const days = rule.byWeekday && rule.byWeekday.length > 0 ? rule.byWeekday : [weekday(start)];
-      if (!days.includes(weekday(day))) return false;
-      const weeks = daysBetween(mondayOf(start), mondayOf(day)) / 7;
-      return weeks % interval === 0;
-    }
-    case 'monthly':
-      return day.slice(8) === start.slice(8) && monthsBetween(start, day) % interval === 0;
-    case 'yearly':
-      return day.slice(5) === start.slice(5) && (Number(day.slice(0, 4)) - Number(start.slice(0, 4))) % interval === 0;
-  }
-}
-
-/**
- * Les jours de début des occurrences d'une série compris entre `from` et
- * `to` (inclus). Un événement ponctuel n'en a qu'un, son jour de début.
- */
-export function ruleDays(event: Pick<CalendarEvent, 'startDay' | 'recurrence'>, from: string, to: string): string[] {
-  const rule = event.recurrence;
-  if (!rule) return event.startDay >= from && event.startDay <= to ? [event.startDay] : [];
-
-  const last = rule.until && rule.until < to ? rule.until : to;
-  const days: string[] = [];
-  let seen = 0;
-  // `count` oblige à compter depuis le début de la série ; sinon, on peut
-  // commencer directement à `from`.
-  let day = rule.count ? event.startDay : maxDay(event.startDay, from);
-  const stop = daysBetween(day, last);
-  for (let i = 0; i <= Math.min(stop, MAX_SPAN_DAYS); i++, day = shiftDay(day, 1)) {
-    if (!matches(rule, event.startDay, day)) continue;
-    seen += 1;
-    if (rule.count && seen > rule.count) break;
-    if (day >= from) days.push(day);
-  }
-  return days;
-}
+import { daysBetween, shiftDay } from '../../../core/lib/day';
+import { ruleDays } from '../../../core/lib/recurrence';
+import type { CalendarEvent, EventException, EventOverride } from './types';
 
 /** Une occurrence, telle que l'écran l'affiche. */
 export interface Occurrence {
@@ -181,25 +126,4 @@ export function occurrenceRange(o: Pick<Occurrence, 'allDay' | 'startDay' | 'end
 } {
   if (o.allDay) return { start: o.startDay, end: shiftDay(o.endDay, 1), allDay: true };
   return { start: `${o.startDay}T${o.startTime}`, end: `${o.endDay}T${o.endTime}`, allDay: false };
-}
-
-/**
- * « Tous les suivants » : couper une série au jour `from`. La série
- * d'origine s'arrête la veille ; la suite repart de `from` avec la même
- * règle — et, si la série comptait ses occurrences, avec celles qui restent.
- * Rend `null` pour l'ancienne partie si `from` est la toute première
- * occurrence (il n'y a alors rien avant : on modifie toute la série).
- */
-export function splitSeries(
-  event: CalendarEvent,
-  from: string,
-): { before: Recurrence | null; after: Recurrence } {
-  const rule = event.recurrence as Recurrence;
-  const earlier = ruleDays(event, event.startDay, shiftDay(from, -1)).length;
-  const { count: _count, until: _until, ...rest } = rule;
-  const before: Recurrence | null = earlier === 0 ? null : { ...rest, until: shiftDay(from, -1) };
-  const after: Recurrence = { ...rest };
-  if (rule.count) after.count = Math.max(1, rule.count - earlier);
-  else if (rule.until) after.until = rule.until;
-  return { before, after };
 }

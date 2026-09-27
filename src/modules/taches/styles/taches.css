@@ -1,0 +1,87 @@
+/* Polaris — étape 1 : un signet, en attendant les vrais écrans. */
+
+.taches-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 70vh;
+  padding: 2rem;
+  text-align: center;
+}
+
+.taches-placeholder-emoji {
+  font-size: 2.5rem;
+}
+
+.taches-placeholder-title {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.taches-placeholder-text {
+  margin: 0 0 0.5rem;
+  color: var(--text-dim, #9aa3b8);
+  font-size: 1rem;
+}
+
+/* --- Aperçu sur la page d'accueil publique (PolarisLandingPreview) ----- */
+
+.taches-landing-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 210px;
+  margin: 0 auto;
+  font-size: 12px;
+}
+
+.taches-landing-day {
+  margin-bottom: 2px;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.taches-landing-task {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: rgba(255, 159, 122, 0.08);
+}
+
+.taches-landing-check {
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid #ff9f7a;
+  border-radius: 50%;
+  font-size: 9px;
+  color: #0b0e14;
+}
+
+.taches-landing-task.done .taches-landing-check {
+  background: #ff9f7a;
+}
+
+.taches-landing-title {
+  color: var(--text);
+}
+
+.taches-landing-task.done .taches-landing-title {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.taches-landing-detail {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.taches-landing-detail.urgent {
+  color: #ff8b8b;
+}

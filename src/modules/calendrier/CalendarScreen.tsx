@@ -7,7 +7,7 @@ import { ScopeDialog } from './components/ScopeDialog';
 import { calendarStore } from './data';
 import { applyPlan } from './data/applyPlan';
 import { defaultSpan, markItem, toCalendarItem, type EventSpan } from './lib/calendarBridge';
-import { dayString, shiftDay } from './lib/day';
+import { dayString, shiftDay } from '../../core/lib/day';
 import { expandEvents, type Occurrence } from './lib/recurrence';
 import { planDelete, planEdit, type OccurrenceValues, type Scope } from './lib/seriesEdit';
 import type { CalendarEvent, EventException, EventInput } from './lib/types';
