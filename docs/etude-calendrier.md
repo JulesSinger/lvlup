@@ -269,7 +269,7 @@ build dès l'étape 1.
 | Étape | Contenu | Résultat |
 |---|---|---|
 | 1 ✅ | Migration, contrat et ses deux implémentations, module signet ; FullCalendar installé et son poids mesuré au build | le module existe — livré le 27/09/2026, voir §13 |
-| 2 | Bibliothèques pures : récurrence et exceptions, heures locales et changements d'heure — tests aux dates piégeuses | la règle est juste |
+| 2 ✅ | Bibliothèques pures : récurrence et exceptions, heures locales et changements d'heure — tests aux dates piégeuses | la règle est juste — livré le 27/09/2026, voir §14 |
 | 3 | Les quatre vues (mois, semaine, jour, agenda) avec FullCalendar, accordées au thème d'Atlas ; créer, déplacer, étirer, modifier un événement (journée, horaire, plusieurs jours) | **la V1** |
 | 4 | La récurrence à l'écran : créer une série, « cet événement / tous les suivants / tous » | les séries se gèrent |
 | 5 | Les calques : service `calendarSources`, puis Zénith, Orbite, Comète, Astra | le calendrier d'Atlas |
@@ -305,6 +305,43 @@ build dès l'étape 1.
 autant que la table CIQUAL de Cérès. Il ne sera chargé qu'à l'ouverture d'Éclipse (étape 3).
 
 **Migration à appliquer** dans Supabase Studio avant d'utiliser Éclipse en mode comptes.
+
+---
+
+## 14. Étape 2 : la récurrence, testée avant tout écran (27/09/2026)
+
+Quatre bibliothèques pures, 47 tests pour le module, aucun écran.
+
+**`lib/recurrence.ts` — le cœur.** Le moteur parcourt les jours un à un et demande à chacun
+« es-tu dans la série ? », plutôt que de sauter d'occurrence en occurrence : plus lent en théorie,
+négligeable pour un calendrier personnel, et bien plus facile à rendre juste. Les choix, tous
+testés :
+
+- **« le 31 de chaque mois » saute les mois sans 31**, comme la norme (RFC 5545) et Google
+  Agenda — il ne glisse pas au 30 ;
+- **« le 29 février chaque année » n'a lieu que les années bissextiles** ;
+- **`count` compte depuis le début de la série**, exceptions comprises : supprimer une occurrence
+  n'en ajoute pas une à la fin ;
+- **les semaines commencent le lundi** (la norme, par défaut) : « un mardi et jeudi sur deux »
+  suit la semaine de départ, sans rien avant le premier jour ;
+- **une série à 9 h reste à 9 h après le passage à l'heure d'hiver** : aucune heure n'est jamais
+  convertie, et les écarts entre jours se comptent en UTC pur, jamais avec des dates locales qui
+  dureraient 23 ou 25 heures.
+
+`expandEvents` rend les occurrences d'une période, exceptions appliquées : une occurrence
+supprimée disparaît ; une occurrence modifiée prend ses nouveaux champs, **y compris déplacée
+d'un jour hors de la période vers un jour dedans** (et quitte alors son ancien jour) ; une
+exception posée sur un jour qui n'appartient pas à la série est ignorée ; un événement de
+plusieurs jours touche une période qui commence après son début, et une série de plusieurs jours
+garde sa durée à chaque occurrence. `occurrenceRange` traduit une occurrence pour FullCalendar
+(heures locales « flottantes », et fin **exclusive** pour une journée entière). `splitSeries`
+prépare « tous les suivants » : la série s'arrête la veille, la suite repart avec la même règle —
+et, pour une série comptée, avec le bon nombre d'occurrences restantes.
+
+**`lib/validation.ts`** reprend les contraintes de la base en français (« La fin doit être après le
+début, ou le lendemain pour une soirée qui passe minuit ») ; **`lib/describe.ts`** dit une série en
+toutes lettres (« Toutes les 2 semaines le mardi et le jeudi, jusqu'au 31 décembre 2026 ») ;
+**`lib/day.ts`** porte les outils de dates.
 
 ---
 
