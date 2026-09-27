@@ -197,6 +197,89 @@
   flex: 1;
 }
 
+/* --- Répétition (étape 4) ------------------------------------------------ */
+
+.calendrier-recurrence {
+  margin-bottom: 4px;
+}
+
+.calendrier-recurrence select {
+  width: 100%;
+}
+
+.calendrier-recurrence-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13.5px;
+}
+
+.calendrier-recurrence-row label {
+  min-width: 56px;
+  color: var(--text-dim);
+}
+
+.calendrier-recurrence-row input[type='number'] {
+  width: 72px;
+}
+
+.calendrier-recurrence-row select {
+  width: auto;
+  flex: 0 1 auto;
+}
+
+.calendrier-recurrence-row input[type='date'] {
+  width: auto;
+  flex: 1 1 140px;
+}
+
+.calendrier-weekdays {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.calendrier-weekday {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.calendrier-weekday.on {
+  background: rgba(201, 160, 255, 0.2);
+  border-color: #c9a0ff;
+  color: var(--text);
+}
+
+.calendrier-recurrence-summary {
+  color: #c9a0ff;
+}
+
+/* --- « Cet événement, les suivants ou tous » ---------------------------- */
+
+.calendrier-scope {
+  max-width: 380px;
+}
+
+.calendrier-scope-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.calendrier-scope-choices .btn {
+  justify-content: flex-start;
+  width: 100%;
+}
+
 /* --- Téléphone ---------------------------------------------------------- */
 
 @media (max-width: 760px) {

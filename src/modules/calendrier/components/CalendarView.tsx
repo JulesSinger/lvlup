@@ -19,8 +19,8 @@ interface Props {
   /** Un créneau choisi : toucher ou glisser dans la grille. */
   onSelect: (span: EventSpan) => void;
   onOpen: (eventId: string, occurrenceDay: string) => void;
-  /** Un événement déplacé ou étiré. Rejette en cas d'échec : il revient alors à sa place. */
-  onMove: (eventId: string, span: EventSpan) => Promise<void>;
+  /** Un événement déplacé ou étiré. Rejette en cas d'échec ou d'abandon : il revient alors à sa place. */
+  onMove: (eventId: string, occurrenceDay: string, span: EventSpan) => Promise<void>;
 }
 
 /**
@@ -77,15 +77,19 @@ export default function CalendarView({ items, initialView, narrow, onRangeChange
       }}
       eventDrop={(arg) => {
         if (!arg.event.start) return arg.revert();
-        onMove(arg.event.extendedProps.eventId as string, spanFromRange(arg.event.start, arg.event.end, arg.event.allDay)).catch(
-          () => arg.revert(),
-        );
+        onMove(
+          arg.event.extendedProps.eventId as string,
+          arg.event.extendedProps.occurrenceDay as string,
+          spanFromRange(arg.event.start, arg.event.end, arg.event.allDay),
+        ).catch(() => arg.revert());
       }}
       eventResize={(arg) => {
         if (!arg.event.start) return arg.revert();
-        onMove(arg.event.extendedProps.eventId as string, spanFromRange(arg.event.start, arg.event.end, arg.event.allDay)).catch(
-          () => arg.revert(),
-        );
+        onMove(
+          arg.event.extendedProps.eventId as string,
+          arg.event.extendedProps.occurrenceDay as string,
+          spanFromRange(arg.event.start, arg.event.end, arg.event.allDay),
+        ).catch(() => arg.revert());
       }}
     />
   );

@@ -34,7 +34,6 @@ describe('toCalendarItem', () => {
       end: '2026-09-29T14:30',
       allDay: false,
       classNames: ['calendrier-event-bleu'],
-      editable: true,
       extendedProps: { eventId: 'e1', occurrenceDay: '2026-09-29' },
     });
   });
@@ -42,7 +41,6 @@ describe('toCalendarItem', () => {
   it('une occurrence de série est marquée, et pas encore déplaçable (étape 4)', () => {
     const item = toCalendarItem(occurrence({ recurring: true }));
     expect(item.classNames).toContain('calendrier-event-recurring');
-    expect(item.editable).toBe(false);
   });
 });
 

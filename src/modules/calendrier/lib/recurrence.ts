@@ -87,6 +87,9 @@ export interface Occurrence {
   modified: boolean;
 }
 
+/** L'occurrence d'un jour de la série, telle que la règle la donne, sans son exception éventuelle. */
+export const baseOccurrence = (event: CalendarEvent, day: string): Occurrence => occurrenceOf(event, day, null);
+
 function occurrenceOf(event: CalendarEvent, day: string, override: EventOverride | null): Occurrence {
   const length = daysBetween(event.startDay, event.endDay);
   const base: Occurrence = {

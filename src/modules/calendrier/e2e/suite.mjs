@@ -1,11 +1,13 @@
 /**
  * Suite e2e du module calendrier (Éclipse).
  *
- * Étape 3 (docs/etude-calendrier.md §15) : la V1. Un vrai parcours —
+ * Étapes 3 et 4 (docs/etude-calendrier.md §15-§16). Un vrai parcours —
  * FullCalendar chargé seulement à l'ouverture, vue semaine par défaut,
  * créer (horaire, journée entière sur plusieurs jours, glisser sur un
- * créneau), refuser une fin avant le début, modifier, supprimer, changer de
- * vue, retrouver le tout après un rechargement — plus le rendu téléphone.
+ * créneau), refuser une fin avant le début, modifier, supprimer ; puis une
+ * série de sept jours, modifiée, déplacée et supprimée « cet événement »,
+ * « les suivants » ou « tous » ; changer de vue, retrouver le tout après un
+ * rechargement — plus le rendu téléphone.
  *
  * Les dates sont celles du jour de l'exécution : la vue semaine s'ouvre sur
  * la semaine en cours, c'est là que tout se passe.
@@ -41,6 +43,47 @@ async function createEvent(page, { title, start, end = start, from, to, allDay =
   await page.getByRole('button', { name: 'Enregistrer' }).click();
   await page.waitForSelector('.calendrier-editor', { state: 'detached' });
   await page.locator('.fc-event', { hasText: title }).first().waitFor();
+}
+
+/** Le lundi de la semaine en cours, et les jours qui suivent : la vue semaine les montre tous. */
+function weekDay(index) {
+  const d = new Date();
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + index);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+const dayColumn = (page, dayValue) => page.locator(`.fc-timegrid-col[data-date="${dayValue}"]`);
+
+/** Ouvre l'occurrence d'un jour, change ce qu'il faut, enregistre, et répond à « laquelle ? ». */
+async function editOccurrence(page, dayValue, change, scope) {
+  await dayColumn(page, dayValue).locator('.fc-timegrid-event', { hasText: 'Méditation' }).click();
+  await page.waitForSelector('.calendrier-editor');
+  await change();
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.calendrier-scope');
+  await page.locator('.calendrier-scope').getByRole('button', { name: scope, exact: true }).click();
+  await page.waitForSelector('.calendrier-editor', { state: 'detached' });
+}
+
+async function deleteOccurrence(page, dayValue, scope) {
+  await dayColumn(page, dayValue).locator('.fc-timegrid-event', { hasText: 'Méditation' }).click();
+  await page.waitForSelector('.calendrier-editor');
+  await page.getByRole('button', { name: 'Supprimer' }).click();
+  await page.waitForSelector('.calendrier-scope');
+  await page.locator('.calendrier-scope').getByRole('button', { name: scope, exact: true }).click();
+  await page.waitForSelector('.calendrier-editor', { state: 'detached' });
+}
+
+/** Les heures de la série, jour par jour du lundi au dimanche ; « - » quand elle n'y est pas. */
+async function seriesWeek(page) {
+  const out = [];
+  for (let i = 0; i < 7; i++) {
+    const ev = dayColumn(page, weekDay(i)).locator('.fc-timegrid-event', { hasText: 'Méditation' });
+    // FullCalendar écrit « 7:00 » en français : on remet le zéro pour comparer.
+    const time = (await ev.count()) === 0 ? null : ((await ev.first().textContent()) ?? '').match(/(\d{1,2}):(\d{2})/);
+    out.push(time ? `${time[1].padStart(2, '0')}:${time[2]}` : '-');
+  }
+  return out.join(' ');
 }
 
 const noOverflow = (page) =>
@@ -151,6 +194,105 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.calendrier-editor', { state: 'detached' });
   await page.locator('.fc-timegrid-event', { hasText: 'Sport' }).waitFor({ state: 'detached' });
   check('Supprimer (après confirmation) retire l’événement', (await page.locator('.fc-event', { hasText: 'Sport' }).count()) === 0);
+
+  // --- Les séries (étape 4) ------------------------------------------------------------
+  await page.getByRole('button', { name: 'Nouvel événement' }).click();
+  await page.waitForSelector('.calendrier-editor');
+  await page.locator('#calendrier-title').fill('Méditation');
+  await page.locator('#calendrier-start-day').fill(weekDay(0));
+  await page.locator('#calendrier-end-day').fill(weekDay(0));
+  await page.locator('#calendrier-start-time').fill('07:00');
+  await page.locator('#calendrier-end-time').fill('07:30');
+  await page.locator('#calendrier-repeat').selectOption('daily');
+  await page.locator('#calendrier-end-kind').selectOption('count');
+  await page.locator('#calendrier-count').fill('7');
+  check(
+    'La répétition se relit en toutes lettres avant d’enregistrer',
+    ((await page.locator('.calendrier-recurrence-summary').textContent()) ?? '').includes('Tous les jours, 7 fois'),
+  );
+  await page.locator('#calendrier-repeat').selectOption('weekly');
+  check(
+    'Toutes les semaines propose le jour du début, déjà choisi',
+    (await page.getByRole('button', { name: 'lundi' }).getAttribute('aria-pressed')) === 'true' &&
+      (await page.getByRole('button', { name: 'mardi' }).getAttribute('aria-pressed')) === 'false',
+  );
+  await page.locator('#calendrier-repeat').selectOption('daily');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.calendrier-editor', { state: 'detached' });
+  await dayColumn(page, weekDay(6)).locator('.fc-timegrid-event', { hasText: 'Méditation' }).waitFor();
+  check('Une série de 7 jours s’affiche chaque jour de la semaine', (await seriesWeek(page)) === '07:00 07:00 07:00 07:00 07:00 07:00 07:00', await seriesWeek(page));
+  check(
+    'Une occurrence de série est marquée comme telle',
+    ((await dayColumn(page, weekDay(0)).locator('.fc-timegrid-event', { hasText: 'Méditation' }).getAttribute('class')) ?? '').includes('calendrier-event-recurring'),
+  );
+
+  await editOccurrence(page, weekDay(2), () => page.locator('#calendrier-title').fill('Méditation longue'), 'Cet événement');
+  check(
+    '« Cet événement » ne change que lui',
+    (await dayColumn(page, weekDay(2)).locator('.fc-timegrid-event', { hasText: 'Méditation longue' }).count()) === 1 &&
+      (await page.locator('.fc-timegrid-event', { hasText: 'Méditation longue' }).count()) === 1,
+  );
+
+  await editOccurrence(
+    page,
+    weekDay(4),
+    async () => {
+      await page.locator('#calendrier-start-time').fill('06:00');
+      await page.locator('#calendrier-end-time').fill('06:30');
+    },
+    'Cet événement et les suivants',
+  );
+  await page.waitForFunction(() => [...document.querySelectorAll('.fc-timegrid-event')].some((e) => /^\s*0?6:00/.test(e.textContent ?? '')));
+  check('« Les suivants » change celui-ci et la suite, pas ce qui précède', (await seriesWeek(page)) === '07:00 07:00 07:00 07:00 06:00 06:00 06:00', await seriesWeek(page));
+  check('… et l’occurrence modifiée à part avant la coupure le reste', (await dayColumn(page, weekDay(2)).textContent())?.includes('Méditation longue') ?? false);
+
+  await deleteOccurrence(page, weekDay(1), 'Cet événement');
+  await dayColumn(page, weekDay(1)).locator('.fc-timegrid-event', { hasText: 'Méditation' }).waitFor({ state: 'detached' });
+  check('Supprimer « cet événement » n’en retire qu’un', (await seriesWeek(page)) === '07:00 - 07:00 07:00 06:00 06:00 06:00', await seriesWeek(page));
+
+  // Changer la règle ne peut pas valoir pour une seule occurrence.
+  await dayColumn(page, weekDay(5)).locator('.fc-timegrid-event', { hasText: 'Méditation' }).click();
+  await page.waitForSelector('.calendrier-editor');
+  await page.locator('#calendrier-interval').fill('2');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.calendrier-scope');
+  check(
+    'Changer la répétition ne propose pas « cet événement » seul',
+    (await page.locator('.calendrier-scope').getByRole('button', { name: 'Cet événement', exact: true }).count()) === 0 &&
+      (await page.locator('.calendrier-scope').getByRole('button', { name: 'Tous les événements' }).isVisible()),
+  );
+  await page.keyboard.press('Escape');
+  check('Échap ferme la question sans fermer la fenêtre', (await page.locator('.calendrier-scope').count()) === 0 && (await page.locator('.calendrier-editor').isVisible()));
+  await page.getByRole('button', { name: 'Annuler' }).click();
+  await page.waitForSelector('.calendrier-editor', { state: 'detached' });
+
+  // Glisser une occurrence : la même question, et « cet événement » la déplace seule.
+  const monday = dayColumn(page, weekDay(0)).locator('.fc-timegrid-event', { hasText: 'Méditation' });
+  await monday.scrollIntoViewIfNeeded();
+  const from = await monday.boundingBox();
+  const target = await page.locator('.fc-timegrid-slot-lane[data-time="08:00:00"]').boundingBox();
+  if (from && target) {
+    await page.mouse.move(from.x + from.width / 2, from.y + 5);
+    await page.mouse.down();
+    await page.mouse.move(from.x + from.width / 2, from.y + 20, { steps: 4 });
+    await page.mouse.move(from.x + from.width / 2, target.y + 5, { steps: 10 });
+    await page.mouse.up();
+  }
+  const askedToMove = await page.waitForSelector('.calendrier-scope', { timeout: 3000 }).then(() => true, () => false);
+  check('Glisser une occurrence demande laquelle déplacer', askedToMove && (await page.locator('.calendrier-scope').textContent())?.includes('Déplacer'));
+  if (askedToMove) {
+    await page.locator('.calendrier-scope').getByRole('button', { name: 'Cet événement', exact: true }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll('.fc-timegrid-event')].some((e) => /^\s*0?8:00/.test(e.textContent ?? '')));
+  }
+  check('… et « cet événement » ne déplace que lui', (await seriesWeek(page)) === '08:00 - 07:00 07:00 06:00 06:00 06:00', await seriesWeek(page));
+
+  await deleteOccurrence(page, weekDay(5), 'Tous les événements');
+  await page.locator('.fc-timegrid-event', { hasText: 'Méditation' }).first().waitFor({ state: 'detached' }).catch(() => {});
+  check(
+    'Supprimer « tous les événements » retire la série qu’on a touchée, pas celle qu’on en a détachée',
+    (await seriesWeek(page)) === '08:00 - 07:00 07:00 - - -',
+    await seriesWeek(page),
+  );
 
   // --- Les vues ----------------------------------------------------------------------------
   await page.locator('.fc-timeGridDay-button').click();

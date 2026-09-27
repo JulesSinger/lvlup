@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { COLOR_LABELS, type EventSpan } from '../lib/calendarBridge';
-import { daysBetween, shiftDay } from '../lib/day';
-import { describeRecurrence } from '../lib/describe';
+import { daysBetween, shiftDay, weekday } from '../lib/day';
+import { sameRule, type Scope } from '../lib/seriesEdit';
 import { EVENT_COLORS, type EventColor, type EventInput, type Recurrence } from '../lib/types';
 import { validateEvent } from '../lib/validation';
+import { RecurrenceFields } from './RecurrenceFields';
+import { ScopeDialog } from './ScopeDialog';
 
 export interface EditorValues extends EventSpan {
   title: string;
@@ -16,11 +18,13 @@ export interface EditorValues extends EventSpan {
 interface Props {
   /** `null` : un nouvel événement */
   eventId: string | null;
+  /** Une occurrence d'une série déjà enregistrée : enregistrer ou supprimer demande « laquelle ? » */
+  inSeries: boolean;
   initial: EditorValues;
   onCancel: () => void;
-  /** Rejette en cas d'échec : la fenêtre reste ouverte et remplie. */
-  onSave: (input: EventInput) => Promise<void>;
-  onDelete?: () => Promise<void>;
+  /** Rejette en cas d'échec : la fenêtre reste ouverte et remplie. `scope` : seulement pour une série. */
+  onSave: (input: EventInput, scope?: Scope) => Promise<void>;
+  onDelete?: (scope?: Scope) => Promise<void>;
 }
 
 /**
@@ -28,13 +32,15 @@ interface Props {
  * ou plusieurs jours, couleur, lieu, note. Les règles sont celles de la
  * base, dites en français (`lib/validation.ts`).
  *
- * Étape 3 : pas encore de répétition à créer ici (étape 4). Une série déjà
- * existante est modifiée en entier, et la fenêtre le dit.
+ * Étape 4 : la répétition se règle ici (`RecurrenceFields`). Pour une
+ * occurrence d'une série, enregistrer ou supprimer demande d'abord si c'est
+ * cet événement, les suivants ou tous (`ScopeDialog`).
  */
-export function EventEditor({ eventId, initial, onCancel, onSave, onDelete }: Props) {
+export function EventEditor({ eventId, inSeries, initial, onCancel, onSave, onDelete }: Props) {
   const [v, setV] = useState<EditorValues>(initial);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [asking, setAsking] = useState<null | { action: 'edit'; input: EventInput } | { action: 'delete' }>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -59,11 +65,18 @@ export function EventEditor({ eventId, initial, onCancel, onSave, onDelete }: Pr
     setV((prev) => {
       if (!day) return { ...prev, startDay: day };
       const length = Math.max(0, daysBetween(prev.startDay, prev.endDay));
-      return { ...prev, startDay: day, endDay: shiftDay(day, length) };
+      let recurrence = prev.recurrence;
+      // « Chaque mardi » posé d'après le jour de début suit ce jour s'il change.
+      const days = recurrence?.byWeekday;
+      if (recurrence && days?.length === 1 && days[0] === weekday(prev.startDay)) {
+        recurrence = { ...recurrence, byWeekday: [weekday(day)] };
+      }
+      return { ...prev, startDay: day, endDay: shiftDay(day, length), recurrence };
     });
   }
 
   async function run(action: () => Promise<void>) {
+    setAsking(null);
     setSaving(true);
     setError('');
     try {
@@ -81,10 +94,28 @@ export function EventEditor({ eventId, initial, onCancel, onSave, onDelete }: Pr
       setError(problem);
       return;
     }
-    void run(() => onSave(input));
+    if (inSeries) setAsking({ action: 'edit', input });
+    else void run(() => onSave(input));
+  }
+
+  function remove() {
+    if (!onDelete) return;
+    if (inSeries) setAsking({ action: 'delete' });
+    else if (window.confirm('Supprimer cet événement ?')) void run(() => onDelete());
+  }
+
+  function choose(scope: Scope) {
+    if (!asking) return;
+    if (asking.action === 'edit') {
+      const input = asking.input;
+      void run(() => onSave(input, scope));
+    } else if (onDelete) {
+      void run(() => onDelete(scope));
+    }
   }
 
   return (
+    <>
     <div className="overlay" onClick={onCancel}>
       <div
         className="modal calendrier-editor"
@@ -148,6 +179,8 @@ export function EventEditor({ eventId, initial, onCancel, onSave, onDelete }: Pr
             )}
           </div>
 
+          <RecurrenceFields value={v.recurrence} startDay={v.startDay} onChange={(rule) => set('recurrence', rule)} />
+
           <div className="field">
             <label>Couleur</label>
             <div className="calendrier-colors" role="radiogroup" aria-label="Couleur">
@@ -175,11 +208,6 @@ export function EventEditor({ eventId, initial, onCancel, onSave, onDelete }: Pr
             <textarea id="calendrier-note" rows={2} value={v.note} onChange={(e) => set('note', e.target.value)} />
           </div>
 
-          {v.recurrence && (
-            <p className="calendrier-series-note">
-              {describeRecurrence(v.recurrence, v.startDay)}. Les modifications s’appliquent à toute la série.
-            </p>
-          )}
 
           {error && <div className="notice error">{error}</div>}
         </div>
@@ -188,11 +216,7 @@ export function EventEditor({ eventId, initial, onCancel, onSave, onDelete }: Pr
           {onDelete && (
             <button
               className="btn btn-ghost btn-sm btn-danger"
-              onClick={() => {
-                if (window.confirm(v.recurrence ? 'Supprimer toute la série ?' : 'Supprimer cet événement ?')) {
-                  void run(onDelete);
-                }
-              }}
+              onClick={remove}
               disabled={saving}
             >
               Supprimer
@@ -208,5 +232,14 @@ export function EventEditor({ eventId, initial, onCancel, onSave, onDelete }: Pr
         </div>
       </div>
     </div>
+    {asking && (
+      <ScopeDialog
+        action={asking.action}
+        allowThis={asking.action === 'delete' || sameRule(asking.input.recurrence, initial.recurrence)}
+        onChoose={choose}
+        onCancel={() => setAsking(null)}
+      />
+    )}
+    </>
   );
 }

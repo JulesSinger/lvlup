@@ -23,8 +23,6 @@ export interface CalendarItem {
   end: string;
   allDay: boolean;
   classNames: string[];
-  /** Déplacer ou étirer à la souris ou au doigt : pas encore pour une série (étape 4) */
-  editable: boolean;
   extendedProps: { eventId: string; occurrenceDay: string };
 }
 
@@ -34,7 +32,6 @@ export function toCalendarItem(o: Occurrence): CalendarItem {
     title: o.title,
     ...occurrenceRange(o),
     classNames: [`calendrier-event-${o.color}`, ...(o.recurring ? ['calendrier-event-recurring'] : [])],
-    editable: !o.recurring,
     extendedProps: { eventId: o.eventId, occurrenceDay: o.occurrenceDay },
   };
 }

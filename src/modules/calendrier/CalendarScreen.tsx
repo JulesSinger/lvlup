@@ -2,10 +2,13 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import type { ModuleScreenProps } from '../../core/lib/module';
 import type { ViewName } from './components/CalendarView';
 import { EventEditor, type EditorValues } from './components/EventEditor';
+import { ScopeDialog } from './components/ScopeDialog';
 import { calendarStore } from './data';
+import { applyPlan } from './data/applyPlan';
 import { defaultSpan, toCalendarItem, type EventSpan } from './lib/calendarBridge';
 import { dayString, shiftDay } from './lib/day';
-import { expandEvents } from './lib/recurrence';
+import { expandEvents, type Occurrence } from './lib/recurrence';
+import { planDelete, planEdit, type OccurrenceValues, type Scope } from './lib/seriesEdit';
 import type { CalendarEvent, EventException, EventInput } from './lib/types';
 
 /**
@@ -29,7 +32,16 @@ function initialView(narrow: boolean): ViewName {
   return narrow ? 'timeGridDay' : 'timeGridWeek';
 }
 
-type Editing = { eventId: string | null; values: EditorValues };
+/** `occurrenceDay`, `before` : pour une occurrence existante — le jour qu'elle a dans la série, et ce que la fenêtre en montrait. */
+type Editing = { eventId: string | null; occurrenceDay: string | null; inSeries: boolean; values: EditorValues; before: OccurrenceValues | null };
+
+/** Un déplacement d'occurrence en attente de « laquelle ? » : FullCalendar attend la réponse pour le garder ou l'annuler. */
+type PendingMove = { eventId: string; occurrenceDay: string; span: EventSpan; resolve: () => void; reject: (err: Error) => void };
+
+function valuesOf(o: Occurrence): OccurrenceValues {
+  const { title, allDay, startDay, endDay, startTime, endTime, color, location, note } = o;
+  return { title, allDay, startDay, endDay, startTime, endTime, color, location, note };
+}
 
 /**
  * Écran racine d'Éclipse — le calendrier, étape 3 (docs/etude-calendrier.md
@@ -39,7 +51,9 @@ type Editing = { eventId: string | null; values: EditorValues };
  *
  * Les occurrences ne sont jamais stockées : elles sont dépliées ici, pour la
  * seule période affichée, à partir des séries et de leurs exceptions.
- * Créer une répétition et modifier une seule occurrence arrivent à l'étape 4.
+ * Étape 4 : les séries se créent dans la fenêtre d'un événement ; modifier,
+ * déplacer ou supprimer une occurrence demande « cet événement, les
+ * suivants ou tous », traduit en écritures par `lib/seriesEdit.ts`.
  */
 export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
   const narrow = typeof window !== 'undefined' && window.innerWidth < NARROW;
@@ -50,6 +64,7 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, re
     return { from: shiftDay(today, -7), to: shiftDay(today, 7) };
   });
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -68,49 +83,85 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, re
     void refresh();
   }, [refresh, reloadToken]);
 
-  const items = useMemo(
-    () => expandEvents(events, exceptions, range.from, range.to).map(toCalendarItem),
-    [events, exceptions, range],
-  );
+  const occurrences = useMemo(() => expandEvents(events, exceptions, range.from, range.to), [events, exceptions, range]);
+  const items = useMemo(() => occurrences.map(toCalendarItem), [occurrences]);
 
   function openNew(span: EventSpan) {
-    setEditing({ eventId: null, values: { ...span, title: '', color: 'bleu', location: '', note: '', recurrence: null } });
+    setEditing({
+      eventId: null,
+      occurrenceDay: null,
+      inSeries: false,
+      values: { ...span, title: '', color: 'bleu', location: '', note: '', recurrence: null },
+      before: null,
+    });
   }
 
-  function openExisting(eventId: string) {
+  function openExisting(eventId: string, occurrenceDay: string) {
     const event = events.find((e) => e.id === eventId);
-    if (!event) return;
-    const { id: _id, timezone: _tz, createdAt: _created, ...values } = event;
-    setEditing({ eventId, values });
+    const occurrence = occurrences.find((o) => o.eventId === eventId && o.occurrenceDay === occurrenceDay);
+    if (!event || !occurrence) return;
+    // La fenêtre montre l'occurrence touchée (exception comprise), avec la règle de sa série.
+    const before = valuesOf(occurrence);
+    setEditing({ eventId, occurrenceDay, inSeries: event.recurrence !== null, values: { ...before, recurrence: event.recurrence }, before });
   }
 
-  async function save(input: EventInput) {
-    if (editing?.eventId) await calendarStore.updateEvent(editing.eventId, input);
-    else await calendarStore.createEvent(input);
+  async function save(input: EventInput, scope: Scope = 'all') {
+    const event = editing?.eventId ? events.find((e) => e.id === editing.eventId) : undefined;
+    if (!editing?.eventId) await calendarStore.createEvent(input);
+    else if (event && editing.inSeries && editing.occurrenceDay && editing.before) {
+      await applyPlan(calendarStore, planEdit(event, exceptions, editing.occurrenceDay, editing.before, input, scope));
+    } else await calendarStore.updateEvent(editing.eventId, input);
     setEditing(null);
     await refresh();
   }
 
-  async function remove() {
+  async function remove(scope: Scope = 'all') {
     if (!editing?.eventId) return;
-    await calendarStore.deleteEvent(editing.eventId);
+    const event = events.find((e) => e.id === editing.eventId);
+    if (event && editing.inSeries && editing.occurrenceDay) {
+      await applyPlan(calendarStore, planDelete(event, exceptions, editing.occurrenceDay, scope));
+    } else await calendarStore.deleteEvent(editing.eventId);
     setEditing(null);
     await refresh();
   }
 
   /**
    * Déplacer ou étirer : l'écran bouge tout de suite (FullCalendar), le
-   * stockage suit. En cas d'échec, l'erreur s'affiche et l'événement
-   * revient à sa place (`onMove` rejette).
+   * stockage suit. Pour une série, on demande d'abord laquelle. En cas
+   * d'échec ou d'abandon, l'événement revient à sa place (`onMove` rejette).
    */
-  async function move(eventId: string, span: EventSpan) {
+  function move(eventId: string, occurrenceDay: string, span: EventSpan): Promise<void> {
+    const event = events.find((e) => e.id === eventId);
+    if (event?.recurrence) {
+      return new Promise((resolve, reject) => setPendingMove({ eventId, occurrenceDay, span, resolve, reject }));
+    }
+    return write(() => calendarStore.updateEvent(eventId, span));
+  }
+
+  async function write(action: () => Promise<void>) {
     try {
-      await calendarStore.updateEvent(eventId, span);
+      await action();
       await refresh();
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Déplacement impossible.');
       throw err;
     }
+  }
+
+  function chooseMove(scope: Scope) {
+    const pending = pendingMove;
+    if (!pending) return;
+    setPendingMove(null);
+    const event = events.find((e) => e.id === pending.eventId);
+    const occurrence = occurrences.find((o) => o.eventId === pending.eventId && o.occurrenceDay === pending.occurrenceDay);
+    if (!event || !occurrence) return pending.reject(new Error('Événement introuvable.'));
+    const before = valuesOf(occurrence);
+    write(() =>
+      applyPlan(
+        calendarStore,
+        planEdit(event, exceptions, pending.occurrenceDay, before, { ...before, ...pending.span, recurrence: event.recurrence }, scope),
+      ),
+    ).then(pending.resolve, pending.reject);
   }
 
   return (
@@ -172,9 +223,22 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, re
           </Suspense>
         </div>
 
+        {pendingMove && (
+          <ScopeDialog
+            action="move"
+            allowThis
+            onChoose={chooseMove}
+            onCancel={() => {
+              pendingMove.reject(new Error('Déplacement abandonné.'));
+              setPendingMove(null);
+            }}
+          />
+        )}
+
         {editing && (
           <EventEditor
             eventId={editing.eventId}
+            inSeries={editing.inSeries}
             initial={editing.values}
             onCancel={() => setEditing(null)}
             onSave={save}

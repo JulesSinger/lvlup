@@ -271,7 +271,7 @@ build dès l'étape 1.
 | 1 ✅ | Migration, contrat et ses deux implémentations, module signet ; FullCalendar installé et son poids mesuré au build | le module existe — livré le 27/09/2026, voir §13 |
 | 2 ✅ | Bibliothèques pures : récurrence et exceptions, heures locales et changements d'heure — tests aux dates piégeuses | la règle est juste — livré le 27/09/2026, voir §14 |
 | 3 ✅ | Les quatre vues (mois, semaine, jour, agenda) avec FullCalendar, accordées au thème d'Atlas ; créer, déplacer, étirer, modifier un événement (journée, horaire, plusieurs jours) | **la V1** — livré le 27/09/2026, voir §15 |
-| 4 | La récurrence à l'écran : créer une série, « cet événement / tous les suivants / tous » | les séries se gèrent |
+| 4 ✅ | La récurrence à l'écran : créer une série, « cet événement / tous les suivants / tous » | les séries se gèrent — livré le 27/09/2026, voir §16 |
 | 5 | Les calques : service `calendarSources`, puis Zénith, Orbite, Comète, Astra | le calendrier d'Atlas |
 | plus tard | rappels push ; la to-do list (module à part, sa propre étude) et son calque ; flux ICS | — |
 
@@ -388,6 +388,50 @@ mois et les pastilles de l'agenda.
 
 **Vérifié** à l'œil sur ordinateur (semaine, mois, agenda) et sur téléphone, sans débordement ni
 erreur JavaScript ; 33 vérifications de bout en bout, dont un vrai glisser sur la grille.
+
+---
+
+## 16. Étape 4 : les séries à l'écran (27/09/2026)
+
+**Créer une série.** La fenêtre d'un événement gagne « Répéter », juste sous les dates : ne se
+répète pas, tous les jours, toutes les semaines, tous les mois, tous les ans ; « tous les N » ; pour
+les semaines, sept pastilles L M M J V S D (le jour du début est choisi d'office, et le suit si on
+change ce jour) ; la fin : jamais, à une date, ou après N fois. La règle se relit en toutes lettres
+sous les champs (« Toutes les semaines le jeudi et le dimanche, 10 fois. »), pour qu'une erreur se
+voie avant d'enregistrer.
+
+**Modifier, déplacer, supprimer une occurrence.** Toucher une occurrence ouvre ses valeurs à elle
+(exception comprise), avec la règle de sa série. Enregistrer, supprimer ou la **glisser** dans la
+grille pose la question de tout agenda : **cet événement**, **cet événement et les suivants**, ou
+**tous les événements**. Quand c'est la répétition elle-même qui change, « cet événement » n'est
+pas proposé : une règle vaut pour une suite, pas pour un jour. Annuler (ou Échap) ferme la
+question sans fermer la fenêtre ; après un glisser, l'occurrence revient à sa place.
+
+**La règle, pure et testée** (`lib/seriesEdit.ts`, 17 tests) traduit chaque choix en écritures
+(`SeriesPlan`) :
+
+- **cet événement** : une exception qui ne garde que ce qui diffère de la règle, et qui
+  **remplace** la précédente plutôt que de s'y ajouter ; revenir exactement à la règle retire
+  l'exception ; supprimer pose une exception « supprimée » ;
+- **tous** : on n'applique à la série que **ce qui a changé dans la fenêtre**. Renommer une
+  occurrence déplacée à 19 h ne ramène pas toute la série à 19 h ; la décaler d'un jour décale la
+  série d'un jour. Décaler la série ou changer sa règle efface ses exceptions, qui désignent des
+  jours qui n'en font plus partie ;
+- **les suivants** : la série s'arrête la veille (`splitSeries`, étape 2) et une nouvelle repart
+  de cette occurrence avec les changements, et, pour une série comptée, avec le bon nombre
+  d'occurrences restantes. Les exceptions d'avant la coupure restent, celles d'après partent avec
+  l'ancienne série. Depuis la toute première occurrence, c'est la série entière.
+
+**L'ordre des écritures** (`data/applyPlan.ts`) : elles ne forment pas une transaction, alors
+pour « les suivants » la nouvelle série est **créée avant** que l'ancienne soit raccourcie. Une
+coupure entre les deux laisse au pire des occurrences en double, visibles et faciles à retirer,
+jamais des occurrences disparues. Aucune migration : les tables de l'étape 1 portaient déjà règles
+et exceptions.
+
+**Vérifié** de bout en bout sur une série de sept jours, du lundi au dimanche de la semaine en
+cours : renommer mercredi seul, avancer vendredi et la suite à 6 h, supprimer mardi seul, refuser
+« cet événement » quand la règle change, glisser lundi à 8 h « cet événement », puis supprimer
+« tous » depuis samedi — qui retire la série détachée au vendredi, pas celle d'origine.
 
 ---
 
