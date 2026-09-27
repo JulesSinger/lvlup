@@ -226,6 +226,8 @@ Et, si l'option b est retenue, **un module de tâches** avec sa propre étude, a
 
 ## 11. Questions à trancher ensemble
 
+*En partie tranchées depuis : voir §12.*
+
 1. **Le nom** : Éclipse, Saros, Solstice, ou autre ?
 2. **Les tâches** : option **a** (événement cochable), **b** (un module de to-do list à part,
    recommandé) ou **c** (tout dans un seul module) ? Et si b, lequel d'abord : le calendrier ou la
@@ -235,6 +237,32 @@ Et, si l'option b est retenue, **un module de tâches** avec sa propre étude, a
 5. **Les rappels** avant un événement : dans la V1, ou plus tard ?
 6. **Le flux ICS** vers le Calendrier de l'iPhone : utile pour toi ?
 7. **Les calques** : lesquels t'intéressent vraiment parmi Zénith, Orbite, Comète, Astra, Cérès ?
+
+---
+
+## 12. Décisions prises avec Jules (27/09/2026)
+
+| Question (§11) | Décision | Conséquence |
+|---|---|---|
+| 1. Nom | **Éclipse** | `label: 'Éclipse'` ; nom technique `calendrier` |
+| 2. Tâches | **Option b : un module de to-do list à part**, pour plus tard | le calendrier se construit d'abord seul ; la to-do list aura sa propre étude, et s'affichera ensuite dans le calendrier en calque |
+| 3. Vues de la V1 | **Semaine et jour dès le début**, avec mois et agenda | la grille horaire fait partie de la V1 : le découpage §10 fusionne les étapes 3 et 4 |
+| 4. FullCalendar | *à confirmer* — recommandé pour les quatre vues (voir ci-dessous) | — |
+| 5. Rappels | **Plus tard** | étape 7 inchangée, hors V1 |
+| 6. Flux ICS vers l'iPhone | **Pas pour l'instant** | étape 8 mise de côté |
+| 7. Calques | *à préciser* — Jules a demandé ce que c'est | — |
+
+**La recommandation sur FullCalendar, revue avec cette décision.** Avec la semaine et le jour dès
+la V1, la grille horaire n'est plus un « plus tard » : c'est le cœur de l'écran. Or c'est
+précisément la partie la plus coûteuse à écrire à la main — disposer côte à côte des événements
+qui se chevauchent, glisser pour créer un créneau, déplacer ou étirer un événement au doigt, la
+ligne de l'heure qu'il est, faire défiler jusqu'à l'heure courante. FullCalendar fait tout cela,
+sous licence MIT pour ces vues, et **ses vues mois et liste viennent avec** : autant l'utiliser pour
+les quatre, avec un seul langage de gestes et un seul style à accorder au thème d'Atlas, plutôt
+que de mélanger des vues maison et des vues de bibliothèque. La récurrence et les exceptions
+restent à nous (§7) : le calendrier lui donne seulement des occurrences déjà dépliées. Il est
+chargé à la demande, dans le seul module : le reste d'Atlas n'en porte pas le poids, mesuré au
+build dès l'étape 1.
 
 ---
 
