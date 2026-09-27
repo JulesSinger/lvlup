@@ -274,23 +274,23 @@ la famille céleste :
 | 7 | Hors ligne | **pas dans la V1** ; branché sur la file commune après, comme Cérès — les ids choisis par l'application dès l'étape 1 pour ne rien migrer alors |
 | 8 | Rappels | **maintenant** : c'est le mécanisme commun du §6, construit une fois dans le socle, dont Polaris sera le premier utilisateur (Éclipse pourra s'y brancher ensuite à peu de frais) |
 | 9 | Cocher depuis Éclipse | **oui** : `CalendarMark` gagne une action facultative, premier calque qui écrit |
+| 2 | Frontière avec Zénith | **acceptée** : ce qui se répète pour progresser est une habitude (Zénith) ; ce qui doit être fait est une tâche — pas de PP, de série ni de rang dans Polaris. Le test : « si je rate un jour, est-ce que je recule (Zénith) ou est-ce juste en retard (Polaris) ? » |
+| 3 | Une date ou deux | **deux** : le **jour prévu** (champ principal, rempli par le langage naturel) fait entrer la tâche dans Aujourd'hui ; l'**échéance**, facultative et discrète (« avant le 30 »), la fait passer en rouge quand c'est vraiment urgent |
+| 10 | Récurrence partagée | **remontée dans le socle** (`core/lib/recurrence.ts`) à l'étape 1 : Éclipse et Polaris utilisent le même moteur testé, sans changement visible |
+| 11 | Rituel du matin | **« Faire le point »** : n'apparaît qu'en cas de retards, chacun trié d'un geste (aujourd'hui, demain, un jour, sans date, supprimer) ; et un **rappel du matin** facultatif, « 4 tâches aujourd'hui, dont 1 urgente » |
 
-**Encore ouvertes**, réexpliquées à Jules le même jour : la frontière avec Zénith (§5), une date
-ou deux (§3), la répétition partagée avec Éclipse (§7), et ce que serait un rituel du matin (§11,
-question 11). Proposition faite pour ce dernier : pas un écran obligatoire chaque matin, mais un
-**« Faire le point »** qui n'apparaît que lorsqu'il y a des tâches en retard, et permet de les
-trier d'un geste chacune — aujourd'hui, demain, choisir un jour, sans date, supprimer — plus, en
-option, un rappel du matin qui annonce « 4 tâches aujourd'hui ».
+Toutes les questions du §11 sont tranchées (la 2, la 3, la 10 et la 11 le même jour, après une
+explication concrète).
 
 ### Découpage révisé (remplace §10)
 
 | Étape | Contenu | Résultat |
 |---|---|---|
-| 1 | Migration, contrat et ses deux implémentations (ids choisis par l'application), module signet ; la récurrence remontée dans le socle si c'est décidé | le module existe |
+| 1 | Migration, contrat et ses deux implémentations (ids choisis par l'application), module signet ; **la récurrence d'Éclipse remontée dans le socle** | le module existe |
 | 2 | Bibliothèques pures : prochaine date (les deux répétitions), contenu et ordre d'Aujourd'hui, **analyseur de dates en français** (`chrono-node` éprouvé sur une batterie de phrases, sinon fait maison) | la règle est juste |
 | 3 | Ajout rapide en langage naturel, vues Aujourd'hui, À venir, Boîte de réception, Listes ; cocher, modifier, supprimer ; **sous-tâches et priorités** | **la V1** |
-| 4 | Répétition à l'écran, vue Terminées, réordonner ; « Faire le point » si retenu | les tâches de fond |
-| 5 | **Rappels, mécanisme commun du socle** : table des rappels à venir, envoi par la fonction existante et pg_cron toutes les 5 minutes ; rappel à l'heure d'une tâche | être prévenu |
+| 4 | Répétition à l'écran, vue Terminées, réordonner ; « Faire le point » | les tâches de fond |
+| 5 | **Rappels, mécanisme commun du socle** : table des rappels à venir, envoi par la fonction existante et pg_cron toutes les 5 minutes ; rappel à l'heure d'une tâche, et le rappel du matin | être prévenu |
 | 6 | Calque dans Éclipse, puis **cocher depuis le calendrier** | le lien attendu |
 | 7 | File hors ligne | noter sans réseau |
 | plus tard | rappels d'Éclipse sur le même mécanisme ; le pont avec Zénith ; poser une tâche sur un créneau | — |
