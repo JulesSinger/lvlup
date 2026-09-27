@@ -270,7 +270,7 @@ build dès l'étape 1.
 |---|---|---|
 | 1 ✅ | Migration, contrat et ses deux implémentations, module signet ; FullCalendar installé et son poids mesuré au build | le module existe — livré le 27/09/2026, voir §13 |
 | 2 ✅ | Bibliothèques pures : récurrence et exceptions, heures locales et changements d'heure — tests aux dates piégeuses | la règle est juste — livré le 27/09/2026, voir §14 |
-| 3 | Les quatre vues (mois, semaine, jour, agenda) avec FullCalendar, accordées au thème d'Atlas ; créer, déplacer, étirer, modifier un événement (journée, horaire, plusieurs jours) | **la V1** |
+| 3 ✅ | Les quatre vues (mois, semaine, jour, agenda) avec FullCalendar, accordées au thème d'Atlas ; créer, déplacer, étirer, modifier un événement (journée, horaire, plusieurs jours) | **la V1** — livré le 27/09/2026, voir §15 |
 | 4 | La récurrence à l'écran : créer une série, « cet événement / tous les suivants / tous » | les séries se gèrent |
 | 5 | Les calques : service `calendarSources`, puis Zénith, Orbite, Comète, Astra | le calendrier d'Atlas |
 | plus tard | rappels push ; la to-do list (module à part, sa propre étude) et son calque ; flux ICS | — |
@@ -342,6 +342,52 @@ et, pour une série comptée, avec le bon nombre d'occurrences restantes.
 début, ou le lendemain pour une soirée qui passe minuit ») ; **`lib/describe.ts`** dit une série en
 toutes lettres (« Toutes les 2 semaines le mardi et le jeudi, jusqu'au 31 décembre 2026 ») ;
 **`lib/day.ts`** porte les outils de dates.
+
+---
+
+## 15. Étape 3 : les quatre vues, la V1 (27/09/2026)
+
+**L'écran.** Quatre vues dessinées par FullCalendar : **Mois**, **Semaine**, **Jour** et
+**Agenda** (la liste de la semaine). Sur ordinateur, la semaine s'ouvre par défaut ; sur
+téléphone (moins de 700 px), c'est le jour, et les boutons des vues passent en bas de l'écran
+pour laisser le titre respirer en haut. La dernière vue choisie est retenue sur l'appareil
+(`calendrier.view.v1`, un confort, pas une donnée). La grille s'ouvre sur l'heure courante moins
+une, avec la ligne rouge de « maintenant ». Tout est en français, les semaines commencent le
+lundi, la bande des journées entières s'appelle « Journée ».
+
+**Créer.** Trois façons : le bouton « Nouvel événement » (l'heure pleine suivante, pour une
+heure) ; **toucher ou glisser sur un créneau** de la grille (un simple toucher d'une demi-heure
+devient une heure, plus utile) ; ou une case de la vue Mois (journée entière). Au doigt, un appui
+de 350 ms sépare la sélection du simple défilement. La fenêtre porte le titre, « Toute la
+journée », les jours et heures de début et de fin, six pastilles de couleur, le lieu et une note.
+Déplacer le jour de début garde la durée : un séjour de trois jours le reste. Les règles de la
+base y sont dites en français (`lib/validation.ts`), avant tout envoi ; en cas d'échec, la
+fenêtre reste remplie.
+
+**Déplacer, étirer, modifier, supprimer.** Un événement ponctuel se glisse ailleurs ou
+s'étire ; si l'enregistrement échoue, il revient à sa place et l'erreur s'affiche. Le toucher
+l'ouvre pour le modifier ou le supprimer (après confirmation). **Une série ne se déplace pas
+encore au doigt** (`editable: false` sur ses occurrences) : déplacer « cette occurrence » ou
+« toute la série » est justement la question de l'étape 4. D'ici là, la toucher modifie toute la
+série, et la fenêtre le dit.
+
+**Le pont avec FullCalendar** (`lib/calendarBridge.ts`, pur et testé) : FullCalendar ne reçoit que
+des occurrences déjà dépliées pour la période affichée (`expandEvents`), la récurrence reste à
+nous ; les dates sont locales, sans fuseau (`timeZone: 'local'`), et une journée entière finit la
+veille de la fin exclusive que FullCalendar rend.
+
+**Le poids.** `CalendarView.tsx` est le seul fichier qui importe FullCalendar, et il est chargé à
+la demande (`React.lazy`) : un fichier à part au build (**79 Ko compressés**, 269 Ko bruts), que
+ni le hub ni les autres modules ne téléchargent. Une vérification e2e le contrôle sur les
+requêtes réseau.
+
+**Le thème.** Les variables de FullCalendar (`--fc-*`) sont redéfinies sur celles d'Atlas (fond
+sombre, bordures, violet d'accent pour aujourd'hui et le bouton actif) ; les six couleurs
+d'événement sont des classes (`calendrier-event-<couleur>`) qui colorent la grille, les points du
+mois et les pastilles de l'agenda.
+
+**Vérifié** à l'œil sur ordinateur (semaine, mois, agenda) et sur téléphone, sans débordement ni
+erreur JavaScript ; 33 vérifications de bout en bout, dont un vrai glisser sur la grille.
 
 ---
 

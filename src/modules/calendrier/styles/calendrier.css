@@ -1,29 +1,238 @@
-/* Éclipse — étape 1 : un signet, en attendant les vrais écrans. */
+/* Éclipse — le calendrier (étape 3, docs/etude-calendrier.md §12). */
 
-.calendrier-placeholder {
+/* Un calendrier profite de toute la largeur, surtout en vue semaine —
+   même motif que `.budget-main` d'Astra, qui élargit `.main` (socle). */
+.calendrier-main {
+  max-width: 1320px;
+}
+
+/* La grille horaire défile à l'intérieur de sa hauteur : on lui donne celle
+   de l'écran, moins la barre du haut. */
+.calendrier-view {
+  height: calc(100dvh - 130px);
+  min-height: 460px;
+}
+
+.calendrier-loading {
+  color: var(--text-dim);
+}
+
+/* --- FullCalendar, accordé au thème d'Atlas ----------------------------
+   Par ses variables CSS (documentées par FullCalendar v6), plutôt qu'en
+   réécrivant ses règles : une mise à jour de la bibliothèque les garde. */
+.calendrier-view .fc {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: var(--bg);
+  --fc-neutral-bg-color: var(--surface);
+  --fc-neutral-text-color: var(--text-dim);
+  --fc-list-event-hover-bg-color: var(--surface-2);
+  --fc-today-bg-color: rgba(201, 160, 255, 0.07);
+  --fc-now-indicator-color: #c9a0ff;
+  --fc-highlight-color: rgba(201, 160, 255, 0.18);
+  --fc-button-bg-color: var(--surface-2);
+  --fc-button-border-color: var(--border-strong);
+  --fc-button-text-color: var(--text);
+  --fc-button-hover-bg-color: var(--surface);
+  --fc-button-hover-border-color: var(--border-strong);
+  --fc-button-active-bg-color: rgba(201, 160, 255, 0.22);
+  --fc-button-active-border-color: #c9a0ff;
+  --fc-event-text-color: #0b0e14;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.calendrier-view .fc .fc-toolbar-title {
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.calendrier-view .fc .fc-toolbar-title::first-letter {
+  text-transform: uppercase;
+}
+
+.calendrier-view .fc .fc-button {
+  padding: 5px 11px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  text-transform: capitalize;
+  box-shadow: none;
+}
+
+.calendrier-view .fc .fc-button-primary:not(:disabled).fc-button-active,
+.calendrier-view .fc .fc-button-primary:not(:disabled):active {
+  color: var(--text);
+}
+
+.calendrier-view .fc .fc-col-header-cell-cushion,
+.calendrier-view .fc .fc-daygrid-day-number,
+.calendrier-view .fc .fc-list-day-text,
+.calendrier-view .fc .fc-list-day-side-text {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+
+.calendrier-view .fc .fc-timegrid-slot-label-cushion,
+.calendrier-view .fc .fc-timegrid-axis-cushion {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.calendrier-view .fc .fc-day-today .fc-daygrid-day-number,
+.calendrier-view .fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+  color: #c9a0ff;
+  font-weight: 700;
+}
+
+.calendrier-view .fc .fc-event {
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+/* Une occurrence de série : un liseré, pour la distinguer d'un événement unique. */
+.calendrier-view .fc .calendrier-event-recurring {
+  border-left-width: 3px;
+  border-left-color: rgba(11, 14, 20, 0.45);
+}
+
+/* Les six couleurs, sur la grille, dans le mois, et en pastille dans l'agenda. */
+.calendrier-view .fc .calendrier-event-bleu { background-color: #6fa8f5; border-color: #6fa8f5; }
+.calendrier-view .fc .calendrier-event-vert { background-color: #6fc783; border-color: #6fc783; }
+.calendrier-view .fc .calendrier-event-orange { background-color: #eba95c; border-color: #eba95c; }
+.calendrier-view .fc .calendrier-event-rose { background-color: #ee88b2; border-color: #ee88b2; }
+.calendrier-view .fc .calendrier-event-violet { background-color: #b49af2; border-color: #b49af2; }
+.calendrier-view .fc .calendrier-event-gris { background-color: #9aa3b6; border-color: #9aa3b6; }
+
+/* Dans le mois, un événement horaire est un point et du texte, sans fond. */
+.calendrier-view .fc .fc-daygrid-dot-event {
+  background-color: transparent;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.calendrier-view .fc .fc-daygrid-dot-event .fc-daygrid-event-dot { border-color: currentColor; }
+.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-bleu .fc-daygrid-event-dot { border-color: #6fa8f5; }
+.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-vert .fc-daygrid-event-dot { border-color: #6fc783; }
+.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-orange .fc-daygrid-event-dot { border-color: #eba95c; }
+.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-rose .fc-daygrid-event-dot { border-color: #ee88b2; }
+.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-violet .fc-daygrid-event-dot { border-color: #b49af2; }
+.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-gris .fc-daygrid-event-dot { border-color: #9aa3b6; }
+
+/* L'agenda : fond de ligne neutre, pastille de la couleur de l'événement. */
+.calendrier-view .fc .fc-list-event { background-color: transparent; color: var(--text); }
+.calendrier-view .fc .fc-list-event.calendrier-event-bleu .fc-list-event-dot { border-color: #6fa8f5; }
+.calendrier-view .fc .fc-list-event.calendrier-event-vert .fc-list-event-dot { border-color: #6fc783; }
+.calendrier-view .fc .fc-list-event.calendrier-event-orange .fc-list-event-dot { border-color: #eba95c; }
+.calendrier-view .fc .fc-list-event.calendrier-event-rose .fc-list-event-dot { border-color: #ee88b2; }
+.calendrier-view .fc .fc-list-event.calendrier-event-violet .fc-list-event-dot { border-color: #b49af2; }
+.calendrier-view .fc .fc-list-event.calendrier-event-gris .fc-list-event-dot { border-color: #9aa3b6; }
+
+/* --- Fenêtre de création et de modification ---------------------------- */
+
+.calendrier-allday {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  min-height: 70vh;
-  padding: 2rem;
-  text-align: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 13.5px;
+  cursor: pointer;
 }
 
-.calendrier-placeholder-emoji {
-  font-size: 2.5rem;
-}
-
-.calendrier-placeholder-title {
+/* Le socle donne une largeur pleine à tout `input` (piège déjà noté chez Cérès). */
+.calendrier-allday input {
+  flex: none;
+  width: auto;
   margin: 0;
-  font-size: 1.4rem;
 }
 
-.calendrier-placeholder-text {
-  margin: 0 0 0.5rem;
-  color: var(--text-dim, #9aa3b8);
-  font-size: 1rem;
+.calendrier-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.calendrier-editor-grid input {
+  width: 100%;
+}
+
+.calendrier-editor textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.calendrier-colors {
+  display: flex;
+  gap: 10px;
+}
+
+.calendrier-color {
+  width: 28px;
+  height: 28px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.calendrier-color.on {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text);
+}
+
+.calendrier-color-bleu { background: #6fa8f5; }
+.calendrier-color-vert { background: #6fc783; }
+.calendrier-color-orange { background: #eba95c; }
+.calendrier-color-rose { background: #ee88b2; }
+.calendrier-color-violet { background: #b49af2; }
+.calendrier-color-gris { background: #9aa3b6; }
+
+.calendrier-series-note {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.calendrier-editor-foot {
+  flex-wrap: wrap;
+}
+
+.calendrier-editor-spacer {
+  flex: 1;
+}
+
+/* --- Téléphone ---------------------------------------------------------- */
+
+@media (max-width: 760px) {
+  /* Même piège qu'Astra, Cérès et Comète (CLAUDE.md §8) : sans largeur
+     explicite, `.main` reprend celle de son contenu une fois en colonne. */
+  .calendrier-main {
+    width: 100%;
+  }
+
+  .calendrier-topbar-btn,
+  .calendrier-new {
+    width: 40px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .calendrier-topbar-label {
+    display: none;
+  }
+
+  .calendrier-view {
+    height: calc(100dvh - 180px);
+  }
+
+  .calendrier-view .fc .fc-toolbar-title {
+    font-size: 15px;
+  }
+
+  .calendrier-view .fc .fc-button {
+    padding: 5px 8px;
+  }
+
+  .calendrier-editor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* --- Aperçu sur la page d'accueil publique (EclipseLandingPreview) ----- */

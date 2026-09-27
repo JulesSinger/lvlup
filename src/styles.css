@@ -73,5 +73,5 @@
 /* --- Comète : la liste de courses (étape 3) --------------------------- */
 @import './modules/courses/styles/courses.css';
 
-/* --- Éclipse : signet d'étape 1 --------------------------------------- */
+/* --- Éclipse : le calendrier (étape 3) --------------------------------- */
 @import './modules/calendrier/styles/calendrier.css';

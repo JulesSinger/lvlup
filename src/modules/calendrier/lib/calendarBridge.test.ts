@@ -1,0 +1,104 @@
+import { describe, expect, it } from 'vitest';
+import { defaultSpan, spanFromRange, spanFromSelection, timeString, toCalendarItem } from './calendarBridge';
+import type { Occurrence } from './recurrence';
+
+const at = (day: string, time = '00:00') => {
+  const [y, m, d] = day.split('-').map(Number);
+  const [h, min] = time.split(':').map(Number);
+  return new Date(y, m - 1, d, h, min);
+};
+
+const occurrence = (overrides: Partial<Occurrence> = {}): Occurrence => ({
+  eventId: 'e1',
+  occurrenceDay: '2026-09-29',
+  title: 'Dentiste',
+  allDay: false,
+  startDay: '2026-09-29',
+  endDay: '2026-09-29',
+  startTime: '14:00',
+  endTime: '14:30',
+  color: 'bleu',
+  location: '',
+  note: '',
+  recurring: false,
+  modified: false,
+  ...overrides,
+});
+
+describe('toCalendarItem', () => {
+  it('une occurrence ponctuelle : dates locales, couleur, déplaçable', () => {
+    expect(toCalendarItem(occurrence())).toEqual({
+      id: 'e1|2026-09-29',
+      title: 'Dentiste',
+      start: '2026-09-29T14:00',
+      end: '2026-09-29T14:30',
+      allDay: false,
+      classNames: ['calendrier-event-bleu'],
+      editable: true,
+      extendedProps: { eventId: 'e1', occurrenceDay: '2026-09-29' },
+    });
+  });
+
+  it('une occurrence de série est marquée, et pas encore déplaçable (étape 4)', () => {
+    const item = toCalendarItem(occurrence({ recurring: true }));
+    expect(item.classNames).toContain('calendrier-event-recurring');
+    expect(item.editable).toBe(false);
+  });
+});
+
+describe('spanFromRange', () => {
+  it('journée entière : la fin exclusive de FullCalendar devient la veille', () => {
+    expect(spanFromRange(at('2026-09-28'), at('2026-10-04'), true)).toEqual({
+      allDay: true,
+      startDay: '2026-09-28',
+      endDay: '2026-10-03',
+      startTime: null,
+      endTime: null,
+    });
+  });
+
+  it('horaire, y compris à cheval sur minuit', () => {
+    expect(spanFromRange(at('2026-10-03', '21:00'), at('2026-10-04', '02:00'), false)).toEqual({
+      allDay: false,
+      startDay: '2026-10-03',
+      endDay: '2026-10-04',
+      startTime: '21:00',
+      endTime: '02:00',
+    });
+  });
+
+  it('sans fin : une heure', () => {
+    expect(spanFromRange(at('2026-09-29', '09:30'), null, false)).toMatchObject({ startTime: '09:30', endTime: '10:30' });
+  });
+
+  it('lit l’heure locale, même le jour du changement d’heure', () => {
+    expect(timeString(at('2026-10-25', '09:00'))).toBe('09:00');
+    expect(spanFromRange(at('2026-10-25', '09:00'), at('2026-10-25', '10:00'), false).startTime).toBe('09:00');
+  });
+});
+
+describe('spanFromSelection', () => {
+  it('un simple toucher sur un créneau de 30 minutes devient un rendez-vous d’une heure', () => {
+    expect(spanFromSelection(at('2026-09-29', '14:00'), at('2026-09-29', '14:30'), false)).toMatchObject({
+      startTime: '14:00',
+      endTime: '15:00',
+    });
+  });
+
+  it('une sélection glissée plus longue est gardée telle quelle', () => {
+    expect(spanFromSelection(at('2026-09-29', '14:00'), at('2026-09-29', '16:30'), false)).toMatchObject({
+      startTime: '14:00',
+      endTime: '16:30',
+    });
+  });
+});
+
+describe('defaultSpan', () => {
+  it('à l’heure pleine suivante, pour une heure', () => {
+    expect(defaultSpan(at('2026-09-29', '14:20'))).toMatchObject({ startDay: '2026-09-29', startTime: '15:00', endTime: '16:00' });
+  });
+
+  it('tard le soir, il passe au lendemain', () => {
+    expect(defaultSpan(at('2026-09-29', '23:10'))).toMatchObject({ startDay: '2026-09-30', startTime: '00:00', endTime: '01:00' });
+  });
+});
