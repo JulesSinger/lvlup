@@ -2,6 +2,7 @@ import type { AtlasModule } from '../../core/lib/module';
 import { OrbiteLandingPreview } from './components/OrbiteLandingPreview';
 import { FlashcardsScreen } from './FlashcardsScreen';
 import { flashcardsStore } from './data';
+import { createCalendarSource } from './data/calendarSource';
 
 /**
  * Déclaration du module flashcards.
@@ -22,4 +23,6 @@ export const flashcardsModule: AtlasModule = {
   data: flashcardsStore,
   Screen: FlashcardsScreen,
   LandingPreview: OrbiteLandingPreview,
+  // Les révisions faites et à faire, en calque dans le calendrier (Éclipse).
+  provides: { calendarSources: [createCalendarSource(flashcardsStore)] },
 };

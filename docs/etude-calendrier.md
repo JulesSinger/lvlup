@@ -272,7 +272,7 @@ build dès l'étape 1.
 | 2 ✅ | Bibliothèques pures : récurrence et exceptions, heures locales et changements d'heure — tests aux dates piégeuses | la règle est juste — livré le 27/09/2026, voir §14 |
 | 3 ✅ | Les quatre vues (mois, semaine, jour, agenda) avec FullCalendar, accordées au thème d'Atlas ; créer, déplacer, étirer, modifier un événement (journée, horaire, plusieurs jours) | **la V1** — livré le 27/09/2026, voir §15 |
 | 4 ✅ | La récurrence à l'écran : créer une série, « cet événement / tous les suivants / tous » | les séries se gèrent — livré le 27/09/2026, voir §16 |
-| 5 | Les calques : service `calendarSources`, puis Zénith, Orbite, Comète, Astra | le calendrier d'Atlas |
+| 5 ✅ | Les calques : service `calendarSources`, puis Zénith, Orbite, Comète, Astra | le calendrier d'Atlas — livré le 27/09/2026, voir §17 |
 | plus tard | rappels push ; la to-do list (module à part, sa propre étude) et son calque ; flux ICS | — |
 
 ---
@@ -432,6 +432,44 @@ et exceptions.
 cours : renommer mercredi seul, avancer vendredi et la suite à 6 h, supprimer mardi seul, refuser
 « cet événement » quand la règle change, glisser lundi à 8 h « cet événement », puis supprimer
 « tous » depuis samedi — qui retire la série détachée au vendredi, pas celle d'origine.
+
+---
+
+## 17. Étape 5 : les calques des autres modules (27/09/2026)
+
+**Le mécanisme, dans le socle** (`core/lib/services.ts`). Un nouveau service, `calendarSources` :
+un module qui a quelque chose à montrer dans le calendrier déclare une **source** — son nom, sa
+couleur, s'il s'affiche d'office, et `marksBetween(from, to)`, qui rend des **marques** : un jour,
+un titre, un détail. Toujours sur la journée entière, en lecture seule : Éclipse les affiche, il ne
+les possède pas, et rien n'est copié. `collectServices` distingue désormais deux sortes de
+services : ceux qu'un seul module rend (`expenses`, le premier déclaré l'emporte) et ceux que
+plusieurs modules **additionnent**, déclarés en tableau (`calendarSources`), dans l'ordre du
+registre. Éclipse ne connaît aucun des modules qu'il affiche ; un module retiré du registre fait
+simplement disparaître son calque.
+
+**Les quatre calques**, chacun calculé par son module dans une bibliothèque pure et testée
+(`lib/calendarMarks.ts`), branchée sur son contrat de stockage (`data/calendarSource.ts`) :
+
+| Calque | Ce qu'il montre | D'office |
+|---|---|---|
+| **Zénith** | une marque par objectif et par jour fait : « ✓ 🏃 Course 10,5 km, Étirements », l'objectif au survol | affiché |
+| **Orbite** | les jours passés, les cartes révisées (« ✓ 12 cartes révisées ») ; aujourd'hui et après, celles à réviser, les cartes en retard comptant aujourd'hui, le détail par paquet au survol ; les paquets archivés ne comptent pas | affiché |
+| **Comète** | les courses faites : « 🛒 Lidl · 54,20 € », le numéro de course et la note au survol | affiché |
+| **Astra** | ce qui a été dépensé chaque jour, avec les mêmes exclusions que le camembert (virements internes, épargne, entrées) : « 42,50 € dépensés », les lignes au survol | **masqué** — un calendrier n'est pas le bon endroit pour lire un budget (§6), on l'allume au besoin |
+
+**À l'écran.** Une rangée de pastilles « Calques » au-dessus du calendrier, une par source, à la
+couleur de son module ; l'allumer ou l'éteindre est retenu sur l'appareil (`calendrier.layers.v1`,
+un confort, pas une donnée). Sur téléphone, la rangée tient sur une ligne qui défile. Les marques
+passent après les événements d'Éclipse dans chaque jour ; les toucher n'ouvre rien, leur origine
+et leur détail sont au survol. Chaque calque se charge seul : un module en panne n'empêche pas
+les autres, sa pastille porte un ⚠.
+
+**Pas encore** : les calques de Cérès (kcal du jour) et de la future to-do list, poser une séance
+de Zénith dans le calendrier, les échéances d'Astra — tous notés au §6 pour plus tard.
+
+**Vérifié** à l'œil sur ordinateur (semaine et mois) et sur téléphone, avec des données des
+quatre modules ; 12 vérifications de bout en bout, dont le choix des calques retenu après un
+rechargement.
 
 ---
 

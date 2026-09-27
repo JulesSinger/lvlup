@@ -1,11 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
+import type { CalendarMark } from '../../core/lib/services';
 import type { ViewName } from './components/CalendarView';
 import { EventEditor, type EditorValues } from './components/EventEditor';
 import { ScopeDialog } from './components/ScopeDialog';
 import { calendarStore } from './data';
 import { applyPlan } from './data/applyPlan';
-import { defaultSpan, toCalendarItem, type EventSpan } from './lib/calendarBridge';
+import { defaultSpan, markItem, toCalendarItem, type EventSpan } from './lib/calendarBridge';
 import { dayString, shiftDay } from './lib/day';
 import { expandEvents, type Occurrence } from './lib/recurrence';
 import { planDelete, planEdit, type OccurrenceValues, type Scope } from './lib/seriesEdit';
@@ -33,6 +34,18 @@ function initialView(narrow: boolean): ViewName {
 }
 
 /** `occurrenceDay`, `before` : pour une occurrence existante — le jour qu'elle a dans la série, et ce que la fenêtre en montrait. */
+/** Les calques allumés ou éteints à la main, retenus sur cet appareil — un confort, pas une donnée. */
+const LAYERS_KEY = 'calendrier.layers.v1';
+
+function savedLayers(): Record<string, boolean> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LAYERS_KEY) ?? '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
 type Editing = { eventId: string | null; occurrenceDay: string | null; inSeries: boolean; values: EditorValues; before: OccurrenceValues | null };
 
 /** Un déplacement d'occurrence en attente de « laquelle ? » : FullCalendar attend la réponse pour le garder ou l'annuler. */
@@ -55,7 +68,7 @@ function valuesOf(o: Occurrence): OccurrenceValues {
  * déplacer ou supprimer une occurrence demande « cet événement, les
  * suivants ou tous », traduit en écritures par `lib/seriesEdit.ts`.
  */
-export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
+export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, services }: ModuleScreenProps) {
   const narrow = typeof window !== 'undefined' && window.innerWidth < NARROW;
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [exceptions, setExceptions] = useState<EventException[]>([]);
@@ -65,6 +78,42 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, re
   });
   const [editing, setEditing] = useState<Editing | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+
+  // --- Les calques des autres modules (étape 5) ---
+  const sources = useMemo(() => services.calendarSources ?? [], [services]);
+  const [layerChoice, setLayerChoice] = useState<Record<string, boolean>>(savedLayers);
+  const [marks, setMarks] = useState<Record<string, CalendarMark[]>>({});
+  const [failedLayers, setFailedLayers] = useState<Set<string>>(new Set());
+  const isVisible = useCallback((id: string, byDefault: boolean) => layerChoice[id] ?? byDefault, [layerChoice]);
+
+  useEffect(() => {
+    // Chaque calque se charge seul : un module en panne n'empêche pas les autres.
+    let current = true;
+    for (const source of sources) {
+      if (!isVisible(source.id, source.defaultVisible)) continue;
+      source.marksBetween(range.from, range.to).then(
+        (found) => {
+          if (!current) return;
+          setMarks((m) => ({ ...m, [source.id]: found }));
+          setFailedLayers((f) => (f.has(source.id) ? new Set([...f].filter((id) => id !== source.id)) : f));
+        },
+        () => current && setFailedLayers((f) => new Set(f).add(source.id)),
+      );
+    }
+    return () => {
+      current = false;
+    };
+  }, [sources, range, isVisible, reloadToken]);
+
+  function toggleLayer(id: string, visible: boolean) {
+    const next = { ...layerChoice, [id]: visible };
+    setLayerChoice(next);
+    try {
+      localStorage.setItem(LAYERS_KEY, JSON.stringify(next));
+    } catch {
+      // Sans stockage, le choix vaut pour cette visite seulement.
+    }
+  }
 
   const refresh = useCallback(async () => {
     try {
@@ -84,7 +133,15 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, re
   }, [refresh, reloadToken]);
 
   const occurrences = useMemo(() => expandEvents(events, exceptions, range.from, range.to), [events, exceptions, range]);
-  const items = useMemo(() => occurrences.map(toCalendarItem), [occurrences]);
+  const items = useMemo(
+    () => [
+      ...occurrences.map(toCalendarItem),
+      ...sources.flatMap((source, i) =>
+        isVisible(source.id, source.defaultVisible) ? (marks[source.id] ?? []).map((mark) => markItem(source, mark, i + 1)) : [],
+      ),
+    ],
+    [occurrences, sources, marks, isVisible],
+  );
 
   function openNew(span: EventSpan) {
     setEditing({
@@ -199,6 +256,31 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, re
             <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => void refresh()}>
               Réessayer
             </button>
+          </div>
+        )}
+
+        {sources.length > 0 && (
+          <div className="calendrier-layers" role="group" aria-label="Calques">
+            <span className="calendrier-layers-label">Calques</span>
+            {sources.map((source) => {
+              const on = isVisible(source.id, source.defaultVisible);
+              const failed = failedLayers.has(source.id);
+              return (
+                <button
+                  key={source.id}
+                  type="button"
+                  className={`calendrier-layer-chip${on ? ' on' : ''}`}
+                  aria-pressed={on}
+                  title={failed ? `${source.label} : chargement impossible` : on ? `Masquer ${source.label}` : `Afficher ${source.label}`}
+                  onClick={() => toggleLayer(source.id, !on)}
+                  style={{ '--calendrier-layer-color': source.color } as React.CSSProperties}
+                >
+                  <span className="calendrier-layer-dot" aria-hidden="true" />
+                  {source.label}
+                  {failed && on && <span aria-hidden="true"> ⚠</span>}
+                </button>
+              );
+            })}
           </div>
         )}
 

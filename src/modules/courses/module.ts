@@ -2,6 +2,7 @@ import type { AtlasModule } from '../../core/lib/module';
 import { CometeLandingPreview } from './components/CometeLandingPreview';
 import { CoursesScreen } from './CoursesScreen';
 import { coursesStore } from './data';
+import { createCalendarSource } from './data/calendarSource';
 
 /**
  * Déclaration du module courses.
@@ -19,4 +20,6 @@ export const coursesModule: AtlasModule = {
   data: coursesStore,
   Screen: CoursesScreen,
   LandingPreview: CometeLandingPreview,
+  // Les courses faites, en calque dans le calendrier (Éclipse).
+  provides: { calendarSources: [createCalendarSource(coursesStore)] },
 };

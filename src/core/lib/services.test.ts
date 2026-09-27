@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectServices, type ExpenseService } from './services';
+import { collectServices, type CalendarSource, type ExpenseService } from './services';
 
 const fake = (): ExpenseService => ({
   record: async () => {},
@@ -20,5 +20,14 @@ describe('collectServices', () => {
   it('deux fournisseurs du même service : le premier du registre l’emporte', () => {
     const first = fake();
     expect(collectServices([{ provides: { expenses: first } }, { provides: { expenses: fake() } }]).expenses).toBe(first);
+  });
+
+  it('les calques du calendrier s’additionnent, dans l’ordre du registre', () => {
+    const source = (id: string): CalendarSource => ({ id, label: id, color: '#fff', defaultVisible: true, marksBetween: async () => [] });
+    const a = source('objectifs');
+    const b = source('flashcards');
+    const c = source('courses');
+    const services = collectServices([{ provides: { calendarSources: [a] } }, {}, { provides: { calendarSources: [b, c] } }]);
+    expect(services.calendarSources).toEqual([a, b, c]);
   });
 });

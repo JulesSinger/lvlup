@@ -1,13 +1,13 @@
 /**
  * Suite e2e du module calendrier (Éclipse).
  *
- * Étapes 3 et 4 (docs/etude-calendrier.md §15-§16). Un vrai parcours —
+ * Étapes 3 à 5 (docs/etude-calendrier.md §15-§17). Un vrai parcours —
  * FullCalendar chargé seulement à l'ouverture, vue semaine par défaut,
  * créer (horaire, journée entière sur plusieurs jours, glisser sur un
  * créneau), refuser une fin avant le début, modifier, supprimer ; puis une
  * série de sept jours, modifiée, déplacée et supprimée « cet événement »,
  * « les suivants » ou « tous » ; changer de vue, retrouver le tout après un
- * rechargement — plus le rendu téléphone.
+ * rechargement — plus le rendu téléphone, et les calques des autres modules.
  *
  * Les dates sont celles du jour de l'exécution : la vue semaine s'ouvre sur
  * la semaine en cours, c'est là que tout se passe.
@@ -317,6 +317,65 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.hub-picker-card');
   check('« Modules » ramène sur l’écran de choix', await page.locator('.hub-picker').isVisible());
   await context.close();
+
+  // --- Les calques des autres modules (étape 5) ---------------------------------------------
+  // Seule entorse assumée à « une suite ne connaît pas un autre module » : le
+  // lien est l'objet même de l'étape, comme la suite de Comète entre dans
+  // Astra. Les données sont posées dans le stockage local plutôt que saisies
+  // à travers quatre écrans, dans un contexte à part.
+  const layered = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  const lp = await layered.newPage();
+  const layerErrors = [];
+  lp.on('pageerror', (e) => layerErrors.push(e.message));
+  await lp.goto(BASE);
+  await lp.evaluate((today) => {
+    const raw = JSON.parse(localStorage.getItem('palier.v1') ?? '{}');
+    Object.assign(raw, {
+      goals: [{ id: 'g1', title: 'Courir un marathon', description: '', emoji: '🏃', position: 0, archived: false, createdAt: '2026-01-01', tiers: [] }],
+      actions: [{ id: 'a1', goalId: 'g1', title: 'Course', pp: 20, position: 0, archived: false, createdAt: '2026-01-01', unit: 'km', defaultValue: 8, isMeasure: false }],
+      checkins: [{ id: 'c1', goalId: 'g1', actionId: 'a1', pp: 20, day: today, note: '', createdAt: '2026-01-01', value: 10.5, title: null }],
+      flashcardsDecks: [{ id: 'd1', name: 'Anglais', emoji: '', position: 0, archived: false, createdAt: '' }],
+      flashcardsCards: [1, 2].map((i) => ({ id: `k${i}`, deckId: 'd1', front: 'a', back: 'b', box: 1, dueDay: today, createdAt: '' })),
+      flashcardsReviews: [],
+      coursesTrips: [{ id: 't1', number: 1, day: today, storeId: null, storeName: 'Lidl', totalCents: 5420, note: '', createdAt: '' }],
+      budgetCategories: [],
+      budgetEntries: [{ id: 'b1', day: today, label: 'Boulangerie', amountCents: -1250, categoryId: null, source: 'manuelle', importKey: null, note: '', createdAt: '' }],
+    });
+    localStorage.setItem('palier.v1', JSON.stringify(raw));
+  }, day(0));
+  await openEclipse(lp, BASE);
+  const chips = await lp.locator('.calendrier-layer-chip').allTextContents();
+  check('Un calque par module qui en déclare un', ['Zénith', 'Astra', 'Orbite', 'Comète'].every((l) => chips.some((c) => c.includes(l))), chips.join(' | '));
+  const pressed = async (label) => lp.locator('.calendrier-layer-chip', { hasText: label }).getAttribute('aria-pressed');
+  check('Zénith, Orbite et Comète s’affichent d’office, Astra non', (await pressed('Zénith')) === 'true' && (await pressed('Orbite')) === 'true' && (await pressed('Comète')) === 'true' && (await pressed('Astra')) === 'false');
+
+  const zenithMark = lp.locator('.calendrier-layer', { hasText: 'Course 10,5 km' });
+  await zenithMark.first().waitFor();
+  check('Zénith : ce qui a été fait, avec la quantité', await zenithMark.first().isVisible());
+  check('Orbite : les cartes à réviser', await lp.locator('.calendrier-layer', { hasText: '2 cartes à réviser' }).first().isVisible());
+  check('Comète : la course, magasin et total', ((await lp.locator('.calendrier-layer', { hasText: 'Lidl' }).first().textContent()) ?? '').replace(/\s/g, ' ').includes('Lidl · 54,20 €'));
+  check('Astra, masqué, ne montre rien', (await lp.locator('.calendrier-layer', { hasText: 'dépensés' }).count()) === 0);
+  check('Une marque dit d’où elle vient au survol', (await zenithMark.first().getAttribute('title')) === 'Zénith — Courir un marathon');
+
+  await zenithMark.first().click();
+  await lp.waitForTimeout(300);
+  check('Toucher une marque n’ouvre pas la fenêtre d’un événement', (await lp.locator('.calendrier-editor').count()) === 0);
+
+  await lp.locator('.calendrier-layer-chip', { hasText: 'Astra' }).click();
+  await lp.locator('.calendrier-layer', { hasText: 'dépensés' }).first().waitFor();
+  check('Allumer Astra montre ce qui a été dépensé', ((await lp.locator('.calendrier-layer', { hasText: 'dépensés' }).first().textContent()) ?? '').includes('12,50 € dépensés'));
+  await lp.locator('.calendrier-layer-chip', { hasText: 'Zénith' }).click();
+  await zenithMark.first().waitFor({ state: 'detached' });
+  check('Éteindre Zénith retire ses marques', (await zenithMark.count()) === 0);
+
+  await openEclipse(lp, BASE);
+  await lp.locator('.calendrier-layer', { hasText: 'dépensés' }).first().waitFor();
+  check(
+    'Le choix des calques est retenu après un rechargement',
+    (await pressed('Astra')) === 'true' && (await pressed('Zénith')) === 'false' && (await zenithMark.count()) === 0,
+  );
+  check('Aucune erreur JavaScript avec les calques', layerErrors.length === 0, layerErrors.join(' | '));
+  await layered.close();
 
   // --- Téléphone ------------------------------------------------------------------------------
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultSpan, spanFromRange, spanFromSelection, timeString, toCalendarItem } from './calendarBridge';
+import { defaultSpan, markItem, spanFromRange, spanFromSelection, timeString, toCalendarItem } from './calendarBridge';
 import type { Occurrence } from './recurrence';
 
 const at = (day: string, time = '00:00') => {
@@ -34,7 +34,7 @@ describe('toCalendarItem', () => {
       end: '2026-09-29T14:30',
       allDay: false,
       classNames: ['calendrier-event-bleu'],
-      extendedProps: { eventId: 'e1', occurrenceDay: '2026-09-29' },
+      extendedProps: { order: 0, eventId: 'e1', occurrenceDay: '2026-09-29' },
     });
   });
 
@@ -98,5 +98,23 @@ describe('defaultSpan', () => {
 
   it('tard le soir, il passe au lendemain', () => {
     expect(defaultSpan(at('2026-09-29', '23:10'))).toMatchObject({ startDay: '2026-09-30', startTime: '00:00', endTime: '01:00' });
+  });
+});
+
+describe('markItem — une marque d’un autre module', () => {
+  it('journée entière, en lecture seule, teintée de la couleur du module', () => {
+    const item = markItem({ id: 'objectifs', label: 'Zénith', color: '#f2c14e' }, { id: 'g|2026-09-27', day: '2026-09-27', title: '✓ Course', detail: 'Marathon' }, 1);
+    expect(item).toEqual({
+      id: 'layer|objectifs|g|2026-09-27',
+      title: '✓ Course',
+      start: '2026-09-27',
+      end: '2026-09-28',
+      allDay: true,
+      classNames: ['calendrier-layer'],
+      editable: false,
+      backgroundColor: '#f2c14e38',
+      borderColor: '#f2c14e',
+      extendedProps: { order: 1, layer: 'Zénith', detail: 'Marathon' },
+    });
   });
 });

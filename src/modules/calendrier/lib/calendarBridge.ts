@@ -5,6 +5,7 @@
  * INCLUSES. Toutes les conversions passent ici, testées, et jamais par
  * l'UTC : une date affichée à 9 h est lue à 9 h, changement d'heure ou pas.
  */
+import type { CalendarMark, CalendarSource } from '../../../core/lib/services';
 import { dayString, shiftDay } from './day';
 import { occurrenceRange, type Occurrence } from './recurrence';
 import type { EventColor, EventInput } from './types';
@@ -23,7 +24,17 @@ export interface CalendarItem {
   end: string;
   allDay: boolean;
   classNames: string[];
-  extendedProps: { eventId: string; occurrenceDay: string };
+  /** Un calque ne se déplace pas : il appartient à un autre module */
+  editable?: boolean;
+  backgroundColor?: string;
+  borderColor?: string;
+  /**
+   * `order` : les événements d'Éclipse d'abord, puis les calques dans l'ordre
+   * du registre (`eventOrder` de FullCalendar).
+   */
+  extendedProps:
+    | { order: 0; eventId: string; occurrenceDay: string }
+    | { order: number; layer: string; detail?: string };
 }
 
 export function toCalendarItem(o: Occurrence): CalendarItem {
@@ -32,7 +43,28 @@ export function toCalendarItem(o: Occurrence): CalendarItem {
     title: o.title,
     ...occurrenceRange(o),
     classNames: [`calendrier-event-${o.color}`, ...(o.recurring ? ['calendrier-event-recurring'] : [])],
-    extendedProps: { eventId: o.eventId, occurrenceDay: o.occurrenceDay },
+    extendedProps: { order: 0, eventId: o.eventId, occurrenceDay: o.occurrenceDay },
+  };
+}
+
+/**
+ * Une marque d'un autre module (`core/lib/services.ts`), en élément de
+ * FullCalendar : sur la journée entière, en lecture seule, teintée de la
+ * couleur de son module.
+ */
+export function markItem(source: Pick<CalendarSource, 'id' | 'label' | 'color'>, mark: CalendarMark, order: number): CalendarItem {
+  return {
+    id: `layer|${source.id}|${mark.id}`,
+    title: mark.title,
+    start: mark.day,
+    end: shiftDay(mark.day, 1),
+    allDay: true,
+    classNames: ['calendrier-layer'],
+    editable: false,
+    // Une teinte légère (alpha 22 %) de la couleur du module, bordée de la couleur pleine.
+    backgroundColor: `${source.color}38`,
+    borderColor: source.color,
+    extendedProps: { order, layer: source.label, detail: mark.detail },
   };
 }
 

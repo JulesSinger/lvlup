@@ -9,7 +9,8 @@
 /* La grille horaire défile à l'intérieur de sa hauteur : on lui donne celle
    de l'écran, moins la barre du haut. */
 .calendrier-view {
-  height: calc(100dvh - 130px);
+  /* moins la barre du haut et la rangée des calques */
+  height: calc(100dvh - 172px);
   min-height: 460px;
 }
 
@@ -197,6 +198,66 @@
   flex: 1;
 }
 
+/* --- Les calques des autres modules (étape 5) ---------------------------- */
+
+.calendrier-layers {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.calendrier-layers-label {
+  margin-right: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.calendrier-layer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.calendrier-layer-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--calendrier-layer-color);
+}
+
+.calendrier-layer-chip.on {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--calendrier-layer-color) 55%, transparent);
+  background: color-mix(in srgb, var(--calendrier-layer-color) 12%, transparent);
+}
+
+.calendrier-layer-chip.on .calendrier-layer-dot {
+  background: var(--calendrier-layer-color);
+}
+
+/* Une marque d'un autre module : teintée de sa couleur (posée par l'élément
+   lui-même), plus discrète qu'un événement d'Éclipse. */
+.calendrier-view .fc .calendrier-layer {
+  font-weight: 500;
+  cursor: default;
+}
+
+.calendrier-view .fc .calendrier-layer .fc-event-main,
+.calendrier-view .fc .calendrier-layer .fc-event-title {
+  color: var(--text);
+}
+
 /* --- Répétition (étape 4) ------------------------------------------------ */
 
 .calendrier-recurrence {
@@ -302,7 +363,18 @@
   }
 
   .calendrier-view {
-    height: calc(100dvh - 180px);
+    height: calc(100dvh - 216px);
+  }
+
+  /* Les calques tiennent sur une ligne, qui défile d'elle-même plutôt que la page. */
+  .calendrier-layers {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .calendrier-layer-chip {
+    flex: none;
   }
 
   .calendrier-view .fc .fc-toolbar-title {

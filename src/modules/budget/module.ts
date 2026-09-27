@@ -2,6 +2,7 @@ import type { AtlasModule } from '../../core/lib/module';
 import { AstraLandingPreview } from './components/AstraLandingPreview';
 import { BudgetScreen } from './BudgetScreen';
 import { budgetStore } from './data';
+import { createCalendarSource } from './data/calendarSource';
 import { createExpenseService } from './data/expenseService';
 
 /**
@@ -24,5 +25,6 @@ export const budgetModule: AtlasModule = {
   LandingPreview: AstraLandingPreview,
   // Astra enregistre les dépenses que d'autres modules lui envoient — les
   // courses terminées de Comète (core/lib/services.ts, 26/09/2026).
-  provides: { expenses: createExpenseService(budgetStore) },
+  // Et ce qui a été dépensé chaque jour, en calque (masqué d'office) dans le calendrier (Éclipse).
+  provides: { expenses: createExpenseService(budgetStore), calendarSources: [createCalendarSource(budgetStore)] },
 };

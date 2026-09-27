@@ -40,23 +40,65 @@ export interface ExpenseService {
   recorded(refs: readonly string[]): Promise<Set<string>>;
 }
 
+/**
+ * Une marque qu'un module pose sur un jour du calendrier (Éclipse, étape 5,
+ * docs/etude-calendrier.md §6) : « ✓ Course 8 km », « 12 cartes à réviser ».
+ * Toujours sur la journée entière, en lecture seule : le calendrier
+ * l'affiche, il ne la possède pas.
+ */
+export interface CalendarMark {
+  /** Unique dans sa source, stable d'un chargement à l'autre */
+  id: string;
+  /** AAAA-MM-JJ */
+  day: string;
+  title: string;
+  /** Le détail, montré au survol */
+  detail?: string;
+}
+
+/**
+ * Un calque du calendrier : ce qu'un module sait des jours, entre deux
+ * dates. Le module qui le déclare le calcule depuis ses propres données, à
+ * chaque demande — rien n'est copié chez le calendrier.
+ */
+export interface CalendarSource {
+  /** Le nom technique du module (sert de clé au réglage « afficher ») */
+  id: string;
+  /** Le nom affiché du calque */
+  label: string;
+  /** Couleur des marques ; celle du module d'ordinaire */
+  color: string;
+  /** Affiché tant que l'utilisateur n'a rien choisi */
+  defaultVisible: boolean;
+  /** Les marques des jours `from` à `to`, inclus */
+  marksBetween(from: string, to: string): Promise<CalendarMark[]>;
+}
+
 /** Tout ce que les modules peuvent se rendre les uns aux autres. */
 export interface AtlasServices {
   /** Fourni par le module budget (Astra). */
   expenses?: ExpenseService;
+  /** Fournis par tout module qui a quelque chose à montrer dans le calendrier — plusieurs à la fois. */
+  calendarSources?: CalendarSource[];
 }
 
 /**
- * Rassemble les services déclarés par les modules du registre. Deux modules
- * qui fourniraient le même service seraient une erreur de conception : le
- * premier déclaré l'emporte, et le test du socle le vérifie.
+ * Rassemble les services déclarés par les modules du registre.
+ *
+ * Deux sortes de services : ceux qu'un seul module rend (`expenses`) — deux
+ * fournisseurs seraient une erreur de conception, le premier déclaré
+ * l'emporte — et ceux que plusieurs modules **ajoutent** les uns aux autres,
+ * déclarés en tableau (`calendarSources`) : ils s'additionnent, dans l'ordre
+ * du registre.
  */
 export function collectServices(modules: readonly { provides?: Partial<AtlasServices> }[]): AtlasServices {
   const services: AtlasServices = {};
+  const bag = services as Record<string, unknown>;
   for (const module of modules) {
     for (const [name, service] of Object.entries(module.provides ?? {})) {
-      const key = name as keyof AtlasServices;
-      if (service && !services[key]) services[key] = service as never;
+      if (!service) continue;
+      if (Array.isArray(service)) bag[name] = [...((bag[name] as unknown[] | undefined) ?? []), ...service];
+      else if (!bag[name]) bag[name] = service;
     }
   }
   return services;

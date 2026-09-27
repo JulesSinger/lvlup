@@ -64,6 +64,12 @@ export default function CalendarView({ items, initialView, narrow, onRangeChange
       // pas confondre avec le simple défilement de la grille.
       longPressDelay={350}
       events={items}
+      // Les événements d'Éclipse avant les calques des autres modules.
+      eventOrder="order,start,-duration,allDay,title"
+      eventDidMount={(arg) => {
+        const { layer, detail } = arg.event.extendedProps as { layer?: string; detail?: string };
+        if (layer) arg.el.title = `${layer} — ${detail ?? arg.event.title}`;
+      }}
       datesSet={(arg) =>
         onRangeChange(dayString(arg.start), shiftDay(dayString(arg.end), -1), arg.view.type as ViewName)
       }
@@ -73,6 +79,8 @@ export default function CalendarView({ items, initialView, narrow, onRangeChange
       }}
       eventClick={(arg) => {
         arg.jsEvent.preventDefault();
+        // Une marque d'un autre module n'a rien à ouvrir ici : son détail est au survol.
+        if (arg.event.extendedProps.layer) return;
         onOpen(arg.event.extendedProps.eventId as string, arg.event.extendedProps.occurrenceDay as string);
       }}
       eventDrop={(arg) => {
