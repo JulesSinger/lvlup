@@ -226,7 +226,7 @@ Et, si l'option b est retenue, **un module de tâches** avec sa propre étude, a
 
 ## 11. Questions à trancher ensemble
 
-*En partie tranchées depuis : voir §12.*
+*Tranchées depuis : voir §12.*
 
 1. **Le nom** : Éclipse, Saros, Solstice, ou autre ?
 2. **Les tâches** : option **a** (événement cochable), **b** (un module de to-do list à part,
@@ -247,10 +247,10 @@ Et, si l'option b est retenue, **un module de tâches** avec sa propre étude, a
 | 1. Nom | **Éclipse** | `label: 'Éclipse'` ; nom technique `calendrier` |
 | 2. Tâches | **Option b : un module de to-do list à part**, pour plus tard | le calendrier se construit d'abord seul ; la to-do list aura sa propre étude, et s'affichera ensuite dans le calendrier en calque |
 | 3. Vues de la V1 | **Semaine et jour dès le début**, avec mois et agenda | la grille horaire fait partie de la V1 : le découpage §10 fusionne les étapes 3 et 4 |
-| 4. FullCalendar | *à confirmer* — recommandé pour les quatre vues (voir ci-dessous) | — |
+| 4. FullCalendar | **Oui, pour les quatre vues** (confirmé le 27/09/2026, voir ci-dessous) | dépendance MIT, chargée à la demande ; récurrence et exceptions restent à nous |
 | 5. Rappels | **Plus tard** | étape 7 inchangée, hors V1 |
 | 6. Flux ICS vers l'iPhone | **Pas pour l'instant** | étape 8 mise de côté |
-| 7. Calques | *à préciser* — Jules a demandé ce que c'est | — |
+| 7. Calques | **Oui**, après la V1 : Zénith, Orbite, Comète, Astra, puis la to-do list quand elle existera | un service `calendarSources` au socle ; `collectServices` apprend à additionner plusieurs fournisseurs |
 
 **La recommandation sur FullCalendar, revue avec cette décision.** Avec la semaine et le jour dès
 la V1, la grille horaire n'est plus un « plus tard » : c'est le cœur de l'écran. Or c'est
@@ -263,6 +263,17 @@ que de mélanger des vues maison et des vues de bibliothèque. La récurrence et
 restent à nous (§7) : le calendrier lui donne seulement des occurrences déjà dépliées. Il est
 chargé à la demande, dans le seul module : le reste d'Atlas n'en porte pas le poids, mesuré au
 build dès l'étape 1.
+
+### Découpage révisé (remplace §10)
+
+| Étape | Contenu | Résultat |
+|---|---|---|
+| 1 | Migration, contrat et ses deux implémentations, module signet ; FullCalendar installé et son poids mesuré au build | le module existe |
+| 2 | Bibliothèques pures : récurrence et exceptions, heures locales et changements d'heure — tests aux dates piégeuses | la règle est juste |
+| 3 | Les quatre vues (mois, semaine, jour, agenda) avec FullCalendar, accordées au thème d'Atlas ; créer, déplacer, étirer, modifier un événement (journée, horaire, plusieurs jours) | **la V1** |
+| 4 | La récurrence à l'écran : créer une série, « cet événement / tous les suivants / tous » | les séries se gèrent |
+| 5 | Les calques : service `calendarSources`, puis Zénith, Orbite, Comète, Astra | le calendrier d'Atlas |
+| plus tard | rappels push ; la to-do list (module à part, sa propre étude) et son calque ; flux ICS | — |
 
 ---
 
