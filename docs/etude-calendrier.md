@@ -268,12 +268,43 @@ build dès l'étape 1.
 
 | Étape | Contenu | Résultat |
 |---|---|---|
-| 1 | Migration, contrat et ses deux implémentations, module signet ; FullCalendar installé et son poids mesuré au build | le module existe |
+| 1 ✅ | Migration, contrat et ses deux implémentations, module signet ; FullCalendar installé et son poids mesuré au build | le module existe — livré le 27/09/2026, voir §13 |
 | 2 | Bibliothèques pures : récurrence et exceptions, heures locales et changements d'heure — tests aux dates piégeuses | la règle est juste |
 | 3 | Les quatre vues (mois, semaine, jour, agenda) avec FullCalendar, accordées au thème d'Atlas ; créer, déplacer, étirer, modifier un événement (journée, horaire, plusieurs jours) | **la V1** |
 | 4 | La récurrence à l'écran : créer une série, « cet événement / tous les suivants / tous » | les séries se gèrent |
 | 5 | Les calques : service `calendarSources`, puis Zénith, Orbite, Comète, Astra | le calendrier d'Atlas |
 | plus tard | rappels push ; la to-do list (module à part, sa propre étude) et son calque ; flux ICS | — |
+
+---
+
+## 13. Étape 1 : le module existe (27/09/2026)
+
+- **Migration** `supabase/2026-09-27-calendar-tables.sql` : `calendar_events` (un événement ou une
+  série) et `calendar_exceptions` (une occurrence supprimée ou modifiée), RLS complet. La base
+  refuse d'elle-même ce qui n'a pas de sens : une fin avant le début ; une journée entière avec
+  des heures ; un horaire sans heures ; une fin avant le début le même jour (mais « 21 h – 2 h »
+  le lendemain passe) ; une fréquence inconnue ; une exception « modifiée » sans champs remplacés,
+  ou une « supprimée » qui en aurait. **Une seule exception par occurrence** (contrainte unique) :
+  la reposer la remplace.
+- **Contrat** `CalendarStore` et ses deux implémentations (`LocalCalendar`, `SupabaseCalendar`).
+  Il stocke des événements et des séries, **jamais des occurrences**. Il charge tous les
+  événements plutôt qu'une période : une série commencée il y a un an compte encore aujourd'hui,
+  et le volume reste petit. Postgres rend une heure « 14:00:00 », l'application parle en
+  « 14:00 » : la conversion est faite à la lecture.
+- **Le fuseau** de chaque événement est celui de l'appareil à la création (`Europe/Paris` à
+  défaut).
+- **Couleurs par nom** (bleu, vert, orange, rose, violet, gris), pas par code : c'est le thème
+  d'Atlas qui choisira la teinte exacte. Couleurs, fréquences et natures d'exception sont des
+  tableaux `as const` comparés par un test aux contraintes de la migration.
+
+**FullCalendar : la version 6, pas la 7.** La v7, sortie en juin 2026, a réorganisé ses paquets
+(`@full-ui/headless-calendar`), et ses vues n'existent qu'en version candidate. La **v6.1.21**
+(juin 2026 aussi) accepte React 19, ses six paquets sont stables et cohérents entre eux : elle est
+**épinglée à la version exacte**, comme `zxing-wasm` pour Cérès. **Poids mesuré : 76 Ko compressés**
+(263 Ko bruts) pour les vues mois, semaine, jour et liste, le glisser-déposer et le français —
+autant que la table CIQUAL de Cérès. Il ne sera chargé qu'à l'ouverture d'Éclipse (étape 3).
+
+**Migration à appliquer** dans Supabase Studio avant d'utiliser Éclipse en mode comptes.
 
 ---
 
