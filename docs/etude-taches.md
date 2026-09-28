@@ -287,7 +287,7 @@ explication concrète).
 | Étape | Contenu | Résultat |
 |---|---|---|
 | 1 ✅ | Migration, contrat et ses deux implémentations (ids choisis par l'application), module signet ; **la récurrence d'Éclipse remontée dans le socle** | le module existe — livré le 27/09/2026, voir §13 |
-| 2 | Bibliothèques pures : prochaine date (les deux répétitions), contenu et ordre d'Aujourd'hui, **analyseur de dates en français** (`chrono-node` éprouvé sur une batterie de phrases, sinon fait maison) | la règle est juste |
+| 2 ✅ | Bibliothèques pures : prochaine date (les deux répétitions), contenu et ordre d'Aujourd'hui, **analyseur de dates en français** (`chrono-node` éprouvé sur une batterie de phrases, sinon fait maison) | la règle est juste — livré le 28/09/2026, voir §14 |
 | 3 | Ajout rapide en langage naturel, vues Aujourd'hui, À venir, Boîte de réception, Listes ; cocher, modifier, supprimer ; **sous-tâches et priorités** | **la V1** |
 | 4 | Répétition à l'écran, vue Terminées, réordonner ; « Faire le point » | les tâches de fond |
 | 5 | **Rappels, mécanisme commun du socle** : table des rappels à venir, envoi par la fonction existante et pg_cron toutes les 5 minutes ; rappel à l'heure d'une tâche, et le rappel du matin | être prévenu |
@@ -326,6 +326,55 @@ correspondance.
 teinte encore libre dans le hub), un écran signet et un aperçu pour la page d'accueil.
 
 **Migration à appliquer** dans Supabase Studio avant d'utiliser Polaris en mode comptes.
+
+---
+
+## 14. Étape 2 : les règles, testées avant tout écran (28/09/2026)
+
+Quatre bibliothèques pures, 39 tests de plus pour le module, aucun écran.
+
+**`lib/quickAdd.ts` — l'ajout rapide en français, écrit à la main.** `chrono-node` a d'abord été
+essayé sur seize phrases de liste de tâches (lundi 28 septembre 2026 comme référence). Il en
+comprenait la plupart, mais ratait « le 5 » et « avant le 30 », et surtout lisait
+**« après-demain » comme « demain »** : une date fausse, silencieuse — le pire défaut possible
+ici. Il embarquait en plus toutes ses langues. L'analyseur maison comprend les seize :
+
+| Tapé | Compris |
+|---|---|
+| aujourd'hui, ce soir, demain, après-demain | le jour |
+| lundi, ce lundi, lundi prochain | le **prochain** lundi, aujourd'hui exclu (dit un lundi : celui de la semaine suivante) |
+| la semaine prochaine | le lundi qui vient |
+| dans 3 jours, dans deux semaines, dans 1 mois | le jour, chiffres ou lettres |
+| le 5, le 1er | ce mois-ci si ce n'est pas passé, sinon le mois suivant |
+| le 15 mars, 1er octobre, 3 déc., 3/10, 03/10/2027 | la prochaine fois que ce jour arrive, ou l'année donnée ; « le 31 avril » n'est rien |
+| 9h, 9 h 30, à 18h30, 18:30 | l'heure ; seule, elle vaut pour aujourd'hui |
+| avant / pour / d'ici / au plus tard + un jour | **l'échéance**, pas le jour prévu |
+| ! , !! | importante, urgente (seuls, séparés par des espaces) |
+| #maison | la liste dont le nom, sans accents ni espaces, correspond — ou commence ainsi |
+
+Le texte est replié (minuscules, sans accents) **lettre pour lettre**, pour que le titre garde ce
+qui a été tapé, majuscules et accents compris. Une seule chose de chaque sorte est retenue ; une
+seconde date reste dans le titre. Chaque morceau reconnu est rendu (`tokens`) pour être montré
+avant d'enregistrer, et peut être annulé : il retourne alors dans le titre (« Réunion de lundi »).
+
+**`lib/repeat.ts` — cocher.** `nextOccurrence` : à date fixe, le prochain jour de la règle
+**après aujourd'hui** (une tâche oubliée trois lundis repart au lundi qui vient, sans trois
+retards) ; après l'avoir faite, N jours, semaines, mois ou ans après ce jour-là (31 janvier + 1 mois
+= 28 février). `until` et `count` sont respectés, les occurrences oubliées consommées.
+`completionPlan` : une tâche simple est notée faite ; une tâche répétée laisse une **copie
+terminée** et avance, son échéance décalée d'autant, ses sous-tâches décochées ; la dernière d'une
+série est simplement notée faite. Le moteur de règle est celui du socle.
+
+**`lib/views.ts` — les vues.** Aujourd'hui : les retards à part (jour prévu passé ou échéance
+dépassée), puis le jour (prévu aujourd'hui, ou échéance dans les 2 jours) — une tâche n'y figure
+qu'une fois. L'ordre d'une journée : les heures d'abord, puis la priorité, l'échéance la plus
+proche, et l'ordre choisi à la main. À venir : 14 jours, jours vides compris, une échéance sans
+jour prévu tombant à son échéance. Boîte de réception (sans liste, datée ou non), liste,
+Terminées (par jour, les plus récentes d'abord), sous-tâches.
+
+**`lib/validation.ts`** : les règles de la base en français, plus celles qu'elle ne peut pas
+vérifier seule — sous-tâches sur un seul niveau, une sous-tâche ne se répète pas (c'est sa tâche
+qui se répète).
 
 ---
 

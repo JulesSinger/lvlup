@@ -1,0 +1,268 @@
+/**
+ * L'ajout rapide en langage naturel — bibliothèque pure (étape 2,
+ * docs/etude-taches.md §4, décision du 27/09/2026 : dès la V1).
+ *
+ * « Appeler le garage demain 9h » → titre « Appeler le garage », prévue
+ * demain à 9 h. « Impôts avant le 30 ! » → échéance le 30, importante.
+ * « Ampoule #maison » → dans la liste Maison.
+ *
+ * Écrit à la main plutôt qu'avec `chrono-node`, essayé d'abord le
+ * 28/09/2026 sur une batterie de phrases : il ne comprenait ni « le 5 » ni
+ * « avant le 30 », et surtout lisait « après-demain » comme « demain » —
+ * une date fausse, sans rien pour le signaler. Il embarquait en plus toutes
+ * ses langues. Ici, chaque expression reconnue est testée, et l'écran
+ * montre ce qui a été compris (`tokens`) avant d'enregistrer : un clic
+ * l'annule (`ignore`), le texte retourne alors dans le titre.
+ *
+ * Tout se joue en jours locaux, par rapport à `today` : aucun fuseau.
+ */
+import { shiftDay, weekday } from '../../../core/lib/day';
+import type { Priority } from './types';
+
+export type TokenKind = 'day' | 'time' | 'due' | 'priority' | 'list';
+
+/** Un morceau du texte compris comme autre chose qu'un titre. */
+export interface QuickToken {
+  kind: TokenKind;
+  /** Le texte d'origine, tel que tapé */
+  text: string;
+  start: number;
+  end: number;
+}
+
+export interface QuickAdd {
+  title: string;
+  plannedDay: string | null;
+  plannedTime: string | null;
+  dueDay: string | null;
+  priority: Priority;
+  listId: string | null;
+  tokens: QuickToken[];
+}
+
+// --- Le texte, sans accents ni majuscules, lettre pour lettre ----------------
+
+/**
+ * Le même texte, en minuscules et sans accents, **de la même longueur** : un
+ * indice trouvé dans l'un vaut dans l'autre, ce qui permet de rendre le texte
+ * tapé tel quel (majuscules, accents) dans le titre.
+ */
+function fold(text: string): string {
+  let out = '';
+  for (const c of text) {
+    if (c === '’') {
+      out += "'";
+      continue;
+    }
+    const plain = c.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    out += plain.length === c.length ? plain : c.toLowerCase().slice(0, c.length).padEnd(c.length, ' ');
+  }
+  return out;
+}
+
+// --- Les jours ------------------------------------------------------------------
+
+const WEEKDAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+const MONTHS: [string, number][] = [
+  ['janvier', 1], ['janv', 1], ['fevrier', 2], ['fevr', 2], ['fev', 2], ['mars', 3], ['avril', 4], ['avr', 4],
+  ['mai', 5], ['juin', 6], ['juillet', 7], ['juil', 7], ['aout', 8], ['septembre', 9], ['sept', 9],
+  ['octobre', 10], ['oct', 10], ['novembre', 11], ['nov', 11], ['decembre', 12], ['dec', 12],
+];
+const NUMBERS: Record<string, number> = { un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10 };
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** Le jour, s'il existe (pas de 31 avril). */
+function realDay(y: number, m: number, d: number): string | null {
+  if (m < 1 || m > 12 || d < 1) return null;
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return d <= last ? `${y}-${pad(m)}-${pad(d)}` : null;
+}
+
+/** Le prochain « d m » à partir d'aujourd'hui inclus : cette année, sinon la suivante. */
+function nextDayMonth(today: string, d: number, m: number): string | null {
+  const y = Number(today.slice(0, 4));
+  for (const year of [y, y + 1, y + 2, y + 3, y + 4]) {
+    const day = realDay(year, m, d);
+    if (day && day >= today) return day;
+  }
+  return null;
+}
+
+/** « le 5 » : ce mois-ci si ce n'est pas passé, sinon le prochain mois qui a un 5. */
+function nextDayOfMonth(today: string, d: number): string | null {
+  let y = Number(today.slice(0, 4));
+  let m = Number(today.slice(5, 7));
+  for (let i = 0; i < 13; i++) {
+    const day = realDay(y, m, d);
+    if (day && day >= today) return day;
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return null;
+}
+
+function addMonths(day: string, n: number): string {
+  const [y, m, d] = day.split('-').map(Number);
+  const total = y * 12 + (m - 1) + n;
+  const year = Math.floor(total / 12);
+  const month = (total % 12) + 1;
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${year}-${pad(month)}-${pad(Math.min(d, last))}`;
+}
+
+const count = (word: string) => NUMBERS[word] ?? Number(word);
+
+const L = '(?<![\\p{L}\\d])';
+const R = '(?![\\p{L}\\d])';
+const MONTH = MONTHS.map(([name]) => name).join('|');
+const NUMBER = `\\d{1,2}|${Object.keys(NUMBERS).join('|')}`;
+
+/** Chaque expression de jour : un motif (sur le texte replié) et le jour qu'il désigne. */
+const DAY_PATTERNS: { source: string; resolve: (m: RegExpExecArray, today: string) => string | null }[] = [
+  { source: `aujourd'hui|auj|ce soir|ce matin|cet apres-midi|cet aprem`, resolve: (_m, t) => t },
+  { source: `apres[- ]demain`, resolve: (_m, t) => shiftDay(t, 2) },
+  { source: `demain`, resolve: (_m, t) => shiftDay(t, 1) },
+  {
+    // « lundi », « le lundi », « ce lundi », « lundi prochain » : le prochain lundi, aujourd'hui exclu.
+    source: `(?:ce |le )?(${WEEKDAYS.join('|')})(?: prochain)?`,
+    resolve: (m, t) => shiftDay(t, ((WEEKDAYS.indexOf(m[1]) - weekday(t) + 6) % 7) + 1),
+  },
+  { source: `(?:la )?semaine prochaine`, resolve: (_m, t) => shiftDay(t, ((1 - weekday(t) + 6) % 7) + 1) },
+  {
+    source: `dans (${NUMBER}) (jours?|semaines?|mois)`,
+    resolve: (m, t) => {
+      const n = count(m[1]);
+      if (m[2].startsWith('jour')) return shiftDay(t, n);
+      if (m[2].startsWith('semaine')) return shiftDay(t, 7 * n);
+      return addMonths(t, n);
+    },
+  },
+  {
+    // « le 15 mars », « 1er octobre », « 3 déc. 2027 »
+    source: `(?:le )?(\\d{1,2})(?:er)? (${MONTH})\\.?(?: (\\d{4}))?`,
+    resolve: (m, t) => {
+      const month = MONTHS.find(([name]) => name === m[2])![1];
+      return m[3] ? realDay(Number(m[3]), month, Number(m[1])) : nextDayMonth(t, Number(m[1]), month);
+    },
+  },
+  {
+    // « 3/10 », « le 03/10/2026 », « 3/10/27 »
+    source: `(?:le )?(\\d{1,2})/(\\d{1,2})(?:/(\\d{2}|\\d{4}))?`,
+    resolve: (m, t) => {
+      if (!m[3]) return nextDayMonth(t, Number(m[1]), Number(m[2]));
+      const year = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+      return realDay(year, Number(m[2]), Number(m[1]));
+    },
+  },
+  // « le 5 », « le 1er » : un jour du mois ; « le » est exigé, pour ne pas lire « 5 pommes ».
+  // Jamais suivi d'un mois ni d'une barre : « le 31 avril », qui n'existe pas, n'est pas « le 31 ».
+  { source: `le (\\d{1,2})(?:er)?(?! (?:${MONTH})${R})(?!/)`, resolve: (m, t) => nextDayOfMonth(t, Number(m[1])) },
+];
+
+/** Ce qui fait d'un jour une échéance plutôt qu'un jour prévu. */
+const DUE_PREFIX = /(?:avant|pour|d'ici|au plus tard)\s+$/;
+
+const TIME_PATTERNS = [
+  `(?:a |vers )?(\\d{1,2}) ?h(?: ?(\\d{2}))?`, // 9h, 9 h 30, à 18h30
+  `(?:a |vers )?(\\d{1,2}):(\\d{2})`, // 18:30
+].map((source) => new RegExp(`${L}${source}${R}`, 'gu'));
+
+interface Candidate {
+  kind: TokenKind;
+  start: number;
+  end: number;
+  value: string;
+}
+
+/** Garde les candidats qui ne se chevauchent pas : le plus tôt, puis le plus long. */
+function nonOverlapping(candidates: Candidate[]): Candidate[] {
+  const kept: Candidate[] = [];
+  for (const c of [...candidates].sort((a, b) => a.start - b.start || b.end - a.end)) {
+    if (kept.every((k) => c.end <= k.start || c.start >= k.end)) kept.push(c);
+  }
+  return kept;
+}
+
+/**
+ * Comprend une saisie rapide. `lists` : les listes, pour « #maison » ;
+ * `ignore` : les sortes de morceaux que l'utilisateur a annulées, laissées
+ * dans le titre.
+ */
+export function parseQuickAdd(
+  text: string,
+  today: string,
+  lists: readonly { id: string; name: string }[] = [],
+  ignore: ReadonlySet<TokenKind> = new Set(),
+): QuickAdd {
+  const folded = fold(text);
+  const candidates: Candidate[] = [];
+
+  // Les jours, et les échéances (un jour précédé de « avant », « pour »…).
+  for (const { source, resolve } of DAY_PATTERNS) {
+    const re = new RegExp(`${L}(?:${source})${R}`, 'gu');
+    for (let m = re.exec(folded); m; m = re.exec(folded)) {
+      const day = resolve(m, today);
+      if (!day) continue;
+      const prefix = DUE_PREFIX.exec(folded.slice(0, m.index));
+      if (prefix) candidates.push({ kind: 'due', start: prefix.index, end: m.index + m[0].length, value: day });
+      else candidates.push({ kind: 'day', start: m.index, end: m.index + m[0].length, value: day });
+    }
+  }
+
+  for (const re of TIME_PATTERNS) {
+    re.lastIndex = 0;
+    for (let m = re.exec(folded); m; m = re.exec(folded)) {
+      const h = Number(m[1]);
+      const min = Number(m[2] ?? 0);
+      if (h > 23 || min > 59) continue;
+      candidates.push({ kind: 'time', start: m.index, end: m.index + m[0].length, value: `${pad(h)}:${pad(min)}` });
+    }
+  }
+
+  // « ! » importante, « !! » urgente — seuls, séparés du reste par des espaces.
+  for (const m of folded.matchAll(/(?<!\S)(!{1,3})(?!\S)/gu)) {
+    candidates.push({ kind: 'priority', start: m.index!, end: m.index! + m[0].length, value: m[1].length >= 2 ? 'urgente' : 'importante' });
+  }
+
+  // « #maison » : la liste dont le nom, replié et sans espaces, correspond — exactement, sinon par son début.
+  const key = (name: string) => fold(name).replace(/\s+/g, '');
+  for (const m of folded.matchAll(/(?<![\p{L}\d])#([\p{L}\d_-]+)/gu)) {
+    const tag = m[1];
+    const list = lists.find((l) => key(l.name) === tag) ?? lists.find((l) => key(l.name).startsWith(tag));
+    if (list) candidates.push({ kind: 'list', start: m.index!, end: m.index! + m[0].length, value: list.id });
+  }
+
+  // Une seule chose de chaque sorte : la première ; les suivantes restent dans le titre.
+  const tokens: Candidate[] = [];
+  for (const c of nonOverlapping(candidates.filter((c) => !ignore.has(c.kind)))) {
+    if (!tokens.some((t) => t.kind === c.kind)) tokens.push(c);
+  }
+  const value = (kind: TokenKind) => tokens.find((t) => t.kind === kind)?.value ?? null;
+
+  let title = '';
+  let cursor = 0;
+  for (const t of [...tokens].sort((a, b) => a.start - b.start)) {
+    title += `${text.slice(cursor, t.start)} `;
+    cursor = t.end;
+  }
+  title += text.slice(cursor);
+  title = title.replace(/\s+/g, ' ').replace(/^[\s,;:–-]+|[\s,;:–-]+$/g, '');
+
+  const plannedTime = value('time');
+  return {
+    title,
+    // Une heure seule vaut pour aujourd'hui (« Réunion à 18h30 »).
+    plannedDay: value('day') ?? (plannedTime ? today : null),
+    plannedTime,
+    dueDay: value('due'),
+    priority: (value('priority') as Priority | null) ?? 'normale',
+    listId: value('list'),
+    tokens: tokens
+      .sort((a, b) => a.start - b.start)
+      .map(({ kind, start, end }) => ({ kind, start, end, text: text.slice(start, end) })),
+  };
+}
