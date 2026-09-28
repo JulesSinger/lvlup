@@ -1,6 +1,8 @@
 import type { AtlasModule } from '../../core/lib/module';
 import { PolarisLandingPreview } from './components/PolarisLandingPreview';
 import { tachesStore } from './data';
+import { createCalendarSource } from './data/calendarSource';
+import { syncReminders } from './data/syncReminders';
 import { TachesScreen } from './TachesScreen';
 import { TachesSettingsSection } from './TachesSettingsSection';
 
@@ -21,5 +23,8 @@ export const tachesModule: AtlasModule = {
   Screen: TachesScreen,
   // Les rappels (étape 5) : à l'heure des tâches, et le résumé du matin.
   SettingsSection: TachesSettingsSection,
+  // Les tâches datées en calque dans Éclipse, cochables depuis le calendrier (étape 6) ;
+  // une coche y recalcule les rappels, comme dans Polaris.
+  provides: { calendarSources: [createCalendarSource(tachesStore, () => syncReminders())] },
   LandingPreview: PolarisLandingPreview,
 };

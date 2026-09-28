@@ -258,6 +258,19 @@
   color: var(--text);
 }
 
+.calendrier-view .fc .calendrier-layer-checkable {
+  cursor: pointer;
+}
+
+/* Une tâche faite reste visible, barrée et atténuée : on voit sa journée telle qu'elle a été. */
+.calendrier-view .fc .calendrier-layer-done {
+  opacity: 0.55;
+}
+
+.calendrier-view .fc .calendrier-layer-done .fc-event-title {
+  text-decoration: line-through;
+}
+
 /* --- Répétition (étape 4) ------------------------------------------------ */
 
 .calendrier-recurrence {

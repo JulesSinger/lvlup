@@ -291,7 +291,7 @@ explication concrète).
 | 3 ✅ | Ajout rapide en langage naturel, vues Aujourd'hui, À venir, Boîte de réception, Listes ; cocher, modifier, supprimer ; **sous-tâches et priorités** | **la V1** — livré le 28/09/2026, voir §15 |
 | 4 ✅ | Répétition à l'écran, vue Terminées, réordonner ; « Faire le point » | les tâches de fond — livré le 28/09/2026, voir §16 |
 | 5 ✅ | **Rappels, mécanisme commun du socle** : table des rappels à venir, envoi par la fonction existante et pg_cron toutes les 5 minutes ; rappel à l'heure d'une tâche, et le rappel du matin | être prévenu — livré le 28/09/2026, voir §17 |
-| 6 | Calque dans Éclipse, puis **cocher depuis le calendrier** | le lien attendu |
+| 6 ✅ | Calque dans Éclipse, puis **cocher depuis le calendrier** | le lien attendu — livré le 28/09/2026, voir §18 |
 | 7 | File hors ligne | noter sans réseau |
 | plus tard | rappels d'Éclipse sur le même mécanisme ; le pont avec Zénith ; poser une tâche sur un créneau | — |
 
@@ -503,6 +503,33 @@ redéployer `send-reminders` (`docs/rappels-mise-en-place.md`, section ajoutée)
 **Pas vérifié de bout en bout** : l'envoi réel demande un vrai compte, un appareil abonné et la
 fonction déployée — la suite automatique tourne en mode local. Les règles (quoi envoyer, quand,
 quoi abandonner) sont testées ; **à essayer pour de vrai** une fois la fonction redéployée.
+
+---
+
+## 18. Étape 6 : les tâches dans Éclipse, cochables (28/09/2026)
+
+**Le calque de Polaris.** Une pastille « Polaris » de plus dans les calques d'Éclipse, affichée
+d'office. Chaque tâche datée y devient une marque : à son **jour prévu**, et **à son heure dans la
+grille horaire** si elle en a une (pour une demi-heure) ; sans jour prévu, à son **échéance**,
+précédée de ⚑. Une sous-tâche n'y figure pas seule : elle vit sous sa tâche. Au survol : la liste,
+la priorité, l'échéance, « répétée ». Une tâche faite reste visible, **barrée et atténuée** : on
+voit sa journée telle qu'elle a été.
+
+**Cocher depuis le calendrier — le premier calque qui écrit.** Chaque marque de Polaris porte son
+rond (○ à faire, ✓ faite) ; la toucher la coche, ou la décoche. Le socle a gagné deux choses pour
+cela (`core/lib/services.ts`) : une marque peut être `checkable`, `done`, et avoir une `time` ; une
+source peut offrir `toggleMark(id)`. **C'est Polaris qui écrit**, par la même règle que son écran
+(`completionPlan`) : une tâche répétée cochée dans le calendrier laisse sa copie terminée et
+réapparaît à sa date suivante, comme dans Polaris. Éclipse ne fait que transmettre le geste :
+il coche la marque tout de suite à l'écran, puis relit le calque ; en cas d'échec, la marque
+revient comme avant et l'erreur s'affiche. Une coche faite depuis le calendrier recalcule aussi
+les rappels de Polaris.
+
+**Pas encore** : poser une tâche sur un créneau en la glissant dans la grille — les marques ne se
+déplacent pas (§6, plus tard).
+
+**Vérifié** à l'œil et de bout en bout, depuis la suite d'Éclipse : la tâche du jour et son rond,
+la tâche à 14 h dans la grille, la coche au toucher — et enregistrée dans Polaris.
 
 ---
 

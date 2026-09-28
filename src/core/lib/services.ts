@@ -43,8 +43,8 @@ export interface ExpenseService {
 /**
  * Une marque qu'un module pose sur un jour du calendrier (Éclipse, étape 5,
  * docs/etude-calendrier.md §6) : « ✓ Course 8 km », « 12 cartes à réviser ».
- * Toujours sur la journée entière, en lecture seule : le calendrier
- * l'affiche, il ne la possède pas.
+ * Sur la journée entière, ou à une heure ; le calendrier l'affiche, il ne la
+ * possède pas — même cochable, c'est le module qui écrit.
  */
 export interface CalendarMark {
   /** Unique dans sa source, stable d'un chargement à l'autre */
@@ -54,6 +54,16 @@ export interface CalendarMark {
   title: string;
   /** Le détail, montré au survol */
   detail?: string;
+  /**
+   * Une heure (« HH:MM », locale) : la marque se place alors dans la grille
+   * horaire plutôt que dans la bande des journées entières (depuis le
+   * 28/09/2026, pour les tâches de Polaris qui ont une heure).
+   */
+  time?: string;
+  /** La marque se coche depuis le calendrier (`CalendarSource.toggleMark`) */
+  checkable?: boolean;
+  /** Cochée : faite */
+  done?: boolean;
 }
 
 /**
@@ -72,6 +82,12 @@ export interface CalendarSource {
   defaultVisible: boolean;
   /** Les marques des jours `from` à `to`, inclus */
   marksBetween(from: string, to: string): Promise<CalendarMark[]>;
+  /**
+   * Cocher ou décocher une marque `checkable` — le premier calque qui écrit
+   * (Polaris, 28/09/2026). C'est le module qui décide de ce que « cocher »
+   * veut dire chez lui ; le calendrier ne fait que transmettre le geste.
+   */
+  toggleMark?(markId: string): Promise<void>;
 }
 
 /** Tout ce que les modules peuvent se rendre les uns aux autres. */

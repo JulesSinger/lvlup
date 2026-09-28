@@ -34,7 +34,7 @@ export interface CalendarItem {
    */
   extendedProps:
     | { order: 0; eventId: string; occurrenceDay: string }
-    | { order: number; layer: string; detail?: string };
+    | { order: number; layer: string; detail?: string; sourceId: string; markId: string; checkable: boolean };
 }
 
 export function toCalendarItem(o: Occurrence): CalendarItem {
@@ -53,19 +53,33 @@ export function toCalendarItem(o: Occurrence): CalendarItem {
  * couleur de son module.
  */
 export function markItem(source: Pick<CalendarSource, 'id' | 'label' | 'color'>, mark: CalendarMark, order: number): CalendarItem {
+  // Une marque à une heure se place dans la grille horaire, pour une
+  // demi-heure ; sinon, dans la bande des journées entières.
+  const timed = mark.time
+    ? { start: `${mark.day}T${mark.time}`, end: halfHourAfter(mark.day, mark.time), allDay: false }
+    : { start: mark.day, end: shiftDay(mark.day, 1), allDay: true };
+  const checkable = !!mark.checkable;
   return {
     id: `layer|${source.id}|${mark.id}`,
-    title: mark.title,
-    start: mark.day,
-    end: shiftDay(mark.day, 1),
-    allDay: true,
-    classNames: ['calendrier-layer'],
+    // Une marque à cocher porte son rond, vide ou coché.
+    title: checkable ? `${mark.done ? '✓' : '○'} ${mark.title}` : mark.title,
+    ...timed,
+    classNames: ['calendrier-layer', ...(checkable ? ['calendrier-layer-checkable'] : []), ...(mark.done ? ['calendrier-layer-done'] : [])],
     editable: false,
     // Une teinte légère (alpha 22 %) de la couleur du module, bordée de la couleur pleine.
     backgroundColor: `${source.color}38`,
     borderColor: source.color,
-    extendedProps: { order, layer: source.label, detail: mark.detail },
+    extendedProps: { order, layer: source.label, detail: mark.detail, sourceId: source.id, markId: mark.id, checkable },
   };
+}
+
+/** « 2026-09-29T09:30 » pour une marque à 9 h — le lendemain si elle est à 23 h 45. */
+function halfHourAfter(day: string, time: string): string {
+  const [h, m] = time.split(':').map(Number);
+  const minutes = h * 60 + m + 30;
+  const next = minutes >= 1440 ? shiftDay(day, 1) : day;
+  const t = minutes % 1440;
+  return `${next}T${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 }
 
 /** Les jours et heures d'un événement, sans le reste. */

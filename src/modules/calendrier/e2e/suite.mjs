@@ -340,12 +340,16 @@ export async function run({ browser, check, BASE }) {
       coursesTrips: [{ id: 't1', number: 1, day: today, storeId: null, storeName: 'Lidl', totalCents: 5420, note: '', createdAt: '' }],
       budgetCategories: [],
       budgetEntries: [{ id: 'b1', day: today, label: 'Boulangerie', amountCents: -1250, categoryId: null, source: 'manuelle', importKey: null, note: '', createdAt: '' }],
+      tachesTasks: [
+        { id: 'p1', listId: null, parentId: null, title: 'Rendre le livre', note: '', plannedDay: today, plannedTime: null, dueDay: null, priority: 'normale', recurrence: null, repeatFrom: 'schedule', position: 0, completedAt: null, createdAt: '' },
+        { id: 'p2', listId: null, parentId: null, title: 'Appeler le garage', note: '', plannedDay: today, plannedTime: '14:00', dueDay: null, priority: 'urgente', recurrence: null, repeatFrom: 'schedule', position: 1, completedAt: null, createdAt: '' },
+      ],
     });
     localStorage.setItem('palier.v1', JSON.stringify(raw));
   }, day(0));
   await openEclipse(lp, BASE);
   const chips = await lp.locator('.calendrier-layer-chip').allTextContents();
-  check('Un calque par module qui en déclare un', ['Zénith', 'Astra', 'Orbite', 'Comète'].every((l) => chips.some((c) => c.includes(l))), chips.join(' | '));
+  check('Un calque par module qui en déclare un', ['Zénith', 'Astra', 'Orbite', 'Comète', 'Polaris'].every((l) => chips.some((c) => c.includes(l))), chips.join(' | '));
   const pressed = async (label) => lp.locator('.calendrier-layer-chip', { hasText: label }).getAttribute('aria-pressed');
   check('Zénith, Orbite et Comète s’affichent d’office, Astra non', (await pressed('Zénith')) === 'true' && (await pressed('Orbite')) === 'true' && (await pressed('Comète')) === 'true' && (await pressed('Astra')) === 'false');
 
@@ -360,6 +364,23 @@ export async function run({ browser, check, BASE }) {
   await zenithMark.first().click();
   await lp.waitForTimeout(300);
   check('Toucher une marque n’ouvre pas la fenêtre d’un événement', (await lp.locator('.calendrier-editor').count()) === 0);
+
+  // Polaris (étape 6 de Polaris) : les tâches, à cocher depuis le calendrier.
+  const book = lp.locator('.calendrier-layer', { hasText: 'Rendre le livre' }).first();
+  await book.waitFor();
+  check('Polaris : une tâche du jour, avec son rond à cocher', (await book.textContent())?.includes('○ Rendre le livre') ?? false);
+  check(
+    'Polaris : une tâche à une heure se place dans la grille horaire',
+    (await lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' }).count()) === 1,
+  );
+  await book.click();
+  await lp.locator('.calendrier-layer-done', { hasText: 'Rendre le livre' }).first().waitFor();
+  check('Toucher une tâche la coche dans le calendrier…', (await lp.locator('.calendrier-layer', { hasText: '✓ Rendre le livre' }).count()) > 0);
+  check(
+    '… et vraiment dans Polaris',
+    await lp.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === 'p1')?.completedAt !== null),
+  );
+  check('Toucher une tâche n’ouvre pas la fenêtre d’un événement', (await lp.locator('.calendrier-editor').count()) === 0);
 
   await lp.locator('.calendrier-layer-chip', { hasText: 'Astra' }).click();
   await lp.locator('.calendrier-layer', { hasText: 'dépensés' }).first().waitFor();

@@ -84,6 +84,8 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, re
   const [layerChoice, setLayerChoice] = useState<Record<string, boolean>>(savedLayers);
   const [marks, setMarks] = useState<Record<string, CalendarMark[]>>({});
   const [failedLayers, setFailedLayers] = useState<Set<string>>(new Set());
+  // Relire les calques après une coche faite depuis le calendrier.
+  const [marksVersion, setMarksVersion] = useState(0);
   const isVisible = useCallback((id: string, byDefault: boolean) => layerChoice[id] ?? byDefault, [layerChoice]);
 
   useEffect(() => {
@@ -103,7 +105,28 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, re
     return () => {
       current = false;
     };
-  }, [sources, range, isVisible, reloadToken]);
+  }, [sources, range, isVisible, reloadToken, marksVersion]);
+
+  /**
+   * Cocher une marque d'un autre module (une tâche de Polaris, étape 6 de
+   * Polaris). L'écran la coche tout de suite ; c'est le module qui écrit, puis
+   * le calque est relu — une tâche répétée cochée réapparaît alors à sa date
+   * suivante. En cas d'échec, la marque revient comme avant et l'erreur
+   * s'affiche.
+   */
+  async function toggleMark(sourceId: string, markId: string) {
+    const source = sources.find((s) => s.id === sourceId);
+    if (!source?.toggleMark) return;
+    const flip = (list: CalendarMark[] = []) => list.map((m) => (m.id === markId ? { ...m, done: !m.done } : m));
+    setMarks((m) => ({ ...m, [sourceId]: flip(m[sourceId]) }));
+    try {
+      await source.toggleMark(markId);
+    } catch (err) {
+      setMarks((m) => ({ ...m, [sourceId]: flip(m[sourceId]) }));
+      onError(err instanceof Error ? err.message : 'Impossible de cocher.');
+    }
+    setMarksVersion((v) => v + 1);
+  }
 
   function toggleLayer(id: string, visible: boolean) {
     const next = { ...layerChoice, [id]: visible };
@@ -300,6 +323,7 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, re
               }}
               onSelect={openNew}
               onOpen={openExisting}
+              onToggleMark={(sourceId, markId) => void toggleMark(sourceId, markId)}
               onMove={move}
             />
           </Suspense>

@@ -114,7 +114,24 @@ describe('markItem — une marque d’un autre module', () => {
       editable: false,
       backgroundColor: '#f2c14e38',
       borderColor: '#f2c14e',
-      extendedProps: { order: 1, layer: 'Zénith', detail: 'Marathon' },
+      extendedProps: { order: 1, layer: 'Zénith', detail: 'Marathon', sourceId: 'objectifs', markId: 'g|2026-09-27', checkable: false },
     });
+  });
+});
+
+describe('markItem — une marque à cocher, à une heure (Polaris)', () => {
+  const polaris = { id: 'taches', label: 'Polaris', color: '#ff9f7a' };
+
+  it('dans la grille horaire pour une demi-heure, avec son rond', () => {
+    const item = markItem(polaris, { id: 'task:a', day: '2026-09-29', title: 'Garage', time: '09:00', checkable: true, done: false }, 2);
+    expect([item.title, item.start, item.end, item.allDay]).toEqual(['○ Garage', '2026-09-29T09:00', '2026-09-29T09:30', false]);
+    expect(item.classNames).toEqual(['calendrier-layer', 'calendrier-layer-checkable']);
+    expect(item.extendedProps).toMatchObject({ sourceId: 'taches', markId: 'task:a', checkable: true });
+  });
+
+  it('cochée : le rond coché et la classe « faite » ; à 23 h 45, elle finit le lendemain', () => {
+    const item = markItem(polaris, { id: 'task:b', day: '2026-09-29', title: 'Tard', time: '23:45', checkable: true, done: true }, 2);
+    expect([item.title, item.end]).toEqual(['✓ Tard', '2026-09-30T00:15']);
+    expect(item.classNames).toContain('calendrier-layer-done');
   });
 });
