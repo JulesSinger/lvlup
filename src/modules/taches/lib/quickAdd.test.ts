@@ -240,3 +240,38 @@ describe('parseQuickAdd — la durée', () => {
     ]);
   });
 });
+
+describe('parseQuickAdd — sauf certains jours, et le rang dans le mois (28/09/2026)', () => {
+  // On est le lundi 28 septembre 2026.
+  const r = (text: string) => {
+    const x = parse(text);
+    return [x.title, x.plannedDay, x.recurrence];
+  };
+  const workdays = { freq: 'daily', interval: 1, byWeekday: [1, 2, 3, 4, 5] };
+
+  it('tous les jours sauf le week-end, en semaine, du lundi au vendredi, jours ouvrés', () => {
+    expect(r('Standup tous les jours sauf le week-end')).toEqual(['Standup', today, workdays]);
+    expect(r('Standup tous les jours sauf samedi et dimanche')).toEqual(['Standup', today, workdays]);
+    expect(r('Vitamines en semaine')).toEqual(['Vitamines', today, workdays]);
+    expect(r('Bus du lundi au vendredi 7h')[2]).toEqual(workdays);
+    expect(r('Mails les jours ouvrés')[2]).toEqual(workdays);
+  });
+
+  it('tous les jours sauf un jour précis', () => {
+    expect(r('Sport tous les jours sauf le mercredi')).toEqual(['Sport', today, { freq: 'daily', interval: 1, byWeekday: [0, 1, 2, 4, 5, 6] }]);
+  });
+
+  it('chaque week-end : le prochain samedi', () => {
+    expect(r('Marché chaque week-end')).toEqual(['Marché', '2026-10-03', { freq: 'daily', interval: 1, byWeekday: [6, 0] }]);
+  });
+
+  it('le 1er lundi, le 3e mardi, le dernier vendredi du mois : le prochain qui convient', () => {
+    expect(r('Réunion le premier lundi du mois')).toEqual(['Réunion', '2026-10-05', { freq: 'monthly', interval: 1, byNthWeekday: { nth: 1, weekday: 1 } }]);
+    expect(r('Club chaque 3e mardi du mois')).toEqual(['Club', '2026-10-20', { freq: 'monthly', interval: 1, byNthWeekday: { nth: 3, weekday: 2 } }]);
+    expect(r('Bilan le dernier vendredi de chaque mois 17h')).toEqual(['Bilan', '2026-10-30', { freq: 'monthly', interval: 1, byNthWeekday: { nth: -1, weekday: 5 } }]);
+  });
+
+  it('la pastille le dit en toutes lettres', () => {
+    expect(parse('Standup tous les jours sauf le week-end').tokens.map((t) => [t.kind, t.text])).toEqual([['repeat', 'tous les jours sauf le week-end']]);
+  });
+});

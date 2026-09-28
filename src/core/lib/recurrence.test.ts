@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeRecurrence, ruleDays, splitSeries, validateRecurrence, type Recurrence, type Series } from './recurrence';
+import { describeRecurrence, isLastOfMonth, isWorkdays, monthlyChoices, nthOfMonth, ruleDays, splitSeries, validateRecurrence, type Recurrence, type Series } from './recurrence';
 
 // Les cas d'Éclipse, repris tels quels au déplacement dans le socle : une
 // série commence le mardi 29 septembre 2026.
@@ -116,5 +116,57 @@ describe('validateRecurrence — une règle qui a du sens', () => {
     expect(validateRecurrence({ freq: 'daily', interval: 1, until: '2026-12-31', count: 3 }, '2026-09-29')).toMatch(/pas les deux/);
     expect(validateRecurrence({ freq: 'daily', interval: 1, until: '2026-09-01' }, '2026-09-29')).toMatch(/après son début/);
     expect(validateRecurrence({ freq: 'daily', interval: 1, count: 0 }, '2026-09-29')).toMatch(/nombre de répétitions/);
+  });
+});
+
+describe('personnaliser davantage (28/09/2026)', () => {
+  // Le lundi 28 septembre 2026.
+  const from = (recurrence: Recurrence, startDay = '2026-09-28') => ({ startDay, recurrence });
+
+  it('tous les jours sauf le samedi et le dimanche', () => {
+    const rule: Recurrence = { freq: 'daily', interval: 1, byWeekday: [1, 2, 3, 4, 5] };
+    expect(ruleDays(from(rule), '2026-09-28', '2026-10-06')).toEqual(['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06']);
+    expect(describeRecurrence(rule, '2026-09-28')).toBe('Tous les jours sauf le samedi et le dimanche');
+  });
+
+  it('tous les jours, seulement certains : décrits par ce qu’on garde', () => {
+    const rule: Recurrence = { freq: 'daily', interval: 1, byWeekday: [6, 0] };
+    expect(ruleDays(from(rule), '2026-09-28', '2026-10-05')).toEqual(['2026-10-03', '2026-10-04']);
+    expect(describeRecurrence(rule, '2026-09-28')).toBe('Tous les jours, seulement le samedi et le dimanche');
+  });
+
+  it('un jour du mois par son rang : le 3e mardi, le dernier vendredi', () => {
+    const third: Recurrence = { freq: 'monthly', interval: 1, byNthWeekday: { nth: 3, weekday: 2 } };
+    expect(ruleDays(from(third), '2026-09-01', '2026-12-31')).toEqual(['2026-10-20', '2026-11-17', '2026-12-15']);
+    expect(describeRecurrence(third, '2026-10-20')).toBe('Tous les mois le 3e mardi');
+    const last: Recurrence = { freq: 'monthly', interval: 1, byNthWeekday: { nth: -1, weekday: 5 } };
+    expect(ruleDays(from(last), '2026-09-28', '2026-12-31')).toEqual(['2026-10-30', '2026-11-27', '2026-12-25']);
+    expect(describeRecurrence(last, '2026-10-30')).toBe('Tous les mois le dernier vendredi');
+    expect(describeRecurrence({ freq: 'monthly', interval: 2, byNthWeekday: { nth: 1, weekday: 1 } }, '2026-10-05')).toBe('Tous les 2 mois le 1er lundi');
+  });
+
+  it('nthOfMonth, isLastOfMonth', () => {
+    expect([nthOfMonth('2026-09-15'), nthOfMonth('2026-09-29'), isLastOfMonth('2026-09-29'), isLastOfMonth('2026-09-22')]).toEqual([3, 5, true, false]);
+  });
+
+  it('la validation : au moins un jour, et un rang seulement chaque mois', () => {
+    expect(validateRecurrence({ freq: 'daily', interval: 1, byWeekday: [] }, '2026-09-28')).toMatch(/au moins un jour/);
+    expect(validateRecurrence({ freq: 'weekly', interval: 1, byNthWeekday: { nth: 2, weekday: 2 } }, '2026-09-28')).toMatch(/chaque mois/);
+    expect(validateRecurrence({ freq: 'monthly', interval: 1, byNthWeekday: { nth: 5 as never, weekday: 2 } }, '2026-09-28')).toMatch(/invalide/);
+    expect(validateRecurrence({ freq: 'monthly', interval: 1, byNthWeekday: { nth: -1, weekday: 5 } }, '2026-09-28')).toBeNull();
+  });
+});
+
+describe('les choix proposés à l’écran', () => {
+  it('monthlyChoices : la date, le rang, et « le dernier » quand c’en est un', () => {
+    expect(monthlyChoices('2026-09-15').map((c) => c.label)).toEqual(['le 15 de chaque mois', 'le 3e mardi de chaque mois']);
+    expect(monthlyChoices('2026-09-29').map((c) => c.label)).toEqual(['le 29 de chaque mois', 'le dernier mardi de chaque mois']);
+    expect(monthlyChoices('2026-09-24').map((c) => c.id)).toEqual(['date', 'nth', 'last']);
+  });
+
+  it('isWorkdays', () => {
+    expect(isWorkdays({ freq: 'daily', interval: 1, byWeekday: [5, 4, 3, 2, 1] })).toBe(true);
+    expect(isWorkdays({ freq: 'daily', interval: 1 })).toBe(false);
+    expect(isWorkdays({ freq: 'weekly', interval: 1, byWeekday: [1, 2, 3, 4, 5] })).toBe(false);
   });
 });

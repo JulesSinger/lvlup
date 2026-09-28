@@ -19,7 +19,7 @@
  * Tout se joue en jours locaux, par rapport à `today` : aucun fuseau.
  */
 import { shiftDay, weekday } from '../../../core/lib/day';
-import type { Recurrence } from '../../../core/lib/recurrence';
+import { ruleDays, WORKDAYS, type Nth, type Recurrence } from '../../../core/lib/recurrence';
 import type { Priority } from './types';
 
 export type TokenKind = 'day' | 'time' | 'duration' | 'due' | 'priority' | 'list' | 'repeat';
@@ -178,8 +178,29 @@ const weekdaysIn = (text: string) => [...new Set([...text.matchAll(new RegExp(`(
 /** Une suite de jours : « lundi », « lundis et jeudis », « lundi, mercredi et vendredi ». */
 const WD_LIST = `(?:${WD})s?(?:(?:, | et )(?:${WD})s?)*`;
 
+/** « premier », « 2e », « dernier »… : le rang d'un jour dans son mois. */
+const RANKS: Record<string, Nth> = { premier: 1, '1er': 1, deuxieme: 2, second: 2, '2e': 2, '2eme': 2, troisieme: 3, '3e': 3, '3eme': 3, quatrieme: 4, '4e': 4, '4eme': 4, dernier: -1 };
+const RANK = Object.keys(RANKS).join('|');
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+
 /** Chaque façon de dire une répétition, et la règle qu'elle donne. */
 const REPEAT_PATTERNS: { source: string; rule: (m: RegExpExecArray) => Recurrence }[] = [
+  // « tous les jours sauf le week-end », « … sauf samedi et dimanche », « en semaine », « du lundi au vendredi »
+  { source: `tous les jours sauf (?:le |les )?(?:week-ends?|weekends?|we)`, rule: () => ({ freq: 'daily', interval: 1, byWeekday: [...WORKDAYS] }) },
+  {
+    source: `tous les jours sauf (?:le |les )?${WD_LIST}`,
+    rule: (m) => {
+      const skipped = weekdaysIn(m[0]);
+      return { freq: 'daily', interval: 1, byWeekday: ALL_DAYS.filter((d) => !skipped.includes(d)) };
+    },
+  },
+  { source: `en semaine|(?:les |tous les )?jours ouvres|du lundi au vendredi`, rule: () => ({ freq: 'daily', interval: 1, byWeekday: [...WORKDAYS] }) },
+  { source: `(?:tous les|chaque) week-ends?|(?:tous les|chaque) weekends?`, rule: () => ({ freq: 'daily', interval: 1, byWeekday: [6, 0] }) },
+  // « le premier lundi du mois », « chaque 3e mardi du mois », « le dernier vendredi de chaque mois »
+  {
+    source: `(?:le |chaque |tous les )?(${RANK}) (${WD})s? (?:du|de chaque) mois`,
+    rule: (m) => ({ freq: 'monthly', interval: 1, byNthWeekday: { nth: RANKS[m[1]], weekday: WEEKDAYS.indexOf(m[2]) } }),
+  },
   { source: `tous les jours|chaque jour|quotidiennement`, rule: () => ({ freq: 'daily', interval: 1 }) },
   { source: `tous les (${NUMBER}) jours`, rule: (m) => ({ freq: 'daily', interval: count(m[1]) }) },
   { source: `toutes les semaines|chaque semaine|hebdomadairement`, rule: () => ({ freq: 'weekly', interval: 1 }) },
@@ -359,9 +380,9 @@ export function parseQuickAdd(
     plannedDay = nextDayMonth(today, Number(plannedDay.slice(8)), Number(plannedDay.slice(5, 7)));
   }
   if (rule && !plannedDay) {
-    // Une répétition a besoin d'un jour : le premier jour de la semaine cité à partir d'aujourd'hui, sinon aujourd'hui.
-    const days = rule.byWeekday ?? [];
-    plannedDay = days.length > 0 ? shiftDay(today, Math.min(...days.map((d) => (d - weekday(today) + 7) % 7))) : today;
+    // Une répétition a besoin d'un jour : le premier qui lui convient à partir d'aujourd'hui
+    // (le premier jour cité, le prochain « 3e mardi »…), sinon aujourd'hui.
+    plannedDay = ruleDays({ startDay: today, recurrence: rule }, today, shiftDay(today, 70))[0] ?? today;
   }
   return {
     title,

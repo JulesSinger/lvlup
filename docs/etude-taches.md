@@ -562,6 +562,14 @@ perd son heure (et l'inverse lui en donne une). Le socle a gagné `CalendarMark.
 glissent pas : les aperçus des prochaines fois, les tâches faites, celles qui n'ont qu'une échéance.
 Un simple déplacement garde la durée de la tâche (ou son absence) ; seul l'étirement la fixe.
 
+**Répéter avec plus de finesse (28/09/2026)**, par le moteur commun (voir `docs/etude-calendrier.md`
+§18) : « tous les jours » avec des jours retenus, « tous les jours ouvrés », « le 3e mardi » ou « le
+dernier vendredi du mois » — dans la fenêtre d'une tâche (à date fixe seulement : « après l'avoir
+faite » ne dépend que d'un écart) et dans l'ajout rapide : « tous les jours sauf le week-end »,
+« tous les jours sauf le mercredi », « en semaine », « du lundi au vendredi », « les jours ouvrés »,
+« chaque week-end », « le premier lundi du mois », « chaque 3e mardi du mois », « le dernier
+vendredi de chaque mois ». Le jour prévu est alors le premier qui convient à partir d'aujourd'hui.
+
 **Pas encore** : poser une tâche **de la liste** sur un créneau en la faisant glisser depuis Polaris vers Éclipse — les marques ne se
 déplacent pas (§6, plus tard).
 

@@ -1,5 +1,5 @@
 import { weekday } from '../../../core/lib/day';
-import { describeRecurrence, FREQUENCIES, type Frequency, type Recurrence } from '../../../core/lib/recurrence';
+import { describeRecurrence, FREQUENCIES, isWorkdays, monthlyChoices, WORKDAYS, type Frequency, type Recurrence } from '../../../core/lib/recurrence';
 import type { RepeatFrom } from '../lib/types';
 
 interface Props {
@@ -58,17 +58,20 @@ export function RepeatFields({ value, repeatFrom, startDay, onChange }: Props) {
 
   function setFreq(freq: string) {
     if (freq === 'none') return onChange(null, repeatFrom);
-    const next: Recurrence = { freq: freq as Frequency, interval: value?.interval ?? 1 };
-    if (freq === 'weekly' && repeatFrom === 'schedule') next.byWeekday = value?.byWeekday?.length ? value.byWeekday : [weekday(startDay)];
+    // « Tous les jours ouvrés » : chaque jour, du lundi au vendredi — à date fixe, forcément.
+    const workdays = freq === 'workdays';
+    const next: Recurrence = { freq: workdays ? 'daily' : (freq as Frequency), interval: workdays ? 1 : (value?.interval ?? 1) };
+    if (workdays) next.byWeekday = [...WORKDAYS];
+    if (freq === 'weekly' && repeatFrom === 'schedule') next.byWeekday = value?.freq === 'weekly' && value.byWeekday?.length ? value.byWeekday : [weekday(startDay)];
     if (value?.until !== undefined) next.until = value.until;
     if (value?.count !== undefined) next.count = value.count;
-    onChange(next, repeatFrom);
+    onChange(next, workdays ? 'schedule' : repeatFrom);
   }
 
   function setFrom(from: RepeatFrom) {
     if (!value) return onChange(null, from);
-    // Après l'avoir faite, les jours de la semaine n'ont plus de sens : seul l'écart compte.
-    const { byWeekday: _days, ...rest } = value;
+    // Après l'avoir faite, les jours de la semaine et le rang dans le mois n'ont plus de sens : seul l'écart compte.
+    const { byWeekday: _days, byNthWeekday: _nth, ...rest } = value;
     onChange(from === 'completion' ? rest : value.freq === 'weekly' ? { ...rest, byWeekday: [weekday(startDay)] } : rest, from);
   }
 
@@ -80,26 +83,48 @@ export function RepeatFields({ value, repeatFrom, startDay, onChange }: Props) {
     else onChange(rest, repeatFrom);
   }
 
+  /** Les jours retenus : chaque semaine, le jour du début par défaut ; chaque jour, tous par défaut. */
+  const defaultDays = value?.freq === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : [weekday(startDay)];
+
   function toggleDay(day: number) {
     if (!value) return;
-    const days = value.byWeekday ?? [weekday(startDay)];
-    update({ byWeekday: days.includes(day) ? days.filter((d) => d !== day) : [...days, day] });
+    const days = value.byWeekday?.length ? value.byWeekday : defaultDays;
+    const next = days.includes(day) ? days.filter((d) => d !== day) : [...days, day];
+    // Chaque jour, les sept retenus : c'est « tous les jours », sans filtre.
+    if (value.freq === 'daily' && next.length === 7) {
+      const { byWeekday: _days, ...rest } = value;
+      return onChange(rest, repeatFrom);
+    }
+    update({ byWeekday: next });
   }
 
-  const selectedDays = value?.byWeekday ?? (value ? [weekday(startDay)] : []);
+  function setMonthly(id: string) {
+    if (!value) return;
+    const { byNthWeekday: _nth, ...rest } = value;
+    const choice = monthlyChoices(startDay).find((c) => c.id === id);
+    onChange(choice?.byNthWeekday ? { ...rest, byNthWeekday: choice.byNthWeekday } : rest, repeatFrom);
+  }
+
+  const selectedDays = value?.byWeekday?.length ? value.byWeekday : value ? defaultDays : [];
+  const monthly = value?.byNthWeekday ? (value.byNthWeekday.nth === -1 ? 'last' : 'nth') : 'date';
   const valid = value && Number.isInteger(value.interval) && value.interval >= 1;
 
   return (
     <div className="taches-repeat">
       <div className="field">
         <label htmlFor="taches-repeat">Répéter</label>
-        <select id="taches-repeat" value={value?.freq ?? 'none'} onChange={(e) => setFreq(e.target.value)}>
+        <select id="taches-repeat" value={isWorkdays(value) ? 'workdays' : (value?.freq ?? 'none')} onChange={(e) => setFreq(e.target.value)}>
           <option value="none">Ne se répète pas</option>
-          {FREQUENCIES.map((f) => (
+          {FREQUENCIES.map((f) => [
             <option key={f} value={f}>
               {REPEAT_LABELS[f]}
-            </option>
-          ))}
+            </option>,
+            f === 'daily' && (
+              <option key="workdays" value="workdays">
+                Tous les jours ouvrés (lundi – vendredi)
+              </option>
+            ),
+          ])}
         </select>
       </div>
 
@@ -130,8 +155,21 @@ export function RepeatFields({ value, repeatFrom, startDay, onChange }: Props) {
             <span>{UNITS[value.freq][value.interval > 1 ? 1 : 0]}</span>
           </div>
 
-          {value.freq === 'weekly' && repeatFrom === 'schedule' && (
-            <div className="taches-weekdays" role="group" aria-label="Jours de la semaine">
+          {value.freq === 'monthly' && repeatFrom === 'schedule' && (
+            <div className="taches-repeat-row">
+              <label htmlFor="taches-monthly">Jour</label>
+              <select id="taches-monthly" value={monthly} onChange={(e) => setMonthly(e.target.value)}>
+                {monthlyChoices(startDay).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {(value.freq === 'weekly' || value.freq === 'daily') && repeatFrom === 'schedule' && (
+            <div className="taches-weekdays" role="group" aria-label={value.freq === 'daily' ? 'Les jours retenus' : 'Jours de la semaine'}>
               {WEEKDAYS.map((d) => (
                 <button
                   key={d.day}

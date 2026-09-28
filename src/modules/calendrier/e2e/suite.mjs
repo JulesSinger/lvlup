@@ -295,6 +295,37 @@ export async function run({ browser, check, BASE }) {
     await seriesWeek(page),
   );
 
+  // --- Tous les jours sauf le samedi et le dimanche (28/09/2026) ------------------------------
+  await page.getByRole('button', { name: 'Nouvel événement' }).click();
+  await page.waitForSelector('.calendrier-editor');
+  await page.locator('#calendrier-title').fill('Standup');
+  await page.locator('#calendrier-start-day').fill(weekDay(0));
+  await page.locator('#calendrier-end-day').fill(weekDay(0));
+  await page.locator('#calendrier-start-time').fill('09:00');
+  await page.locator('#calendrier-end-time').fill('09:15');
+  await page.locator('#calendrier-repeat').selectOption('daily');
+  await page.getByRole('button', { name: 'samedi' }).click();
+  await page.getByRole('button', { name: 'dimanche' }).click();
+  check(
+    'Tous les jours, samedi et dimanche éteints : « Tous les jours sauf le samedi et le dimanche »',
+    (await text(page.locator('.calendrier-recurrence-summary'))).includes('Tous les jours sauf le samedi et le dimanche'),
+  );
+  check('… que le menu reconnaît comme « jours ouvrés »', (await page.locator('#calendrier-repeat').inputValue()) === 'workdays');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.calendrier-editor', { state: 'detached' });
+  await dayColumn(page, weekDay(0)).locator('.fc-timegrid-event', { hasText: 'Standup' }).waitFor();
+  const standup = [];
+  for (let i = 0; i < 7; i++) standup.push(await dayColumn(page, weekDay(i)).locator('.fc-timegrid-event', { hasText: 'Standup' }).count());
+  check('La série est là du lundi au vendredi, pas le week-end', standup.join('') === '1111100', standup.join(''));
+
+  await page.getByRole('button', { name: 'Nouvel événement' }).click();
+  await page.waitForSelector('.calendrier-editor');
+  await page.locator('#calendrier-repeat').selectOption('monthly');
+  const monthlyChoices = await page.locator('#calendrier-monthly option').allTextContents();
+  check('Chaque mois : par date, ou par rang (« le 2e mardi de chaque mois »)', monthlyChoices.length >= 2 && monthlyChoices.some((c) => /le (1er|\de|dernier) \p{L}+ de chaque mois/u.test(c)), monthlyChoices.join(' | '));
+  await page.getByRole('button', { name: 'Annuler' }).click();
+  await page.waitForSelector('.calendrier-editor', { state: 'detached' });
+
   // --- Les vues ----------------------------------------------------------------------------
   await page.locator('.fc-timeGridDay-button').click();
   check('Vue Jour', await page.locator('.fc-timeGridDay-view').isVisible());

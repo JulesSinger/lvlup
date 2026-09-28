@@ -1,4 +1,4 @@
-import { describeRecurrence, FREQUENCIES, type Frequency, type Recurrence } from '../../../core/lib/recurrence';
+import { describeRecurrence, FREQUENCIES, isWorkdays, monthlyChoices, WORKDAYS, type Frequency, type Recurrence } from '../../../core/lib/recurrence';
 import { weekday } from '../../../core/lib/day';
 
 interface Props {
@@ -45,8 +45,11 @@ export function RecurrenceFields({ value, startDay, onChange }: Props) {
 
   function setFreq(freq: string) {
     if (freq === 'none') return onChange(null);
-    const next: Recurrence = { freq: freq as Frequency, interval: value?.interval ?? 1 };
-    if (freq === 'weekly') next.byWeekday = value?.byWeekday?.length ? value.byWeekday : [weekday(startDay)];
+    // « Tous les jours ouvrés » : chaque jour, du lundi au vendredi.
+    const workdays = freq === 'workdays';
+    const next: Recurrence = { freq: workdays ? 'daily' : (freq as Frequency), interval: workdays ? 1 : (value?.interval ?? 1) };
+    if (workdays) next.byWeekday = [...WORKDAYS];
+    if (freq === 'weekly') next.byWeekday = value?.freq === 'weekly' && value.byWeekday?.length ? value.byWeekday : [weekday(startDay)];
     if (value?.until !== undefined) next.until = value.until;
     if (value?.count !== undefined) next.count = value.count;
     onChange(next);
@@ -64,26 +67,49 @@ export function RecurrenceFields({ value, startDay, onChange }: Props) {
     else onChange(rest);
   }
 
+  /** Les jours retenus : chaque semaine, le jour du début par défaut ; chaque jour, tous par défaut. */
+  const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+  const defaultDays = value?.freq === 'daily' ? ALL_DAYS : [weekday(startDay)];
+
   function toggleDay(day: number) {
     if (!value) return;
-    const days = value.byWeekday ?? [weekday(startDay)];
-    update({ byWeekday: days.includes(day) ? days.filter((d) => d !== day) : [...days, day] });
+    const days = value.byWeekday?.length ? value.byWeekday : defaultDays;
+    const next = days.includes(day) ? days.filter((d) => d !== day) : [...days, day];
+    // Chaque jour, les sept retenus : c'est « tous les jours », sans filtre.
+    if (value.freq === 'daily' && next.length === 7) {
+      const { byWeekday: _days, ...rest } = value;
+      return onChange(rest);
+    }
+    update({ byWeekday: next });
+  }
+
+  function setMonthly(id: string) {
+    if (!value) return;
+    const { byNthWeekday: _nth, ...rest } = value;
+    const choice = monthlyChoices(startDay).find((c) => c.id === id);
+    onChange(choice?.byNthWeekday ? { ...rest, byNthWeekday: choice.byNthWeekday } : rest);
   }
 
   const unit = value ? UNITS[value.freq][value.interval > 1 ? 1 : 0] : '';
-  const selectedDays = value?.byWeekday ?? (value ? [weekday(startDay)] : []);
+  const selectedDays = value?.byWeekday?.length ? value.byWeekday : value ? defaultDays : [];
+  const monthly = value?.byNthWeekday ? (value.byNthWeekday.nth === -1 ? 'last' : 'nth') : 'date';
 
   return (
     <div className="calendrier-recurrence">
       <div className="field">
         <label htmlFor="calendrier-repeat">Répéter</label>
-        <select id="calendrier-repeat" value={value?.freq ?? 'none'} onChange={(e) => setFreq(e.target.value)}>
+        <select id="calendrier-repeat" value={isWorkdays(value) ? 'workdays' : (value?.freq ?? 'none')} onChange={(e) => setFreq(e.target.value)}>
           <option value="none">Ne se répète pas</option>
-          {FREQUENCIES.map((f) => (
+          {FREQUENCIES.map((f) => [
             <option key={f} value={f}>
               {REPEAT_LABELS[f]}
-            </option>
-          ))}
+            </option>,
+            f === 'daily' && (
+              <option key="workdays" value="workdays">
+                Tous les jours ouvrés (lundi – vendredi)
+              </option>
+            ),
+          ])}
         </select>
       </div>
 
@@ -103,8 +129,21 @@ export function RecurrenceFields({ value, startDay, onChange }: Props) {
             <span>{unit}</span>
           </div>
 
-          {value.freq === 'weekly' && (
-            <div className="calendrier-weekdays" role="group" aria-label="Jours de la semaine">
+          {value.freq === 'monthly' && (
+            <div className="calendrier-recurrence-row">
+              <label htmlFor="calendrier-monthly">Jour</label>
+              <select id="calendrier-monthly" value={monthly} onChange={(e) => setMonthly(e.target.value)}>
+                {monthlyChoices(startDay).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {(value.freq === 'weekly' || value.freq === 'daily') && (
+            <div className="calendrier-weekdays" role="group" aria-label={value.freq === 'daily' ? 'Les jours retenus' : 'Jours de la semaine'}>
               {WEEKDAYS.map((d) => (
                 <button
                   key={d.day}

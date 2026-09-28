@@ -473,6 +473,26 @@ rechargement.
 
 ---
 
+## 18. Répéter avec plus de finesse (28/09/2026)
+
+Demande de Jules : « je veux pouvoir mettre un événement répété tous les jours **sauf** le samedi et
+le dimanche ». Le moteur commun (`core/lib/recurrence.ts`, partagé avec Polaris) gagne deux choses :
+
+- **« Tous les jours » avec des jours retenus** (`byWeekday` vaut aussi pour `daily`) : sous « Tous
+  les jours », les sept pastilles L M M J V S D, toutes allumées ; en éteindre se relit « Tous les
+  jours sauf le samedi et le dimanche » (au moins quatre jours gardés : on dit ceux qu'on saute ;
+  sinon « seulement le samedi et le dimanche »). Un raccourci **« Tous les jours ouvrés (lundi –
+  vendredi) »** dans le menu, que le menu reconnaît aussi quand on y arrive par les pastilles.
+- **« Tous les mois » par rang** (`byNthWeekday`), comme Google Agenda : « le 28 de chaque mois »,
+  « le 4e lundi de chaque mois » ou « le dernier lundi de chaque mois », proposés d'après le jour de
+  début (`monthlyChoices`) — un 5e mardi n'est offert que comme « le dernier », il n'existe pas tous
+  les mois.
+
+Aucune migration : la règle vit en JSON, seule sa fréquence est contrôlée par la base. Les
+exceptions d'une occurrence (« sauf le 14 ») existaient déjà (étape 4).
+
+---
+
 ## Sources
 
 - Comparatifs 2026 : [Zapier, meilleures applis de calendrier](https://zapier.com/blog/best-calendar-apps/),

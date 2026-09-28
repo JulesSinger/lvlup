@@ -313,6 +313,12 @@ export async function run({ browser, check, BASE }) {
     bday?.recurrence?.freq === 'yearly' && bday?.plannedDay?.endsWith('-03-15') && bday?.repeatFrom === 'schedule',
     JSON.stringify(bday),
   );
+  await type(p7, 'Standup tous les jours sauf le week-end');
+  check(
+    '« tous les jours sauf le week-end » est compris',
+    (await p7.locator('.taches-token').allTextContents()).join(' ').includes('Tous les jours sauf le samedi et le dimanche'),
+  );
+  await p7.getByLabel('Ajouter une tâche').fill('');
   await add(p7, 'Sport tous les lundis 18h');
   // Prévue au premier lundi à partir d'aujourd'hui : dans Aujourd'hui un lundi, dans À venir sinon.
   if ((await row(p7, 'Sport').count()) === 0) await p7.getByRole('button', { name: 'À venir' }).click();
