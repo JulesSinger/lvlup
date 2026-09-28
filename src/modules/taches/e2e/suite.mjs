@@ -37,7 +37,7 @@ function day(offset) {
 }
 
 async function edit(page, title, change) {
-  await row(page, title).locator('.taches-row-body').click();
+  await row(page, title).getByRole('button', { name: /^Modifier « / }).click();
   await page.waitForSelector('.taches-editor');
   await change();
   await page.getByRole('button', { name: 'Enregistrer' }).click();
@@ -124,7 +124,11 @@ export async function run({ browser, check, BASE }) {
   check('Annuler la remet, pas cochée', (await page.getByRole('checkbox', { name: 'Cocher « Réunion de lundi »' }).count()) === 1);
 
   // --- Modifier : priorité, échéance, sous-tâches -------------------------------------------------
-  await row(page, 'Impôts').locator('.taches-row-body').click();
+  await row(page, 'Impôts').locator('.taches-row-title').click({ clickCount: 3 });
+  check('Toucher le texte d’une tâche n’ouvre pas sa fenêtre…', (await page.locator('.taches-editor').count()) === 0);
+  check('… et le texte se sélectionne, pour le copier', (await page.evaluate(() => window.getSelection()?.toString() ?? '')).includes('Impôts'));
+  await page.evaluate(() => window.getSelection()?.removeAllRanges());
+  await row(page, 'Impôts').getByRole('button', { name: /^Modifier « / }).click();
   await page.waitForSelector('.taches-editor');
   check('Toucher une tâche l’ouvre, échéance déjà affichée', (await page.locator('#taches-due').inputValue()) !== '');
   await page.getByRole('radio', { name: 'Importante' }).click();
@@ -159,7 +163,7 @@ export async function run({ browser, check, BASE }) {
   );
 
   // --- Supprimer ------------------------------------------------------------------------------------------
-  await row(page, 'Déclarer les impôts').locator('.taches-row-body').click();
+  await row(page, 'Déclarer les impôts').getByRole('button', { name: /^Modifier « / }).click();
   await page.locator('.taches-editor').getByRole('button', { name: 'Supprimer', exact: true }).click();
   await page.waitForSelector('.taches-editor', { state: 'detached' });
   check('Supprimer une tâche (après confirmation) la retire, avec ses sous-tâches', (await row(page, 'Déclarer les impôts').count()) === 0);
@@ -314,7 +318,7 @@ export async function run({ browser, check, BASE }) {
   const noOverflow = () => mobile.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
   check('Sur téléphone, rien ne déborde, même avec une liste au nom long', await noOverflow());
   check('Sur téléphone, les vues tiennent sur une ligne', (await mobile.locator('.taches-nav').evaluate((el) => getComputedStyle(el).flexWrap)) === 'nowrap');
-  await row(mobile, 'Appeler le garage').locator('.taches-row-body').click();
+  await row(mobile, 'Appeler le garage').getByRole('button', { name: /^Modifier « / }).click();
   await mobile.waitForSelector('.taches-editor');
   const box = await mobile.locator('.taches-editor').boundingBox();
   check('Sur téléphone, la fenêtre d’une tâche tient dans l’écran', (await noOverflow()) && box !== null && box.x >= 0 && box.x + box.width <= 391);

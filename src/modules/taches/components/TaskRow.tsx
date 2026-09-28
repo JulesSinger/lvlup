@@ -29,6 +29,11 @@ interface Props {
  * Une tâche : le rond à cocher, le titre, et ce qui compte d'un coup d'œil —
  * heure, jour, échéance (en rouge si dépassée), liste, priorité, répétition,
  * sous-tâches faites. Les sous-tâches se déplient sous la tâche.
+ *
+ * Le texte est du texte : il se sélectionne et se copie. La fenêtre de la
+ * tâche s'ouvre par le bouton ✎ du bout de la ligne (demande de Jules,
+ * 28/09/2026 : toute la ligne ouvrait la fenêtre, on ne pouvait rien
+ * sélectionner).
  */
 export function TaskRow({ task, subtasks, today, listName, showDay, pending, waiting, onToggle, onOpen, handle }: Props) {
   const [open, setOpen] = useState(false);
@@ -63,7 +68,7 @@ export function TaskRow({ task, subtasks, today, listName, showDay, pending, wai
         >
           <span aria-hidden="true">{checked ? '✓' : ''}</span>
         </button>
-        <button type="button" className="taches-row-body" onClick={() => onOpen(task)}>
+        <div className="taches-row-body">
           <span className="taches-row-title">{task.title}</span>
           <span className="taches-row-meta">
             {task.priority !== 'normale' && (
@@ -74,14 +79,14 @@ export function TaskRow({ task, subtasks, today, listName, showDay, pending, wai
             {task.dueDay && <span className={`taches-due ${due ?? ''}`}>⚑ {dueLabel(task.dueDay, today)}</span>}
             {task.recurrence && <span title="Tâche répétée">↻</span>}
             {listName && <span className="taches-row-list"># {listName}</span>}
-            {task.note && <span title={task.note}>✎</span>}
+            {task.note && <span title={task.note}>📝</span>}
             {waiting && (
               <span className="taches-waiting" title="Enregistrée sur cet appareil, envoyée au retour du réseau">
                 ⏳ en attente d’envoi
               </span>
             )}
           </span>
-        </button>
+        </div>
         {subtasks.length > 0 && (
           <button
             type="button"
@@ -93,6 +98,9 @@ export function TaskRow({ task, subtasks, today, listName, showDay, pending, wai
             {done}/{subtasks.length} <span aria-hidden="true">{open ? '▾' : '▸'}</span>
           </button>
         )}
+        <button type="button" className="taches-edit" aria-label={`Modifier « ${task.title} »`} title="Modifier" onClick={() => onOpen(task)}>
+          <span aria-hidden="true">✎</span>
+        </button>
       </div>
       {open && subtasks.length > 0 && (
         <ul className="taches-subtasks">

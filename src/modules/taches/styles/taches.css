@@ -254,11 +254,37 @@
   align-items: flex-start;
   gap: 2px;
   padding: 8px 0;
-  border: none;
-  background: transparent;
   color: var(--text);
-  text-align: left;
+  /* Du texte : il se sélectionne et se copie (la fenêtre s'ouvre par ✎). */
+  user-select: text;
+  cursor: text;
+}
+
+/* Ouvrir la fenêtre d'une tâche : discret, mais toujours là — au doigt, il n'y a pas de survol. */
+.taches-edit {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 15px;
   cursor: pointer;
+}
+
+.taches-edit:hover,
+.taches-edit:focus-visible,
+.taches-row:hover .taches-edit {
+  color: var(--text);
+}
+
+.taches-edit:hover,
+.taches-edit:focus-visible {
+  background: var(--surface-2);
 }
 
 .taches-row-title {
