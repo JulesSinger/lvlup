@@ -449,6 +449,31 @@
   width: 100%;
 }
 
+/* --- La hauteur d'une demi-heure --------------------------------------------------
+   7 h – minuit (34 demi-heures) doit tenir dans la grille ouverte à 7 h : la
+   hauteur disponible (celle de la vue, moins la barre de FullCalendar, les
+   en-têtes et la bande « Journée », environ 150 px) partagée en 34, bornée pour
+   rester lisible — sur un petit écran, la grille défile. */
+.calendrier-view .fc .fc-timegrid-slot {
+  height: clamp(14px, calc((100dvh - 172px - 150px) / 34), 28px);
+  /* FullCalendar met une espace dans chaque case vide : sans ça, sa hauteur de
+     ligne (19,5 px) imposait un minimum, et la grille ne se resserrait pas. */
+  line-height: 1;
+  font-size: 11px;
+}
+
+/* Le libellé de l'heure ne doit pas imposer sa hauteur à la ligne. */
+.calendrier-view .fc .fc-timegrid-slot-label {
+  vertical-align: top;
+}
+
+.calendrier-view .fc .fc-timegrid-slot-label-cushion {
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 11px;
+  line-height: 1;
+}
+
 /* --- Téléphone ---------------------------------------------------------- */
 
 @media (max-width: 760px) {
@@ -472,6 +497,11 @@
 
   .calendrier-view {
     height: calc(100dvh - 216px);
+  }
+
+  /* Sur téléphone, la barre des vues passe en bas : un peu plus à retrancher. */
+  .calendrier-view .fc .fc-timegrid-slot {
+    height: clamp(13px, calc((100dvh - 216px - 185px) / 34), 28px);
   }
 
   /* Les calques tiennent sur une ligne, qui défile d'elle-même plutôt que la page. */

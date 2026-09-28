@@ -40,7 +40,6 @@ interface Props {
  * heure lue, sans conversion.
  */
 export default function CalendarView({ items, initialView, narrow, onRangeChange, onSelect, onOpen, onToggleMark, onOpenMark, onMove }: Props) {
-  const scrollHour = Math.max(0, new Date().getHours() - 1);
   return (
     <FullCalendar
       plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
@@ -59,7 +58,11 @@ export default function CalendarView({ items, initialView, narrow, onRangeChange
       firstDay={1}
       height="100%"
       nowIndicator
-      scrollTime={`${String(scrollHour).padStart(2, '0')}:00:00`}
+      // La grille s'ouvre à 7 h (demande de Jules, 28/09/2026 : elle s'ouvrait à
+      // l'heure courante moins une, et on ne voyait rien avant 11 h à midi). Les
+      // créneaux sont assez serrés (calendrier.css) pour que 7 h – minuit tienne ;
+      // la nuit reste au-dessus, en faisant défiler.
+      scrollTime="07:00:00"
       dayMaxEvents
       selectable
       selectMirror
