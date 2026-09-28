@@ -13,6 +13,8 @@ interface Props {
   showDay: boolean;
   /** En cours d'écriture : barrée, en attendant */
   pending: boolean;
+  /** En attente de réseau (étape 7) : enregistrée sur l'appareil, pas encore envoyée */
+  waiting?: boolean;
   onToggle: (task: Task) => void;
   onOpen: (task: Task) => void;
   /** Dans une liste : la poignée pour réordonner, au doigt, à la souris ou au clavier (flèches). */
@@ -28,7 +30,7 @@ interface Props {
  * heure, jour, échéance (en rouge si dépassée), liste, priorité, répétition,
  * sous-tâches faites. Les sous-tâches se déplient sous la tâche.
  */
-export function TaskRow({ task, subtasks, today, listName, showDay, pending, onToggle, onOpen, handle }: Props) {
+export function TaskRow({ task, subtasks, today, listName, showDay, pending, waiting, onToggle, onOpen, handle }: Props) {
   const [open, setOpen] = useState(false);
   const done = subtasks.filter((s) => s.completedAt).length;
   const due = dueStatus(task, today);
@@ -73,6 +75,11 @@ export function TaskRow({ task, subtasks, today, listName, showDay, pending, onT
             {task.recurrence && <span title="Tâche répétée">↻</span>}
             {listName && <span className="taches-row-list"># {listName}</span>}
             {task.note && <span title={task.note}>✎</span>}
+            {waiting && (
+              <span className="taches-waiting" title="Enregistrée sur cet appareil, envoyée au retour du réseau">
+                ⏳ en attente d’envoi
+              </span>
+            )}
           </span>
         </button>
         {subtasks.length > 0 && (

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { newId } from '../../core/data/coreStore';
+import { isNetworkError } from '../../core/data/outbox';
 import { dayString, shiftDay } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { ListEditor } from './components/ListEditor';
@@ -10,6 +11,8 @@ import { TriageDialog } from './components/TriageDialog';
 import { tachesStore } from './data';
 import { applyCompletion, applyUndo } from './data/applyPlans';
 import { syncReminders } from './data/syncReminders';
+import { applyPendingTasks, pendingTaskIds } from './data/taskOutbox';
+import { taskWriter } from './data/taskWriter';
 import { dayLabel, shortDate } from './lib/format';
 import type { QuickAdd } from './lib/quickAdd';
 import { moveItem, positionPatches } from './lib/order';
@@ -81,21 +84,67 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
   const toastTimer = useRef<number | undefined>(undefined);
   const today = dayString();
 
+  /**
+   * Les dernières tâches reçues du serveur, gardées pour réappliquer la file
+   * hors ligne dessus quand une relecture échoue faute de réseau (étape 7).
+   */
+  const serverTasks = useRef<Task[]>([]);
+  /** Les tâches qui attendent le réseau. */
+  const [waiting, setWaiting] = useState(() => pendingTaskIds(taskWriter.pending()));
+
   const refresh = useCallback(async () => {
     try {
       const [nextLists, nextTasks] = await Promise.all([tachesStore.listLists(), tachesStore.listTasks()]);
+      serverTasks.current = nextTasks;
+      // La file par-dessus le serveur : une relecture n'efface jamais ce qui n'est pas encore parti.
+      const shown = applyPendingTasks(nextTasks, taskWriter.pending());
       setLists(nextLists);
-      setTasks(nextTasks);
+      setTasks(shown);
       onError('');
       // Les rappels suivent les tâches ; un échec ici ne doit rien bloquer.
-      syncReminders(nextTasks).catch((err) => console.warn('Rappels de Polaris :', err));
+      syncReminders(shown).catch((err) => console.warn('Rappels de Polaris :', err));
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'Chargement impossible.');
+      if (isNetworkError(err)) {
+        setTasks(applyPendingTasks(serverTasks.current, taskWriter.pending()));
+        onError('Hors ligne : Polaris montre les dernières tâches connues, ce que tu fais partira au retour du réseau.');
+      } else {
+        onError(err instanceof Error ? err.message : 'Chargement impossible.');
+      }
     } finally {
       setLoaded(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // --- File hors ligne (étape 7) ---------------------------------------------
+  /** Envoie ce qui attend, puis relit : même motif que Zénith et Cérès. */
+  const sync = useCallback(async () => {
+    const result = await taskWriter.flush();
+    if (result.dropped.length > 0) onError(result.dropped[0]);
+    if (result.sent > 0 || result.dropped.length > 0) await refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh]);
+
+  // Au démarrage (une tâche peut attendre depuis la dernière visite), au
+  // retour du réseau, et au retour sur l'application.
+  useEffect(() => {
+    void sync();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void sync();
+    };
+    const onOnline = () => void sync();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onOnline);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [sync]);
+
+  // Seuls les repères « en attente » suivent la file en direct ; les tâches,
+  // elles, se recalculent à chaque relecture (comme dans Cérès : les
+  // recalculer ici ferait disparaître un instant une tâche tout juste envoyée).
+  useEffect(() => taskWriter.onPendingChange((ops) => setWaiting(pendingTaskIds(ops))), []);
 
   // Au montage, et après une restauration de sauvegarde (reloadToken).
   useEffect(() => {
@@ -174,7 +223,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
     }
     let created: Task | undefined;
     await write(async () => {
-      created = await tachesStore.createTask(input, newId());
+      created = await taskWriter.createTask(input, newId());
     });
     // Rangée ailleurs que sous les yeux : on dit où, pour qu'elle ne semble pas perdue.
     if (created && !shownIn(view, created)) {
@@ -205,18 +254,18 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
 
   async function toggle(task: Task) {
     if (task.completedAt) {
-      await write(() => tachesStore.updateTask(task.id, { completedAt: null })).catch(() => {});
+      await write(() => taskWriter.updateTask(task.id, { completedAt: null })).catch(() => {});
       return;
     }
     const subtasks = subtasksOf(tasks, task.id);
     const plan = completionPlan(task, subtasks, new Date().toISOString(), today, newId());
     setPending((p) => new Set(p).add(task.id));
     try {
-      await write(() => applyCompletion(tachesStore, plan));
+      await write(() => applyCompletion(taskWriter, plan));
       const next = plan.updates.find((u) => u.id === task.id)?.patch.plannedDay;
       showToast({
         text: next ? `« ${task.title} » faite — la prochaine : ${dayLabel(next, today).toLowerCase()}.` : `« ${task.title} » faite.`,
-        undo: () => write(() => applyUndo(tachesStore, undoCompletion(task, subtasks, plan))),
+        undo: () => write(() => applyUndo(taskWriter, undoCompletion(task, subtasks, plan))),
       });
     } catch {
       // Déjà affiché.
@@ -239,7 +288,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
     // L'écran garde le nouvel ordre pendant l'écriture, sans revenir en arrière.
     setTasks((prev) => prev.map((t) => ({ ...t, position: order.includes(t.id) ? order.indexOf(t.id) : t.position })));
     await write(async () => {
-      for (const { id, position } of patches) await tachesStore.updateTask(id, { position });
+      for (const { id, position } of patches) await taskWriter.updateTask(id, { position });
     }).catch(() => {});
   }
 
@@ -311,14 +360,14 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
 
   async function saveTask(patch: TaskPatch) {
     if (!editing) return;
-    await write(() => tachesStore.updateTask(editing.id, patch));
+    await write(() => taskWriter.updateTask(editing.id, patch));
     setEditingId(null);
   }
 
   async function deleteTask() {
     if (!editing) return;
     const title = editing.title;
-    await write(() => tachesStore.deleteTask(editing.id));
+    await write(() => taskWriter.deleteTask(editing.id));
     setEditingId(null);
     showToast({ text: `« ${title} » supprimée.` });
   }
@@ -329,7 +378,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
     const problem = validateTask(input, tasks);
     if (problem) throw new Error(problem);
     await write(async () => {
-      await tachesStore.createTask(input, newId());
+      await taskWriter.createTask(input, newId());
     });
   }
 
@@ -366,6 +415,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
       listName={currentList ? undefined : listName(task.listId)}
       showDay={showDay}
       pending={pending.has(task.id)}
+      waiting={waiting.has(task.id)}
       onToggle={(t) => void toggle(t)}
       onOpen={(t) => setEditingId(t.id)}
       handle={handle}
@@ -479,6 +529,13 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
           </div>
         )}
 
+        {waiting.size > 0 && (
+          <div className="notice info taches-waiting-notice" role="status">
+            {waiting.size} tâche{waiting.size > 1 ? 's' : ''} en attente d’envoi : {waiting.size > 1 ? 'elles partiront' : 'elle partira'} dès le retour du
+            réseau.
+          </div>
+        )}
+
         <nav className="taches-nav" aria-label="Vues">
           {(
             [
@@ -560,7 +617,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
             onDelete={deleteTask}
             onAddSubtask={addSubtask}
             onToggleSubtask={(s) => void toggle(s)}
-            onDeleteSubtask={(s) => write(() => tachesStore.deleteTask(s.id))}
+            onDeleteSubtask={(s) => write(() => taskWriter.deleteTask(s.id))}
           />
         )}
 
@@ -569,9 +626,9 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
             tasks={todayView(tasks, today).overdue}
             today={today}
             onClose={() => setTriaging(false)}
-            onPatch={(task, patch) => write(() => tachesStore.updateTask(task.id, patch))}
+            onPatch={(task, patch) => write(() => taskWriter.updateTask(task.id, patch))}
             onDone={(task) => toggle(task)}
-            onDelete={(task) => write(() => tachesStore.deleteTask(task.id))}
+            onDelete={(task) => write(() => taskWriter.deleteTask(task.id))}
           />
         )}
 

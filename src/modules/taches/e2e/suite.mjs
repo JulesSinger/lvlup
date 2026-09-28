@@ -265,6 +265,30 @@ export async function run({ browser, check, BASE }) {
   check('Aucune erreur JavaScript à l’étape 4', errors4.length === 0, errors4.join(' | '));
   await ctx4.close();
 
+  // --- Étape 7 : la file hors ligne ---------------------------------------------------------
+  // Le mode local ne perd jamais le réseau : on pose directement dans la file
+  // une tâche notée « sans réseau » lors d'une visite précédente, et on vérifie
+  // qu'elle part dès l'ouverture de Polaris — le rejeu au démarrage.
+  const ctx7 = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  const p7 = await ctx7.newPage();
+  await p7.goto(BASE);
+  await p7.evaluate((today) => {
+    localStorage.setItem(
+      'taches.outbox.v1',
+      JSON.stringify([{ id: 'op1', at: Date.now(), kind: 'create', taskId: 'hors-ligne-1', input: { title: 'Notée dans le métro', plannedDay: today } }]),
+    );
+  }, day(0));
+  await openPolaris(p7, BASE);
+  await row(p7, 'Notée dans le métro').waitFor();
+  await p7.waitForFunction(() => localStorage.getItem('taches.outbox.v1') === null);
+  check('Une tâche restée en file hors ligne part à l’ouverture, et s’affiche', await row(p7, 'Notée dans le métro').isVisible());
+  check(
+    '… enregistrée avec l’identifiant choisi avant l’envoi, sans doublon',
+    await p7.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.filter((t) => t.id === 'hors-ligne-1').length === 1),
+  );
+  check('Rien en attente : pas de message « en attente d’envoi »', (await p7.locator('.taches-waiting-notice').count()) === 0);
+  await ctx7.close();
+
   // --- Téléphone ---------------------------------------------------------------------------------------------
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const mobile = await phone.newPage();

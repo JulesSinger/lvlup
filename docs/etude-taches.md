@@ -292,7 +292,7 @@ explication concrète).
 | 4 ✅ | Répétition à l'écran, vue Terminées, réordonner ; « Faire le point » | les tâches de fond — livré le 28/09/2026, voir §16 |
 | 5 ✅ | **Rappels, mécanisme commun du socle** : table des rappels à venir, envoi par la fonction existante et pg_cron toutes les 5 minutes ; rappel à l'heure d'une tâche, et le rappel du matin | être prévenu — livré le 28/09/2026, voir §17 |
 | 6 ✅ | Calque dans Éclipse, puis **cocher depuis le calendrier** | le lien attendu — livré le 28/09/2026, voir §18 |
-| 7 | File hors ligne | noter sans réseau |
+| 7 ✅ | File hors ligne | noter sans réseau — livré le 28/09/2026, voir §19 |
 | plus tard | rappels d'Éclipse sur le même mécanisme ; le pont avec Zénith ; poser une tâche sur un créneau | — |
 
 ---
@@ -530,6 +530,48 @@ déplacent pas (§6, plus tard).
 
 **Vérifié** à l'œil et de bout en bout, depuis la suite d'Éclipse : la tâche du jour et son rond,
 la tâche à 14 h dans la grille, la coche au toucher — et enregistrée dans Polaris.
+
+---
+
+## 19. Étape 7 : sans réseau (28/09/2026) — découpage terminé
+
+**Branché sur la file commune du socle** (`core/data/outbox.ts`), comme Zénith et Cérès, sous sa
+propre clé : **`taches.outbox.v1`** — un identifiant, pas un libellé, à ne jamais renommer
+(`CLAUDE.md` §4). Toutes les écritures de **tâches** de l'écran passent par un rédacteur
+(`data/taskWriter.ts`) : ajouter, cocher et défaire, modifier, sous-tâches, réordonner, « Faire le
+point ». Il écrit directement ; si **le réseau** manque — seulement lui —, l'écriture part en file au
+lieu d'échouer. Un refus du serveur remonte, il ne se rejouerait jamais. Les listes, elles, se créent
+à tête reposée : sans réseau, leur fenêtre reste remplie.
+
+**Rejouer sans doublon.** L'identifiant d'une tâche est choisi par l'application avant le premier
+envoi (depuis l'étape 1) et `createTask(input, id)` est idempotente : une tâche renvoyée deux fois
+n'est écrite qu'une fois — aucune migration.
+
+**Les règles de la file** (`data/taskOutbox.ts`, pures et testées) :
+
+- une modification d'une tâche pas encore partie se **fond dans sa création** (coche comprise :
+  la copie terminée d'une tâche répétée naît faite) ; deux modifications se fondent en une ;
+- créer puis supprimer hors ligne : **rien ne part**, sous-tâches comprises ;
+- une tâche qui a déjà quelque chose en attente passe **toujours** par la file, même avec du
+  réseau — sinon une modification récente serait écrasée par une plus ancienne rejouée ensuite ;
+- une **sous-tâche dont la tâche attend** passe aussi par la file : envoyée seule, elle serait
+  refusée, sa tâche n'existant pas encore sur le serveur.
+
+**À l'écran.** La file est réappliquée par-dessus les tâches du serveur à chaque relecture, y compris
+quand elle échoue faute de réseau (« Hors ligne : Polaris montre les dernières tâches connues… ») :
+rien de ce qui a été fait ne disparaît. Une tâche en attente porte « ⏳ en attente d'envoi », et un
+message dit combien attendent. La file se vide à l'ouverture, au retour du réseau et au retour sur
+l'application.
+
+**Vérifié** : cocher une tâche répétée sans réseau puis revenir en ligne fait arriver la copie
+terminée et la tâche avancée, exactement comme en ligne (tests unitaires, sur le stockage local
+privé de réseau à la demande) ; et, de bout en bout, une tâche laissée dans la file part dès
+l'ouverture de Polaris, avec son identifiant, sans doublon. **Pas vérifiable automatiquement** : une
+vraie coupure en mode comptes — **à essayer en mode avion**, comme pour Cérès.
+
+**Le découpage de l'étude est terminé** (7/7). Restent notés pour plus tard (§6) : poser une tâche
+sur un créneau d'Éclipse, le pont avec Zénith (une tâche cochée devient un geste ponctuel d'un
+objectif), les rappels d'Éclipse sur le mécanisme commun.
 
 ---
 

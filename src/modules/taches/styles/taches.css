@@ -303,6 +303,14 @@
   font-weight: 600;
 }
 
+.taches-waiting {
+  color: #eba95c;
+}
+
+.taches-waiting-notice {
+  margin-bottom: 14px;
+}
+
 .taches-row-list {
   color: var(--text-faint);
 }
