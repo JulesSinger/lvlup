@@ -271,6 +271,88 @@
   text-decoration: line-through;
 }
 
+/* Le rond d'une marque cochable, à part du titre : c'est lui qui coche. */
+.calendrier-mark {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.calendrier-mark-check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.calendrier-mark-check.on {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+
+.calendrier-mark-time {
+  flex: none;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.calendrier-mark-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendrier-view .fc .calendrier-layer-done .calendrier-mark-title {
+  text-decoration: line-through;
+}
+
+/* La fenêtre d'une marque d'un autre module. */
+.calendrier-mark-dialog {
+  max-width: 420px;
+}
+
+.calendrier-mark-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.calendrier-mark-source .calendrier-layer-dot {
+  background: var(--calendrier-layer-color);
+}
+
+.calendrier-mark-dialog-title {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.calendrier-mark-dialog-title.done {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.calendrier-mark-dialog-when,
+.calendrier-mark-dialog-detail,
+.calendrier-mark-dialog-state {
+  margin: 0 0 6px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
 /* --- Répétition (étape 4) ------------------------------------------------ */
 
 .calendrier-recurrence {

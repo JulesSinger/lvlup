@@ -33,6 +33,8 @@ export function taskMarks(tasks: readonly Task[], lists: readonly TaskList[], fr
       ...(task.plannedDay && task.plannedTime ? { time: task.plannedTime } : {}),
       checkable: true,
       done: task.completedAt !== null,
+      // « Modifier dans Polaris » depuis le calendrier ouvre la fenêtre de cette tâche.
+      link: `task:${task.id}`,
     });
   }
   return marks.sort((a, b) => a.day.localeCompare(b.day) || (a.time ?? '').localeCompare(b.time ?? '') || a.title.localeCompare(b.title, 'fr'));

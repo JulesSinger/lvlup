@@ -38,6 +38,15 @@ export interface ModuleScreenProps {
   /** Revient à l'écran de choix du module. */
   onBackToHub: () => void;
   /**
+   * Ouvre un autre module, éventuellement sur un élément précis (depuis le
+   * 28/09/2026 : « Modifier dans Polaris » depuis une tâche vue dans Éclipse).
+   * `intent` est une chaîne que seul le module ouvert sait lire
+   * (« task:<id> ») : le socle la transmet sans la comprendre.
+   */
+  onOpenModule: (moduleId: string, intent?: string) => void;
+  /** Ce qu'on a demandé en ouvrant ce module (`onOpenModule`), ou `null`. */
+  intent: string | null;
+  /**
    * Incrémenté après une restauration de sauvegarde : c'est le signal pour le
    * module de relire ses propres données, que le hub ne connaît pas.
    */

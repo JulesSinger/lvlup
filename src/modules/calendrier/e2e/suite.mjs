@@ -14,6 +14,7 @@
  */
 
 const pad = (n) => String(n).padStart(2, '0');
+const text = async (locator) => ((await locator.textContent()) ?? '').replace(/\s/g, ' ');
 function day(offset = 0) {
   const d = new Date();
   d.setDate(d.getDate() + offset);
@@ -362,25 +363,42 @@ export async function run({ browser, check, BASE }) {
   check('Une marque dit d’où elle vient au survol', (await zenithMark.first().getAttribute('title')) === 'Zénith — Courir un marathon');
 
   await zenithMark.first().click();
-  await lp.waitForTimeout(300);
-  check('Toucher une marque n’ouvre pas la fenêtre d’un événement', (await lp.locator('.calendrier-editor').count()) === 0);
+  await lp.locator('.calendrier-mark-dialog').waitFor();
+  check(
+    'Toucher une marque ouvre sa fenêtre, avec son détail — pas celle d’un événement',
+    (await lp.locator('.calendrier-editor').count()) === 0 && (await text(lp.locator('.calendrier-mark-dialog'))).includes('Courir un marathon'),
+  );
+  check('Une marque qui ne se coche pas n’a ni case ni « Modifier dans… »', (await lp.locator('.calendrier-mark-dialog .modal-foot button').count()) === 0);
+  await lp.keyboard.press('Escape');
+  await lp.locator('.calendrier-mark-dialog').waitFor({ state: 'detached' });
 
   // Polaris (étape 6 de Polaris) : les tâches, à cocher depuis le calendrier.
   const book = lp.locator('.calendrier-layer', { hasText: 'Rendre le livre' }).first();
   await book.waitFor();
-  check('Polaris : une tâche du jour, avec son rond à cocher', (await book.textContent())?.includes('○ Rendre le livre') ?? false);
+  check('Polaris : une tâche du jour, avec son rond à cocher', (await book.getByRole('checkbox', { name: 'Cocher « Rendre le livre »' }).count()) === 1);
   check(
     'Polaris : une tâche à une heure se place dans la grille horaire',
     (await lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' }).count()) === 1,
   );
-  await book.click();
+
+  // Toucher la tâche ailleurs que sur son rond : sa fenêtre, sans la cocher.
+  await book.locator('.calendrier-mark-title').click();
+  await lp.locator('.calendrier-mark-dialog').waitFor();
+  const dialog = await text(lp.locator('.calendrier-mark-dialog'));
+  check('Toucher une tâche ouvre sa fenêtre : titre, source, à faire', dialog.includes('Rendre le livre') && dialog.includes('Polaris') && dialog.includes('À faire'), dialog);
+  check('… sans la cocher', await lp.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === 'p1')?.completedAt === null));
+  check('… ni ouvrir la fenêtre d’un événement', (await lp.locator('.calendrier-editor').count()) === 0);
+  await lp.keyboard.press('Escape');
+  await lp.locator('.calendrier-mark-dialog').waitFor({ state: 'detached' });
+
+  // Le rond, lui, coche.
+  await book.getByRole('checkbox', { name: 'Cocher « Rendre le livre »' }).click();
   await lp.locator('.calendrier-layer-done', { hasText: 'Rendre le livre' }).first().waitFor();
-  check('Toucher une tâche la coche dans le calendrier…', (await lp.locator('.calendrier-layer', { hasText: '✓ Rendre le livre' }).count()) > 0);
+  check('Toucher le rond coche la tâche dans le calendrier…', (await lp.getByRole('checkbox', { name: 'Décocher « Rendre le livre »' }).count()) > 0);
   check(
     '… et vraiment dans Polaris',
     await lp.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === 'p1')?.completedAt !== null),
   );
-  check('Toucher une tâche n’ouvre pas la fenêtre d’un événement', (await lp.locator('.calendrier-editor').count()) === 0);
 
   await lp.locator('.calendrier-layer-chip', { hasText: 'Astra' }).click();
   await lp.locator('.calendrier-layer', { hasText: 'dépensés' }).first().waitFor();
@@ -395,6 +413,13 @@ export async function run({ browser, check, BASE }) {
     'Le choix des calques est retenu après un rechargement',
     (await pressed('Astra')) === 'true' && (await pressed('Zénith')) === 'false' && (await zenithMark.count()) === 0,
   );
+  // « Modifier dans Polaris » : Polaris s'ouvre sur la fenêtre de cette tâche.
+  await lp.getByRole('button', { name: 'Polaris' }).first().waitFor();
+  const garage = lp.locator('.calendrier-layer', { hasText: 'Appeler le garage' }).first();
+  await garage.locator('.calendrier-mark-title').click();
+  await lp.getByRole('button', { name: 'Modifier dans Polaris' }).click();
+  await lp.locator('.taches-editor').waitFor();
+  check('« Modifier dans Polaris » ouvre Polaris sur la fenêtre de la tâche', (await lp.locator('#taches-title').inputValue()) === 'Appeler le garage');
   check('Aucune erreur JavaScript avec les calques', layerErrors.length === 0, layerErrors.join(' | '));
   await layered.close();
 

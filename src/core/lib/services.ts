@@ -64,6 +64,11 @@ export interface CalendarMark {
   checkable?: boolean;
   /** Cochée : faite */
   done?: boolean;
+  /**
+   * De quoi ouvrir la chose elle-même dans son module (`onOpenModule(source.id,
+   * link)`) — « task:<id> » pour une tâche de Polaris. Absent : rien à ouvrir.
+   */
+  link?: string;
 }
 
 /**

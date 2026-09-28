@@ -3,6 +3,7 @@ import type { ModuleScreenProps } from '../../core/lib/module';
 import type { CalendarMark } from '../../core/lib/services';
 import type { ViewName } from './components/CalendarView';
 import { EventEditor, type EditorValues } from './components/EventEditor';
+import { MarkDialog } from './components/MarkDialog';
 import { ScopeDialog } from './components/ScopeDialog';
 import { calendarStore } from './data';
 import { applyPlan } from './data/applyPlan';
@@ -68,7 +69,7 @@ function valuesOf(o: Occurrence): OccurrenceValues {
  * déplacer ou supprimer une occurrence demande « cet événement, les
  * suivants ou tous », traduit en écritures par `lib/seriesEdit.ts`.
  */
-export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, services }: ModuleScreenProps) {
+export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, onOpenModule, reloadToken, services }: ModuleScreenProps) {
   const narrow = typeof window !== 'undefined' && window.innerWidth < NARROW;
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [exceptions, setExceptions] = useState<EventException[]>([]);
@@ -86,6 +87,8 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, re
   const [failedLayers, setFailedLayers] = useState<Set<string>>(new Set());
   // Relire les calques après une coche faite depuis le calendrier.
   const [marksVersion, setMarksVersion] = useState(0);
+  /** La marque dont la fenêtre est ouverte (toucher une marque ailleurs que sur son rond). */
+  const [openedMark, setOpenedMark] = useState<{ sourceId: string; markId: string } | null>(null);
   const isVisible = useCallback((id: string, byDefault: boolean) => layerChoice[id] ?? byDefault, [layerChoice]);
 
   useEffect(() => {
@@ -324,10 +327,27 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, re
               onSelect={openNew}
               onOpen={openExisting}
               onToggleMark={(sourceId, markId) => void toggleMark(sourceId, markId)}
+              onOpenMark={(sourceId, markId) => setOpenedMark({ sourceId, markId })}
               onMove={move}
             />
           </Suspense>
         </div>
+
+        {openedMark &&
+          (() => {
+            const source = sources.find((src) => src.id === openedMark.sourceId);
+            const mark = marks[openedMark.sourceId]?.find((m) => m.id === openedMark.markId);
+            if (!source || !mark) return null;
+            return (
+              <MarkDialog
+                source={source}
+                mark={mark}
+                onClose={() => setOpenedMark(null)}
+                onToggle={() => void toggleMark(source.id, mark.id)}
+                onOpenInModule={mark.link ? () => onOpenModule(source.id, mark.link) : undefined}
+              />
+            );
+          })()}
 
         {pendingMove && (
           <ScopeDialog

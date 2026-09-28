@@ -41,6 +41,8 @@ export default function App() {
   const [moduleId, setModuleId] = useState<string | null>(
     MODULES.length === 1 ? MODULES[0].id : null,
   );
+  /** Ce qu'un module a demandé d'ouvrir chez un autre (« task:<id> ») ; le socle ne le lit pas. */
+  const [intent, setIntent] = useState<string | null>(null);
   /** Incrémenté après une restauration : signale au module actif de se relire. */
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -165,7 +167,10 @@ export default function App() {
         <ModulePicker
           modules={MODULES}
           user={user!}
-          onSelect={setModuleId}
+          onSelect={(id) => {
+            setIntent(null);
+            setModuleId(id);
+          }}
           onOpenSettings={() => setShowSettings(true)}
         />
       ) : (
@@ -176,6 +181,14 @@ export default function App() {
           onError={setError}
           onOpenSettings={() => setShowSettings(true)}
           onBackToHub={() => setModuleId(null)}
+          onOpenModule={(id, next) => {
+            // Un module absent du registre : rien à ouvrir, on reste où l'on est.
+            if (!MODULES.some((m) => m.id === id)) return;
+            setError('');
+            setIntent(next ?? null);
+            setModuleId(id);
+          }}
+          intent={intent}
           reloadToken={reloadToken}
           services={SERVICES}
         />

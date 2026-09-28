@@ -67,7 +67,7 @@ const PLACEHOLDERS: Record<string, string> = {
  * Toute la logique est dans les bibliothèques pures (`lib/`) : cet écran ne
  * fait qu'appeler le contrat de stockage et afficher.
  */
-export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
+export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, intent }: ModuleScreenProps) {
   const [lists, setLists] = useState<TaskList[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -140,6 +140,19 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
       window.removeEventListener('online', onOnline);
     };
   }, [sync]);
+
+  // Ouvert depuis un autre module sur une tâche précise (« Modifier dans
+  // Polaris », depuis Éclipse) : sa fenêtre s'ouvre dès les tâches chargées,
+  // une seule fois.
+  const intentDone = useRef<string | null>(null);
+  useEffect(() => {
+    if (!loaded || !intent?.startsWith('task:') || intentDone.current === intent) return;
+    intentDone.current = intent;
+    const id = intent.slice(5);
+    if (tasks.some((t) => t.id === id)) setEditingId(id);
+    else onError('Cette tâche n’existe plus.');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, intent, tasks]);
 
   // Seuls les repères « en attente » suivent la file en direct ; les tâches,
   // elles, se recalculent à chaque relecture (comme dans Cérès : les

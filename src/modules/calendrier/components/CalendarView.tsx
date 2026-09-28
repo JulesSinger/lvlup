@@ -19,8 +19,10 @@ interface Props {
   /** Un créneau choisi : toucher ou glisser dans la grille. */
   onSelect: (span: EventSpan) => void;
   onOpen: (eventId: string, occurrenceDay: string) => void;
-  /** Toucher une marque cochable d'un autre module (une tâche de Polaris). */
+  /** Toucher le rond d'une marque cochable d'un autre module (une tâche de Polaris). */
   onToggleMark: (sourceId: string, markId: string) => void;
+  /** Toucher une marque ailleurs que sur son rond : sa fenêtre. */
+  onOpenMark: (sourceId: string, markId: string) => void;
   /** Un événement déplacé ou étiré. Rejette en cas d'échec ou d'abandon : il revient alors à sa place. */
   onMove: (eventId: string, occurrenceDay: string, span: EventSpan) => Promise<void>;
 }
@@ -37,7 +39,7 @@ interface Props {
  * locales, sans fuseau (`timeZone: 'local'`) : une heure affichée est une
  * heure lue, sans conversion.
  */
-export default function CalendarView({ items, initialView, narrow, onRangeChange, onSelect, onOpen, onToggleMark, onMove }: Props) {
+export default function CalendarView({ items, initialView, narrow, onRangeChange, onSelect, onOpen, onToggleMark, onOpenMark, onMove }: Props) {
   const scrollHour = Math.max(0, new Date().getHours() - 1);
   return (
     <FullCalendar
@@ -70,7 +72,26 @@ export default function CalendarView({ items, initialView, narrow, onRangeChange
       eventOrder="order,start,-duration,allDay,title"
       eventDidMount={(arg) => {
         const { layer, detail, checkable } = arg.event.extendedProps as { layer?: string; detail?: string; checkable?: boolean };
-        if (layer) arg.el.title = `${layer} — ${detail ?? arg.event.title}${checkable ? ' · toucher pour cocher' : ''}`;
+        if (layer) arg.el.title = `${layer} — ${detail ?? arg.event.title}${checkable ? ' · le rond pour cocher' : ''}`;
+      }}
+      // Une marque cochable porte son rond, un élément à part : c'est lui qui coche.
+      eventContent={(arg) => {
+        const { layer, checkable, done } = arg.event.extendedProps as { layer?: string; checkable?: boolean; done?: boolean };
+        if (!layer || !checkable) return true; // `true` : le rendu habituel de FullCalendar
+        return (
+          <span className="calendrier-mark">
+            <span
+              className={`calendrier-mark-check${done ? ' on' : ''}`}
+              role="checkbox"
+              aria-checked={!!done}
+              aria-label={`${done ? 'Décocher' : 'Cocher'} « ${arg.event.title} »`}
+            >
+              {done ? '✓' : ''}
+            </span>
+            {arg.timeText && <span className="calendrier-mark-time">{arg.timeText}</span>}
+            <span className="calendrier-mark-title">{arg.event.title}</span>
+          </span>
+        );
       }}
       datesSet={(arg) =>
         onRangeChange(dayString(arg.start), shiftDay(dayString(arg.end), -1), arg.view.type as ViewName)
@@ -81,11 +102,13 @@ export default function CalendarView({ items, initialView, narrow, onRangeChange
       }}
       eventClick={(arg) => {
         arg.jsEvent.preventDefault();
-        // Une marque d'un autre module n'a rien à ouvrir ici : son détail est au
-        // survol. Si elle se coche (une tâche), le toucher la coche.
+        // Une marque d'un autre module : son rond la coche (une tâche), le reste
+        // ouvre sa fenêtre — détail, cocher, et l'ouvrir dans son module.
         const { layer, checkable, sourceId, markId } = arg.event.extendedProps;
         if (layer) {
-          if (checkable) onToggleMark(sourceId as string, markId as string);
+          const onCheck = (arg.jsEvent.target as Element | null)?.closest('.calendrier-mark-check');
+          if (checkable && onCheck) onToggleMark(sourceId as string, markId as string);
+          else onOpenMark(sourceId as string, markId as string);
           return;
         }
         onOpen(arg.event.extendedProps.eventId as string, arg.event.extendedProps.occurrenceDay as string);

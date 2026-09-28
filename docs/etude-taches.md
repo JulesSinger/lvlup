@@ -525,6 +525,14 @@ il coche la marque tout de suite à l'écran, puis relit le calque ; en cas d'é
 revient comme avant et l'erreur s'affiche. Une coche faite depuis le calendrier recalcule aussi
 les rappels de Polaris.
 
+**Revu le 28/09/2026, à la demande de Jules** : toucher une tâche la cochait, sans moyen de
+l'ouvrir. Désormais **seul le rond coche** (comme dans Polaris) ; toucher la marque ailleurs ouvre
+une **fenêtre** — titre, jour et heure, liste, priorité, échéance, « ✓ Marquer comme faite », et
+**« Modifier dans Polaris »**, qui ouvre Polaris directement sur la fenêtre de cette tâche. Éclipse
+n'affiche jamais les écrans de Polaris : le socle a gagné `onOpenModule(module, intention)`, et la
+marque dit quoi ouvrir (`link: "task:<id>"`), une chaîne que seul Polaris sait lire. Les marques
+des autres calques (Zénith, Orbite…) ouvrent la même fenêtre, avec leur détail, sans bouton.
+
 **Pas encore** : poser une tâche sur un créneau en la glissant dans la grille — les marques ne se
 déplacent pas (§6, plus tard).
 

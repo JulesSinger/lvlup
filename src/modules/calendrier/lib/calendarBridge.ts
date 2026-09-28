@@ -34,7 +34,7 @@ export interface CalendarItem {
    */
   extendedProps:
     | { order: 0; eventId: string; occurrenceDay: string }
-    | { order: number; layer: string; detail?: string; sourceId: string; markId: string; checkable: boolean };
+    | { order: number; layer: string; detail?: string; sourceId: string; markId: string; checkable: boolean; done: boolean };
 }
 
 export function toCalendarItem(o: Occurrence): CalendarItem {
@@ -61,15 +61,16 @@ export function markItem(source: Pick<CalendarSource, 'id' | 'label' | 'color'>,
   const checkable = !!mark.checkable;
   return {
     id: `layer|${source.id}|${mark.id}`,
-    // Une marque à cocher porte son rond, vide ou coché.
-    title: checkable ? `${mark.done ? '✓' : '○'} ${mark.title}` : mark.title,
+    // Le rond d'une marque à cocher est dessiné à part (`CalendarView`) : c'est
+    // lui, et lui seul, qui coche — le reste de la marque ouvre sa fenêtre.
+    title: mark.title,
     ...timed,
     classNames: ['calendrier-layer', ...(checkable ? ['calendrier-layer-checkable'] : []), ...(mark.done ? ['calendrier-layer-done'] : [])],
     editable: false,
     // Une teinte légère (alpha 22 %) de la couleur du module, bordée de la couleur pleine.
     backgroundColor: `${source.color}38`,
     borderColor: source.color,
-    extendedProps: { order, layer: source.label, detail: mark.detail, sourceId: source.id, markId: mark.id, checkable },
+    extendedProps: { order, layer: source.label, detail: mark.detail, sourceId: source.id, markId: mark.id, checkable, done: !!mark.done },
   };
 }
 
