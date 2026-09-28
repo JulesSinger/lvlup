@@ -6,7 +6,7 @@ import type { GoalsStore } from './goalsStore';
 export function createCalendarSource(store: GoalsStore): CalendarSource {
   return {
     id: 'objectifs',
-    label: 'Zénith',
+    label: 'Objectifs',
     color: '#f2c14e',
     defaultVisible: true,
     async marksBetween(from, to) {

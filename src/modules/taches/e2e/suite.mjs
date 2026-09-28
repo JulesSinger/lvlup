@@ -1,5 +1,5 @@
 /**
- * Suite e2e du module tâches (Polaris).
+ * Suite e2e du module tâches (Tâches).
  *
  * Étapes 3 et 4 (docs/etude-taches.md §15-§16) : la V1, puis la
  * répétition réglée à l'écran, la vue Terminées, « Faire le point » et
@@ -12,10 +12,10 @@
 
 const text = async (locator) => ((await locator.textContent()) ?? '').replace(/\s/g, ' ');
 
-async function openPolaris(page, BASE) {
+async function openTâches(page, BASE) {
   await page.goto(BASE);
   await page.waitForSelector('.hub-picker-card');
-  await page.getByRole('button', { name: /Polaris/ }).click();
+  await page.getByRole('button', { name: /Tâches/ }).click();
   await page.waitForSelector('.taches-quickadd');
 }
 
@@ -57,12 +57,12 @@ export async function run({ browser, check, BASE }) {
 
   await page.goto(BASE);
   await page.waitForSelector('.hub-picker-card');
-  const card = page.getByRole('button', { name: /Polaris/ });
-  check('La carte Polaris apparaît sur l’écran de choix', await card.isVisible());
-  check('La carte Polaris dit ce que fait le module', (await card.textContent())?.includes('Tâches') ?? false);
+  const card = page.getByRole('button', { name: /Tâches/ });
+  check('La carte Tâches apparaît sur l’écran de choix', await card.isVisible());
+  check('La carte Tâches dit ce que fait le module', (await card.textContent())?.includes('À faire') ?? false);
   await card.click();
   await page.waitForSelector('.taches-quickadd');
-  check('Polaris s’ouvre sur Aujourd’hui', (await text(page.locator('.taches-title'))).startsWith('Aujourd’hui'));
+  check('Tâches s’ouvre sur Aujourd’hui', (await text(page.locator('.taches-title'))).startsWith('Aujourd’hui'));
   check('Aujourd’hui vide explique comment ajouter', (await text(page.locator('.taches-empty'))).includes('Rien de prévu'));
 
   // --- L'ajout rapide : ce qui a été compris, avant d'enregistrer ---------------------------
@@ -154,7 +154,7 @@ export async function run({ browser, check, BASE }) {
 
   // --- Après un rechargement ------------------------------------------------------------------------
   await page.getByRole('button', { name: 'À venir' }).click();
-  await openPolaris(page, BASE);
+  await openTâches(page, BASE);
   check('La dernière vue est retenue', (await text(page.locator('.taches-title'))).startsWith('À venir'));
   await page.getByRole('button', { name: /^Aujourd’hui/ }).click();
   check(
@@ -181,7 +181,7 @@ export async function run({ browser, check, BASE }) {
   const settings = page.locator('.taches-settings');
   await settings.waitFor();
   check(
-    'Réglages : la section des rappels de Polaris dit qu’ils demandent un compte',
+    'Réglages : la section des rappels de Tâches dit qu’ils demandent un compte',
     (await text(settings)).includes('Rappels des tâches') && (await text(settings)).includes('demandent un compte') && (await settings.locator('.switch').count()) === 0,
   );
   await page.locator('.modal-foot').getByRole('button', { name: 'Fermer' }).click();
@@ -195,7 +195,7 @@ export async function run({ browser, check, BASE }) {
   const errors4 = [];
   p4.on('pageerror', (e) => errors4.push(e.message));
   p4.on('dialog', (d) => d.accept());
-  await openPolaris(p4, BASE);
+  await openTâches(p4, BASE);
 
   await add(p4, 'Arroser les plantes');
   await row(p4, 'Arroser les plantes').waitFor();
@@ -263,7 +263,7 @@ export async function run({ browser, check, BASE }) {
   }
   await p4.waitForFunction(() => document.querySelector('.taches-row-title')?.textContent === 'Œufs', null, { timeout: 3000 }).catch(() => {});
   check('Glisser la poignée remonte la tâche en tête', JSON.stringify(await titles(p4)) === JSON.stringify(['Œufs', 'Lait', 'Pain']), (await titles(p4)).join(', '));
-  await openPolaris(p4, BASE);
+  await openTâches(p4, BASE);
   await row(p4, 'Œufs').waitFor();
   check('Le nouvel ordre est gardé après un rechargement', JSON.stringify(await titles(p4)) === JSON.stringify(['Œufs', 'Lait', 'Pain']));
   check('Aucune erreur JavaScript à l’étape 4', errors4.length === 0, errors4.join(' | '));
@@ -272,7 +272,7 @@ export async function run({ browser, check, BASE }) {
   // --- Étape 7 : la file hors ligne ---------------------------------------------------------
   // Le mode local ne perd jamais le réseau : on pose directement dans la file
   // une tâche notée « sans réseau » lors d'une visite précédente, et on vérifie
-  // qu'elle part dès l'ouverture de Polaris — le rejeu au démarrage.
+  // qu'elle part dès l'ouverture de Tâches — le rejeu au démarrage.
   const ctx7 = await browser.newContext({ viewport: { width: 1200, height: 900 } });
   const p7 = await ctx7.newPage();
   await p7.goto(BASE);
@@ -282,7 +282,7 @@ export async function run({ browser, check, BASE }) {
       JSON.stringify([{ id: 'op1', at: Date.now(), kind: 'create', taskId: 'hors-ligne-1', input: { title: 'Notée dans le métro', plannedDay: today } }]),
     );
   }, day(0));
-  await openPolaris(p7, BASE);
+  await openTâches(p7, BASE);
   await row(p7, 'Notée dans le métro').waitFor();
   await p7.waitForFunction(() => localStorage.getItem('taches.outbox.v1') === null);
   check('Une tâche restée en file hors ligne part à l’ouverture, et s’affiche', await row(p7, 'Notée dans le métro').isVisible());
@@ -360,7 +360,7 @@ export async function run({ browser, check, BASE }) {
   const mobile = await phone.newPage();
   const mobileErrors = [];
   mobile.on('pageerror', (e) => mobileErrors.push(e.message));
-  await openPolaris(mobile, BASE);
+  await openTâches(mobile, BASE);
   for (const t of ['Appeler le garage à 9h !', 'Un titre de tâche assez long pour tenir sur plusieurs lignes à l’écran avant le 30']) await add(mobile, t);
   await mobile.getByRole('button', { name: '+ Liste' }).click();
   await mobile.locator('#taches-list-name').fill('Papiers administratifs');

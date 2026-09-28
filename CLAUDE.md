@@ -17,21 +17,28 @@ ses données et sa logique.
 
 | Module | Nom affiché | Domaine | État |
 |---|---|---|---|
-| `objectifs` | **Zénith** | suivi d'objectifs par paliers, rangs Fer → Challenger | en production |
-| `budget` | **Astra** | dépenses, catégories, comparaison mensuelle | V1 (5/5) livrée ; chantier enveloppes d'épargne terminé (3/3, voir `docs/etude-astra-epargne.md` §8) |
-| `flashcards` | **Orbite** | révision par répétition espacée, système de Leitner à 5 boîtes | découpage complet livré, rendu mobile vérifié, recto/verso en éditeur de texte riche (Tiptap, 8 mises en forme), aperçu tronqué dans la liste d'un paquet — voir `docs/etude-flashcards.md` §9, §15, §16, §19-§21 (remplacent §17-§18) |
-| `nutrition` | **Cérès** | calories et macronutriments, objectif quotidien en grammes | **découpage complet livré** (7/7) : journal du jour par repas, recherche dans la table CIQUAL embarquée, récents, copie de la veille, objectif quotidien en grammes avec calculateur, aliments perso et favoris, code-barres (caméra, Open Food Facts), file hors ligne, vue Semaine — voir `docs/etude-nutrition.md` §10, §12-§18 |
-| `courses` | **Comète** | liste de courses (articles récurrents toutes les N courses ou ponctuels), magasin et prix de chaque article, chaque course envoyée comme dépense à Astra | **découpage complet livré** (6/6) : liste par rayon, ajout avec rayon deviné et articles connus proposés, récurrence toutes les N courses, cocher et prix de chaque article, terminer la course (magasin, total du ticket), historique, chiffres, dépense créée dans Astra (service du socle) — voir `docs/etude-courses.md` §12-§18 |
-| `calendrier` | **Éclipse** | événements (journée, horaires, plusieurs jours, récurrents), vues jour/semaine/mois/agenda, calques des autres modules ; la to-do list sera un module à part, plus tard | **découpage complet livré** (5/5) : quatre vues (mois, semaine, jour, agenda) par FullCalendar chargé à la demande, créer en touchant ou glissant sur un créneau, déplacer, étirer, modifier, supprimer ; séries modifiées, déplacées ou supprimées « cet événement / les suivants / tous » ; calques de Zénith, Orbite, Comète et Astra (service `calendarSources`) — voir `docs/etude-calendrier.md` §12-§17 |
-| `taches` | **Polaris** | la to-do list : boîte de réception, Aujourd'hui, listes, tâches répétées, calque dans Éclipse | **découpage complet livré** (7/7) : ajout rapide en français, vues Aujourd'hui, À venir, Boîte de réception, Terminées et listes, cocher et défaire, sous-tâches, priorités, échéance, répétition, réordonner, « Faire le point », rappels, calque cochable dans Éclipse, file hors ligne — voir `docs/etude-taches.md` §12-§19 |
+| `objectifs` | **Objectifs** 🎯 | suivi d'objectifs par paliers, rangs Fer → Challenger | en production |
+| `budget` | **Budget** 💶 | dépenses, catégories, comparaison mensuelle | V1 (5/5) livrée ; chantier enveloppes d'épargne terminé (3/3, voir `docs/etude-astra-epargne.md` §8) |
+| `flashcards` | **Flashcards** 🗂️ | révision par répétition espacée, système de Leitner à 5 boîtes | découpage complet livré, rendu mobile vérifié, recto/verso en éditeur de texte riche (Tiptap, 8 mises en forme), aperçu tronqué dans la liste d'un paquet — voir `docs/etude-flashcards.md` §9, §15, §16, §19-§21 (remplacent §17-§18) |
+| `nutrition` | **Nutrition** 🥗 | calories et macronutriments, objectif quotidien en grammes | **découpage complet livré** (7/7) : journal du jour par repas, recherche dans la table CIQUAL embarquée, récents, copie de la veille, objectif quotidien en grammes avec calculateur, aliments perso et favoris, code-barres (caméra, Open Food Facts), file hors ligne, vue Semaine — voir `docs/etude-nutrition.md` §10, §12-§18 |
+| `courses` | **Courses** 🛒 | liste de courses (articles récurrents toutes les N courses ou ponctuels), magasin et prix de chaque article, chaque course envoyée comme dépense à Astra | **découpage complet livré** (6/6) : liste par rayon, ajout avec rayon deviné et articles connus proposés, récurrence toutes les N courses, cocher et prix de chaque article, terminer la course (magasin, total du ticket), historique, chiffres, dépense créée dans Astra (service du socle) — voir `docs/etude-courses.md` §12-§18 |
+| `calendrier` | **Calendar** 📅 | événements (journée, horaires, plusieurs jours, récurrents), vues jour/semaine/mois/agenda, calques des autres modules ; la to-do list sera un module à part, plus tard | **découpage complet livré** (5/5) : quatre vues (mois, semaine, jour, agenda) par FullCalendar chargé à la demande, créer en touchant ou glissant sur un créneau, déplacer, étirer, modifier, supprimer ; séries modifiées, déplacées ou supprimées « cet événement / les suivants / tous » ; calques de Zénith, Orbite, Comète et Astra (service `calendarSources`) — voir `docs/etude-calendrier.md` §12-§17 |
+| `taches` | **Tâches** ✅ | la to-do list : boîte de réception, Aujourd'hui, listes, tâches répétées, calque dans Éclipse | **découpage complet livré** (7/7) : ajout rapide en français, vues Aujourd'hui, À venir, Boîte de réception, Terminées et listes, cocher et défaire, sous-tâches, priorités, échéance, répétition, réordonner, « Faire le point », rappels, calque cochable dans Éclipse, file hors ligne — voir `docs/etude-taches.md` §12-§19 |
 | — | — | sport, et d'autres plus tard | envisagé |
 
-Les noms affichés forment une famille céleste — Atlas porte la voûte, Zénith en est le point
-le plus haut, Astra les étoiles. Un futur module suit la même veine.
+**Les noms affichés sont fonctionnels** (décision de Jules, 28/09/2026) : un module s'appelle
+comme ce qu'il fait — Objectifs, Budget, Flashcards, Nutrition, Courses, Calendar, Tâches — avec
+une icône qui se reconnaît d'un coup d'œil. Les noms de marque d'avant (Zénith, Astra, Orbite,
+Cérès, Comète, Éclipse, Polaris) avaient fini par égarer : sept noms à retenir en plus de leur
+domaine. **Seule l'app garde un nom de marque, Atlas.** Un futur module prend un nom fonctionnel.
+
+Les études, le journal et les commentaires parlent encore des anciens noms : c'est l'historique,
+pas une erreur à corriger partout. Correspondance : Zénith = Objectifs, Astra = Budget, Orbite =
+Flashcards, Cérès = Nutrition, Comète = Courses, Éclipse = Calendar, Polaris = Tâches.
 
 Le dépôt a commencé sous le seul nom de Zénith, quand l'app se confondait avec son unique
-domaine. **Zénith désigne désormais le module objectifs, et non l'application entière** — voir
-§4 pour ce que ce renommage implique, et surtout ce qu'il ne doit pas toucher.
+domaine ; le module objectifs a ensuite porté ce nom, jusqu'au 28/09/2026 — voir §4 pour ce
+qu'un renommage implique, et surtout ce qu'il ne doit pas toucher (les clés `zenith.*` restent).
 
 Toute décision technique se prend sous cette contrainte, dans cet ordre :
 
@@ -255,13 +262,15 @@ deux implémentations**, locale et Supabase. Une seule des deux = mode local cas
 Le **nom technique** d'un module est descriptif, en minuscules, sans accent : `objectifs`,
 `budget`. Il sert au dossier, à l'identifiant, aux préfixes de tables et de classes CSS.
 
-Le **nom affiché** est la marque, et ne vit **qu'à un seul endroit** : le champ `label` de la
-déclaration du module.
+Le **nom affiché** ne vit **qu'à un seul endroit** : le champ `label` de la déclaration du
+module (avec son icône, `emoji`). L'en-tête d'un écran les reçoit du hub
+(`ModuleScreenProps.label`, `emoji`) ; un calque d'Éclipse doit porter le même nom que son
+module — `src/modules/registry.test.ts` le vérifie.
 
 ```ts
 export const objectifsModule: AtlasModule = {
   id: 'objectifs',      // technique — jamais renommé pour des raisons de marque
-  label: 'Zénith',      // affiché — le seul endroit à changer si le nom évolue
+  label: 'Objectifs',   // affiché — le seul endroit à changer si le nom évolue
   …
 };
 ```
@@ -445,6 +454,7 @@ Une session lancée « sur votre ordinateur » n'a aucun de ces trois problèmes
 
 Le plus récent en haut. Une ligne par décision, avec sa raison.
 
+| 2026-09-28 | **Renommage fonctionnel des modules**, à la demande de Jules (« trop de noms, je me perds ») : Zénith → **Objectifs** 🎯, Astra → **Budget** 💶, Orbite → **Flashcards** 🗂️, Cérès → **Nutrition** 🥗, Comète → **Courses** 🛒, Éclipse → **Calendar** 📅, Polaris → **Tâches** ✅ ; l'app garde **Atlas**. Noms en français choisis par Jules, sauf Flashcards et Calendar qu'il préfère en anglais. Descriptions reformulées pour compléter le nom plutôt que le répéter | Changement d'affichage seulement, comme §4 l'avait prévu : noms techniques, tables, clés de stockage et données inchangés, aucune migration. Au passage, le nom et l'icône n'étaient pas vraiment à un seul endroit — chaque écran les recopiait dans son en-tête, et chaque calque d'Éclipse son nom : l'en-tête les reçoit désormais du hub (`ModuleScreenProps.label`, `emoji`), et `registry.test.ts` vérifie qu'un calque porte le nom de son module (et que noms et icônes sont tous différents). Restes corrigés : l'écran de mot de passe oublié et l'aide d'installation iPhone disaient encore « Zénith » pour l'app, le service worker aussi. Le titre du rappel quotidien d'Objectifs (« 🎯 Objectifs ») part avec le prochain déploiement de `send-reminders`. Les identifiants internes (`OrbiteLandingPreview`…) et les titres de tests gardent les anciens noms : invisibles, et l'historique reste lisible. `1031/1031` → `1033/1033` tests unitaires (+2), **752/752** en local et **769/769** en mode comptes. README complété (il ne listait que trois modules) |
 | 2026-09-28 | **Mis en production** : `main` avancé jusqu'à `91d4c74` (Polaris étapes 4 à 7 et tout ce qui a suivi) et poussé. **Migrations appliquées par Jules** sur Supabase : `2026-09-27-calendar-tables`, `2026-09-27-taches-tables`, `2026-09-28-taches-titles`, `2026-09-28-taches-duration`, `2026-09-28-taches-settings`, `2026-09-28-reminders` | Restent à faire côté Jules : redéployer `send-reminders` (`supabase functions deploy send-reminders --no-verify-jwt`, le ping doit répondre `2026-09-28.1`), puis essayer pour de vrai les rappels de Polaris et le hors ligne (mode avion), que la suite automatique ne peut pas couvrir |
 | 2026-09-28 | Répéter avec plus de finesse, **dans le moteur commun** (`core/lib/recurrence.ts`, donc Éclipse et Polaris) : `byWeekday` vaut aussi pour `daily` (« tous les jours sauf le samedi et le dimanche »), `byNthWeekday` pour `monthly` (« le 3e mardi », « le dernier vendredi »), `monthlyChoices`, `isWorkdays`, `WORKDAYS` ; à l'écran, pastilles des jours sous « Tous les jours », raccourci « Tous les jours ouvrés », choix « Jour » pour chaque mois ; dans l'ajout rapide de Polaris, « tous les jours sauf le week-end », « en semaine », « du lundi au vendredi », « chaque week-end », « le premier lundi du mois »… Demande de Jules : « pouvoir mettre un événement répété tous les jours SAUF le samedi et le dimanche » | C'était possible par un détour (« toutes les semaines » en cochant cinq jours), mais pas là où on le cherche. Décrit par ce qu'on saute quand on garde au moins quatre jours, par ce qu'on garde sinon. Un 5e jour de la semaine n'est proposé que comme « le dernier » (il n'existe pas tous les mois). Chez Polaris, seulement « à date fixe ». Le jour prévu d'une répétition tapée est désormais **le premier qui convient** à partir d'aujourd'hui (`ruleDays`), quelle que soit la règle. Aucune migration (règle en JSON). `1019/1019` → `1031/1031` tests unitaires (+12), 747 → 752 en local et 764 → 769 en mode comptes (+5), **752/752** et **769/769** |
 | 2026-09-28 | Éclipse : les **tâches de Polaris se glissent et s'étirent** dans le calendrier — reprévues à un autre jour ou une autre heure, durée changée en tirant le bord du bas, heure retirée en les posant dans la bande « Journée ». Au socle : `CalendarMark.movable`, `CalendarSource.moveMark(id, MarkMove)` ; dans Éclipse : `markMoveFrom`, `onMoveMark` ; chez Polaris : `moveMark` sur la source. Demande de Jules : « on ne peut pas changer les heures ou déplacer les éléments en faisant glisser » | Les événements d'Éclipse se glissaient déjà (étape 3) ; seules les tâches ne bougeaient pas. Comme pour cocher, **le module écrit** avec ses propres règles (`validateTask`) et rejette ce qui n'a pas de sens — FullCalendar remet alors la marque à sa place. La durée n'est transmise que sur un étirement : un simple déplacement garde celle de la tâche, ou son absence (sinon chaque glisser aurait figé les 30 minutes par défaut). Une journée entière ne s'étire pas sur plusieurs jours (`durationEditable` seulement avec une heure). Immobiles : aperçus, tâches faites, tâches à échéance seule. Vérifié de bout en bout par un vrai glisser à la souris et un vrai étirement, contrôlés dans les données de Polaris. `1015/1015` → `1019/1019` tests unitaires (+4), 744 → 747 en local et 761 → 764 en mode comptes (+3), **747/747** et **764/764** |

@@ -69,7 +69,7 @@ function valuesOf(o: Occurrence): OccurrenceValues {
  * déplacer ou supprimer une occurrence demande « cet événement, les
  * suivants ou tous », traduit en écritures par `lib/seriesEdit.ts`.
  */
-export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, onOpenModule, reloadToken, services }: ModuleScreenProps) {
+export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, onOpenModule, reloadToken, services, label, emoji }: ModuleScreenProps) {
   const narrow = typeof window !== 'undefined' && window.innerWidth < NARROW;
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [exceptions, setExceptions] = useState<EventException[]>([]);
@@ -271,8 +271,8 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, on
       <main className="main calendrier-main">
         <header className="topbar">
           <div className="brand">
-            <span className="brand-mark">🌒</span>
-            <span className="brand-name">Éclipse</span>
+            <span className="brand-mark">{emoji}</span>
+            <span className="brand-name">{label}</span>
           </div>
           <div className="topbar-actions">
             <button

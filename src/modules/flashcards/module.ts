@@ -16,9 +16,9 @@ import { createCalendarSource } from './data/calendarSource';
  */
 export const flashcardsModule: AtlasModule = {
   id: 'flashcards',
-  label: 'Orbite',
-  description: 'Cartes de révision, répétition espacée',
-  emoji: '🪐',
+  label: 'Flashcards',
+  description: 'Réviser par répétition espacée',
+  emoji: '🗂️',
   accent: '#52d6c8',
   data: flashcardsStore,
   Screen: FlashcardsScreen,

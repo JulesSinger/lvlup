@@ -29,6 +29,8 @@ export function FlashcardsScreen({
   onOpenSettings,
   onBackToHub,
   reloadToken,
+  label,
+  emoji,
 }: ModuleScreenProps) {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
@@ -133,8 +135,8 @@ export function FlashcardsScreen({
       <main className="main">
         <header className="topbar">
           <div className="brand">
-            <span className="brand-mark">🪐</span>
-            <span className="brand-name">Orbite</span>
+            <span className="brand-mark">{emoji}</span>
+            <span className="brand-name">{label}</span>
           </div>
           <div className="topbar-actions">
             <button

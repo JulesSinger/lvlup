@@ -1,5 +1,5 @@
 /**
- * Suite e2e du module calendrier (Éclipse).
+ * Suite e2e du module calendrier (Calendar).
  *
  * Étapes 3 à 5 (docs/etude-calendrier.md §15-§17). Un vrai parcours —
  * FullCalendar chargé seulement à l'ouverture, vue semaine par défaut,
@@ -24,7 +24,7 @@ function day(offset = 0) {
 async function openEclipse(page, BASE) {
   await page.goto(BASE);
   await page.waitForSelector('.hub-picker-card');
-  await page.getByRole('button', { name: /Éclipse/ }).click();
+  await page.getByRole('button', { name: /Calendar/ }).click();
   await page.waitForSelector('.fc');
 }
 
@@ -102,14 +102,14 @@ export async function run({ browser, check, BASE }) {
 
   await page.goto(BASE);
   await page.waitForSelector('.hub-picker-card');
-  const card = page.getByRole('button', { name: /Éclipse/ });
-  check('La carte Éclipse apparaît sur l’écran de choix', await card.isVisible());
-  check('La carte Éclipse dit ce que fait le module', (await card.textContent())?.includes('Calendrier') ?? false);
-  check('FullCalendar n’est pas téléchargé tant qu’Éclipse n’est pas ouvert', chunks.length === 0);
+  const card = page.getByRole('button', { name: /Calendar/ });
+  check('La carte Calendar apparaît sur l’écran de choix', await card.isVisible());
+  check('La carte Calendar dit ce que fait le module', (await card.textContent())?.includes('Rendez-vous') ?? false);
+  check('FullCalendar n’est pas téléchargé tant qu’Calendar n’est pas ouvert', chunks.length === 0);
 
   await card.click();
   await page.waitForSelector('.fc');
-  check('Ouvrir Éclipse télécharge FullCalendar, dans son propre fichier', chunks.length > 0, chunks.join(', '));
+  check('Ouvrir Calendar télécharge FullCalendar, dans son propre fichier', chunks.length > 0, chunks.join(', '));
   check('La vue semaine s’ouvre par défaut sur ordinateur', await page.locator('.fc-timeGridWeek-view').isVisible());
   const weekText = (await page.locator('.fc-timeGridWeek-view').textContent()) ?? '';
   check('Les jours et la bande des journées entières sont en français', weekText.includes('lun.') && weekText.includes('Journée'));
@@ -352,8 +352,8 @@ export async function run({ browser, check, BASE }) {
 
   // --- Les calques des autres modules (étape 5) ---------------------------------------------
   // Seule entorse assumée à « une suite ne connaît pas un autre module » : le
-  // lien est l'objet même de l'étape, comme la suite de Comète entre dans
-  // Astra. Les données sont posées dans le stockage local plutôt que saisies
+  // lien est l'objet même de l'étape, comme la suite de Courses entre dans
+  // Budget. Les données sont posées dans le stockage local plutôt que saisies
   // à travers quatre écrans, dans un contexte à part.
   const layered = await browser.newContext({ viewport: { width: 1200, height: 900 } });
   const lp = await layered.newPage();
@@ -382,17 +382,17 @@ export async function run({ browser, check, BASE }) {
   }, day(0));
   await openEclipse(lp, BASE);
   const chips = await lp.locator('.calendrier-layer-chip').allTextContents();
-  check('Un calque par module qui en déclare un', ['Zénith', 'Astra', 'Orbite', 'Comète', 'Polaris'].every((l) => chips.some((c) => c.includes(l))), chips.join(' | '));
+  check('Un calque par module qui en déclare un', ['Objectifs', 'Budget', 'Flashcards', 'Courses', 'Tâches'].every((l) => chips.some((c) => c.includes(l))), chips.join(' | '));
   const pressed = async (label) => lp.locator('.calendrier-layer-chip', { hasText: label }).getAttribute('aria-pressed');
-  check('Zénith, Orbite et Comète s’affichent d’office, Astra non', (await pressed('Zénith')) === 'true' && (await pressed('Orbite')) === 'true' && (await pressed('Comète')) === 'true' && (await pressed('Astra')) === 'false');
+  check('Objectifs, Flashcards et Courses s’affichent d’office, Budget non', (await pressed('Objectifs')) === 'true' && (await pressed('Flashcards')) === 'true' && (await pressed('Courses')) === 'true' && (await pressed('Budget')) === 'false');
 
   const zenithMark = lp.locator('.calendrier-layer', { hasText: 'Course 10,5 km' });
   await zenithMark.first().waitFor();
-  check('Zénith : ce qui a été fait, avec la quantité', await zenithMark.first().isVisible());
-  check('Orbite : les cartes à réviser', await lp.locator('.calendrier-layer', { hasText: '2 cartes à réviser' }).first().isVisible());
-  check('Comète : la course, magasin et total', ((await lp.locator('.calendrier-layer', { hasText: 'Lidl' }).first().textContent()) ?? '').replace(/\s/g, ' ').includes('Lidl · 54,20 €'));
-  check('Astra, masqué, ne montre rien', (await lp.locator('.calendrier-layer', { hasText: 'dépensés' }).count()) === 0);
-  check('Une marque dit d’où elle vient au survol', (await zenithMark.first().getAttribute('title')) === 'Zénith — Courir un marathon');
+  check('Objectifs : ce qui a été fait, avec la quantité', await zenithMark.first().isVisible());
+  check('Flashcards : les cartes à réviser', await lp.locator('.calendrier-layer', { hasText: '2 cartes à réviser' }).first().isVisible());
+  check('Courses : la course, magasin et total', ((await lp.locator('.calendrier-layer', { hasText: 'Lidl' }).first().textContent()) ?? '').replace(/\s/g, ' ').includes('Lidl · 54,20 €'));
+  check('Budget, masqué, ne montre rien', (await lp.locator('.calendrier-layer', { hasText: 'dépensés' }).count()) === 0);
+  check('Une marque dit d’où elle vient au survol', (await zenithMark.first().getAttribute('title')) === 'Objectifs — Courir un marathon');
 
   await zenithMark.first().click();
   await lp.locator('.calendrier-mark-dialog').waitFor();
@@ -404,12 +404,12 @@ export async function run({ browser, check, BASE }) {
   await lp.keyboard.press('Escape');
   await lp.locator('.calendrier-mark-dialog').waitFor({ state: 'detached' });
 
-  // Polaris (étape 6 de Polaris) : les tâches, à cocher depuis le calendrier.
+  // Tâches (étape 6 de Tâches) : les tâches, à cocher depuis le calendrier.
   const book = lp.locator('.calendrier-layer', { hasText: 'Rendre le livre' }).first();
   await book.waitFor();
-  check('Polaris : une tâche du jour, avec son rond à cocher', (await book.getByRole('checkbox', { name: 'Cocher « Rendre le livre »' }).count()) === 1);
+  check('Tâches : une tâche du jour, avec son rond à cocher', (await book.getByRole('checkbox', { name: 'Cocher « Rendre le livre »' }).count()) === 1);
   check(
-    'Polaris : une tâche à une heure se place dans la grille horaire',
+    'Tâches : une tâche à une heure se place dans la grille horaire',
     (await lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' }).count()) === 1,
   );
   check(
@@ -417,7 +417,7 @@ export async function run({ browser, check, BASE }) {
     (await text(lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' }))).includes('15:30'),
   );
 
-  // Glisser une tâche à 16 h, puis l'étirer d'une heure : Polaris la reprévoit (28/09/2026).
+  // Glisser une tâche à 16 h, puis l'étirer d'une heure : Tâches la reprévoit (28/09/2026).
   {
     const task = (id) => lp.evaluate((tid) => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === tid), id);
     const garageEvent = lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' });
@@ -455,7 +455,7 @@ export async function run({ browser, check, BASE }) {
   await book.locator('.calendrier-mark-title').click();
   await lp.locator('.calendrier-mark-dialog').waitFor();
   const dialog = await text(lp.locator('.calendrier-mark-dialog'));
-  check('Toucher une tâche ouvre sa fenêtre : titre, source, à faire', dialog.includes('Rendre le livre') && dialog.includes('Polaris') && dialog.includes('À faire'), dialog);
+  check('Toucher une tâche ouvre sa fenêtre : titre, source, à faire', dialog.includes('Rendre le livre') && dialog.includes('Tâches') && dialog.includes('À faire'), dialog);
   check('… sans la cocher', await lp.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === 'p1')?.completedAt === null));
   check('… ni ouvrir la fenêtre d’un événement', (await lp.locator('.calendrier-editor').count()) === 0);
   await lp.keyboard.press('Escape');
@@ -466,22 +466,22 @@ export async function run({ browser, check, BASE }) {
   await lp.locator('.calendrier-layer-done', { hasText: 'Rendre le livre' }).first().waitFor();
   check('Toucher le rond coche la tâche dans le calendrier…', (await lp.getByRole('checkbox', { name: 'Décocher « Rendre le livre »' }).count()) > 0);
   check(
-    '… et vraiment dans Polaris',
+    '… et vraiment dans Tâches',
     await lp.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === 'p1')?.completedAt !== null),
   );
 
-  await lp.locator('.calendrier-layer-chip', { hasText: 'Astra' }).click();
+  await lp.locator('.calendrier-layer-chip', { hasText: 'Budget' }).click();
   await lp.locator('.calendrier-layer', { hasText: 'dépensés' }).first().waitFor();
-  check('Allumer Astra montre ce qui a été dépensé', ((await lp.locator('.calendrier-layer', { hasText: 'dépensés' }).first().textContent()) ?? '').includes('12,50 € dépensés'));
-  await lp.locator('.calendrier-layer-chip', { hasText: 'Zénith' }).click();
+  check('Allumer Budget montre ce qui a été dépensé', ((await lp.locator('.calendrier-layer', { hasText: 'dépensés' }).first().textContent()) ?? '').includes('12,50 € dépensés'));
+  await lp.locator('.calendrier-layer-chip', { hasText: 'Objectifs' }).click();
   await zenithMark.first().waitFor({ state: 'detached' });
-  check('Éteindre Zénith retire ses marques', (await zenithMark.count()) === 0);
+  check('Éteindre Objectifs retire ses marques', (await zenithMark.count()) === 0);
 
   await openEclipse(lp, BASE);
   await lp.locator('.calendrier-layer', { hasText: 'dépensés' }).first().waitFor();
   check(
     'Le choix des calques est retenu après un rechargement',
-    (await pressed('Astra')) === 'true' && (await pressed('Zénith')) === 'false' && (await zenithMark.count()) === 0,
+    (await pressed('Budget')) === 'true' && (await pressed('Objectifs')) === 'false' && (await zenithMark.count()) === 0,
   );
   // Une tâche répétée : la semaine suivante, sa prochaine fois en aperçu, en retrait et sans rond.
   await lp.locator('.fc-next-button').click();
@@ -490,18 +490,18 @@ export async function run({ browser, check, BASE }) {
   check('La semaine suivante montre la prochaine fois d’une tâche répétée, sans rond à cocher', (await forecast.getByRole('checkbox').count()) === 0);
   await forecast.click();
   await lp.locator('.calendrier-mark-dialog').waitFor();
-  check('Sa fenêtre dit que c’est un aperçu, et propose de la modifier dans Polaris', (await text(lp.locator('.calendrier-mark-dialog'))).includes('Aperçu') && (await lp.getByRole('button', { name: 'Modifier dans Polaris' }).count()) === 1);
+  check('Sa fenêtre dit que c’est un aperçu, et propose de la modifier dans Tâches', (await text(lp.locator('.calendrier-mark-dialog'))).includes('Aperçu') && (await lp.getByRole('button', { name: 'Modifier dans Tâches' }).count()) === 1);
   await lp.keyboard.press('Escape');
   await lp.locator('.calendrier-mark-dialog').waitFor({ state: 'detached' });
   await lp.locator('.fc-today-button').click();
 
-  // « Modifier dans Polaris » : Polaris s'ouvre sur la fenêtre de cette tâche.
-  await lp.getByRole('button', { name: 'Polaris' }).first().waitFor();
+  // « Modifier dans Tâches » : Tâches s'ouvre sur la fenêtre de cette tâche.
+  await lp.getByRole('button', { name: 'Tâches' }).first().waitFor();
   const garage = lp.locator('.calendrier-layer', { hasText: 'Appeler le garage' }).first();
   await garage.locator('.calendrier-mark-title').click();
-  await lp.getByRole('button', { name: 'Modifier dans Polaris' }).click();
+  await lp.getByRole('button', { name: 'Modifier dans Tâches' }).click();
   await lp.locator('.taches-editor').waitFor();
-  check('« Modifier dans Polaris » ouvre Polaris sur la fenêtre de la tâche', (await lp.locator('#taches-title').inputValue()) === 'Appeler le garage');
+  check('« Modifier dans Tâches » ouvre Tâches sur la fenêtre de la tâche', (await lp.locator('#taches-title').inputValue()) === 'Appeler le garage');
   check('Aucune erreur JavaScript avec les calques', layerErrors.length === 0, layerErrors.join(' | '));
   await layered.close();
 

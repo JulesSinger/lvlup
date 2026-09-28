@@ -10,7 +10,7 @@ import type { BudgetStore } from './budgetStore';
 export function createCalendarSource(store: BudgetStore): CalendarSource {
   return {
     id: 'budget',
-    label: 'Astra',
+    label: 'Budget',
     color: '#9c8cf6',
     defaultVisible: false,
     async marksBetween(from, to) {

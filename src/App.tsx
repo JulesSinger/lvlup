@@ -181,6 +181,8 @@ export default function App() {
           onError={setError}
           onOpenSettings={() => setShowSettings(true)}
           onBackToHub={() => setModuleId(null)}
+          label={activeModule.label}
+          emoji={activeModule.emoji}
           onOpenModule={(id, next) => {
             // Un module absent du registre : rien à ouvrir, on reste où l'on est.
             if (!MODULES.some((m) => m.id === id)) return;

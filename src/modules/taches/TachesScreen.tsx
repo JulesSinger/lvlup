@@ -68,7 +68,7 @@ const PLACEHOLDERS: Record<string, string> = {
  * Toute la logique est dans les bibliothèques pures (`lib/`) : cet écran ne
  * fait qu'appeler le contrat de stockage et afficher.
  */
-export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, intent }: ModuleScreenProps) {
+export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, intent, label, emoji }: ModuleScreenProps) {
   const [lists, setLists] = useState<TaskList[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -103,11 +103,11 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
       setTasks(shown);
       onError('');
       // Les rappels suivent les tâches ; un échec ici ne doit rien bloquer.
-      syncReminders(shown).catch((err) => console.warn('Rappels de Polaris :', err));
+      syncReminders(shown).catch((err) => console.warn('Rappels des tâches :', err));
     } catch (err) {
       if (isNetworkError(err)) {
         setTasks(applyPendingTasks(serverTasks.current, taskWriter.pending()));
-        onError('Hors ligne : Polaris montre les dernières tâches connues, ce que tu fais partira au retour du réseau.');
+        onError('Hors ligne : voici les dernières tâches connues, ce que tu fais partira au retour du réseau.');
       } else {
         onError(err instanceof Error ? err.message : 'Chargement impossible.');
       }
@@ -540,8 +540,8 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
       <main className="main taches-main">
         <header className="topbar">
           <div className="brand">
-            <span className="brand-mark">⭐</span>
-            <span className="brand-name">Polaris</span>
+            <span className="brand-mark">{emoji}</span>
+            <span className="brand-name">{label}</span>
           </div>
           <div className="topbar-actions">
             <button className="btn btn-ghost btn-sm taches-topbar-btn" onClick={onBackToHub} title="Modules" aria-label="Modules">

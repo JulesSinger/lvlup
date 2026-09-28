@@ -1,5 +1,5 @@
 /**
- * Suite e2e du module nutrition (Cérès).
+ * Suite e2e du module nutrition (Nutrition).
  *
  * Étapes 3 à 7 (docs/etude-nutrition.md §10) : le journal du jour,
  * l'objectif quotidien, les aliments perso, les favoris, le code-barres et
@@ -36,10 +36,10 @@ export async function run({ browser, check, BASE }) {
 
   await page.goto(BASE);
   await page.waitForSelector('.hub-picker-card');
-  const card = page.getByRole('button', { name: /Cérès/ });
-  check('La carte Cérès apparaît sur l’écran de choix', await card.isVisible());
+  const card = page.getByRole('button', { name: /Nutrition/ });
+  check('La carte Nutrition apparaît sur l’écran de choix', await card.isVisible());
   check(
-    'La carte Cérès dit ce que fait le module',
+    'La carte Nutrition dit ce que fait le module',
     (await card.textContent())?.includes('Calories et macronutriments') ?? false,
   );
 
@@ -101,7 +101,7 @@ export async function run({ browser, check, BASE }) {
 
   await page.reload();
   await page.waitForSelector('.hub-picker-card');
-  await page.getByRole('button', { name: /Cérès/ }).click();
+  await page.getByRole('button', { name: /Nutrition/ }).click();
   await page.waitForSelector('.nutrition-entry');
   check('Le journal survit à un rechargement', (await breakfast.locator('.nutrition-entry', { hasText: '200 g' }).count()) === 1);
 
@@ -390,7 +390,7 @@ export async function run({ browser, check, BASE }) {
   const mp = await mobile.newPage();
   await mp.goto(BASE);
   await mp.waitForSelector('.hub-picker-card');
-  await mp.getByRole('button', { name: /Cérès/ }).click();
+  await mp.getByRole('button', { name: /Nutrition/ }).click();
   await mp.waitForSelector('.nutrition-summary');
   const mBreakfast = mp.locator('.nutrition-meal', { hasText: 'Petit-déjeuner' });
   await mBreakfast.getByRole('button', { name: '+ Ajouter' }).click();

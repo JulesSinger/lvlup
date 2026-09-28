@@ -70,6 +70,8 @@ export function ZenithScreen({
   onOpenSettings,
   onBackToHub,
   reloadToken,
+  label,
+  emoji,
 }: ModuleScreenProps) {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [checkins, setCheckins] = useState<Checkin[]>([]);
@@ -766,8 +768,8 @@ export function ZenithScreen({
     <div className="layout">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">▲</span>
-          <span className="brand-name">Zénith</span>
+          <span className="brand-mark">{emoji}</span>
+          <span className="brand-name">{label}</span>
         </div>
 
         <nav className="nav" aria-label="Navigation principale">

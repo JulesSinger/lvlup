@@ -77,7 +77,7 @@ self.addEventListener('push', (event) => {
     payload = { body: event.data ? event.data.text() : '' };
   }
 
-  const title = payload.title || 'Zénith';
+  const title = payload.title || 'Atlas';
   const options = {
     body: payload.body || "Une action aujourd'hui, et la série continue.",
     icon: '/icons/icon-192.png',

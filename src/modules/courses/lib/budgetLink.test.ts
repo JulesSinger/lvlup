@@ -15,7 +15,7 @@ describe('expenseForTrip', () => {
       label: 'Courses — Leclerc',
       amountCents: 4780,
       categoryName: 'Courses',
-      note: 'Comète, course n° 3',
+      note: 'Courses, course n° 3',
     });
   });
 

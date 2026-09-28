@@ -1,30 +1,30 @@
 /**
- * Suite e2e du module flashcards (Orbite).
+ * Suite e2e du module flashcards (Flashcards).
  *
  * Étapes 2, 3 et 5 (docs/etude-flashcards.md §9) : « les paquets se créent,
  * se renomment, s'archivent », puis « le contenu existe » — les cartes d'un
  * paquet se créent, s'éditent, se suppriment —, puis « le module devient
  * utilisable seul » — une carte due se révise, recto puis verso, juste ou
- * faux. Comme la suite Astra, elle part d'un contexte frais et entre dans
- * la carte Orbite du hub — voir `modules/objectifs/e2e/suite.mjs` pour le
+ * faux. Comme la suite Budget, elle part d'un contexte frais et entre dans
+ * la carte Flashcards du hub — voir `modules/objectifs/e2e/suite.mjs` pour le
  * même motif.
  */
 
-async function enterOrbite(p, base) {
+async function enterFlashcards(p, base) {
   await p.goto(base);
   await p.waitForSelector('.hub-picker-card');
-  await p.getByRole('button', { name: /Orbite/ }).click();
+  await p.getByRole('button', { name: /Flashcards/ }).click();
 }
 
 /**
  * Un rechargement repasse toujours par l'écran de choix — `moduleId` n'est
- * pas persisté côté hub (voir `App.tsx`) — donc reentrer dans Orbite fait
+ * pas persisté côté hub (voir `App.tsx`) — donc reentrer dans Flashcards fait
  * partie du rechargement, pas une étape à part.
  */
-async function reloadOrbite(p) {
+async function reloadFlashcards(p) {
   await p.reload();
   await p.waitForSelector('.hub-picker-card');
-  await p.getByRole('button', { name: /Orbite/ }).click();
+  await p.getByRole('button', { name: /Flashcards/ }).click();
 }
 
 /**
@@ -60,7 +60,7 @@ export async function run({ browser, check, BASE }) {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
-  await enterOrbite(page, BASE);
+  await enterFlashcards(page, BASE);
   check('Écran vide affiché à la première visite', await page.locator('.empty h3').isVisible());
 
   // --- Création ------------------------------------------------------------
@@ -279,7 +279,7 @@ export async function run({ browser, check, BASE }) {
   check('Section Archivés visible', await page.locator('.flashcards-archived').isVisible());
 
   // --- Persistance -------------------------------------------------------------
-  await reloadOrbite(page);
+  await reloadFlashcards(page);
   check(
     'Le paquet actif et le paquet archivé survivent au rechargement',
     (await page.locator('.flashcards-row').count()) === 1 &&
@@ -318,7 +318,7 @@ export async function run({ browser, check, BASE }) {
     const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
     const tp = await fresh.newPage();
     tp.on('pageerror', (e) => errors.push(e.message));
-    await enterOrbite(tp, BASE);
+    await enterFlashcards(tp, BASE);
     await tp.waitForSelector('.empty h3');
     await tp.evaluate(() => {
       const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
@@ -333,7 +333,7 @@ export async function run({ browser, check, BASE }) {
       ];
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await reloadOrbite(tp);
+    await reloadFlashcards(tp);
     await tp.waitForSelector('.flashcards-today');
 
     check(
@@ -392,7 +392,7 @@ export async function run({ browser, check, BASE }) {
     const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
     const bp = await fresh.newPage();
     bp.on('pageerror', (e) => errors.push(e.message));
-    await enterOrbite(bp, BASE);
+    await enterFlashcards(bp, BASE);
     await bp.waitForSelector('.empty h3');
     await bp.evaluate(() => {
       const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
@@ -408,7 +408,7 @@ export async function run({ browser, check, BASE }) {
       ];
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await reloadOrbite(bp);
+    await reloadFlashcards(bp);
     await bp.locator('.flashcards-row', { hasText: 'Espagnol' }).click();
     await bp.waitForSelector('.flashcards-box-filter');
 
@@ -453,7 +453,7 @@ export async function run({ browser, check, BASE }) {
     const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
     const gp = await fresh.newPage();
     gp.on('pageerror', (e) => errors.push(e.message));
-    await enterOrbite(gp, BASE);
+    await enterFlashcards(gp, BASE);
     await gp.waitForSelector('.empty h3');
     await gp.evaluate(() => {
       const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
@@ -471,7 +471,7 @@ export async function run({ browser, check, BASE }) {
       ];
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await reloadOrbite(gp);
+    await reloadFlashcards(gp);
     await gp.waitForSelector('.flashcards-box-filter');
 
     check(
@@ -512,7 +512,7 @@ export async function run({ browser, check, BASE }) {
     const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
     const sp = await fresh.newPage();
     sp.on('pageerror', (e) => errors.push(e.message));
-    await enterOrbite(sp, BASE);
+    await enterFlashcards(sp, BASE);
     await sp.waitForSelector('.empty h3');
 
     await sp.getByRole('button', { name: 'Statistiques' }).click();
@@ -560,7 +560,7 @@ export async function run({ browser, check, BASE }) {
     const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
     const ip = await fresh.newPage();
     ip.on('pageerror', (e) => errors.push(e.message));
-    await enterOrbite(ip, BASE);
+    await enterFlashcards(ip, BASE);
     await ip.waitForSelector('.empty h3');
     await ip.getByRole('button', { name: 'Créer mon premier paquet' }).click();
     await ip.locator('#flashcards-deck-name').fill('Espagnol');
@@ -605,14 +605,14 @@ export async function run({ browser, check, BASE }) {
   }
 
   // --- Rendu mobile --------------------------------------------------------
-  // Jamais vérifié jusqu'ici, contrairement à Zénith et Astra : le bandeau,
+  // Jamais vérifié jusqu'ici, contrairement à Objectifs et Budget : le bandeau,
   // les pastilles, les paquets et l'écran de révision doivent tenir sur un
   // téléphone, sans défilement horizontal.
   {
     const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const mp = await phone.newPage();
     mp.on('pageerror', (e) => errors.push(e.message));
-    await enterOrbite(mp, BASE);
+    await enterFlashcards(mp, BASE);
     await mp.waitForSelector('.empty h3');
     check(
       'Écran vide sans débordement horizontal sur téléphone',

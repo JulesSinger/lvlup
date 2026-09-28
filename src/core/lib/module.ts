@@ -38,6 +38,14 @@ export interface ModuleScreenProps {
   /** Revient à l'écran de choix du module. */
   onBackToHub: () => void;
   /**
+   * Le nom affiché et l'icône du module, tels que sa déclaration les donne
+   * (`label`, `emoji`) : l'en-tête d'un écran les lit ici plutôt que de les
+   * recopier, pour qu'un changement de nom ne se fasse qu'à un endroit
+   * (renommage du 28/09/2026 : les noms de marque sont devenus fonctionnels).
+   */
+  label: string;
+  emoji: string;
+  /**
    * Ouvre un autre module, éventuellement sur un élément précis (depuis le
    * 28/09/2026 : « Modifier dans Polaris » depuis une tâche vue dans Éclipse).
    * `intent` est une chaîne que seul le module ouvert sait lire

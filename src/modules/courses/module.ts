@@ -13,9 +13,9 @@ import { createCalendarSource } from './data/calendarSource';
  */
 export const coursesModule: AtlasModule = {
   id: 'courses',
-  label: 'Comète',
-  description: 'Liste de courses et ce qu’elles coûtent',
-  emoji: '☄️',
+  label: 'Courses',
+  description: 'La liste, le magasin, le prix de chaque article',
+  emoji: '🛒',
   accent: '#6fb6ff',
   data: coursesStore,
   Screen: CoursesScreen,

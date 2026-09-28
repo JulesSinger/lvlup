@@ -42,7 +42,7 @@ export function PasswordRecovery({ onDone }: { onDone: () => void }) {
       <form className="auth-card" onSubmit={submit}>
         <div className="brand auth-brand">
           <span className="brand-mark">▲</span>
-          <span className="brand-name">Zénith</span>
+          <span className="brand-name">Atlas</span>
         </div>
         <h1 className="auth-title">Choisis un nouveau mot de passe</h1>
         <p className="auth-sub">

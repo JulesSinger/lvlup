@@ -13,9 +13,9 @@ import { NutritionScreen } from './NutritionScreen';
  */
 export const nutritionModule: AtlasModule = {
   id: 'nutrition',
-  label: 'Cérès',
+  label: 'Nutrition',
   description: 'Calories et macronutriments',
-  emoji: '🌾',
+  emoji: '🥗',
   accent: '#9bd16a',
   data: nutritionStore,
   Screen: NutritionScreen,

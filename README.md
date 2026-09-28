@@ -4,9 +4,13 @@ Un hub personnel, un module par domaine de la vie.
 
 | Module | Nom affiché | Domaine | État |
 |---|---|---|---|
-| `objectifs` | **Zénith** | suivi d'objectifs par paliers | en production |
-| `budget` | **Astra** | dépenses, catégories, import bancaire, enveloppes d'épargne | en production |
-| `flashcards` | **Orbite** | révision par répétition espacée, système de Leitner | en production |
+| `objectifs` | **Objectifs** 🎯 | suivi d'objectifs par paliers | en production |
+| `budget` | **Budget** 💶 | dépenses, catégories, import bancaire, enveloppes d'épargne | en production |
+| `flashcards` | **Flashcards** 🗂️ | révision par répétition espacée, système de Leitner | en production |
+| `nutrition` | **Nutrition** 🥗 | calories et macronutriments, table CIQUAL, code-barres | en production |
+| `courses` | **Courses** 🛒 | liste de courses, magasin et prix, dépense envoyée au Budget | en production |
+| `calendrier` | **Calendar** 📅 | agenda jour / semaine / mois, événements répétés, calques des autres modules | en production |
+| `taches` | **Tâches** ✅ | to-do list, ajout rapide en français, rappels, visible dans Calendar | en production |
 
 **Pour travailler sur ce dépôt, lis d'abord [`CLAUDE.md`](CLAUDE.md)** : il porte les
 conventions, les invariants à ne pas casser et le journal des décisions. Ce README décrit
@@ -14,7 +18,7 @@ l'application ; `CLAUDE.md` décrit comment y toucher, et fait foi en cas de con
 
 ---
 
-## Zénith — le module objectifs
+## Objectifs — le module objectifs (ex-Zénith)
 
 Suivi d'objectifs par paliers, où chaque palier vaut un rang à décrocher (Fer → Challenger).
 
@@ -24,7 +28,7 @@ tes objectifs donne ton **rang de profil**.
 
 ---
 
-## Astra — le module budget
+## Budget — le module budget (ex-Astra)
 
 Suivi des dépenses par catégories, avec un camembert mensuel et des enveloppes d'épargne.
 
@@ -36,7 +40,7 @@ bancaire.
 
 ---
 
-## Orbite — le module flashcards
+## Flashcards — le module flashcards (ex-Orbite)
 
 Révision par répétition espacée, système de Leitner à 5 boîtes : une carte revue juste
 s'éloigne, une carte ratée retombe en boîte 1.
@@ -194,9 +198,9 @@ src/
                        implémentations, la sauvegarde, le client Supabase partagé
     lib/               module.ts (ce qu'un module déclare), push, sound, types
     styles/            Le style commun
-  modules/objectifs/   Le module Zénith
-  modules/budget/      Le module Astra
-  modules/flashcards/  Le module Orbite
+  modules/objectifs/   Le module Objectifs
+  modules/budget/      Le module Budget
+  modules/flashcards/  Le module Flashcards
     module.ts          Sa déclaration : id technique, nom affiché, accès aux données
     components/  data/  lib/  styles/  e2e/
 e2e/

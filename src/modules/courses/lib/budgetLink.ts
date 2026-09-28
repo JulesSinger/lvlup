@@ -27,6 +27,6 @@ export function expenseForTrip(trip: Pick<Trip, 'number' | 'day' | 'storeName' |
     label: trip.storeName ? `Courses — ${trip.storeName}` : 'Courses',
     amountCents: trip.totalCents,
     categoryName: BUDGET_CATEGORY,
-    note: `Comète, course n° ${trip.number}`,
+    note: `Courses, course n° ${trip.number}`,
   };
 }

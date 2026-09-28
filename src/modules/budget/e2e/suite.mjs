@@ -1,15 +1,15 @@
 import { fileURLToPath } from 'node:url';
 
 /**
- * Suite e2e du module budget (Astra).
+ * Suite e2e du module budget.
  *
  * Étapes 2 à 5 (docs/etude-astra.md §7) : les catégories se créent et
  * s'éditent, le module devient utilisable seul grâce à la saisie manuelle
  * et à la liste des opérations, l'onglet « Aperçu » ajoute le camembert
  * du mois, son total et son sélecteur — « la V1 est atteinte » — et
  * l'onglet « Importer » dépose un relevé BoursoBank pour que « l'usage
- * devienne tenable dans la durée ». Comme la suite Zénith, elle part d'un
- * contexte frais et entre dans la carte Astra du hub — voir
+ * devienne tenable dans la durée ». Comme la suite Objectifs, elle part d'un
+ * contexte frais et entre dans la carte Budget du hub — voir
  * `modules/objectifs/e2e/suite.mjs` pour le même motif, conséquence du
  * deuxième module désormais enregistré.
  */
@@ -21,21 +21,21 @@ import { fileURLToPath } from 'node:url';
  */
 const FIXTURE_CSV_PATH = fileURLToPath(new URL('../../../../docs/exemples/releve-exemple.csv', import.meta.url));
 
-async function enterAstra(p, base) {
+async function enterBudget(p, base) {
   await p.goto(base);
   await p.waitForSelector('.hub-picker-card');
-  await p.getByRole('button', { name: /Astra/ }).click();
+  await p.getByRole('button', { name: /Budget/ }).click();
 }
 
 /**
  * Un rechargement repasse toujours par l'écran de choix — `moduleId` n'est
- * pas persisté côté hub (voir `App.tsx`) — donc reentrer dans Astra fait
+ * pas persisté côté hub (voir `App.tsx`) — donc reentrer dans Budget fait
  * partie du rechargement, pas une étape à part.
  */
-async function reloadAstra(p) {
+async function reloadBudget(p) {
   await p.reload();
   await p.waitForSelector('.hub-picker-card');
-  await p.getByRole('button', { name: /Astra/ }).click();
+  await p.getByRole('button', { name: /Budget/ }).click();
 }
 
 export async function run({ browser, check, BASE }) {
@@ -45,9 +45,9 @@ export async function run({ browser, check, BASE }) {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
-  await enterAstra(page, BASE);
+  await enterBudget(page, BASE);
   check(
-    'Astra s’ouvre sur l’onglet Aperçu, pas Catégories',
+    'Budget s’ouvre sur l’onglet Aperçu, pas Catégories',
     (await page.locator('.budget-tab', { hasText: 'Aperçu' }).getAttribute('class'))?.includes('active') ?? false,
   );
   check('Écran vide affiché à la première visite (aucune écriture ce mois-ci)', await page.locator('.empty h3').isVisible());
@@ -92,7 +92,7 @@ export async function run({ browser, check, BASE }) {
   // --- Persistance ---------------------------------------------------------
   // Le rechargement retombe sur l'onglet Aperçu (l'onglet par défaut) : il
   // faut recliquer sur Catégories pour retrouver la catégorie créée.
-  await reloadAstra(page);
+  await reloadBudget(page);
   await page.getByRole('button', { name: 'Catégories' }).click();
   check('La catégorie survit au rechargement', (await page.locator('.budget-row').count()) === 1);
 
@@ -339,7 +339,7 @@ export async function run({ browser, check, BASE }) {
   // --- Persistance -----------------------------------------------------------
   // Un rechargement retombe sur l'onglet Aperçu (l'onglet par défaut) : rien
   // à cliquer pour l'atteindre, contrairement à l'étape 3.
-  await reloadAstra(page);
+  await reloadBudget(page);
   check(
     'Le rechargement retombe directement sur Aperçu',
     (await page.locator('.budget-tab', { hasText: 'Aperçu' }).getAttribute('class'))?.includes('active') ?? false,
@@ -597,7 +597,7 @@ export async function run({ browser, check, BASE }) {
     const up = await fresh.newPage();
     const uxErrors = [];
     up.on('pageerror', (e) => uxErrors.push(e.message));
-    await enterAstra(up, BASE);
+    await enterBudget(up, BASE);
     await up.waitForSelector('.empty h3');
 
     await up.evaluate(() => {
@@ -628,7 +628,7 @@ export async function run({ browser, check, BASE }) {
     });
     await up.reload();
     await up.waitForSelector('.hub-picker-card');
-    await up.getByRole('button', { name: /Astra/ }).click();
+    await up.getByRole('button', { name: /Budget/ }).click();
     await up.waitForSelector('.budget-row');
 
     // Le bouton « + Nouvelle écriture » reste dans le viewport après un
@@ -716,7 +716,7 @@ export async function run({ browser, check, BASE }) {
     const sc = await fresh.newPage();
     const scErrors = [];
     sc.on('pageerror', (e) => scErrors.push(e.message));
-    await enterAstra(sc, BASE);
+    await enterBudget(sc, BASE);
     await sc.waitForSelector('.empty h3');
 
     await sc.evaluate(() => {
@@ -737,7 +737,7 @@ export async function run({ browser, check, BASE }) {
     });
     await sc.reload();
     await sc.waitForSelector('.hub-picker-card');
-    await sc.getByRole('button', { name: /Astra/ }).click();
+    await sc.getByRole('button', { name: /Budget/ }).click();
     await sc.waitForSelector('.budget-pie-legend-item');
 
     check(
@@ -832,13 +832,13 @@ export async function run({ browser, check, BASE }) {
   // « Voir cette évolution au fil du temps » : trois mois de données
   // injectées (dates relatives à aujourd'hui, comme les autres scénarios
   // construits à la main), lus via le tableau plutôt que mesurés en pixels
-  // sur les barres — plus fiable, même motif que PPChart côté Zénith.
+  // sur les barres — plus fiable, même motif que PPChart côté Objectifs.
   {
     const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
     const ev = await fresh.newPage();
     const evErrors = [];
     ev.on('pageerror', (e) => evErrors.push(e.message));
-    await enterAstra(ev, BASE);
+    await enterBudget(ev, BASE);
     await ev.waitForSelector('.empty h3');
 
     await ev.evaluate(() => {
@@ -865,7 +865,7 @@ export async function run({ browser, check, BASE }) {
     });
     await ev.reload();
     await ev.waitForSelector('.hub-picker-card');
-    await ev.getByRole('button', { name: /Astra/ }).click();
+    await ev.getByRole('button', { name: /Budget/ }).click();
     await ev.waitForSelector('.budget-tab', { hasText: 'Évolution' });
     await ev.getByRole('button', { name: 'Évolution', exact: true }).click();
     await ev.waitForSelector('.budget-evolution');
@@ -941,7 +941,7 @@ export async function run({ browser, check, BASE }) {
     const nt = await fresh.newPage();
     const ntErrors = [];
     nt.on('pageerror', (e) => ntErrors.push(e.message));
-    await enterAstra(nt, BASE);
+    await enterBudget(nt, BASE);
     await nt.waitForSelector('.empty h3');
 
     await nt.evaluate(() => {
@@ -971,7 +971,7 @@ export async function run({ browser, check, BASE }) {
     });
     await nt.reload();
     await nt.waitForSelector('.hub-picker-card');
-    await nt.getByRole('button', { name: /Astra/ }).click();
+    await nt.getByRole('button', { name: /Budget/ }).click();
     await nt.waitForSelector('.budget-tab', { hasText: 'Évolution' });
     await nt.getByRole('button', { name: 'Évolution', exact: true }).click();
     await nt.waitForSelector('.budget-evolution');
@@ -1034,7 +1034,7 @@ export async function run({ browser, check, BASE }) {
     const cmp = await fresh.newPage();
     const cmpErrors = [];
     cmp.on('pageerror', (e) => cmpErrors.push(e.message));
-    await enterAstra(cmp, BASE);
+    await enterBudget(cmp, BASE);
     await cmp.waitForSelector('.empty h3');
 
     await cmp.evaluate(() => {
@@ -1061,7 +1061,7 @@ export async function run({ browser, check, BASE }) {
     });
     await cmp.reload();
     await cmp.waitForSelector('.hub-picker-card');
-    await cmp.getByRole('button', { name: /Astra/ }).click();
+    await cmp.getByRole('button', { name: /Budget/ }).click();
     await cmp.waitForSelector('.budget-pie-legend-item');
 
     check(
@@ -1092,7 +1092,7 @@ export async function run({ browser, check, BASE }) {
   }
 
   // --- Rendu mobile --------------------------------------------------------
-  // Jamais vérifié jusqu'ici pour Astra, comme pour Orbite (31/08/2026) : les
+  // Jamais vérifié jusqu'ici pour Budget, comme pour Flashcards (31/08/2026) : les
   // quatre onglets, le bouton flottant et l'éditeur d'écriture (pastilles +
   // menu groupé) doivent tenir sur un téléphone.
   {
@@ -1100,7 +1100,7 @@ export async function run({ browser, check, BASE }) {
     const mp = await phone.newPage();
     const mobileErrors = [];
     mp.on('pageerror', (e) => mobileErrors.push(e.message));
-    await enterAstra(mp, BASE);
+    await enterBudget(mp, BASE);
     await mp.waitForSelector('.empty h3');
 
     function noOverflow() {

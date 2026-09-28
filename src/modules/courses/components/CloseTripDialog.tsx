@@ -185,7 +185,7 @@ export function CloseTripDialog({ entries, stores, trips, canSendToBudget, onCan
           {canSendToBudget && (
             <label className="courses-budget-toggle">
               <input type="checkbox" checked={sendToBudget} onChange={(e) => setSendToBudget(e.target.checked)} />
-              Ajouter la dépense au budget (Astra, catégorie Courses)
+              Ajouter la dépense au Budget (catégorie Courses)
             </label>
           )}
 

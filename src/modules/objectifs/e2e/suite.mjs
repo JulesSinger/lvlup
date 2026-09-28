@@ -1,9 +1,9 @@
 /**
- * Suite e2e du module Objectifs (Zénith) : onboarding, grille des paliers,
+ * Suite e2e du module Objectifs (Objectifs) : onboarding, grille des paliers,
  * échelle, cérémonies, comptage, quotidien, historique, rendu mobile.
  *
  * Tout ce qui ne dépend d'aucun module vit dans e2e/core.mjs ; ici, tout part
- * d'un contexte fraîchement créé qui joue le scénario Zénith de bout en bout.
+ * d'un contexte fraîchement créé qui joue le scénario Objectifs de bout en bout.
  */
 
 async function dismissCeremonies(p) {
@@ -19,14 +19,14 @@ async function dismissCeremonies(p) {
 }
 
 /**
- * Depuis l'arrivée d'Astra, le hub compte deux modules : l'écran de choix
- * (`ModulePicker`) s'affiche donc avant l'écran de Zénith, sur toute page
- * fraîchement chargée. Cette suite ne teste que Zénith — elle entre donc
+ * Depuis l'arrivée d'Budget, le hub compte deux modules : l'écran de choix
+ * (`ModulePicker`) s'affiche donc avant l'écran de Objectifs, sur toute page
+ * fraîchement chargée. Cette suite ne teste que Objectifs — elle entre donc
  * systématiquement dans sa carte avant de continuer, comme le ferait
  * quiconque n'a qu'un module qui l'intéresse.
  */
 async function enterZenith(p) {
-  const card = p.locator('.hub-picker-card', { hasText: 'Zénith' });
+  const card = p.locator('.hub-picker-card', { hasText: 'Objectifs' });
   if (await card.isVisible({ timeout: 3000 }).catch(() => false)) {
     await card.click();
   }

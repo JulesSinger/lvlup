@@ -43,7 +43,7 @@ type View = 'categories' | 'month' | 'import' | 'epargne' | 'evolution';
  * l'argent ce mois-ci », mais « et par rapport à d'habitude ». Juste après
  * Aperçu, dont c'est le prolongement naturel dans le temps.
  */
-export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
+export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, label, emoji }: ModuleScreenProps) {
   const [view, setView] = useState<View>('month');
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,8 +133,8 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
       <main className="main budget-main">
         <header className="topbar">
           <div className="brand">
-            <span className="brand-mark">✦</span>
-            <span className="brand-name">Astra</span>
+            <span className="brand-mark">{emoji}</span>
+            <span className="brand-name">{label}</span>
           </div>
           <div className="topbar-actions">
             <button className="btn btn-ghost btn-sm" onClick={onBackToHub}>
@@ -146,7 +146,7 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
           </div>
         </header>
 
-        <nav className="budget-tabs" aria-label="Sections d'Astra">
+        <nav className="budget-tabs" aria-label="Sections du budget">
           <button
             className={`budget-tab${view === 'month' ? ' active' : ''}`}
             onClick={() => setView('month')}

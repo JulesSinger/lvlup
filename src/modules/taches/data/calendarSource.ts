@@ -18,7 +18,7 @@ import type { TachesStore } from './tachesStore';
 export function createCalendarSource(store: TachesStore, afterWrite: () => Promise<void> = async () => {}): CalendarSource {
   return {
     id: 'taches',
-    label: 'Polaris',
+    label: 'Tâches',
     color: '#ff9f7a',
     defaultVisible: true,
     async marksBetween(from, to) {

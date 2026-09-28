@@ -20,7 +20,7 @@ const request = {
   label: 'Courses — Leclerc',
   amountCents: 4780,
   categoryName: 'Courses',
-  note: 'Comète, course n° 1',
+  note: 'Courses, course n° 1',
 };
 
 describe('le service de dépenses d’Astra', () => {
@@ -42,7 +42,7 @@ describe('le service de dépenses d’Astra', () => {
       categoryId: courses.id,
       source: 'manuelle',
       importKey: 'comete:course:1',
-      note: 'Comète, course n° 1',
+      note: 'Courses, course n° 1',
     });
   });
 

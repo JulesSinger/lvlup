@@ -7,7 +7,7 @@ import type { FlashcardsStore } from './flashcardsStore';
 export function createCalendarSource(store: FlashcardsStore): CalendarSource {
   return {
     id: 'flashcards',
-    label: 'Orbite',
+    label: 'Flashcards',
     color: '#52d6c8',
     defaultVisible: true,
     async marksBetween(from, to) {

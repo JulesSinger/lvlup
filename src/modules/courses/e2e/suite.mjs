@@ -1,8 +1,8 @@
 /**
- * Suite e2e du module courses (Comète).
+ * Suite e2e du module courses (Courses).
  *
  * Étapes 3 à 6 (docs/etude-courses.md §12) : la liste de courses, la
- * clôture d'une course, les chiffres et le lien avec le budget (Astra). Un vrai parcours — ajouter (rayon deviné), reprendre
+ * clôture d'une course, les chiffres et le lien avec le Budget. Un vrai parcours — ajouter (rayon deviné), reprendre
  * un article connu sans doublon, régler une récurrence, cocher, noter un
  * prix, retirer, puis trois courses terminées d'affilée pour vérifier que
  * chaque habituel revient à son tour — plus le rendu téléphone.
@@ -19,7 +19,7 @@ async function text(locator) {
 async function openComete(page, BASE) {
   await page.goto(BASE);
   await page.waitForSelector('.hub-picker-card');
-  await page.getByRole('button', { name: /Comète/ }).click();
+  await page.getByRole('button', { name: /Courses/ }).click();
   await page.waitForSelector('.courses-add');
 }
 
@@ -38,9 +38,9 @@ export async function run({ browser, check, BASE }) {
 
   await page.goto(BASE);
   await page.waitForSelector('.hub-picker-card');
-  const card = page.getByRole('button', { name: /Comète/ });
-  check('La carte Comète apparaît sur l’écran de choix', await card.isVisible());
-  check('La carte Comète dit ce que fait le module', (await card.textContent())?.includes('Liste de courses') ?? false);
+  const card = page.getByRole('button', { name: /Courses/ });
+  check('La carte Courses apparaît sur l’écran de choix', await card.isVisible());
+  check('La carte Courses dit ce que fait le module', (await card.textContent())?.includes('le magasin') ?? false);
   await card.click();
   await page.waitForSelector('.courses-add');
   check('Une liste vide invite à ajouter et explique les habituels', (await page.locator('.courses-empty').textContent())?.includes('habituels') ?? false);
@@ -118,7 +118,7 @@ export async function run({ browser, check, BASE }) {
 
   await page.reload();
   await page.waitForSelector('.hub-picker-card');
-  await page.getByRole('button', { name: /Comète/ }).click();
+  await page.getByRole('button', { name: /Courses/ }).click();
   await page.waitForSelector('.courses-line');
   check(
     'La liste, les coches et les prix survivent à un rechargement',
@@ -160,7 +160,7 @@ export async function run({ browser, check, BASE }) {
   );
   check(
     'La dépense part au budget par défaut (case cochée)',
-    await page.getByLabel('Ajouter la dépense au budget (Astra, catégorie Courses)').isChecked(),
+    await page.getByLabel('Ajouter la dépense au Budget (catégorie Courses)').isChecked(),
   );
   await page.getByLabel('Magasin').fill('Leclerc');
   await page.locator('#courses-close-total').fill('12,50');
@@ -241,13 +241,13 @@ export async function run({ browser, check, BASE }) {
   await page.getByRole('tab', { name: /Courses/ }).click();
   await page.locator('.courses-trip-head').first().click();
   await page.waitForSelector('.courses-trip-budget');
-  check('L’historique dit qu’une course est dans le budget', (await page.locator('.courses-trip-budget').textContent()) === 'Dans le budget (Astra) ✓');
+  check('L’historique dit qu’une course est dans le budget', (await page.locator('.courses-trip-budget').textContent()) === 'Dans le Budget ✓');
 
   // Une course terminée sans l'envoyer, puis envoyée après coup.
   await page.getByRole('tab', { name: 'Liste' }).click();
   await page.locator('.courses-line', { hasText: 'Lait' }).getByRole('checkbox').click();
   await page.getByRole('button', { name: 'Terminer la course' }).click();
-  await page.getByLabel('Ajouter la dépense au budget (Astra, catégorie Courses)').uncheck();
+  await page.getByLabel('Ajouter la dépense au Budget (catégorie Courses)').uncheck();
   await page.locator('#courses-close-total').fill('3,10');
   await page.locator('.courses-close-dialog').getByRole('button', { name: 'Terminer la course' }).click();
   await page.waitForSelector('.courses-close-dialog', { state: 'detached' });
@@ -258,34 +258,34 @@ export async function run({ browser, check, BASE }) {
   check('Une course absente du budget propose de l’y ajouter', await sendLater.isVisible());
   await sendLater.click();
   await page.waitForSelector('.courses-trip-budget');
-  check('Ajoutée après coup, elle est dans le budget', (await page.locator('.courses-trip-budget').textContent()) === 'Dans le budget (Astra) ✓');
+  check('Ajoutée après coup, elle est dans le budget', (await page.locator('.courses-trip-budget').textContent()) === 'Dans le Budget ✓');
   await page.locator('.courses-trip-head').first().click();
   page.once('dialog', (d) => void d.accept());
   await page.locator('.courses-trip-head').first().click();
   await page.getByRole('button', { name: 'Supprimer cette course' }).click();
   await page.waitForFunction(() => document.querySelectorAll('.courses-trip').length === 2);
 
-  // De l'autre côté : Astra a reçu les dépenses, et perdu celles des courses supprimées.
+  // De l'autre côté : Budget a reçu les dépenses, et perdu celles des courses supprimées.
   // (Seule vérification qui entre dans un autre module : c'est l'objet même du lien.)
   await page.getByRole('button', { name: 'Modules' }).click();
   await page.waitForSelector('.hub-picker-card');
-  await page.getByRole('button', { name: /Astra/ }).click();
+  await page.getByRole('button', { name: /Budget/ }).click();
   await page.waitForSelector('.budget-tab');
   const budgetRows = page.locator('.budget-entry-row', { hasText: 'Courses — Leclerc' });
   await budgetRows.first().waitFor({ timeout: 10000 }).catch(() => {});
   const amounts = (await budgetRows.locator('.budget-row-amount').allTextContents()).map((t) => t.replace(/\s/g, ' ')).sort();
   check(
-    'Astra a les dépenses des courses restantes, avec leur montant — pas celles des courses supprimées',
+    'Budget a les dépenses des courses restantes, avec leur montant — pas celles des courses supprimées',
     JSON.stringify(amounts) === JSON.stringify(['-12,50 €', '-2,50 €']),
     amounts.join(' | '),
   );
   check(
-    'Sans catégorie « Courses » créée dans Astra, la dépense y est « à classer »',
+    'Sans catégorie « Courses » créée dans Budget, la dépense y est « à classer »',
     (await budgetRows.first().locator('.budget-row-category').textContent()) === 'À classer',
   );
   await page.getByRole('button', { name: /Modules/ }).first().click();
   await page.waitForSelector('.hub-picker-card');
-  await page.getByRole('button', { name: /Comète/ }).click();
+  await page.getByRole('button', { name: /Courses/ }).click();
   await page.waitForSelector('.courses-add');
 
   await page.getByRole('button', { name: 'Modules' }).click();

@@ -158,7 +158,7 @@ export function ReminderSettings({
             <li>
               Choisis <b>Sur l'écran d'accueil</b>, puis <b>Ajouter</b>.
             </li>
-            <li>Ouvre Zénith depuis la nouvelle icône, et reviens ici.</li>
+            <li>Ouvre Atlas depuis la nouvelle icône, et reviens ici.</li>
           </ol>
           <span className="install-note">
             iOS 16.4 ou plus. Depuis l'icône, tout le reste fonctionne exactement pareil.

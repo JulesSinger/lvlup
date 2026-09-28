@@ -1,7 +1,7 @@
 /**
  * Suite e2e du socle : ce qui ne dépend d'aucun module — PWA, service worker,
  * écran d'authentification. Rien ici ne clique un bouton d'un module : ces
- * vérifications sont censées rester valables même quand Astra existera.
+ * vérifications sont censées rester valables même quand Budget existera.
  *
  * L'écran d'authentification n'existe qu'en mode Supabase : il n'est vérifié
  * que si `AUTH_BASE` est fourni (voir `e2e/run.mjs` et `npm run check:auth`).
@@ -34,7 +34,7 @@ export async function run({ browser, check, BASE }) {
 
   // Écran de choix des modules : chaque carte porte, sous son nom de marque,
   // une description de son domaine (ajoutée le 07/09/2026 — un nom seul
-  // comme Zénith ou Astra ne dit rien à qui ne le connaît pas encore, voir
+  // comme Objectifs ou Budget ne dit rien à qui ne le connaît pas encore, voir
   // CLAUDE.md §8). Trois modules enregistrés suffisent pour que le hub
   // affiche l'écran de choix plutôt que d'entrer directement dans le seul.
   await page.waitForSelector('.hub-picker-card');
@@ -74,7 +74,7 @@ export async function run({ browser, check, BASE }) {
     const moduleNames = await authPage.locator('.lp-module-name').allTextContents();
     check(
       'Chaque module du registre a sa carte, avec son vrai nom',
-      ['Zénith', 'Astra', 'Orbite'].every((label) => moduleNames.includes(label)),
+      ['Objectifs', 'Budget', 'Flashcards'].every((label) => moduleNames.includes(label)),
       moduleNames.join(' | '),
     );
     check(

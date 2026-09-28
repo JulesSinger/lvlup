@@ -6,7 +6,7 @@ import type { CoursesStore } from './coursesStore';
 export function createCalendarSource(store: CoursesStore): CalendarSource {
   return {
     id: 'courses',
-    label: 'Comète',
+    label: 'Courses',
     color: '#6fb6ff',
     defaultVisible: true,
     async marksBetween(from, to) {

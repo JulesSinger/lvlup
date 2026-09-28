@@ -27,7 +27,7 @@ import { MEALS, MEAL_LABELS, type Entry, type Meal, type Target, type TargetInpu
  * dès la V1 : les aliments récents dans la fenêtre d'ajout, et la copie d'un
  * repas de la veille.
  */
-export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
+export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, label, emoji }: ModuleScreenProps) {
   const today = dayString();
   const [day, setDay] = useState(today);
   /** Un jour, ou les sept jours qui finissent par `day` (étape 7). */
@@ -172,8 +172,8 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
       <main className="main nutrition-main">
         <header className="topbar">
           <div className="brand">
-            <span className="brand-mark">🌾</span>
-            <span className="brand-name">Cérès</span>
+            <span className="brand-mark">{emoji}</span>
+            <span className="brand-name">{label}</span>
           </div>
           <div className="topbar-actions">
             <button

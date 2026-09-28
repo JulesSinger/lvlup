@@ -15,9 +15,9 @@ import { TachesSettingsSection } from './TachesSettingsSection';
  */
 export const tachesModule: AtlasModule = {
   id: 'taches',
-  label: 'Polaris',
-  description: 'Tâches à faire, par jour et par liste',
-  emoji: '⭐',
+  label: 'Tâches',
+  description: 'À faire, par jour et par liste',
+  emoji: '✅',
   accent: '#ff9f7a',
   data: tachesStore,
   Screen: TachesScreen,

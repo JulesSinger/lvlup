@@ -16,9 +16,9 @@ import { createExpenseService } from './data/expenseService';
  */
 export const budgetModule: AtlasModule = {
   id: 'budget',
-  label: 'Astra',
-  description: 'Dépenses et budget',
-  emoji: '✦',
+  label: 'Budget',
+  description: 'Dépenses, catégories et épargne',
+  emoji: '💶',
   accent: '#9c8cf6',
   data: budgetStore,
   Screen: BudgetScreen,

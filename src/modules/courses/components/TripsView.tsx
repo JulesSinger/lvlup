@@ -106,7 +106,7 @@ export function TripsView({ trips, tripItems, onDelete, expenses, onError }: Pro
                 <div className="courses-trip-actions">
                   {expenses &&
                     (inBudget.has(tripRef(trip)) ? (
-                      <span className="courses-trip-budget">Dans le budget (Astra) ✓</span>
+                      <span className="courses-trip-budget">Dans le Budget ✓</span>
                     ) : (
                       <button
                         type="button"

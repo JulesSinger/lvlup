@@ -12,9 +12,9 @@ import { calendarStore } from './data';
  */
 export const calendrierModule: AtlasModule = {
   id: 'calendrier',
-  label: 'Éclipse',
-  description: 'Calendrier et rendez-vous',
-  emoji: '🌒',
+  label: 'Calendar',
+  description: 'Rendez-vous et événements, jour, semaine, mois',
+  emoji: '📅',
   accent: '#c9a0ff',
   data: calendarStore,
   Screen: CalendarScreen,

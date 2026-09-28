@@ -205,7 +205,7 @@ function messageFor(streak: number) {
     };
   }
   return {
-    title: 'Zénith',
+    title: '🎯 Objectifs',
     body: "Une action aujourd'hui, et la série démarre.",
   };
 }

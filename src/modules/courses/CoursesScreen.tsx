@@ -37,7 +37,7 @@ import {
  * est annulée à l'écran et l'erreur s'affiche, sans rien perdre de ce qui
  * était tapé.
  */
-export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, services }: ModuleScreenProps) {
+export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, services, label, emoji }: ModuleScreenProps) {
   const expenses = services.expenses;
   const [items, setItems] = useState<Item[]>([]);
   const [entries, setEntries] = useState<ListEntry[]>([]);
@@ -199,8 +199,8 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
       <main className="main courses-main">
         <header className="topbar">
           <div className="brand">
-            <span className="brand-mark">☄️</span>
-            <span className="brand-name">Comète</span>
+            <span className="brand-mark">{emoji}</span>
+            <span className="brand-name">{label}</span>
           </div>
           <div className="topbar-actions">
             <button
