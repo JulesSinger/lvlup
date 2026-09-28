@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FREQUENCIES } from '../../../core/lib/recurrence';
-import { LIST_COLORS, PRIORITIES, REPEAT_FROM } from './types';
+import { LIST_COLORS, PRIORITIES, REPEAT_FROM, TASK_TITLE_MAX } from './types';
 
 /**
  * Le type TypeScript et la contrainte Postgres doivent dire la même chose —
@@ -39,6 +39,14 @@ describe('le type et la base disent la même chose (Polaris)', () => {
 
   it('d’où repart une tâche répétée', () => {
     expect(allowedBy('taches_tasks_repeat_from_check')).toEqual([...REPEAT_FROM].sort());
+  });
+
+  it('la longueur maximale d’un titre', () => {
+    // La dernière définition de la contrainte fait foi (migration du 28/09/2026).
+    const last = [...readdirSync(SQL_DIR).filter((f) => f.endsWith('.sql')).sort()]
+      .flatMap((name) => [...readFileSync(join(SQL_DIR, name), 'utf8').matchAll(/taches_tasks_title_check\s+check\s*\(char_length\(title\) between 1 and (\d+)\)/gi)])
+      .pop();
+    expect(Number(last?.[1])).toBe(TASK_TITLE_MAX);
   });
 
   it('les fréquences de récurrence, celles du moteur commun', () => {

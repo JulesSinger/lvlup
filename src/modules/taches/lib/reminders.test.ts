@@ -79,3 +79,18 @@ describe('plannedReminders — le résumé du matin', () => {
     expect(plannedReminders([t], both, now).map((r) => r.ref)).toEqual([`task:${t.id}:2026-09-29`, 'morning:2026-09-29', 'morning:2026-09-30', 'morning:2026-10-01', 'morning:2026-10-02', 'morning:2026-10-03', 'morning:2026-10-04']);
   });
 });
+
+describe('plannedReminders — des titres longs', () => {
+  it('le résumé du matin raccourcit les titres cités, pour rester sous la limite d’un rappel', () => {
+    const long = 'Préparer le dossier '.repeat(50).trim();
+    const tasks = [1, 2, 3].map(() => task({ title: long, plannedDay: '2026-09-29' }));
+    const [morning] = plannedReminders(tasks, { ...both, taskReminders: false }, now);
+    expect(morning.body.length).toBeLessThanOrEqual(1000);
+    expect(morning.body.split(' · ').every((t) => t.length <= 80 && t.endsWith('…'))).toBe(true);
+  });
+
+  it('le rappel d’une tâche au titre de 1000 caractères le garde entier', () => {
+    const t = task({ title: 'x'.repeat(1000), plannedDay: '2026-09-29', plannedTime: '09:00' });
+    expect(plannedReminders([t], tasksOnly, now)[0].title).toHaveLength(1000);
+  });
+});

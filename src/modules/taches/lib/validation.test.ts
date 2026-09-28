@@ -14,7 +14,8 @@ describe('validateTask', () => {
 
   it('refuse un titre vide ou trop long', () => {
     expect(validateTask({ title: '  ' })).toMatch(/titre/);
-    expect(validateTask({ title: 'x'.repeat(201) })).toMatch(/trop long/);
+    expect(validateTask({ title: 'x'.repeat(1000) })).toBeNull();
+    expect(validateTask({ title: 'x'.repeat(1001) })).toMatch(/trop long \(1000/);
   });
 
   it('une heure ou une répétition a besoin d’un jour', () => {

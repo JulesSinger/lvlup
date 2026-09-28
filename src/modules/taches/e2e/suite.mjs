@@ -287,6 +287,16 @@ export async function run({ browser, check, BASE }) {
     await p7.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.filter((t) => t.id === 'hors-ligne-1').length === 1),
   );
   check('Rien en attente : pas de message « en attente d’envoi »', (await p7.locator('.taches-waiting-notice').count()) === 0);
+
+  // Un titre long (plus de 200 caractères, la limite d'avant le 28/09/2026) s'ajoute sans erreur.
+  const longTitle = `Préparer le dossier de la mutuelle : ${'relevés, attestations, justificatifs de soins, '.repeat(6)}fin`;
+  await add(p7, longTitle);
+  await row(p7, 'Préparer le dossier de la mutuelle').waitFor();
+  check(
+    'Un titre de plus de 200 caractères s’enregistre, sans message d’erreur',
+    longTitle.length > 200 && (await p7.locator('.notice.error').count()) === 0 && (await text(row(p7, 'Préparer le dossier de la mutuelle').locator('.taches-row-title'))).endsWith('fin'),
+  );
+  check('… et ne fait pas déborder la page', await p7.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1));
   await ctx7.close();
 
   // --- Téléphone ---------------------------------------------------------------------------------------------

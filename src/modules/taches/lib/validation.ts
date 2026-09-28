@@ -4,7 +4,7 @@
  * peut pas vérifier seule : les sous-tâches sur un seul niveau.
  */
 import { validateRecurrence } from '../../../core/lib/recurrence';
-import type { Task, TaskInput } from './types';
+import { TASK_TITLE_MAX, type Task, type TaskInput } from './types';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -17,7 +17,7 @@ const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 export function validateTask(input: TaskInput, tasks: readonly Task[] = [], selfId?: string): string | null {
   const title = input.title.trim();
   if (!title) return 'Donne un titre à la tâche.';
-  if (title.length > 200) return 'Le titre est trop long (200 caractères au plus).';
+  if (title.length > TASK_TITLE_MAX) return `Le titre est trop long (${TASK_TITLE_MAX} caractères au plus).`;
   if (input.plannedDay && !DAY.test(input.plannedDay)) return 'Jour prévu invalide.';
   if (input.dueDay && !DAY.test(input.dueDay)) return 'Échéance invalide.';
   if (input.plannedTime) {

@@ -8,6 +8,13 @@ import type { Recurrence } from '../../../core/lib/recurrence';
 
 export type { Recurrence };
 
+/**
+ * La longueur maximale d'un titre de tâche — 1000 caractères depuis le
+ * 28/09/2026 (200 auparavant). Pendant de `taches_tasks_title_check`,
+ * comparé par `lib/schema.test.ts`.
+ */
+export const TASK_TITLE_MAX = 1000;
+
 /** Couleurs d'une liste, par nom — pendant de `taches_lists_color_check`. */
 export const LIST_COLORS = ['bleu', 'vert', 'orange', 'rose', 'violet', 'gris'] as const;
 export type ListColor = (typeof LIST_COLORS)[number];

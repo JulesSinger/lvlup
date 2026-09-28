@@ -31,6 +31,12 @@ export function localInstant(day: string, time: string): Date {
 
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
+/** Un titre raccourci pour tenir dans le résumé du matin (un titre va jusqu'à 1000 caractères). */
+const clip = (text: string, max: number) => (text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`);
+
+/** Titre et texte d'un rappel : 1000 caractères au plus chacun (table `reminders`). */
+export const REMINDER_TEXT_MAX = 1000;
+
 export function plannedReminders(tasks: readonly Task[], settings: TachesSettings, now: Date, horizonDays = REMINDER_HORIZON_DAYS): ReminderInput[] {
   const today = dayString(now);
   const last = shiftDay(today, horizonDays - 1);
@@ -45,7 +51,7 @@ export function plannedReminders(tasks: readonly Task[], settings: TachesSetting
       reminders.push({
         ref: `task:${task.id}:${task.plannedDay}`,
         fireAt: at.toISOString(),
-        title: task.title,
+        title: clip(task.title, REMINDER_TEXT_MAX),
         body: `Prévue à ${timeLabel(task.plannedTime)}${task.dueDay ? ` · ${dueLabel(task.dueDay, task.plannedDay)}` : ''}`,
       });
     }
@@ -60,7 +66,8 @@ export function plannedReminders(tasks: readonly Task[], settings: TachesSetting
       const all = [...view.overdue, ...view.today];
       if (all.length === 0) continue;
       const urgent = all.filter((t) => t.priority === 'urgente').length;
-      const shown = all.slice(0, 3).map((t) => t.title);
+      // Trois titres, raccourcis : c'est un aperçu, pas la liste — le texte reste sous la limite d'un rappel.
+      const shown = all.slice(0, 3).map((t) => clip(t.title, 80));
       reminders.push({
         ref: `morning:${day}`,
         fireAt: at.toISOString(),
