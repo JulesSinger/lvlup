@@ -71,4 +71,16 @@ export type TaskInput = Pick<Task, 'title'> &
     Pick<Task, 'listId' | 'parentId' | 'note' | 'plannedDay' | 'plannedTime' | 'dueDay' | 'priority' | 'recurrence' | 'repeatFrom' | 'position'>
   >;
 
+/** Les réglages des rappels de Polaris (étape 5), les mêmes sur tous les appareils. */
+export interface TachesSettings {
+  /** Une notification à l'heure d'une tâche qui en a une */
+  taskReminders: boolean;
+  /** Le résumé du matin */
+  morningEnabled: boolean;
+  /** Son heure, locale, « HH:MM » */
+  morningTime: string;
+}
+
+export const DEFAULT_TACHES_SETTINGS: TachesSettings = { taskReminders: true, morningEnabled: false, morningTime: '08:00' };
+
 export type TaskPatch = Partial<Omit<TaskInput, 'title'> & Pick<Task, 'title' | 'completedAt'>>;

@@ -290,7 +290,7 @@ explication concrète).
 | 2 ✅ | Bibliothèques pures : prochaine date (les deux répétitions), contenu et ordre d'Aujourd'hui, **analyseur de dates en français** (`chrono-node` éprouvé sur une batterie de phrases, sinon fait maison) | la règle est juste — livré le 28/09/2026, voir §14 |
 | 3 ✅ | Ajout rapide en langage naturel, vues Aujourd'hui, À venir, Boîte de réception, Listes ; cocher, modifier, supprimer ; **sous-tâches et priorités** | **la V1** — livré le 28/09/2026, voir §15 |
 | 4 ✅ | Répétition à l'écran, vue Terminées, réordonner ; « Faire le point » | les tâches de fond — livré le 28/09/2026, voir §16 |
-| 5 | **Rappels, mécanisme commun du socle** : table des rappels à venir, envoi par la fonction existante et pg_cron toutes les 5 minutes ; rappel à l'heure d'une tâche, et le rappel du matin | être prévenu |
+| 5 ✅ | **Rappels, mécanisme commun du socle** : table des rappels à venir, envoi par la fonction existante et pg_cron toutes les 5 minutes ; rappel à l'heure d'une tâche, et le rappel du matin | être prévenu — livré le 28/09/2026, voir §17 |
 | 6 | Calque dans Éclipse, puis **cocher depuis le calendrier** | le lien attendu |
 | 7 | File hors ligne | noter sans réseau |
 | plus tard | rappels d'Éclipse sur le même mécanisme ; le pont avec Zénith ; poser une tâche sur un créneau | — |
@@ -453,6 +453,56 @@ matin viendra avec les rappels (étape 5).
 
 **Vérifié** à l'œil sur ordinateur et téléphone ; 15 vérifications de bout en bout de plus (50 pour
 Polaris), dont un vrai glisser à la souris et le nouvel ordre retrouvé après un rechargement.
+
+---
+
+## 17. Étape 5 : les rappels, un mécanisme commun (28/09/2026)
+
+**Le principe : le module calcule, le socle envoie.** Une table commune, `reminders`
+(`supabase/2026-09-28-reminders.sql`) : un rappel est un module, une référence stable, un instant,
+un titre et un texte. Le contrat du socle gagne une méthode, `scheduleReminders(module, rappels)`,
+qui **remplace les rappels à venir** du module par ceux qu'il déclare — une déclaration de ce qui
+doit partir, pas une suite d'ordres à rejouer. Un rappel déjà envoyé n'est jamais renvoyé : la clé
+unique (compte, module, référence, instant) empêche de le reposer. En mode local, la méthode ne
+fait rien : sans serveur, rien ne peut partir.
+
+**L'envoi.** La fonction `send-reminders`, déjà appelée toutes les 5 minutes par pg_cron pour
+Zénith, traite aussi la table commune à chaque passage : ce dont l'heure est venue part vers tous
+les appareils du compte, puis est marqué envoyé. Un rappel en retard de plus d'une heure (cron
+arrêté) est abandonné plutôt qu'envoyé à contretemps ; les rappels envoyés s'effacent après une
+semaine. La règle (`moduleReminders.ts`) est pure et testée, comme le chiffrement Web Push. Un
+échec de cette partie — table pas encore créée — n'empêche jamais le rappel de Zénith. **Aucun
+nouveau cron**, et le serveur ne sait toujours rien des tâches.
+
+**Les rappels de Polaris** (`lib/reminders.ts`, pur et testé), posés sur 7 jours :
+
+- **à l'heure d'une tâche** qui en a une : le titre, « Prévue à 9 h », l'échéance s'il y en a une ;
+- **le résumé du matin**, à l'heure choisie, **seulement les jours où il y a quelque chose** :
+  « ☀️ 4 tâches aujourd'hui, dont 1 urgente », puis trois titres dans l'ordre de l'écran (les
+  retards d'abord) et « et 1 autre ».
+
+Ils sont recalculés à chaque chargement de l'écran et à chaque changement de réglage
+(`data/syncReminders.ts`), et redéclarés seulement s'ils ont changé. Les réglages vivent **en
+base** (`taches_settings`), pas sur l'appareil : chaque appareil déclare les rappels de tout le
+compte, il faut qu'ils partent tous des mêmes réglages. Limite assumée : sans ouvrir Polaris
+pendant plus de 7 jours, plus aucun rappel n'est prévu.
+
+**À l'écran.** Réglages → Polaris : « À l'heure des tâches », « Le résumé du matin » et son heure,
+et **« Activer les notifications sur cet appareil »** — un petit composant du socle
+(`NotificationSetup`), l'abonnement valant pour tous les modules. En mode local, la section dit
+seulement que les rappels demandent un compte, comme celle de Zénith.
+
+**Un changement du socle, à connaître.** Couper le rappel quotidien de Zénith **ne désabonne plus
+l'appareil** : il aurait coupé du même coup les rappels de Polaris. Le serveur n'envoyait déjà le
+rappel quotidien qu'aux profils qui l'ont activé ; « Retirer » dans la liste des appareils reste le
+moyen d'en retirer un.
+
+**Mise en place** : appliquer `2026-09-28-reminders.sql` et `2026-09-28-taches-settings.sql`, puis
+redéployer `send-reminders` (`docs/rappels-mise-en-place.md`, section ajoutée).
+
+**Pas vérifié de bout en bout** : l'envoi réel demande un vrai compte, un appareil abonné et la
+fonction déployée — la suite automatique tourne en mode local. Les règles (quoi envoyer, quand,
+quoi abandonner) sont testées ; **à essayer pour de vrai** une fois la fonction redéployée.
 
 ---
 

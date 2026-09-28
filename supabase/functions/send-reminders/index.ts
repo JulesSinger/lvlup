@@ -1,5 +1,11 @@
 /**
- * Zénith — envoi des rappels quotidiens (Edge Function Supabase, Deno).
+ * Atlas — envoi des rappels (Edge Function Supabase, Deno).
+ *
+ * Deux sortes de rappels, envoyés au même passage du cron :
+ *  · le rappel quotidien de Zénith (`profiles`), historique ;
+ *  · les rappels des modules (`reminders`, depuis le 28/09/2026) : chaque
+ *    module y dépose ses rappels déjà rédigés, la fonction envoie ceux dont
+ *    l'heure est venue sans rien savoir du domaine (Polaris le premier).
  *
  * Trois modes d'appel :
  *
@@ -25,9 +31,10 @@
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { KEEP_SENT_DAYS, payloadFor, splitDue, type ModuleReminderRow } from './moduleReminders.ts';
 import { b64urlDecode, normalizeVapidSubject, sendWebPush } from './webpush.ts';
 
-const VERSION = '2026-08-06.3';
+const VERSION = '2026-09-28.1';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -213,6 +220,38 @@ async function subscriptionsFor(userIds: string[]): Promise<SubscriptionRow[]> {
   return (data ?? []) as SubscriptionRow[];
 }
 
+/**
+ * Les rappels des modules dont l'heure est venue : envoyés à tous les
+ * appareils du compte, puis marqués envoyés — jamais deux fois. Ceux en retard
+ * de plus d'une heure sont marqués sans être envoyés.
+ */
+async function sendModuleReminders(now: Date) {
+  const { data, error } = await admin
+    .from('reminders')
+    .select('id, user_id, module, ref, title, body, url, fire_at')
+    .is('sent_at', null)
+    .lte('fire_at', now.toISOString())
+    .limit(500);
+  if (error) throw new Error(error.message);
+  const { send, expire } = splitDue((data ?? []) as ModuleReminderRow[], now);
+
+  const subs = await subscriptionsFor([...new Set(send.map((r) => r.user_id))]);
+  let sent = 0;
+  for (const reminder of send) {
+    for (const device of subs.filter((s) => s.user_id === reminder.user_id)) {
+      if ((await push(device, payloadFor(reminder))).ok) sent += 1;
+    }
+  }
+  const done = [...send, ...expire].map((r) => r.id);
+  if (done.length > 0) {
+    await admin.from('reminders').update({ sent_at: now.toISOString() }).in('id', done);
+  }
+  // La table reste petite : les rappels partis depuis une semaine s'effacent.
+  const old = new Date(now.getTime() - KEEP_SENT_DAYS * 86_400_000).toISOString();
+  await admin.from('reminders').delete().not('sent_at', 'is', null).lt('sent_at', old);
+  return { reminders: send.length, expired: expire.length, sent };
+}
+
 Deno.serve(async (request) => {
   // La requête préliminaire du navigateur : elle doit réussir sans jeton.
   if (request.method === 'OPTIONS') {
@@ -347,6 +386,13 @@ Deno.serve(async (request) => {
     if (error) return json({ error: error.message }, 500);
 
     const now = new Date();
+    // Les rappels des modules d'abord : ils ne dépendent pas des profils. Un
+    // échec (table `reminders` pas encore créée, par exemple) ne doit jamais
+    // priver Zénith de son rappel quotidien : il est rapporté, pas propagé.
+    const modules = await sendModuleReminders(now).catch((error) => ({
+      error: error instanceof Error ? error.message : String(error),
+    }));
+
     const due: { profile: ProfileRow; day: string }[] = [];
     for (const profile of (profiles ?? []) as ProfileRow[]) {
       const { day, minutes } = localNow(profile.tz_offset ?? 0, now);
@@ -355,7 +401,7 @@ Deno.serve(async (request) => {
       due.push({ profile, day });
     }
     if (due.length === 0) {
-      return json({ mode: 'cron', candidates: 0, sent: 0, version: VERSION });
+      return json({ mode: 'cron', candidates: 0, sent: 0, modules, version: VERSION });
     }
 
     const subs = await subscriptionsFor(due.map((d) => d.profile.user_id));
@@ -398,7 +444,7 @@ Deno.serve(async (request) => {
         .eq('user_id', profile.user_id);
     }
 
-    return json({ mode: 'cron', candidates: due.length, sent, skipped, version: VERSION });
+    return json({ mode: 'cron', candidates: due.length, sent, skipped, modules, version: VERSION });
   } catch (error) {
     // Une erreur non prévue doit remonter lisible plutôt que se transformer en
     // « échec » anonyme côté app.

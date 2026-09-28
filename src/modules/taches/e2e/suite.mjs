@@ -172,6 +172,16 @@ export async function run({ browser, check, BASE }) {
     'Supprimer une liste renvoie ses tâches à la boîte de réception',
     (await text(page.locator('.taches-title'))).includes('Boîte de réception') && (await row(page, 'Ampoule du salon').isVisible()) && (await page.getByRole('button', { name: /^Maison/ }).count()) === 0,
   );
+  // Les rappels (étape 5) : en mode local, la section explique qu'il faut un compte, sans interrupteur inutile.
+  await page.getByRole('button', { name: 'Réglages' }).click();
+  const settings = page.locator('.taches-settings');
+  await settings.waitFor();
+  check(
+    'Réglages : la section des rappels de Polaris dit qu’ils demandent un compte',
+    (await text(settings)).includes('Rappels des tâches') && (await text(settings)).includes('demandent un compte') && (await settings.locator('.switch').count()) === 0,
+  );
+  await page.locator('.modal-foot').getByRole('button', { name: 'Fermer' }).click();
+  await settings.waitFor({ state: 'detached' });
   check('Aucune erreur JavaScript sur ordinateur', errors.length === 0, errors.join(' | '));
   await context.close();
 

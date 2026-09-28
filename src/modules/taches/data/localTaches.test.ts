@@ -105,3 +105,20 @@ describe('LocalTaches', () => {
     expect(JSON.parse(localStorage.getItem('palier.v1')!).goals).toEqual([{ id: 'g' }]);
   });
 });
+
+describe('LocalTaches — réglages des rappels', () => {
+  beforeEach(() => memory.clear());
+
+  it('par défaut : rappel à l’heure des tâches, pas de résumé du matin', async () => {
+    expect(await new LocalTaches().getSettings()).toEqual({ taskReminders: true, morningEnabled: false, morningTime: '08:00' });
+  });
+
+  it('se modifient, et suivent la sauvegarde', async () => {
+    const store = new LocalTaches();
+    await store.saveSettings({ morningEnabled: true, morningTime: '07:30' });
+    const backup = await store.exportData();
+    memory.clear();
+    await store.importData(backup);
+    expect(await store.getSettings()).toEqual({ taskReminders: true, morningEnabled: true, morningTime: '07:30' });
+  });
+});

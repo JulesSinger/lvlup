@@ -1,4 +1,4 @@
-import type { ListInput, Task, TaskInput, TaskList, TaskPatch } from '../lib/types';
+import type { ListInput, TachesSettings, Task, TaskInput, TaskList, TaskPatch } from '../lib/types';
 
 /**
  * La part du module dans une sauvegarde. Le socle n'en connaît pas la
@@ -8,6 +8,8 @@ import type { ListInput, Task, TaskInput, TaskList, TaskPatch } from '../lib/typ
 export interface TachesBackup {
   lists: TaskList[];
   tasks: Task[];
+  /** Absent des sauvegardes d'avant l'étape 5 */
+  settings?: TachesSettings;
 }
 
 /**
@@ -34,6 +36,10 @@ export interface TachesStore {
   updateTask(id: string, patch: TaskPatch): Promise<void>;
   /** Emporte ses sous-tâches. */
   deleteTask(id: string): Promise<void>;
+
+  /** Les réglages des rappels ; ceux par défaut tant que rien n'a été choisi. */
+  getSettings(): Promise<TachesSettings>;
+  saveSettings(patch: Partial<TachesSettings>): Promise<void>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
   exportData(): Promise<TachesBackup>;

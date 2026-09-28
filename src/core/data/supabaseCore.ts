@@ -6,9 +6,14 @@ import {
   type PushDevice,
   type PushDeviceInput,
   type PushDiagnostic,
+  type ReminderInput,
   type Settings,
 } from './coreStore';
 import { getClient, requireUserId, unwrap } from './supabaseClient';
+
+function check(error: { message: string } | null) {
+  if (error) throw new Error(error.message);
+}
 
 /**
  * Socle sur Supabase : comptes, réglages et abonnements aux notifications.
@@ -174,6 +179,32 @@ export class SupabaseCore implements CoreStore {
   async sendTestPush(): Promise<{ sent: number; devices: number }> {
     const data = await this.callReminders({ test: true });
     return { sent: Number(data.sent ?? 0), devices: Number(data.devices ?? 0) };
+  }
+
+
+  async scheduleReminders(module: string, reminders: readonly ReminderInput[]) {
+    const userId = await this.requireUserId();
+    // Les rappels pas encore envoyés du module sont remplacés ; ceux déjà
+    // partis restent, et la clé unique (user, module, ref, instant) empêche
+    // de les reposer : redéclarer un rappel envoyé ne le renvoie pas.
+    check((await this.client.from('reminders').delete().eq('module', module).is('sent_at', null)).error);
+    if (reminders.length === 0) return;
+    check(
+      (
+        await this.client.from('reminders').upsert(
+          reminders.map((r) => ({
+            user_id: userId,
+            module,
+            ref: r.ref,
+            fire_at: r.fireAt,
+            title: r.title,
+            body: r.body,
+            url: r.url ?? '/',
+          })),
+          { onConflict: 'user_id,module,ref,fire_at', ignoreDuplicates: true },
+        )
+      ).error,
+    );
   }
 
 

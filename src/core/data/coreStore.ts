@@ -38,6 +38,22 @@ export interface PushDeviceInput {
   label: string;
 }
 
+/**
+ * Un rappel qu'un module demande d'envoyer (table `reminders`, depuis le
+ * 28/09/2026). Le module le calcule, le socle l'envoie : le serveur ne sait
+ * rien du domaine, il envoie un titre et un texte à un instant donné.
+ */
+export interface ReminderInput {
+  /** Référence stable choisie par le module (« task:<id>:2026-09-29 ») */
+  ref: string;
+  /** L'instant d'envoi, ISO — calculé depuis l'heure locale du jour visé */
+  fireAt: string;
+  title: string;
+  body: string;
+  /** Où ouvrir l'app au toucher ; « / » par défaut */
+  url?: string;
+}
+
 /** État de la fonction d'envoi, pour diagnostiquer sans deviner. */
 export interface PushDiagnostic {
   reachable: boolean;
@@ -100,6 +116,15 @@ export interface CoreStore {
   sendTestPush(): Promise<{ sent: number; devices: number }>;
   /** Interroge la fonction d'envoi : est-elle là, et bien configurée ? */
   pingPushFunction(): Promise<PushDiagnostic>;
+
+  // --- Rappels des modules ---
+  /**
+   * Remplace les rappels **à venir** du module `module` par `reminders` —
+   * une déclaration de ce qui doit partir, pas une liste d'ordres. Un rappel
+   * déjà envoyé n'est jamais renvoyé, même redéclaré. Sans effet en mode
+   * local : sans serveur, rien ne peut partir.
+   */
+  scheduleReminders(module: string, reminders: readonly ReminderInput[]): Promise<void>;
 }
 
 export function newId(): string {

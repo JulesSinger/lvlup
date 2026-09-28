@@ -2,6 +2,7 @@ import type { AtlasModule } from '../../core/lib/module';
 import { PolarisLandingPreview } from './components/PolarisLandingPreview';
 import { tachesStore } from './data';
 import { TachesScreen } from './TachesScreen';
+import { TachesSettingsSection } from './TachesSettingsSection';
 
 /**
  * Déclaration du module tâches.
@@ -18,5 +19,7 @@ export const tachesModule: AtlasModule = {
   accent: '#ff9f7a',
   data: tachesStore,
   Screen: TachesScreen,
+  // Les rappels (étape 5) : à l'heure des tâches, et le résumé du matin.
+  SettingsSection: TachesSettingsSection,
   LandingPreview: PolarisLandingPreview,
 };

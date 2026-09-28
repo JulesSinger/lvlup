@@ -78,4 +78,7 @@ export class LocalCore implements CoreStore {
   async pingPushFunction(): Promise<PushDiagnostic> {
     throw new Error('Les rappels demandent un compte.');
   }
+
+  /** Sans serveur, aucune notification ne peut partir : rien à garder. */
+  async scheduleReminders() {}
 }

@@ -1,6 +1,6 @@
 import { newId } from '../../../core/data/coreStore';
 import { readRaw, writeRaw } from '../../../core/data/localSnapshot';
-import type { ListInput, Task, TaskInput, TaskList, TaskPatch } from '../lib/types';
+import { DEFAULT_TACHES_SETTINGS, type ListInput, type TachesSettings, type Task, type TaskInput, type TaskList, type TaskPatch } from '../lib/types';
 import type { TachesBackup, TachesStore } from './tachesStore';
 
 const arrayOf = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
@@ -8,12 +8,13 @@ const arrayOf = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[
 /** Lecture des seules sections du module, sur le blob local partagé. */
 function read(): TachesBackup {
   const raw = readRaw();
-  return { lists: arrayOf<TaskList>(raw.tachesLists), tasks: arrayOf<Task>(raw.tachesTasks) };
+  const settings = raw.tachesSettings && typeof raw.tachesSettings === 'object' ? (raw.tachesSettings as TachesSettings) : undefined;
+  return { lists: arrayOf<TaskList>(raw.tachesLists), tasks: arrayOf<Task>(raw.tachesTasks), settings };
 }
 
 /** Écriture par fusion : les sections des autres modules sont préservées. */
 function write(s: TachesBackup) {
-  writeRaw({ ...readRaw(), tachesLists: s.lists, tachesTasks: s.tasks });
+  writeRaw({ ...readRaw(), tachesLists: s.lists, tachesTasks: s.tasks, ...(s.settings ? { tachesSettings: s.settings } : {}) });
 }
 
 /** Une heure n'existe qu'avec un jour prévu, comme la contrainte côté base. */
@@ -102,12 +103,21 @@ export class LocalTaches implements TachesStore {
     write(s);
   }
 
+  async getSettings(): Promise<TachesSettings> {
+    return { ...DEFAULT_TACHES_SETTINGS, ...read().settings };
+  }
+
+  async saveSettings(patch: Partial<TachesSettings>) {
+    const s = read();
+    write({ ...s, settings: { ...DEFAULT_TACHES_SETTINGS, ...s.settings, ...patch } });
+  }
+
   async exportData(): Promise<TachesBackup> {
     const s = read();
-    return { lists: s.lists.slice(), tasks: s.tasks.slice() };
+    return { lists: s.lists.slice(), tasks: s.tasks.slice(), settings: await this.getSettings() };
   }
 
   async importData(data: TachesBackup) {
-    write({ lists: data.lists ?? [], tasks: data.tasks ?? [] });
+    write({ lists: data.lists ?? [], tasks: data.tasks ?? [], settings: data.settings });
   }
 }

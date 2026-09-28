@@ -1,6 +1,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
-import type { ListColor, ListInput, Priority, Recurrence, RepeatFrom, Task, TaskInput, TaskList, TaskPatch } from '../lib/types';
+import {
+  DEFAULT_TACHES_SETTINGS,
+  type ListColor,
+  type ListInput,
+  type Priority,
+  type Recurrence,
+  type RepeatFrom,
+  type TachesSettings,
+  type Task,
+  type TaskInput,
+  type TaskList,
+  type TaskPatch,
+} from '../lib/types';
 import type { TachesBackup, TachesStore } from './tachesStore';
 
 interface ListRow {
@@ -155,8 +167,34 @@ export class SupabaseTaches implements TachesStore {
     check((await this.client.from('taches_tasks').delete().eq('id', id)).error);
   }
 
+  async getSettings(): Promise<TachesSettings> {
+    const { data, error } = await this.client.from('taches_settings').select('task_reminders, morning_enabled, morning_time').maybeSingle();
+    check(error);
+    if (!data) return { ...DEFAULT_TACHES_SETTINGS };
+    return { taskReminders: data.task_reminders, morningEnabled: data.morning_enabled, morningTime: data.morning_time };
+  }
+
+  async saveSettings(patch: Partial<TachesSettings>) {
+    const userId = await this.requireUserId();
+    const next = { ...(await this.getSettings()), ...patch };
+    check(
+      (
+        await this.client.from('taches_settings').upsert(
+          {
+            user_id: userId,
+            task_reminders: next.taskReminders,
+            morning_enabled: next.morningEnabled,
+            morning_time: next.morningTime,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' },
+        )
+      ).error,
+    );
+  }
+
   async exportData(): Promise<TachesBackup> {
-    return { lists: await this.listLists(), tasks: await this.listTasks() };
+    return { lists: await this.listLists(), tasks: await this.listTasks(), settings: await this.getSettings() };
   }
 
   /**
@@ -185,5 +223,6 @@ export class SupabaseTaches implements TachesStore {
     for (const batch of [tasks.filter((t) => !t.parentId), tasks.filter((t) => t.parentId)]) {
       if (batch.length > 0) check((await this.client.from('taches_tasks').insert(batch.map(row))).error);
     }
+    if (data.settings) await this.saveSettings(data.settings);
   }
 }

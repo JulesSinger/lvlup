@@ -9,6 +9,7 @@ import { TaskRow } from './components/TaskRow';
 import { TriageDialog } from './components/TriageDialog';
 import { tachesStore } from './data';
 import { applyCompletion, applyUndo } from './data/applyPlans';
+import { syncReminders } from './data/syncReminders';
 import { dayLabel, shortDate } from './lib/format';
 import type { QuickAdd } from './lib/quickAdd';
 import { moveItem, positionPatches } from './lib/order';
@@ -86,6 +87,8 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
       setLists(nextLists);
       setTasks(nextTasks);
       onError('');
+      // Les rappels suivent les tâches ; un échec ici ne doit rien bloquer.
+      syncReminders(nextTasks).catch((err) => console.warn('Rappels de Polaris :', err));
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Chargement impossible.');
     } finally {

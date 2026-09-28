@@ -7,7 +7,6 @@ import {
   pushStatus,
   subscribeToPush,
   timezoneOffsetMinutes,
-  unsubscribeFromPush,
   type PushStatus,
 } from '../lib/push';
 
@@ -72,8 +71,10 @@ export function ReminderSettings({
     setProblem('');
     setMessage('');
     try {
-      const endpoint = await unsubscribeFromPush();
-      if (endpoint) await coreStore.removePushDevice(endpoint);
+      // Couper le rappel de Zénith ne désabonne plus l'appareil (28/09/2026) :
+      // il reçoit aussi les rappels des autres modules (Polaris). Le serveur
+      // n'envoie le rappel quotidien qu'aux profils qui l'ont activé ; pour
+      // retirer l'appareil lui-même, il y a « Retirer » dans la liste.
       onChange({ reminderEnabled: false });
       await reload();
     } catch (err) {
