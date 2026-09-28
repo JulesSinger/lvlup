@@ -103,3 +103,25 @@ export function completionPlan(task: Task, subtasks: readonly Task[], now: strin
     ],
   };
 }
+
+/** Ce qu'il faut écrire pour défaire une coche : retirer la copie, remettre la tâche comme avant. */
+export interface UndoPlan {
+  deleteId?: string;
+  updates: { id: string; patch: TaskPatch }[];
+}
+
+/**
+ * Défaire `plan` appliqué à `task` (telle qu'elle était avant) et à ses
+ * sous-tâches : la copie terminée disparaît, la tâche retrouve son jour, son
+ * échéance et sa règle, les sous-tâches décochées sont recochées.
+ */
+export function undoCompletion(task: Task, subtasks: readonly Task[], plan: CompletionPlan): UndoPlan {
+  if (!plan.create) return { updates: [{ id: task.id, patch: { completedAt: task.completedAt } }] };
+  return {
+    deleteId: plan.create.id,
+    updates: [
+      { id: task.id, patch: { plannedDay: task.plannedDay, dueDay: task.dueDay, recurrence: task.recurrence } },
+      ...subtasks.filter((s) => s.completedAt).map((s) => ({ id: s.id, patch: { completedAt: s.completedAt } })),
+    ],
+  };
+}

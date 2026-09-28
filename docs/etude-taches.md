@@ -288,7 +288,7 @@ explication concrète).
 |---|---|---|
 | 1 ✅ | Migration, contrat et ses deux implémentations (ids choisis par l'application), module signet ; **la récurrence d'Éclipse remontée dans le socle** | le module existe — livré le 27/09/2026, voir §13 |
 | 2 ✅ | Bibliothèques pures : prochaine date (les deux répétitions), contenu et ordre d'Aujourd'hui, **analyseur de dates en français** (`chrono-node` éprouvé sur une batterie de phrases, sinon fait maison) | la règle est juste — livré le 28/09/2026, voir §14 |
-| 3 | Ajout rapide en langage naturel, vues Aujourd'hui, À venir, Boîte de réception, Listes ; cocher, modifier, supprimer ; **sous-tâches et priorités** | **la V1** |
+| 3 ✅ | Ajout rapide en langage naturel, vues Aujourd'hui, À venir, Boîte de réception, Listes ; cocher, modifier, supprimer ; **sous-tâches et priorités** | **la V1** — livré le 28/09/2026, voir §15 |
 | 4 | Répétition à l'écran, vue Terminées, réordonner ; « Faire le point » | les tâches de fond |
 | 5 | **Rappels, mécanisme commun du socle** : table des rappels à venir, envoi par la fonction existante et pg_cron toutes les 5 minutes ; rappel à l'heure d'une tâche, et le rappel du matin | être prévenu |
 | 6 | Calque dans Éclipse, puis **cocher depuis le calendrier** | le lien attendu |
@@ -375,6 +375,48 @@ Terminées (par jour, les plus récentes d'abord), sous-tâches.
 **`lib/validation.ts`** : les règles de la base en français, plus celles qu'elle ne peut pas
 vérifier seule — sous-tâches sur un seul niveau, une sous-tâche ne se répète pas (c'est sa tâche
 qui se répète).
+
+---
+
+## 15. Étape 3 : la V1 (28/09/2026)
+
+**L'écran.** En haut, les vues en pastilles — Aujourd'hui (avec son nombre), À venir, Boîte de
+réception, puis une pastille par liste, à sa couleur, et « + Liste ». Sur téléphone, elles tiennent
+sur une ligne qui défile. La dernière vue ouverte est retenue sur l'appareil (`taches.view.v1`).
+
+**Ajouter.** Une barre toujours visible sous le titre. Ce que l'analyseur a compris s'affiche en
+pastilles **avant** d'enregistrer (« 📅 Demain », « ⏰ 9 h », « ⚑ avant le 30 sept. »,
+« ! Importante », « # Maison ») ; en toucher une l'annule, le texte retourne dans le titre. Une
+tâche s'ajoute là où l'on est : prévue aujourd'hui dans Aujourd'hui, demain dans À venir, dans la
+liste ouverte — sauf si le texte a dit autre chose. Si elle se range ailleurs que sous les yeux,
+un message dit où (« ajoutée, prévue demain »), pour qu'elle ne semble pas perdue ; la règle
+réutilise les fonctions des vues plutôt que de les recopier.
+
+**Les vues.** Aujourd'hui, avec la date en toutes lettres : « En retard » à part s'il y en a, puis
+le jour. À venir : quatorze jours, les jours vides en une ligne discrète. Boîte de réception et
+listes : l'ordre choisi à la main. Chaque ligne dit ce qui compte d'un coup d'œil — heure, jour
+(en rouge s'il est passé), échéance (orange si proche, rouge si dépassée), priorité (qui colore
+aussi le rond), liste, répétition ↻, note ✎, et « 1/3 » pour les sous-tâches, qui se déplient.
+
+**Cocher, et défaire.** Cocher retire la tâche de la vue et propose « Annuler » pendant six
+secondes. Défaire est calculé comme cocher, par une fonction pure et testée (`undoCompletion`) :
+pour une tâche répétée, la copie terminée disparaît, la tâche retrouve son jour, son échéance, sa
+règle, et les sous-tâches décochées sont recochées. Les écritures ne forment pas une transaction :
+la copie est créée avant que la tâche avance, défaite après qu'elle recule.
+
+**Modifier.** La fenêtre d'une tâche : titre, jour prévu et heure, échéance (derrière « + Ajouter
+une échéance », discrète comme décidé), priorité en trois boutons, liste, note, et les
+sous-tâches — qui s'ajoutent, se cochent et se suppriment aussitôt, sans attendre
+« Enregistrer ». La répétition s'y lit (en toutes lettres) mais se règle à l'étape 4. Supprimer
+demande confirmation et dit combien de sous-tâches partent avec. Une liste se crée, se renomme,
+change de couleur ; la supprimer renvoie ses tâches à la boîte de réception.
+
+**Deux défauts vus sur les captures, pas par les tests** : un message « ajoutée, dans la boîte
+de réception » apparaissait pour une tâche pourtant visible (son échéance proche la faisait
+entrer dans Aujourd'hui) — d'où la règle réutilisée des vues ; et les jours vides d'À venir
+prenaient le style `.empty` du socle, un grand cadre en pointillés.
+
+**Vérifié** à l'œil sur ordinateur et téléphone ; 35 vérifications de bout en bout.
 
 ---
 

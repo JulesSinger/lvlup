@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { completionPlan, nextOccurrence } from './repeat';
+import { completionPlan, nextOccurrence, undoCompletion } from './repeat';
 import type { Recurrence, Task } from './types';
 
 function task(overrides: Partial<Task> = {}): Task {
@@ -105,5 +105,27 @@ describe('completionPlan — cocher', () => {
   it('la dernière d’une série est simplement notée faite', () => {
     const plan = completionPlan(task({ recurrence: { freq: 'weekly', interval: 1, count: 1 } }), [], now, '2026-09-28', 'copy');
     expect(plan).toEqual({ updates: [{ id: 't', patch: { completedAt: now } }] });
+  });
+});
+
+describe('undoCompletion — défaire une coche', () => {
+  const now = '2026-09-28T18:00:00.000Z';
+
+  it('une tâche simple redevient à faire', () => {
+    const t = task({ recurrence: null });
+    expect(undoCompletion(t, [], completionPlan(t, [], now, '2026-09-28', 'copy'))).toEqual({ updates: [{ id: 't', patch: { completedAt: null } }] });
+  });
+
+  it('une tâche répétée : la copie disparaît, la tâche et ses sous-tâches redeviennent comme avant', () => {
+    const t = task({ dueDay: '2026-09-30' });
+    const done = task({ id: 's1', parentId: 't', completedAt: 'hier', recurrence: null });
+    const undo = undoCompletion(t, [done], completionPlan(t, [done], now, '2026-09-28', 'copy'));
+    expect(undo).toEqual({
+      deleteId: 'copy',
+      updates: [
+        { id: 't', patch: { plannedDay: '2026-09-28', dueDay: '2026-09-30', recurrence: { freq: 'weekly', interval: 1 } } },
+        { id: 's1', patch: { completedAt: 'hier' } },
+      ],
+    });
   });
 });

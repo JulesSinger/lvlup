@@ -1,29 +1,536 @@
-/* Polaris — étape 1 : un signet, en attendant les vrais écrans. */
+/* Polaris — la liste de tâches (étape 3, docs/etude-taches.md §12). */
 
-.taches-placeholder {
+/* Une largeur de lecture : une liste ne gagne rien à s'étaler. */
+.taches-main {
+  max-width: 820px;
+  padding-bottom: 96px;
+}
+
+/* Les couleurs des listes, par nom (mêmes teintes qu'Éclipse). */
+.taches-color-bleu { --taches-color: #6fa8f5; }
+.taches-color-vert { --taches-color: #6fc783; }
+.taches-color-orange { --taches-color: #eba95c; }
+.taches-color-rose { --taches-color: #ee88b2; }
+.taches-color-violet { --taches-color: #b49af2; }
+.taches-color-gris { --taches-color: #9aa3b6; }
+
+/* --- La navigation entre les vues --------------------------------------- */
+
+.taches-nav {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  min-height: 70vh;
-  padding: 2rem;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.taches-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.taches-nav-item:hover {
+  color: var(--text);
+}
+
+.taches-nav-item.on {
+  color: var(--text);
+  border-color: rgba(255, 159, 122, 0.6);
+  background: rgba(255, 159, 122, 0.12);
+}
+
+.taches-nav-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--border);
+}
+
+.taches-list-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--taches-color, #9aa3b6);
+}
+
+.taches-nav-add {
+  border-style: dashed;
+}
+
+.taches-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 11.5px;
   text-align: center;
 }
 
-.taches-placeholder-emoji {
-  font-size: 2.5rem;
+.taches-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
 }
 
-.taches-placeholder-title {
+.taches-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 22px;
 }
 
-.taches-placeholder-text {
-  margin: 0 0 0.5rem;
-  color: var(--text-dim, #9aa3b8);
-  font-size: 1rem;
+.taches-subtitle {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+/* --- L'ajout rapide ------------------------------------------------------------ */
+
+.taches-quickadd {
+  margin-bottom: 20px;
+}
+
+.taches-quickadd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.taches-quickadd-row:focus-within {
+  border-color: rgba(255, 159, 122, 0.6);
+}
+
+.taches-quickadd-plus {
+  color: #ff9f7a;
+  font-size: 18px;
+}
+
+.taches-quickadd .taches-quickadd-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+.taches-quickadd-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.taches-token {
+  padding: 3px 9px;
+  border: 1px solid rgba(255, 159, 122, 0.45);
+  border-radius: 999px;
+  background: rgba(255, 159, 122, 0.1);
+  color: var(--text);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.taches-token span {
+  margin-left: 2px;
+  color: var(--text-faint);
+}
+
+.taches-token-due {
+  border-color: rgba(255, 139, 139, 0.45);
+  background: rgba(255, 139, 139, 0.1);
+}
+
+/* --- Les tâches ---------------------------------------------------------------------- */
+
+.taches-section {
+  margin-bottom: 18px;
+}
+
+.taches-section-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.taches-section-title.late {
+  color: #ff8b8b;
+}
+
+.taches-day-empty {
+  margin-bottom: 8px;
+}
+
+.taches-day-empty .taches-section-title {
+  color: var(--text-faint);
+  font-weight: 500;
+}
+
+.taches-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.taches-row {
+  border-bottom: 1px solid var(--border);
+}
+
+.taches-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+}
+
+.taches-check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid var(--text-faint);
+  border-radius: 50%;
+  background: transparent;
+  color: #0b0e14;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.taches-check:hover {
+  border-color: #ff9f7a;
+}
+
+.taches-check[aria-checked='true'] {
+  border-color: #ff9f7a;
+  background: #ff9f7a;
+}
+
+.taches-check.small {
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+}
+
+/* La priorité colore le rond, comme dans les applications du marché. */
+.taches-priority-importante > .taches-row-main > .taches-check {
+  border-color: #eba95c;
+}
+
+.taches-priority-urgente > .taches-row-main > .taches-check {
+  border-color: #ff8b8b;
+}
+
+.taches-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.taches-row-title {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 14.5px;
+}
+
+.taches-row.done .taches-row-title {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.taches-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.taches-row-meta:empty {
+  display: none;
+}
+
+.taches-late,
+.taches-due.overdue {
+  color: #ff8b8b;
+}
+
+.taches-due.today,
+.taches-due.soon {
+  color: #eba95c;
+}
+
+.taches-flag.importante {
+  color: #eba95c;
+}
+
+.taches-flag.urgente {
+  color: #ff8b8b;
+  font-weight: 600;
+}
+
+.taches-row-list {
+  color: var(--text-faint);
+}
+
+.taches-subtoggle {
+  flex: none;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.taches-subtoggle:hover {
+  background: var(--surface-2);
+}
+
+.taches-subtasks {
+  margin: 0 0 8px 32px;
+  padding: 0;
+  list-style: none;
+}
+
+.taches-subtask,
+.taches-editor-subtasks li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  font-size: 13.5px;
+}
+
+.taches-subtask.done .taches-subtask-title,
+.taches-editor-subtasks li.done .taches-subtask-title {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.taches-editor-subtasks {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.taches-editor-subtasks .taches-subtask-title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.taches-empty {
+  padding: 32px 8px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.taches-empty p {
+  margin: 0 0 6px;
+}
+
+.taches-hint {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+/* --- Les fenêtres -------------------------------------------------------------------- */
+
+.taches-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.taches-editor-grid input,
+.taches-editor textarea,
+.taches-editor select {
+  width: 100%;
+}
+
+.taches-editor textarea {
+  resize: vertical;
+}
+
+.taches-editor-inline {
+  display: flex;
+  gap: 8px;
+}
+
+.taches-editor-inline input {
+  flex: 1;
+}
+
+.taches-link {
+  margin: -4px 0 14px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.taches-link:hover {
+  color: var(--text);
+}
+
+.taches-priorities {
+  display: flex;
+  gap: 6px;
+}
+
+.taches-priority-choice {
+  flex: 1;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.taches-priority-choice.on {
+  color: var(--text);
+  border-color: var(--text-dim);
+  background: var(--surface-2);
+}
+
+.taches-priority-choice.importante.on {
+  border-color: #eba95c;
+  color: #eba95c;
+}
+
+.taches-priority-choice.urgente.on {
+  border-color: #ff8b8b;
+  color: #ff8b8b;
+}
+
+.taches-editor-foot {
+  flex-wrap: wrap;
+}
+
+.taches-editor-spacer {
+  flex: 1;
+}
+
+.taches-colors {
+  display: flex;
+  gap: 10px;
+}
+
+.taches-color {
+  width: 28px;
+  height: 28px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: var(--taches-color);
+  cursor: pointer;
+}
+
+.taches-color.on {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* --- Le message du bas, avec « Annuler » ----------------------------------------------- */
+
+.taches-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  font-size: 13.5px;
+  transform: translateX(-50%);
+}
+
+/* --- Téléphone ------------------------------------------------------------------------------ */
+
+@media (max-width: 760px) {
+  /* Même piège qu'Astra, Cérès, Comète et Éclipse (CLAUDE.md §8) : sans largeur
+     explicite, `.main` reprend celle de son contenu une fois en colonne. */
+  .taches-main {
+    width: 100%;
+  }
+
+  .taches-topbar-btn {
+    width: 40px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .taches-topbar-label {
+    display: none;
+  }
+
+  /* Les vues tiennent sur une ligne qui défile d'elle-même, plutôt que la page. */
+  .taches-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .taches-nav-item {
+    flex: none;
+  }
+
+  .taches-row-main {
+    min-height: 52px;
+  }
+
+  .taches-toast {
+    bottom: 16px;
+    width: calc(100vw - 32px);
+    justify-content: space-between;
+  }
 }
 
 /* --- Aperçu sur la page d'accueil publique (PolarisLandingPreview) ----- */
