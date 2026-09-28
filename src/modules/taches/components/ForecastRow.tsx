@@ -1,4 +1,4 @@
-import { timeLabel } from '../lib/format';
+import { timeRangeLabel } from '../lib/format';
 import type { Task } from '../lib/types';
 
 interface Props {
@@ -19,7 +19,7 @@ export function ForecastRow({ task, onOpen }: Props) {
         <div className="taches-row-body">
           <span className="taches-row-title">{task.title}</span>
           <span className="taches-row-meta">
-            {task.plannedTime && <span>{timeLabel(task.plannedTime)}</span>}
+            {task.plannedTime && <span>{timeRangeLabel(task.plannedTime, task.durationMinutes)}</span>}
             <span title={task.repeatFrom === 'completion' ? 'Si elle est faite à temps' : undefined}>↻ prochaine fois</span>
           </span>
         </div>

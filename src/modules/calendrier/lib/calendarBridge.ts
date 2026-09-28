@@ -53,10 +53,10 @@ export function toCalendarItem(o: Occurrence): CalendarItem {
  * couleur de son module.
  */
 export function markItem(source: Pick<CalendarSource, 'id' | 'label' | 'color'>, mark: CalendarMark, order: number): CalendarItem {
-  // Une marque à une heure se place dans la grille horaire, pour une
-  // demi-heure ; sinon, dans la bande des journées entières.
+  // Une marque à une heure se place dans la grille horaire, pour sa durée
+  // (une demi-heure si elle n'en dit pas) ; sinon, dans la bande des journées entières.
   const timed = mark.time
-    ? { start: `${mark.day}T${mark.time}`, end: halfHourAfter(mark.day, mark.time), allDay: false }
+    ? { start: `${mark.day}T${mark.time}`, end: minutesAfter(mark.day, mark.time, mark.duration ?? 30), allDay: false }
     : { start: mark.day, end: shiftDay(mark.day, 1), allDay: true };
   const checkable = !!mark.checkable;
   return {
@@ -80,11 +80,11 @@ export function markItem(source: Pick<CalendarSource, 'id' | 'label' | 'color'>,
   };
 }
 
-/** « 2026-09-29T09:30 » pour une marque à 9 h — le lendemain si elle est à 23 h 45. */
-function halfHourAfter(day: string, time: string): string {
+/** « 2026-09-29T09:30 » pour une marque à 9 h d'une demi-heure — le lendemain si elle passe minuit. */
+function minutesAfter(day: string, time: string, duration: number): string {
   const [h, m] = time.split(':').map(Number);
-  const minutes = h * 60 + m + 30;
-  const next = minutes >= 1440 ? shiftDay(day, 1) : day;
+  const minutes = h * 60 + m + duration;
+  const next = shiftDay(day, Math.floor(minutes / 1440));
   const t = minutes % 1440;
   return `${next}T${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 }

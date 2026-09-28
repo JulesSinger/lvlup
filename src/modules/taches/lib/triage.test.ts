@@ -11,6 +11,7 @@ const task = (overrides: Partial<Task> = {}): Task => ({
   note: '',
   plannedDay: null,
   plannedTime: null,
+  durationMinutes: null,
   dueDay: null,
   priority: 'normale',
   recurrence: null,

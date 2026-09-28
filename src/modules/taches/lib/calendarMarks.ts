@@ -35,6 +35,7 @@ export function taskMarks(tasks: readonly Task[], lists: readonly TaskList[], fr
         title: task.plannedDay ? task.title : `⚑ ${task.title}`,
         detail,
         ...(task.plannedDay && task.plannedTime ? { time: task.plannedTime } : {}),
+        ...(task.plannedDay && task.plannedTime && task.durationMinutes ? { duration: task.durationMinutes } : {}),
         checkable: true,
         done: task.completedAt !== null,
         // « Modifier dans Polaris » depuis le calendrier ouvre la fenêtre de cette tâche.
@@ -50,6 +51,7 @@ export function taskMarks(tasks: readonly Task[], lists: readonly TaskList[], fr
         title: task.title,
         detail: `${task.repeatFrom === 'completion' ? 'Prochaine fois, si elle est faite à temps' : 'Prochaine fois'}${detail ? ` · ${detail}` : ''}`,
         ...(task.plannedTime ? { time: task.plannedTime } : {}),
+        ...(task.plannedTime && task.durationMinutes ? { duration: task.durationMinutes } : {}),
         tentative: true,
         link: `task:${task.id}`,
       });

@@ -9,7 +9,9 @@ const arrayOf = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[
 function read(): TachesBackup {
   const raw = readRaw();
   const settings = raw.tachesSettings && typeof raw.tachesSettings === 'object' ? (raw.tachesSettings as TachesSettings) : undefined;
-  return { lists: arrayOf<TaskList>(raw.tachesLists), tasks: arrayOf<Task>(raw.tachesTasks), settings };
+  // Une tâche enregistrée avant la durée (28/09/2026) n'a pas le champ : `null`.
+  const tasks = arrayOf<Task>(raw.tachesTasks).map((t) => ({ ...t, durationMinutes: t.durationMinutes ?? null }));
+  return { lists: arrayOf<TaskList>(raw.tachesLists), tasks, settings };
 }
 
 /** Écriture par fusion : les sections des autres modules sont préservées. */
@@ -17,9 +19,10 @@ function write(s: TachesBackup) {
   writeRaw({ ...readRaw(), tachesLists: s.lists, tachesTasks: s.tasks, ...(s.settings ? { tachesSettings: s.settings } : {}) });
 }
 
-/** Une heure n'existe qu'avec un jour prévu, comme la contrainte côté base. */
+/** Une heure n'existe qu'avec un jour prévu, une durée qu'avec une heure — comme les contraintes côté base. */
 function normalized(task: Task): Task {
-  return task.plannedDay ? task : { ...task, plannedTime: null };
+  const t = task.plannedDay ? task : { ...task, plannedTime: null };
+  return t.plannedTime ? t : { ...t, durationMinutes: null };
 }
 
 /** Polaris stocké dans le navigateur, sans compte ni serveur. */
@@ -75,6 +78,7 @@ export class LocalTaches implements TachesStore {
       note: input.note ?? '',
       plannedDay: input.plannedDay ?? null,
       plannedTime: input.plannedTime ?? null,
+      durationMinutes: input.durationMinutes ?? null,
       dueDay: input.dueDay ?? null,
       priority: input.priority ?? 'normale',
       recurrence: input.recurrence ?? null,

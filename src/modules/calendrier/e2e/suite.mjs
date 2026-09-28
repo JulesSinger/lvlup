@@ -343,7 +343,7 @@ export async function run({ browser, check, BASE }) {
       budgetEntries: [{ id: 'b1', day: today, label: 'Boulangerie', amountCents: -1250, categoryId: null, source: 'manuelle', importKey: null, note: '', createdAt: '' }],
       tachesTasks: [
         { id: 'p1', listId: null, parentId: null, title: 'Rendre le livre', note: '', plannedDay: today, plannedTime: null, dueDay: null, priority: 'normale', recurrence: null, repeatFrom: 'schedule', position: 0, completedAt: null, createdAt: '' },
-        { id: 'p2', listId: null, parentId: null, title: 'Appeler le garage', note: '', plannedDay: today, plannedTime: '14:00', dueDay: null, priority: 'urgente', recurrence: null, repeatFrom: 'schedule', position: 1, completedAt: null, createdAt: '' },
+        { id: 'p2', listId: null, parentId: null, title: 'Appeler le garage', note: '', plannedDay: today, plannedTime: '14:00', durationMinutes: 90, dueDay: null, priority: 'urgente', recurrence: null, repeatFrom: 'schedule', position: 1, completedAt: null, createdAt: '' },
         { id: 'p3', listId: null, parentId: null, title: 'Faire les courses', note: '', plannedDay: today, plannedTime: null, dueDay: null, priority: 'normale', recurrence: { freq: 'weekly', interval: 1 }, repeatFrom: 'schedule', position: 2, completedAt: null, createdAt: '' },
       ],
     });
@@ -380,6 +380,10 @@ export async function run({ browser, check, BASE }) {
   check(
     'Polaris : une tâche à une heure se place dans la grille horaire',
     (await lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' }).count()) === 1,
+  );
+  check(
+    '… pour sa durée : 14 h – 15 h 30',
+    (await text(lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' }))).includes('15:30'),
   );
 
   // Toucher la tâche ailleurs que sur son rond : sa fenêtre, sans la cocher.

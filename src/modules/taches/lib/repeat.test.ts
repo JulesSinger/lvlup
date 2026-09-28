@@ -11,6 +11,7 @@ function task(overrides: Partial<Task> = {}): Task {
     note: '',
     plannedDay: '2026-09-28', // un lundi
     plannedTime: null,
+    durationMinutes: null,
     dueDay: null,
     priority: 'normale',
     recurrence: { freq: 'weekly', interval: 1 },

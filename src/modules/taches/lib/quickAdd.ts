@@ -22,7 +22,7 @@ import { shiftDay, weekday } from '../../../core/lib/day';
 import type { Recurrence } from '../../../core/lib/recurrence';
 import type { Priority } from './types';
 
-export type TokenKind = 'day' | 'time' | 'due' | 'priority' | 'list' | 'repeat';
+export type TokenKind = 'day' | 'time' | 'duration' | 'due' | 'priority' | 'list' | 'repeat';
 
 /** Un morceau du texte compris comme autre chose qu'un titre. */
 export interface QuickToken {
@@ -37,6 +37,8 @@ export interface QuickAdd {
   title: string;
   plannedDay: string | null;
   plannedTime: string | null;
+  /** « 15h-16h30 », « pendant 1h30 » : la durée, en minutes, seulement avec une heure */
+  durationMinutes: number | null;
   dueDay: string | null;
   priority: Priority;
   listId: string | null;
@@ -209,11 +211,25 @@ const TIME_PATTERNS = [
   `(?:a |vers )?(\\d{1,2}):(\\d{2})`, // 18:30
 ].map((source) => new RegExp(`${L}${source}${R}`, 'gu'));
 
+/** « de 15h à 16h30 », « 15h-16h », « entre 15h et 16h », « 15:00 – 16:30 » : une heure et une durée. */
+const TIME_RANGES = [
+  `(?:de |entre )?(\\d{1,2}) ?h(?: ?(\\d{2}))? ?(?:-|–|a|et) ?(\\d{1,2}) ?h(?: ?(\\d{2}))?`,
+  `(?:de |entre )?(\\d{1,2}):(\\d{2}) ?(?:-|–|a|et) ?(\\d{1,2}):(\\d{2})`,
+].map((source) => new RegExp(`${L}${source}${R}`, 'gu'));
+
+/** « pendant 1h30 », « pendant 45 min », « pendant 2 heures » : une durée, en minutes. */
+const DURATIONS = new RegExp(
+  `${L}pendant (?:(\\d{1,2}) ?h(?: ?(\\d{2}))?|(\\d{1,3}) ?min(?:ute)?s?|(\\d{1,2}|une) heures?|une demi-heure)${R}`,
+  'gu',
+);
+
 interface Candidate {
   kind: TokenKind;
   start: number;
   end: number;
   value: string;
+  /** Une heure donnée par un intervalle (« 15h-16h30 ») porte sa durée */
+  duration?: number;
   rule?: Recurrence;
   /** Compris, mais laissé dans le titre (« anniversaire » dit la répétition et reste le titre) */
   keep?: boolean;
@@ -277,6 +293,23 @@ export function parseQuickAdd(
     }
   }
 
+  for (const re of TIME_RANGES) {
+    re.lastIndex = 0;
+    for (let m = re.exec(folded); m; m = re.exec(folded)) {
+      const [h1, m1, h2, m2] = [Number(m[1]), Number(m[2] ?? 0), Number(m[3]), Number(m[4] ?? 0)];
+      if (h1 > 23 || h2 > 23 || m1 > 59 || m2 > 59) continue;
+      // La fin avant le début : la soirée passe minuit (« 22h-1h »).
+      const duration = (h2 * 60 + m2 - (h1 * 60 + m1) + 1440) % 1440;
+      if (duration < 5) continue;
+      candidates.push({ kind: 'time', start: m.index, end: m.index + m[0].length, value: `${pad(h1)}:${pad(m1)}`, duration });
+    }
+  }
+
+  for (const m of folded.matchAll(DURATIONS)) {
+    const minutes = m[1] !== undefined ? Number(m[1]) * 60 + Number(m[2] ?? 0) : m[3] !== undefined ? Number(m[3]) : m[4] !== undefined ? count(m[4]) * 60 : 30;
+    if (minutes >= 5 && minutes <= 1440) candidates.push({ kind: 'duration', start: m.index!, end: m.index! + m[0].length, value: String(minutes) });
+  }
+
   // « ! » importante, « !! » urgente — seuls, séparés du reste par des espaces.
   for (const m of folded.matchAll(/(?<!\S)(!{1,3})(?!\S)/gu)) {
     candidates.push({ kind: 'priority', start: m.index!, end: m.index! + m[0].length, value: m[1].length >= 2 ? 'urgente' : 'importante' });
@@ -295,6 +328,12 @@ export function parseQuickAdd(
   for (const c of nonOverlapping(candidates.filter((c) => !ignore.has(c.kind)))) {
     if (!tokens.some((t) => t.kind === c.kind)) tokens.push(c);
   }
+  // Une durée sans heure ne veut rien dire : elle reste dans le titre.
+  const timeToken = tokens.find((t) => t.kind === 'time');
+  if (!timeToken) {
+    const i = tokens.findIndex((t) => t.kind === 'duration');
+    if (i >= 0) tokens.splice(i, 1);
+  }
   // Un anniversaire se répète tous les ans sans qu'on le dise : le mot le porte, et reste dans le titre.
   if (birthday && !ignore.has('repeat') && !tokens.some((t) => t.kind === 'repeat') && tokens.some((t) => t.kind === 'day')) {
     tokens.push({ kind: 'repeat', start: birthday.index, end: birthday.index + birthday[0].length, value: '', rule: { freq: 'yearly', interval: 1 }, keep: true });
@@ -312,6 +351,8 @@ export function parseQuickAdd(
   title = title.replace(/\s+/g, ' ').replace(/^[\s,;:–-]+|[\s,;:–-]+$/g, '');
 
   const plannedTime = value('time');
+  const durationToken = value('duration');
+  const durationMinutes = timeToken?.duration ?? (durationToken ? Number(durationToken) : null);
   let plannedDay = value('day');
   // Un anniversaire est toujours le prochain : « 15/03/1990 » est une date de naissance, pas un jour passé.
   if (birthday && plannedDay && plannedDay < today) {
@@ -327,6 +368,7 @@ export function parseQuickAdd(
     // Une heure seule vaut pour aujourd'hui (« Réunion à 18h30 »).
     plannedDay: plannedDay ?? (plannedTime ? today : null),
     plannedTime,
+    durationMinutes: plannedTime ? durationMinutes : null,
     dueDay: value('due'),
     priority: (value('priority') as Priority | null) ?? 'normale',
     listId: value('list'),

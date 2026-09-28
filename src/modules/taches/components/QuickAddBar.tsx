@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { describeRecurrence } from '../../../core/lib/recurrence';
-import { dayLabel, shortDate, timeLabel } from '../lib/format';
+import { dayLabel, durationLabel, shortDate, timeRangeLabel } from '../lib/format';
 import { parseQuickAdd, type QuickAdd, type TokenKind } from '../lib/quickAdd';
 import type { TaskList } from '../lib/types';
 
@@ -31,7 +31,9 @@ export function QuickAddBar({ today, lists, placeholder, onAdd }: Props) {
       case 'day':
         return `📅 ${dayLabel(parsed.plannedDay as string, today)}`;
       case 'time':
-        return `⏰ ${timeLabel(parsed.plannedTime as string)}`;
+        return `⏰ ${timeRangeLabel(parsed.plannedTime as string, parsed.durationMinutes)}`;
+      case 'duration':
+        return `⏱ ${durationLabel(parsed.durationMinutes ?? 0)}`;
       case 'due':
         return `⚑ avant le ${shortDate(parsed.dueDay as string, today)}`;
       case 'priority':

@@ -32,6 +32,22 @@ export function timeLabel(time: string): string {
   return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`;
 }
 
+/** « 1 h 30 », « 45 min », « 2 h » — une durée à la française. */
+export function durationLabel(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} min`;
+  return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`;
+}
+
+/** « 15 h – 16 h 30 » avec une durée, « 15 h » sans. */
+export function timeRangeLabel(time: string, durationMinutes: number | null): string {
+  if (!durationMinutes) return timeLabel(time);
+  const [h, m] = time.split(':').map(Number);
+  const end = (h * 60 + m + durationMinutes) % 1440;
+  return `${timeLabel(time)} – ${timeLabel(`${String(Math.floor(end / 60)).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`)}`;
+}
+
 /** L'échéance : « à faire aujourd'hui », « d'ici demain », « avant le 30 sept. », ou dépassée. */
 export function dueLabel(day: string, today: string): string {
   const diff = daysBetween(today, day);

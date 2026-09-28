@@ -15,6 +15,12 @@ export type { Recurrence };
  */
 export const TASK_TITLE_MAX = 1000;
 
+/** Bornes d'une durée, en minutes — celles de `taches_tasks_duration_check`. */
+export const DURATION_MIN = 5;
+export const DURATION_MAX = 1440;
+/** La taille d'un créneau sans durée dite, dans le calendrier. */
+export const DEFAULT_SLOT_MINUTES = 30;
+
 /** Couleurs d'une liste, par nom — pendant de `taches_lists_color_check`. */
 export const LIST_COLORS = ['bleu', 'vert', 'orange', 'rose', 'violet', 'gris'] as const;
 export type ListColor = (typeof LIST_COLORS)[number];
@@ -61,6 +67,12 @@ export interface Task {
   plannedDay: string | null;
   /** Seulement avec un jour prévu */
   plannedTime: string | null;
+  /**
+   * La durée, en minutes, facultative et seulement avec une heure (depuis le
+   * 28/09/2026) : c'est elle qui donne sa taille au créneau dans Éclipse —
+   * 30 minutes sans elle.
+   */
+  durationMinutes: number | null;
   /** L'échéance, facultative : le jour où elle doit être faite */
   dueDay: string | null;
   priority: Priority;
@@ -75,7 +87,7 @@ export interface Task {
 
 export type TaskInput = Pick<Task, 'title'> &
   Partial<
-    Pick<Task, 'listId' | 'parentId' | 'note' | 'plannedDay' | 'plannedTime' | 'dueDay' | 'priority' | 'recurrence' | 'repeatFrom' | 'position'>
+    Pick<Task, 'listId' | 'parentId' | 'note' | 'plannedDay' | 'plannedTime' | 'durationMinutes' | 'dueDay' | 'priority' | 'recurrence' | 'repeatFrom' | 'position'>
   >;
 
 /** Les réglages des rappels de Polaris (étape 5), les mêmes sur tous les appareils. */

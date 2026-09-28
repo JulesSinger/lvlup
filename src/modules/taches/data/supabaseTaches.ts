@@ -32,6 +32,7 @@ interface TaskRow {
   note: string;
   planned_day: string | null;
   planned_time: string | null;
+  duration_minutes: number | null;
   due_day: string | null;
   priority: Priority;
   recurrence: Recurrence | null;
@@ -61,6 +62,7 @@ const toTask = (r: TaskRow): Task => ({
   note: r.note,
   plannedDay: r.planned_day,
   plannedTime: hhmm(r.planned_time),
+  durationMinutes: r.duration_minutes ?? null,
   dueDay: r.due_day,
   priority: r.priority,
   recurrence: r.recurrence,
@@ -80,14 +82,16 @@ function taskColumns(patch: TaskPatch | TaskInput): Record<string, unknown> {
   if (p.note !== undefined) row.note = p.note;
   if (p.plannedDay !== undefined) row.planned_day = p.plannedDay;
   if (p.plannedTime !== undefined) row.planned_time = p.plannedTime;
+  if (p.durationMinutes !== undefined) row.duration_minutes = p.durationMinutes;
   if (p.dueDay !== undefined) row.due_day = p.dueDay;
   if (p.priority !== undefined) row.priority = p.priority;
   if (p.recurrence !== undefined) row.recurrence = p.recurrence;
   if (p.repeatFrom !== undefined) row.repeat_from = p.repeatFrom;
   if (p.position !== undefined) row.position = p.position;
   if (p.completedAt !== undefined) row.completed_at = p.completedAt;
-  // Plus de jour prévu : plus d'heure, sinon la contrainte de la base refuse.
+  // Plus de jour prévu : plus d'heure ; plus d'heure : plus de durée — sinon la base refuse.
   if (p.plannedDay === null) row.planned_time = null;
+  if (p.plannedDay === null || p.plannedTime === null) row.duration_minutes = null;
   return row;
 }
 

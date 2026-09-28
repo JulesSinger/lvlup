@@ -60,6 +60,8 @@ export interface CalendarMark {
    * 28/09/2026, pour les tâches de Polaris qui ont une heure).
    */
   time?: string;
+  /** Avec une heure : la durée, en minutes ; 30 sans elle (depuis le 28/09/2026). */
+  duration?: number;
   /** La marque se coche depuis le calendrier (`CalendarSource.toggleMark`) */
   checkable?: boolean;
   /** Cochée : faite */

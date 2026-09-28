@@ -218,6 +218,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
       title: parsed.title,
       plannedDay: parsed.plannedDay,
       plannedTime: parsed.plannedTime,
+      durationMinutes: parsed.durationMinutes,
       dueDay: parsed.dueDay,
       priority: parsed.priority,
       listId: parsed.listId,

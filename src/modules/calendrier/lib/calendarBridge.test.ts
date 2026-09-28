@@ -143,3 +143,10 @@ describe('markItem — une marque prévisionnelle', () => {
     expect(item.extendedProps).toMatchObject({ checkable: false });
   });
 });
+
+describe('markItem — la durée d’une marque', () => {
+  it('une tâche de 15 h pendant 1 h 30 occupe 15 h – 16 h 30', () => {
+    const item = markItem({ id: 'taches', label: 'Polaris', color: '#ff9f7a' }, { id: 'task:d', day: '2026-09-29', title: 'Réunion', time: '15:00', duration: 90 }, 2);
+    expect([item.start, item.end]).toEqual(['2026-09-29T15:00', '2026-09-29T16:30']);
+  });
+});

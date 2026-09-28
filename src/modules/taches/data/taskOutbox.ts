@@ -75,6 +75,7 @@ export function taskFromInput(id: string, input: QueuedInput, at: number): Task 
     note: input.note ?? '',
     plannedDay: input.plannedDay ?? null,
     plannedTime: input.plannedDay ? (input.plannedTime ?? null) : null,
+    durationMinutes: input.plannedDay && input.plannedTime ? (input.durationMinutes ?? null) : null,
     dueDay: input.dueDay ?? null,
     priority: input.priority ?? 'normale',
     recurrence: input.recurrence ?? null,
@@ -104,7 +105,8 @@ export function applyPendingTasks(server: readonly Task[], ops: readonly TaskOp[
       const patch = patches.get(t.id);
       if (!patch) return t;
       const next = { ...t, ...patch };
-      return next.plannedDay ? next : { ...next, plannedTime: null };
+      const timed = next.plannedDay ? next : { ...next, plannedTime: null };
+      return timed.plannedTime ? timed : { ...timed, durationMinutes: null };
     });
   const known = new Set(result.map((t) => t.id));
   for (const op of ops) {

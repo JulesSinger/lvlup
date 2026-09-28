@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { durationLabel } from '../lib/format';
 import { PRIORITIES, type Priority, type Recurrence, type RepeatFrom, type Task, type TaskList, type TaskPatch } from '../lib/types';
 import { validateTask } from '../lib/validation';
 import { RepeatFields } from './RepeatFields';
@@ -18,6 +19,9 @@ interface Props {
   onDeleteSubtask: (subtask: Task) => Promise<void>;
 }
 
+/** Les durées proposées ; une durée venue de l'ajout rapide (« pendant 1h10 ») s'y ajoute. */
+const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240];
+
 const PRIORITY_LABELS: Record<Priority, string> = { normale: 'Normale', importante: 'Importante', urgente: 'Urgente' };
 
 /**
@@ -34,6 +38,7 @@ export function TaskEditor(props: Props) {
   const [listId, setListId] = useState(task.listId);
   const [plannedDay, setPlannedDay] = useState(task.plannedDay ?? '');
   const [plannedTime, setPlannedTime] = useState(task.plannedTime ?? '');
+  const [duration, setDuration] = useState<number | null>(task.durationMinutes);
   const [dueDay, setDueDay] = useState(task.dueDay ?? '');
   const [showDue, setShowDue] = useState(!!task.dueDay);
   const [priority, setPriority] = useState<Priority>(task.priority);
@@ -70,6 +75,7 @@ export function TaskEditor(props: Props) {
       listId,
       plannedDay: plannedDay || null,
       plannedTime: plannedDay && plannedTime ? plannedTime : null,
+      durationMinutes: plannedDay && plannedTime ? duration : null,
       dueDay: showDue && dueDay ? dueDay : null,
       priority,
       recurrence: isSubtask ? null : recurrence,
@@ -119,6 +125,21 @@ export function TaskEditor(props: Props) {
                   <input id="taches-time" type="time" value={plannedTime} onChange={(e) => setPlannedTime(e.target.value)} disabled={!plannedDay} />
                 </div>
               </div>
+              {plannedDay && plannedTime && (
+                <div className="field">
+                  <label htmlFor="taches-duration">Durée</label>
+                  <select id="taches-duration" value={duration ?? ''} onChange={(e) => setDuration(e.target.value ? Number(e.target.value) : null)}>
+                    <option value="">Non précisée (30 min dans le calendrier)</option>
+                    {[...new Set([...DURATIONS, ...(duration ? [duration] : [])])]
+                      .sort((a, b) => a - b)
+                      .map((m) => (
+                        <option key={m} value={m}>
+                          {durationLabel(m)}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
 
               <RepeatFields
                 value={recurrence}

@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent, type PointerEvent } from 'react';
-import { dayLabel, dueLabel, timeLabel } from '../lib/format';
+import { dayLabel, dueLabel, timeRangeLabel } from '../lib/format';
 import type { Task } from '../lib/types';
 import { dueStatus } from '../lib/views';
 
@@ -75,7 +75,7 @@ export function TaskRow({ task, subtasks, today, listName, showDay, pending, wai
               <span className={`taches-flag ${task.priority}`}>{task.priority === 'urgente' ? '!! Urgente' : '! Importante'}</span>
             )}
             {showDay && task.plannedDay && <span className={late ? 'taches-late' : ''}>{dayLabel(task.plannedDay, today)}</span>}
-            {task.plannedTime && <span>{timeLabel(task.plannedTime)}</span>}
+            {task.plannedTime && <span>{timeRangeLabel(task.plannedTime, task.durationMinutes)}</span>}
             {task.dueDay && <span className={`taches-due ${due ?? ''}`}>⚑ {dueLabel(task.dueDay, today)}</span>}
             {task.recurrence && <span title="Tâche répétée">↻</span>}
             {listName && <span className="taches-row-list"># {listName}</span>}

@@ -4,7 +4,7 @@
  * peut pas vérifier seule : les sous-tâches sur un seul niveau.
  */
 import { validateRecurrence } from '../../../core/lib/recurrence';
-import { TASK_TITLE_MAX, type Task, type TaskInput } from './types';
+import { DURATION_MAX, DURATION_MIN, TASK_TITLE_MAX, type Task, type TaskInput } from './types';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -23,6 +23,12 @@ export function validateTask(input: TaskInput, tasks: readonly Task[] = [], self
   if (input.plannedTime) {
     if (!input.plannedDay) return 'Une heure a besoin d’un jour.';
     if (!TIME.test(input.plannedTime)) return 'Heure invalide.';
+  }
+  if (input.durationMinutes !== undefined && input.durationMinutes !== null) {
+    if (!input.plannedTime) return 'Une durée a besoin d’une heure.';
+    if (!Number.isInteger(input.durationMinutes) || input.durationMinutes < DURATION_MIN || input.durationMinutes > DURATION_MAX) {
+      return 'La durée doit aller de 5 minutes à 24 heures.';
+    }
   }
   if (input.recurrence) {
     if (!input.plannedDay) return 'Une tâche répétée a besoin d’un jour prévu.';

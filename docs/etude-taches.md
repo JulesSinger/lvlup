@@ -544,6 +544,15 @@ survol). Le socle a gagné `CalendarMark.tentative`. **Défaut trouvé par la su
 dont l'occurrence en cours tombait hors de la période affichée était écartée avant le calcul de ses
 prochaines fois — la semaine suivante restait vide.
 
+**La durée d'une tâche (28/09/2026, demande de Jules).** Une tâche à 15 h prenait 30 minutes
+dans Éclipse sans moyen de changer : une tâche a maintenant une **durée facultative**, avec une
+heure seulement (colonne `duration_minutes`, migration `2026-09-28-taches-duration.sql`). Elle se
+règle dans la fenêtre (« Durée », de 15 min à 4 h, « non précisée » = 30 min dans le calendrier),
+se tape dans l'ajout rapide (« 15h-16h30 », « de 15h à 16h », « entre 9h et 9h45 », « 18h pendant
+1h30 », « pendant 45 min », « 22h-1h » passant minuit), s'affiche sur la ligne (« 15 h – 16 h 30 »)
+et donne sa taille au créneau d'Éclipse (`CalendarMark.duration`). Une durée sans heure reste dans
+le titre.
+
 **Pas encore** : poser une tâche sur un créneau en la glissant dans la grille — les marques ne se
 déplacent pas (§6, plus tard).
 

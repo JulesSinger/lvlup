@@ -336,6 +336,17 @@ export async function run({ browser, check, BASE }) {
   check('Le ✎ d’un aperçu ouvre la tâche elle-même, avec sa répétition', (await p7.locator('#taches-repeat').inputValue()) === 'weekly');
   await p7.keyboard.press('Escape');
 
+  // La durée (28/09/2026) : « 15h-16h30 » la donne, la fenêtre la montre et la change.
+  await p7.getByRole('button', { name: /^Aujourd’hui/ }).click();
+  await add(p7, 'Réunion 15h-16h30');
+  await row(p7, 'Réunion').waitFor();
+  check('« 15h-16h30 » : la ligne dit « 15 h – 16 h 30 »', (await text(row(p7, 'Réunion'))).includes('15 h – 16 h 30'));
+  await row(p7, 'Réunion').getByRole('button', { name: /^Modifier « / }).click();
+  check('La fenêtre montre la durée, 1 h 30', (await p7.locator('#taches-duration').inputValue()) === '90');
+  await p7.locator('#taches-duration').selectOption('45');
+  await p7.getByRole('button', { name: 'Enregistrer' }).click();
+  await p7.waitForSelector('.taches-editor', { state: 'detached' });
+  check('… et la change : « 15 h – 15 h 45 »', (await text(row(p7, 'Réunion'))).includes('15 h – 15 h 45'));
   await ctx7.close();
 
   // --- Téléphone ---------------------------------------------------------------------------------------------

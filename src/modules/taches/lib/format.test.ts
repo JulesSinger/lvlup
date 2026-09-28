@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayLabel, dueLabel, shortDate, timeLabel } from './format';
+import { dayLabel, dueLabel, durationLabel, shortDate, timeLabel, timeRangeLabel } from './format';
 
 const today = '2026-09-28'; // un lundi
 
@@ -22,5 +22,14 @@ describe('les jours en français', () => {
     expect(dueLabel(today, today)).toBe('à faire aujourd’hui');
     expect(dueLabel('2026-09-29', today)).toBe('à faire d’ici demain');
     expect(dueLabel('2026-09-25', today)).toBe('échéance dépassée (25 sept.)');
+  });
+});
+
+describe('les durées', () => {
+  it('durationLabel et timeRangeLabel', () => {
+    expect([durationLabel(45), durationLabel(60), durationLabel(90)]).toEqual(['45 min', '1 h', '1 h 30']);
+    expect(timeRangeLabel('15:00', 90)).toBe('15 h – 16 h 30');
+    expect(timeRangeLabel('15:00', null)).toBe('15 h');
+    expect(timeRangeLabel('23:30', 60)).toBe('23 h 30 – 0 h 30');
   });
 });

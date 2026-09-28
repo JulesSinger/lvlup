@@ -206,3 +206,37 @@ describe('parseQuickAdd — les répétitions', () => {
     ]);
   });
 });
+
+describe('parseQuickAdd — la durée', () => {
+  const d = (text: string) => {
+    const x = parse(text);
+    return [x.title, x.plannedTime, x.durationMinutes];
+  };
+
+  it('un intervalle : l’heure et la durée', () => {
+    expect(d('Réunion 15h-16h30')).toEqual(['Réunion', '15:00', 90]);
+    expect(d('Réunion de 15h à 16h')).toEqual(['Réunion', '15:00', 60]);
+    expect(d('Dentiste entre 9h et 9h45')).toEqual(['Dentiste', '09:00', 45]);
+    expect(d('Train 07:45 – 09:10')).toEqual(['Train', '07:45', 85]);
+    expect(d('Soirée 22h-1h')).toEqual(['Soirée', '22:00', 180]);
+  });
+
+  it('« pendant » : une durée, avec l’heure dite ailleurs', () => {
+    expect(d('Sport 18h pendant 1h30')).toEqual(['Sport', '18:00', 90]);
+    expect(d('Lecture 21h pendant 45 min')).toEqual(['Lecture', '21:00', 45]);
+    expect(d('Ménage samedi 10h pendant 2 heures')).toEqual(['Ménage', '10:00', 120]);
+    expect(d('Sieste 14h pendant une demi-heure')).toEqual(['Sieste', '14:00', 30]);
+  });
+
+  it('une durée sans heure reste dans le titre ; une heure seule n’a pas de durée', () => {
+    expect(d('Lire pendant 1h')).toEqual(['Lire pendant 1h', null, null]);
+    expect(d('Appeler 15h')).toEqual(['Appeler', '15:00', null]);
+  });
+
+  it('la pastille dit l’intervalle', () => {
+    expect(parse('Réunion demain 15h-16h30').tokens.map((t) => [t.kind, t.text])).toEqual([
+      ['day', 'demain'],
+      ['time', '15h-16h30'],
+    ]);
+  });
+});

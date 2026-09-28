@@ -33,6 +33,7 @@ describe('LocalTaches', () => {
       note: '',
       plannedDay: null,
       plannedTime: null,
+      durationMinutes: null,
       dueDay: null,
       priority: 'normale',
       recurrence: null,
@@ -120,5 +121,22 @@ describe('LocalTaches — réglages des rappels', () => {
     memory.clear();
     await store.importData(backup);
     expect(await store.getSettings()).toEqual({ taskReminders: true, morningEnabled: true, morningTime: '07:30' });
+  });
+});
+
+describe('LocalTaches — la durée', () => {
+  beforeEach(() => memory.clear());
+
+  it('se garde avec une heure, part avec elle', async () => {
+    const store = new LocalTaches();
+    const t = await store.createTask({ title: 'Réunion', plannedDay: '2026-09-29', plannedTime: '15:00', durationMinutes: 90 });
+    expect(t.durationMinutes).toBe(90);
+    await store.updateTask(t.id, { plannedTime: null });
+    expect((await store.listTasks())[0].durationMinutes).toBeNull();
+  });
+
+  it('une tâche enregistrée avant la durée se lit sans durée', async () => {
+    localStorage.setItem('palier.v1', JSON.stringify({ tachesTasks: [{ id: 'old', title: 'Ancienne', plannedDay: null, plannedTime: null }] }));
+    expect((await new LocalTaches().listTasks())[0].durationMinutes).toBeNull();
   });
 });

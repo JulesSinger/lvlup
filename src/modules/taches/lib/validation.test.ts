@@ -33,3 +33,11 @@ describe('validateTask', () => {
     expect(validateTask({ title: 'x', parentId: 'p', plannedDay: '2026-09-29', recurrence: { freq: 'daily', interval: 1 } }, [parent])).toMatch(/ne se répète pas/);
   });
 });
+
+describe('validateTask — la durée', () => {
+  it('seulement avec une heure, de 5 minutes à 24 heures', () => {
+    expect(validateTask({ title: 'x', plannedDay: '2026-09-29', plannedTime: '15:00', durationMinutes: 90 })).toBeNull();
+    expect(validateTask({ title: 'x', plannedDay: '2026-09-29', durationMinutes: 90 })).toMatch(/besoin d’une heure/);
+    expect(validateTask({ title: 'x', plannedDay: '2026-09-29', plannedTime: '15:00', durationMinutes: 2 })).toMatch(/5 minutes à 24 heures/);
+  });
+});
