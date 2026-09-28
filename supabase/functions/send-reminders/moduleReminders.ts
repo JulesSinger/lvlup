@@ -35,7 +35,31 @@ export function splitDue(rows: readonly ModuleReminderRow[], now: Date): { send:
   return { send, expire };
 }
 
+/**
+ * Une notification push porte au plus 4096 octets une fois chiffrée (RFC
+ * 8291 : 86 octets d'en-tête et 17 de chiffrement, reste ~3990 pour le
+ * texte) : on garde une marge. Titre et texte vont jusqu'à 1000 caractères chacun, ce qui
+ * tient largement en français ; seul un cas extrême (des centaines d'emojis,
+ * 4 octets chacun) dépasserait — le texte est alors raccourci plutôt que
+ * l'envoi refusé par le service de push.
+ */
+export const MAX_PAYLOAD_BYTES = 3800;
+
+const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;
+
 /** Ce que reçoit le service worker : l'étiquette regroupe les rappels d'une même chose. */
 export function payloadFor(row: ModuleReminderRow) {
-  return { title: row.title, body: row.body, tag: `${row.module}-${row.ref}`, url: row.url || '/' };
+  const payload = { title: row.title, body: row.body, tag: `${row.module}-${row.ref}`, url: row.url || '/' };
+  if (bytes(payload) <= MAX_PAYLOAD_BYTES) return payload;
+  // Raccourcir le texte d'abord, puis le titre s'il le faut, lettre par lettre (sans couper un emoji).
+  const chars = { title: [...row.title], body: [...row.body] };
+  while (bytes(payload) > MAX_PAYLOAD_BYTES && chars.body.length > 0) {
+    chars.body = chars.body.slice(0, Math.floor(chars.body.length * 0.9));
+    payload.body = `${chars.body.join('')}…`;
+  }
+  while (bytes(payload) > MAX_PAYLOAD_BYTES && chars.title.length > 1) {
+    chars.title = chars.title.slice(0, Math.floor(chars.title.length * 0.9));
+    payload.title = `${chars.title.join('')}…`;
+  }
+  return payload;
 }
