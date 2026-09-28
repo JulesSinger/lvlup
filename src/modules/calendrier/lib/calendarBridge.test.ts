@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultSpan, markItem, spanFromRange, spanFromSelection, timeString, toCalendarItem } from './calendarBridge';
+import { defaultSpan, markItem, markMoveFrom, spanFromRange, spanFromSelection, timeString, toCalendarItem } from './calendarBridge';
 import type { Occurrence } from './recurrence';
 
 const at = (day: string, time = '00:00') => {
@@ -112,9 +112,10 @@ describe('markItem — une marque d’un autre module', () => {
       allDay: true,
       classNames: ['calendrier-layer'],
       editable: false,
+      durationEditable: false,
       backgroundColor: '#f2c14e38',
       borderColor: '#f2c14e',
-      extendedProps: { order: 1, layer: 'Zénith', detail: 'Marathon', sourceId: 'objectifs', markId: 'g|2026-09-27', checkable: false, done: false },
+      extendedProps: { order: 1, layer: 'Zénith', detail: 'Marathon', sourceId: 'objectifs', markId: 'g|2026-09-27', checkable: false, done: false, movable: false },
     });
   });
 });
@@ -148,5 +149,20 @@ describe('markItem — la durée d’une marque', () => {
   it('une tâche de 15 h pendant 1 h 30 occupe 15 h – 16 h 30', () => {
     const item = markItem({ id: 'taches', label: 'Polaris', color: '#ff9f7a' }, { id: 'task:d', day: '2026-09-29', title: 'Réunion', time: '15:00', duration: 90 }, 2);
     expect([item.start, item.end]).toEqual(['2026-09-29T15:00', '2026-09-29T16:30']);
+  });
+});
+
+describe('glisser une marque (Polaris)', () => {
+  it('une marque déplaçable se glisse ; à une heure, elle s’étire aussi', () => {
+    const polaris = { id: 'taches', label: 'Polaris', color: '#ff9f7a' };
+    const timed = markItem(polaris, { id: 'task:a', day: '2026-09-29', title: 'Garage', time: '09:00', movable: true }, 2);
+    const allDay = markItem(polaris, { id: 'task:b', day: '2026-09-29', title: 'Livre', movable: true }, 2);
+    expect([timed.editable, timed.durationEditable, allDay.editable, allDay.durationEditable]).toEqual([true, true, true, false]);
+  });
+
+  it('markMoveFrom : la journée entière n’a pas d’heure ; la durée seulement si on a étiré', () => {
+    expect(markMoveFrom(at('2026-09-30'), null, true, false)).toEqual({ day: '2026-09-30', time: null });
+    expect(markMoveFrom(at('2026-09-30', '16:00'), at('2026-09-30', '16:30'), false, false)).toEqual({ day: '2026-09-30', time: '16:00' });
+    expect(markMoveFrom(at('2026-09-30', '16:00'), at('2026-09-30', '17:30'), false, true)).toEqual({ day: '2026-09-30', time: '16:00', duration: 90 });
   });
 });

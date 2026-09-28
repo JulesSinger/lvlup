@@ -64,6 +64,11 @@ export interface CalendarMark {
   duration?: number;
   /** La marque se coche depuis le calendrier (`CalendarSource.toggleMark`) */
   checkable?: boolean;
+  /**
+   * La marque se déplace et s'étire depuis le calendrier (`CalendarSource.moveMark`,
+   * depuis le 28/09/2026 : les tâches de Polaris, glissées dans Éclipse).
+   */
+  movable?: boolean;
   /** Cochée : faite */
   done?: boolean;
   /**
@@ -76,6 +81,14 @@ export interface CalendarMark {
    * link)`) — « task:<id> » pour une tâche de Polaris. Absent : rien à ouvrir.
    */
   link?: string;
+}
+
+/** Où une marque a été glissée : son jour, son heure (`null` : la journée entière). */
+export interface MarkMove {
+  day: string;
+  time: string | null;
+  /** Seulement quand on a étiré la marque : sa nouvelle durée, en minutes */
+  duration?: number;
 }
 
 /**
@@ -100,6 +113,12 @@ export interface CalendarSource {
    * veut dire chez lui ; le calendrier ne fait que transmettre le geste.
    */
   toggleMark?(markId: string): Promise<void>;
+  /**
+   * Déplacer ou étirer une marque `movable`. Comme pour cocher, c'est le
+   * module qui écrit, avec ses règles ; il rejette si le geste n'a pas de sens
+   * chez lui, et la marque revient alors à sa place.
+   */
+  moveMark?(markId: string, to: MarkMove): Promise<void>;
 }
 
 /** Tout ce que les modules peuvent se rendre les uns aux autres. */

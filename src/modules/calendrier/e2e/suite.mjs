@@ -386,6 +386,40 @@ export async function run({ browser, check, BASE }) {
     (await text(lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' }))).includes('15:30'),
   );
 
+  // Glisser une tâche à 16 h, puis l'étirer d'une heure : Polaris la reprévoit (28/09/2026).
+  {
+    const task = (id) => lp.evaluate((tid) => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === tid), id);
+    const garageEvent = lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' });
+    await garageEvent.scrollIntoViewIfNeeded();
+    const g = await garageEvent.boundingBox();
+    const lane16 = await lp.locator('.fc-timegrid-slot-lane[data-time="16:00:00"]').boundingBox();
+    if (g && lane16) {
+      await lp.mouse.move(g.x + g.width / 2, g.y + 3);
+      await lp.mouse.down();
+      await lp.mouse.move(g.x + g.width / 2, g.y + 20, { steps: 4 });
+      await lp.mouse.move(g.x + g.width / 2, lane16.y + 3, { steps: 12 });
+      await lp.mouse.up();
+    }
+    await lp.waitForFunction(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === 'p2')?.plannedTime === '16:00', null, { timeout: 4000 }).catch(() => {});
+    const moved = await task('p2');
+    check('Glisser une tâche dans la grille la reprévoit à 16 h, sa durée gardée', moved?.plannedTime === '16:00' && moved?.durationMinutes === 90, JSON.stringify(moved));
+    await lp.locator('.calendrier-mark-dialog').waitFor({ state: 'detached', timeout: 500 }).catch(() => {});
+    check('… sans ouvrir sa fenêtre', (await lp.locator('.calendrier-mark-dialog').count()) === 0);
+
+    const moved16 = lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' });
+    await moved16.hover();
+    const resizer = await moved16.locator('.fc-event-resizer-end').boundingBox();
+    const slotH = (await lp.locator('.fc-timegrid-slot-lane[data-time="16:00:00"]').boundingBox())?.height ?? 17;
+    if (resizer) {
+      await lp.mouse.move(resizer.x + resizer.width / 2, resizer.y + resizer.height / 2);
+      await lp.mouse.down();
+      await lp.mouse.move(resizer.x + resizer.width / 2, resizer.y + resizer.height / 2 + slotH * 2, { steps: 10 });
+      await lp.mouse.up();
+    }
+    await lp.waitForFunction(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === 'p2')?.durationMinutes === 150, null, { timeout: 4000 }).catch(() => {});
+    check('Étirer son bord du bas allonge sa durée (1 h 30 → 2 h 30)', (await task('p2'))?.durationMinutes === 150, JSON.stringify(await task('p2')));
+  }
+
   // Toucher la tâche ailleurs que sur son rond : sa fenêtre, sans la cocher.
   await book.locator('.calendrier-mark-title').click();
   await lp.locator('.calendrier-mark-dialog').waitFor();

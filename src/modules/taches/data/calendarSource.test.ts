@@ -47,4 +47,21 @@ describe('le calque de Polaris — cocher depuis le calendrier', () => {
   it('une tâche disparue entre-temps le dit', async () => {
     await expect(createCalendarSource(store).toggleMark!('task:perdue')).rejects.toThrow(/n’existe plus/);
   });
+
+  it('glisser une tâche la reprévoit : jour, heure, durée si on l’a étirée ; la bande « Journée » retire l’heure', async () => {
+    const today = dayString();
+    await store.createTask({ title: 'Réunion', plannedDay: today, plannedTime: '14:00', durationMinutes: 60 }, 'r');
+    const source = createCalendarSource(store);
+    await source.moveMark!('task:r', { day: '2030-01-02', time: '16:00' });
+    expect((await store.listTasks())[0]).toMatchObject({ plannedDay: '2030-01-02', plannedTime: '16:00', durationMinutes: 60 });
+    await source.moveMark!('task:r', { day: '2030-01-02', time: '16:00', duration: 90 });
+    expect((await store.listTasks())[0].durationMinutes).toBe(90);
+    await source.moveMark!('task:r', { day: '2030-01-03', time: null });
+    expect((await store.listTasks())[0]).toMatchObject({ plannedDay: '2030-01-03', plannedTime: null, durationMinutes: null });
+  });
+
+  it('un geste que Polaris refuse est rejeté, avec son message', async () => {
+    await store.createTask({ title: 'Réunion', plannedDay: dayString(), plannedTime: '14:00' }, 'r');
+    await expect(createCalendarSource(store).moveMark!('task:r', { day: '2030-01-02', time: '16:00', duration: 2 })).rejects.toThrow(/5 minutes/);
+  });
 });

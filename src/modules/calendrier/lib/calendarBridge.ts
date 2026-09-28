@@ -5,7 +5,7 @@
  * INCLUSES. Toutes les conversions passent ici, testées, et jamais par
  * l'UTC : une date affichée à 9 h est lue à 9 h, changement d'heure ou pas.
  */
-import type { CalendarMark, CalendarSource } from '../../../core/lib/services';
+import type { CalendarMark, CalendarSource, MarkMove } from '../../../core/lib/services';
 import { dayString, shiftDay } from '../../../core/lib/day';
 import { occurrenceRange, type Occurrence } from './recurrence';
 import type { EventColor, EventInput } from './types';
@@ -24,8 +24,10 @@ export interface CalendarItem {
   end: string;
   allDay: boolean;
   classNames: string[];
-  /** Un calque ne se déplace pas : il appartient à un autre module */
+  /** Un calque ne se déplace que si son module le permet (`movable`) */
   editable?: boolean;
+  /** S'étirer : seulement une marque à une heure (une journée entière ne s'étend pas sur plusieurs jours) */
+  durationEditable?: boolean;
   backgroundColor?: string;
   borderColor?: string;
   /**
@@ -34,7 +36,7 @@ export interface CalendarItem {
    */
   extendedProps:
     | { order: 0; eventId: string; occurrenceDay: string }
-    | { order: number; layer: string; detail?: string; sourceId: string; markId: string; checkable: boolean; done: boolean };
+    | { order: number; layer: string; detail?: string; sourceId: string; markId: string; checkable: boolean; done: boolean; movable: boolean };
 }
 
 export function toCalendarItem(o: Occurrence): CalendarItem {
@@ -72,11 +74,12 @@ export function markItem(source: Pick<CalendarSource, 'id' | 'label' | 'color'>,
       // Prévisionnelle (la prochaine fois d'une tâche répétée) : en retrait.
       ...(mark.tentative ? ['calendrier-layer-tentative'] : []),
     ],
-    editable: false,
+    editable: !!mark.movable,
+    durationEditable: !!mark.movable && !!mark.time,
     // Une teinte légère (alpha 22 %) de la couleur du module, bordée de la couleur pleine.
     backgroundColor: `${source.color}38`,
     borderColor: source.color,
-    extendedProps: { order, layer: source.label, detail: mark.detail, sourceId: source.id, markId: mark.id, checkable, done: !!mark.done },
+    extendedProps: { order, layer: source.label, detail: mark.detail, sourceId: source.id, markId: mark.id, checkable, done: !!mark.done, movable: !!mark.movable },
   };
 }
 
@@ -87,6 +90,18 @@ function minutesAfter(day: string, time: string, duration: number): string {
   const next = shiftDay(day, Math.floor(minutes / 1440));
   const t = minutes % 1440;
   return `${next}T${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+}
+
+/**
+ * Où une marque a été glissée ou étirée, dans les mots du socle (`MarkMove`) :
+ * la journée entière n'a pas d'heure ; la durée n'est dite que si on a étiré
+ * la marque — un simple déplacement garde celle de la chose, ou son absence.
+ */
+export function markMoveFrom(start: Date, end: Date | null, allDay: boolean, resized: boolean): MarkMove {
+  if (allDay) return { day: dayString(start), time: null };
+  const move: MarkMove = { day: dayString(start), time: timeString(start) };
+  if (resized && end) move.duration = Math.round((end.getTime() - start.getTime()) / 60_000);
+  return move;
 }
 
 /** Les jours et heures d'un événement, sans le reste. */

@@ -553,7 +553,16 @@ se tape dans l'ajout rapide (« 15h-16h30 », « de 15h à 16h », « entre 9h e
 et donne sa taille au créneau d'Éclipse (`CalendarMark.duration`). Une durée sans heure reste dans
 le titre.
 
-**Pas encore** : poser une tâche sur un créneau en la glissant dans la grille — les marques ne se
+**Glisser une tâche dans Éclipse (28/09/2026, demande de Jules).** Une tâche de Polaris se
+**glisse** dans le calendrier comme un événement : vers un autre jour ou une autre heure, elle est
+reprévue ; son **bord du bas s'étire** pour changer sa durée ; posée dans la bande « Journée », elle
+perd son heure (et l'inverse lui en donne une). Le socle a gagné `CalendarMark.movable` et
+`CalendarSource.moveMark(id, { day, time, duration? })` ; comme pour cocher, **c'est Polaris qui
+écrit**, avec ses règles (`validateTask`) — un refus remet la marque à sa place, avec le message. Ne se
+glissent pas : les aperçus des prochaines fois, les tâches faites, celles qui n'ont qu'une échéance.
+Un simple déplacement garde la durée de la tâche (ou son absence) ; seul l'étirement la fixe.
+
+**Pas encore** : poser une tâche **de la liste** sur un créneau en la faisant glisser depuis Polaris vers Éclipse — les marques ne se
 déplacent pas (§6, plus tard).
 
 **Vérifié** à l'œil et de bout en bout, depuis la suite d'Éclipse : la tâche du jour et son rond,

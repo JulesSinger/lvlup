@@ -38,6 +38,9 @@ export function taskMarks(tasks: readonly Task[], lists: readonly TaskList[], fr
         ...(task.plannedDay && task.plannedTime && task.durationMinutes ? { duration: task.durationMinutes } : {}),
         checkable: true,
         done: task.completedAt !== null,
+        // Se glisse à un autre jour ou une autre heure (une tâche à faire, qui a un jour prévu) ;
+        // pas une tâche faite, ni une qui n'a qu'une échéance.
+        movable: !!task.plannedDay && task.completedAt === null,
         // « Modifier dans Polaris » depuis le calendrier ouvre la fenêtre de cette tâche.
         link: `task:${task.id}`,
       });

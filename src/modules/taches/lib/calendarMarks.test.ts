@@ -30,14 +30,14 @@ describe('taskMarks — le calque de Polaris', () => {
   it('une tâche datée : son jour, son heure, cochable, faite ou non', () => {
     const t = task({ id: 'a', title: 'Appeler le garage', plannedDay: '2026-09-29', plannedTime: '09:00', listId: 'm', priority: 'urgente' });
     expect(taskMarks([t], lists, '2026-09-28', '2026-10-04', '2026-09-28')).toEqual([
-      { id: 'task:a', day: '2026-09-29', title: 'Appeler le garage', detail: 'Maison · urgente', time: '09:00', checkable: true, done: false, link: 'task:a' },
+      { id: 'task:a', day: '2026-09-29', title: 'Appeler le garage', detail: 'Maison · urgente', time: '09:00', checkable: true, done: false, movable: true, link: 'task:a' },
     ]);
   });
 
   it('sans jour prévu, à son échéance, marquée comme telle ; faite, cochée', () => {
     const t = task({ id: 'b', title: 'Impôts', dueDay: '2026-09-30', completedAt: '2026-09-28T10:00:00Z' });
     expect(taskMarks([t], [], '2026-09-28', '2026-10-04', '2026-09-28')).toEqual([
-      { id: 'task:b', day: '2026-09-30', title: '⚑ Impôts', detail: 'Boîte de réception · à faire aujourd’hui', checkable: true, done: true, link: 'task:b' },
+      { id: 'task:b', day: '2026-09-30', title: '⚑ Impôts', detail: 'Boîte de réception · à faire aujourd’hui', checkable: true, done: true, movable: false, link: 'task:b' },
     ]);
   });
 

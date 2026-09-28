@@ -5,7 +5,8 @@ import listPlugin from '@fullcalendar/list';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import { dayString, shiftDay } from '../../../core/lib/day';
-import { spanFromRange, spanFromSelection, type CalendarItem, type EventSpan } from '../lib/calendarBridge';
+import { markMoveFrom, spanFromRange, spanFromSelection, type CalendarItem, type EventSpan } from '../lib/calendarBridge';
+import type { MarkMove } from '../../../core/lib/services';
 
 export const VIEWS = ['dayGridMonth', 'timeGridWeek', 'timeGridDay', 'listWeek'] as const;
 export type ViewName = (typeof VIEWS)[number];
@@ -23,6 +24,8 @@ interface Props {
   onToggleMark: (sourceId: string, markId: string) => void;
   /** Toucher une marque ailleurs que sur son rond : sa fenêtre. */
   onOpenMark: (sourceId: string, markId: string) => void;
+  /** Une marque d'un autre module glissée ou étirée. Rejette en cas de refus : elle revient à sa place. */
+  onMoveMark: (sourceId: string, markId: string, to: MarkMove) => Promise<void>;
   /** Un événement déplacé ou étiré. Rejette en cas d'échec ou d'abandon : il revient alors à sa place. */
   onMove: (eventId: string, occurrenceDay: string, span: EventSpan) => Promise<void>;
 }
@@ -39,7 +42,7 @@ interface Props {
  * locales, sans fuseau (`timeZone: 'local'`) : une heure affichée est une
  * heure lue, sans conversion.
  */
-export default function CalendarView({ items, initialView, narrow, onRangeChange, onSelect, onOpen, onToggleMark, onOpenMark, onMove }: Props) {
+export default function CalendarView({ items, initialView, narrow, onRangeChange, onSelect, onOpen, onToggleMark, onOpenMark, onMoveMark, onMove }: Props) {
   return (
     <FullCalendar
       plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
@@ -118,6 +121,11 @@ export default function CalendarView({ items, initialView, narrow, onRangeChange
       }}
       eventDrop={(arg) => {
         if (!arg.event.start) return arg.revert();
+        const { layer, sourceId, markId } = arg.event.extendedProps;
+        if (layer) {
+          onMoveMark(sourceId as string, markId as string, markMoveFrom(arg.event.start, arg.event.end, arg.event.allDay, false)).catch(() => arg.revert());
+          return;
+        }
         onMove(
           arg.event.extendedProps.eventId as string,
           arg.event.extendedProps.occurrenceDay as string,
@@ -126,6 +134,11 @@ export default function CalendarView({ items, initialView, narrow, onRangeChange
       }}
       eventResize={(arg) => {
         if (!arg.event.start) return arg.revert();
+        const { layer, sourceId, markId } = arg.event.extendedProps;
+        if (layer) {
+          onMoveMark(sourceId as string, markId as string, markMoveFrom(arg.event.start, arg.event.end, arg.event.allDay, true)).catch(() => arg.revert());
+          return;
+        }
         onMove(
           arg.event.extendedProps.eventId as string,
           arg.event.extendedProps.occurrenceDay as string,

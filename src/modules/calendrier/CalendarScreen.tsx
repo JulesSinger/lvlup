@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
-import type { CalendarMark } from '../../core/lib/services';
+import type { CalendarMark, MarkMove } from '../../core/lib/services';
 import type { ViewName } from './components/CalendarView';
 import { EventEditor, type EditorValues } from './components/EventEditor';
 import { MarkDialog } from './components/MarkDialog';
@@ -129,6 +129,25 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, on
       onError(err instanceof Error ? err.message : 'Impossible de cocher.');
     }
     setMarksVersion((v) => v + 1);
+  }
+
+  /**
+   * Une marque d'un autre module glissée ou étirée (une tâche de Polaris) :
+   * c'est le module qui écrit, puis le calque est relu. En cas de refus,
+   * l'erreur s'affiche et FullCalendar remet la marque à sa place.
+   */
+  async function moveMark(sourceId: string, markId: string, to: MarkMove) {
+    const source = sources.find((s) => s.id === sourceId);
+    if (!source?.moveMark) throw new Error('Ce calque ne se déplace pas.');
+    try {
+      await source.moveMark(markId, to);
+      onError('');
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Déplacement impossible.');
+      throw err;
+    } finally {
+      setMarksVersion((v) => v + 1);
+    }
   }
 
   function toggleLayer(id: string, visible: boolean) {
@@ -328,6 +347,7 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, on
               onOpen={openExisting}
               onToggleMark={(sourceId, markId) => void toggleMark(sourceId, markId)}
               onOpenMark={(sourceId, markId) => setOpenedMark({ sourceId, markId })}
+              onMoveMark={moveMark}
               onMove={move}
             />
           </Suspense>
