@@ -135,3 +135,11 @@ describe('markItem — une marque à cocher, à une heure (Polaris)', () => {
     expect(item.classNames).toContain('calendrier-layer-done');
   });
 });
+
+describe('markItem — une marque prévisionnelle', () => {
+  it('en retrait, jamais cochable', () => {
+    const item = markItem({ id: 'taches', label: 'Polaris', color: '#ff9f7a' }, { id: 'forecast:w:2026-10-07', day: '2026-10-07', title: 'Courses', tentative: true }, 2);
+    expect(item.classNames).toEqual(['calendrier-layer', 'calendrier-layer-tentative']);
+    expect(item.extendedProps).toMatchObject({ checkable: false });
+  });
+});

@@ -65,6 +65,11 @@ export interface CalendarMark {
   /** Cochée : faite */
   done?: boolean;
   /**
+   * Prévisionnelle : ce qui arrivera si rien ne change (les prochaines
+   * occurrences d'une tâche répétée), dessinée en retrait — jamais cochable.
+   */
+  tentative?: boolean;
+  /**
    * De quoi ouvrir la chose elle-même dans son module (`onOpenModule(source.id,
    * link)`) — « task:<id> » pour une tâche de Polaris. Absent : rien à ouvrir.
    */

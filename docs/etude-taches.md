@@ -533,6 +533,17 @@ n'affiche jamais les écrans de Polaris : le socle a gagné `onOpenModule(module
 marque dit quoi ouvrir (`link: "task:<id>"`), une chaîne que seul Polaris sait lire. Les marques
 des autres calques (Zénith, Orbite…) ouvrent la même fenêtre, avec leur détail, sans bouton.
 
+**Aperçu des prochaines fois (28/09/2026, accepté par Jules).** Une tâche répétée n'a toujours
+qu'une occurrence à la fois, mais ses **prochaines fois** s'affichent en aperçu : dans « À venir »
+(ligne en retrait, rond en pointillés, sans case, ✎ ouvre la tâche et sa règle) et dans Éclipse
+(marque atténuée, en pointillés, jamais cochable ; sa fenêtre dit « Aperçu » et propose « Modifier
+dans Polaris »). Rien n'est stocké : `upcomingOccurrences` (`lib/repeat.ts`) les calcule depuis la
+règle, avec la même logique que la coche — une tâche en retard ne fait pas réapparaître les
+semaines manquées ; « après l'avoir faite », en supposant qu'elle le sera au jour prévu (dit au
+survol). Le socle a gagné `CalendarMark.tentative`. **Défaut trouvé par la suite e2e** : une tâche
+dont l'occurrence en cours tombait hors de la période affichée était écartée avant le calcul de ses
+prochaines fois — la semaine suivante restait vide.
+
 **Pas encore** : poser une tâche sur un créneau en la glissant dans la grille — les marques ne se
 déplacent pas (§6, plus tard).
 

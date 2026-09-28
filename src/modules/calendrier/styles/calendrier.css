@@ -316,6 +316,19 @@
   text-decoration: line-through;
 }
 
+/* Une marque prévisionnelle (la prochaine fois d'une tâche répétée) : en retrait. */
+.calendrier-view .fc .calendrier-layer-tentative {
+  opacity: 0.5;
+}
+
+/* Les pointillés pour les marques en bloc (journée entière, grille horaire) ; une
+   marque à une heure, dans le mois, est une simple ligne avec son point. */
+.calendrier-view .fc .fc-daygrid-block-event.calendrier-layer-tentative,
+.calendrier-view .fc .fc-timegrid-event.calendrier-layer-tentative {
+  border-style: dashed;
+  background-color: transparent !important;
+}
+
 /* La fenêtre d'une marque d'un autre module. */
 .calendrier-mark-dialog {
   max-width: 420px;

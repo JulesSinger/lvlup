@@ -6,17 +6,18 @@
  */
 import type { CalendarMark } from '../../../core/lib/services';
 import { dueLabel } from './format';
+import { upcomingOccurrences } from './repeat';
 import type { Task, TaskList } from './types';
 
 const PRIORITY = { normale: '', importante: 'importante', urgente: 'urgente' };
 
-export function taskMarks(tasks: readonly Task[], lists: readonly TaskList[], from: string, to: string): CalendarMark[] {
+export function taskMarks(tasks: readonly Task[], lists: readonly TaskList[], from: string, to: string, today: string): CalendarMark[] {
   const listName = new Map(lists.map((l) => [l.id, l.name]));
   const marks: CalendarMark[] = [];
   for (const task of tasks) {
     if (task.parentId) continue; // une sous-tâche vit sous sa tâche, pas seule dans le calendrier
     const day = task.plannedDay ?? task.dueDay;
-    if (!day || day < from || day > to) continue;
+    if (!day) continue;
     const detail = [
       task.listId ? listName.get(task.listId) : 'Boîte de réception',
       PRIORITY[task.priority],
@@ -25,17 +26,34 @@ export function taskMarks(tasks: readonly Task[], lists: readonly TaskList[], fr
     ]
       .filter(Boolean)
       .join(' · ');
-    marks.push({
-      id: `task:${task.id}`,
-      day,
-      title: task.plannedDay ? task.title : `⚑ ${task.title}`,
-      detail,
-      ...(task.plannedDay && task.plannedTime ? { time: task.plannedTime } : {}),
-      checkable: true,
-      done: task.completedAt !== null,
-      // « Modifier dans Polaris » depuis le calendrier ouvre la fenêtre de cette tâche.
-      link: `task:${task.id}`,
-    });
+    // L'occurrence en cours, si elle tombe dans la période. Les suivantes, elles,
+    // peuvent y tomber même quand celle-ci n'y est pas (la semaine d'après).
+    if (day >= from && day <= to) {
+      marks.push({
+        id: `task:${task.id}`,
+        day,
+        title: task.plannedDay ? task.title : `⚑ ${task.title}`,
+        detail,
+        ...(task.plannedDay && task.plannedTime ? { time: task.plannedTime } : {}),
+        checkable: true,
+        done: task.completedAt !== null,
+        // « Modifier dans Polaris » depuis le calendrier ouvre la fenêtre de cette tâche.
+        link: `task:${task.id}`,
+      });
+    }
+    // Les occurrences suivantes d'une tâche répétée, en aperçu : ni cochables
+    // ni stockées — on coche celle en cours, la suivante prend sa place.
+    for (const next of upcomingOccurrences(task, today, from, to)) {
+      marks.push({
+        id: `forecast:${task.id}:${next}`,
+        day: next,
+        title: task.title,
+        detail: `${task.repeatFrom === 'completion' ? 'Prochaine fois, si elle est faite à temps' : 'Prochaine fois'}${detail ? ` · ${detail}` : ''}`,
+        ...(task.plannedTime ? { time: task.plannedTime } : {}),
+        tentative: true,
+        link: `task:${task.id}`,
+      });
+    }
   }
   return marks.sort((a, b) => a.day.localeCompare(b.day) || (a.time ?? '').localeCompare(b.time ?? '') || a.title.localeCompare(b.title, 'fr'));
 }

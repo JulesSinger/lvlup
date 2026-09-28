@@ -125,3 +125,33 @@ export function undoCompletion(task: Task, subtasks: readonly Task[], plan: Comp
     ],
   };
 }
+
+/** Garde-fou : un aperçu ne déplie pas plus d'occurrences que ça. */
+const MAX_FORECAST = 400;
+
+/**
+ * L'aperçu des occurrences **suivantes** d'une tâche répétée entre `from` et
+ * `to` (demande de Jules, 28/09/2026) : les jours où elle reviendra après
+ * l'occurrence en cours, pour les voir dans « À venir » et dans Éclipse. Rien
+ * n'est stocké ni cochable : une tâche n'a toujours qu'une occurrence à la
+ * fois, celle-ci n'est qu'un calcul depuis sa règle.
+ *
+ * Même règle que `nextOccurrence` : à date fixe, les jours de la règle
+ * **après aujourd'hui** (une tâche en retard ne fait pas réapparaître les
+ * semaines manquées) ; après l'avoir faite, en supposant qu'elle le sera au
+ * jour prévu — seule hypothèse possible, l'écran le dit.
+ */
+export function upcomingOccurrences(task: Task, today: string, from: string, to: string): string[] {
+  if (!task.recurrence || !task.plannedDay || task.completedAt || task.parentId) return [];
+  const days: string[] = [];
+  let current: Pick<Task, 'plannedDay' | 'recurrence' | 'repeatFrom'> = task;
+  let done = maxDay(task.plannedDay, today);
+  for (let i = 0; i < MAX_FORECAST; i++) {
+    const next = nextOccurrence(current, done);
+    if (!next || next.plannedDay > to) break;
+    if (next.plannedDay >= from) days.push(next.plannedDay);
+    current = { ...current, plannedDay: next.plannedDay, recurrence: next.recurrence };
+    done = next.plannedDay;
+  }
+  return days;
+}

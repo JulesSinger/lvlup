@@ -344,6 +344,7 @@ export async function run({ browser, check, BASE }) {
       tachesTasks: [
         { id: 'p1', listId: null, parentId: null, title: 'Rendre le livre', note: '', plannedDay: today, plannedTime: null, dueDay: null, priority: 'normale', recurrence: null, repeatFrom: 'schedule', position: 0, completedAt: null, createdAt: '' },
         { id: 'p2', listId: null, parentId: null, title: 'Appeler le garage', note: '', plannedDay: today, plannedTime: '14:00', dueDay: null, priority: 'urgente', recurrence: null, repeatFrom: 'schedule', position: 1, completedAt: null, createdAt: '' },
+        { id: 'p3', listId: null, parentId: null, title: 'Faire les courses', note: '', plannedDay: today, plannedTime: null, dueDay: null, priority: 'normale', recurrence: { freq: 'weekly', interval: 1 }, repeatFrom: 'schedule', position: 2, completedAt: null, createdAt: '' },
       ],
     });
     localStorage.setItem('palier.v1', JSON.stringify(raw));
@@ -413,6 +414,18 @@ export async function run({ browser, check, BASE }) {
     'Le choix des calques est retenu après un rechargement',
     (await pressed('Astra')) === 'true' && (await pressed('Zénith')) === 'false' && (await zenithMark.count()) === 0,
   );
+  // Une tâche répétée : la semaine suivante, sa prochaine fois en aperçu, en retrait et sans rond.
+  await lp.locator('.fc-next-button').click();
+  const forecast = lp.locator('.calendrier-layer-tentative', { hasText: 'Faire les courses' }).first();
+  await forecast.waitFor();
+  check('La semaine suivante montre la prochaine fois d’une tâche répétée, sans rond à cocher', (await forecast.getByRole('checkbox').count()) === 0);
+  await forecast.click();
+  await lp.locator('.calendrier-mark-dialog').waitFor();
+  check('Sa fenêtre dit que c’est un aperçu, et propose de la modifier dans Polaris', (await text(lp.locator('.calendrier-mark-dialog'))).includes('Aperçu') && (await lp.getByRole('button', { name: 'Modifier dans Polaris' }).count()) === 1);
+  await lp.keyboard.press('Escape');
+  await lp.locator('.calendrier-mark-dialog').waitFor({ state: 'detached' });
+  await lp.locator('.fc-today-button').click();
+
   // « Modifier dans Polaris » : Polaris s'ouvre sur la fenêtre de cette tâche.
   await lp.getByRole('button', { name: 'Polaris' }).first().waitFor();
   const garage = lp.locator('.calendrier-layer', { hasText: 'Appeler le garage' }).first();

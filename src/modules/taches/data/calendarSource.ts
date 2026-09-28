@@ -22,7 +22,7 @@ export function createCalendarSource(store: TachesStore, afterWrite: () => Promi
     defaultVisible: true,
     async marksBetween(from, to) {
       const [tasks, lists] = await Promise.all([store.listTasks(), store.listLists()]);
-      return taskMarks(tasks, lists, from, to);
+      return taskMarks(tasks, lists, from, to, dayString());
     },
     async toggleMark(markId) {
       const id = taskIdOf(markId);

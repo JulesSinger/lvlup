@@ -46,7 +46,7 @@ async function edit(page, title, change) {
 
 const titles = (page) => page.locator('.taches-row-title').allTextContents();
 
-const row = (page, title) => page.locator('.taches-row', { has: page.locator('.taches-row-title', { hasText: title }) });
+const row = (page, title) => page.locator('.taches-row:not(.taches-forecast)', { has: page.locator('.taches-row-title', { hasText: title }) });
 
 export async function run({ browser, check, BASE }) {
   const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
@@ -323,6 +323,18 @@ export async function run({ browser, check, BASE }) {
     (await text(row(p7, 'Sport').first())).includes('↻') && JSON.stringify(sport?.recurrence?.byWeekday) === '[1]' && sport?.plannedTime === '18:00' && new Date(`${sport?.plannedDay}T12:00`).getDay() === 1,
     JSON.stringify(sport),
   );
+  // L'aperçu des prochaines fois (28/09/2026) : dans À venir, en retrait, sans case à cocher.
+  await p7.getByRole('button', { name: 'À venir' }).click();
+  const ghosts = p7.locator('.taches-forecast', { hasText: 'Sport' });
+  await ghosts.first().waitFor();
+  check(
+    'À venir montre les prochains lundis de « Sport », en aperçu, sans case à cocher',
+    (await ghosts.count()) >= 1 && (await ghosts.first().getByRole('checkbox').count()) === 0 && (await text(ghosts.first())).includes('prochaine fois'),
+  );
+  await ghosts.first().getByRole('button', { name: /^Modifier « / }).click();
+  await p7.locator('.taches-editor').waitFor();
+  check('Le ✎ d’un aperçu ouvre la tâche elle-même, avec sa répétition', (await p7.locator('#taches-repeat').inputValue()) === 'weekly');
+  await p7.keyboard.press('Escape');
 
   await ctx7.close();
 

@@ -65,7 +65,13 @@ export function markItem(source: Pick<CalendarSource, 'id' | 'label' | 'color'>,
     // lui, et lui seul, qui coche — le reste de la marque ouvre sa fenêtre.
     title: mark.title,
     ...timed,
-    classNames: ['calendrier-layer', ...(checkable ? ['calendrier-layer-checkable'] : []), ...(mark.done ? ['calendrier-layer-done'] : [])],
+    classNames: [
+      'calendrier-layer',
+      ...(checkable ? ['calendrier-layer-checkable'] : []),
+      ...(mark.done ? ['calendrier-layer-done'] : []),
+      // Prévisionnelle (la prochaine fois d'une tâche répétée) : en retrait.
+      ...(mark.tentative ? ['calendrier-layer-tentative'] : []),
+    ],
     editable: false,
     // Une teinte légère (alpha 22 %) de la couleur du module, bordée de la couleur pleine.
     backgroundColor: `${source.color}38`,

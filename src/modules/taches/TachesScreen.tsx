@@ -3,6 +3,7 @@ import { newId } from '../../core/data/coreStore';
 import { isNetworkError } from '../../core/data/outbox';
 import { dayString, shiftDay } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
+import { ForecastRow } from './components/ForecastRow';
 import { ListEditor } from './components/ListEditor';
 import { QuickAddBar } from './components/QuickAddBar';
 import { TaskEditor } from './components/TaskEditor';
@@ -16,7 +17,7 @@ import { taskWriter } from './data/taskWriter';
 import { dayLabel, shortDate } from './lib/format';
 import type { QuickAdd } from './lib/quickAdd';
 import { moveItem, positionPatches } from './lib/order';
-import { completionPlan, undoCompletion } from './lib/repeat';
+import { completionPlan, undoCompletion, upcomingOccurrences } from './lib/repeat';
 import type { Task, TaskInput, TaskList, TaskPatch } from './lib/types';
 import { validateTask } from './lib/validation';
 import { doneView, inboxView, listView, subtasksOf, todayView, upcomingView } from './lib/views';
@@ -476,12 +477,29 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
       );
     }
     if (view === 'upcoming') {
-      return upcomingView(tasks, today).map(({ day, tasks: dayTasks }) => (
-        <section key={day} className={`taches-section taches-day${dayTasks.length === 0 ? ' taches-day-empty' : ''}`}>
-          <h2 className="taches-section-title">{dayLabel(day, today)}</h2>
-          {dayTasks.length > 0 && <ul className="taches-list">{dayTasks.map((t) => row(t, false))}</ul>}
-        </section>
-      ));
+      const days = upcomingView(tasks, today);
+      // Les prochaines fois des tâches répétées, en aperçu, sous les tâches du jour.
+      const forecast = new Map<string, Task[]>();
+      for (const t of tasks) {
+        for (const d of upcomingOccurrences(t, today, days[0].day, days[days.length - 1].day)) forecast.set(d, [...(forecast.get(d) ?? []), t]);
+      }
+      return days.map(({ day, tasks: dayTasks }) => {
+        const ghosts = forecast.get(day) ?? [];
+        const empty = dayTasks.length + ghosts.length === 0;
+        return (
+          <section key={day} className={`taches-section taches-day${empty ? ' taches-day-empty' : ''}`}>
+            <h2 className="taches-section-title">{dayLabel(day, today)}</h2>
+            {!empty && (
+              <ul className="taches-list">
+                {dayTasks.map((t) => row(t, false))}
+                {ghosts.map((t) => (
+                  <ForecastRow key={`${t.id}:${day}`} task={t} onOpen={(task) => setEditingId(task.id)} />
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      });
     }
     if (view === 'done') {
       const groups = doneView(tasks, (iso) => dayString(new Date(iso)));

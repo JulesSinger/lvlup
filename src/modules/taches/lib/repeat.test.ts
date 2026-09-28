@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { completionPlan, nextOccurrence, undoCompletion } from './repeat';
+import { completionPlan, nextOccurrence, undoCompletion, upcomingOccurrences } from './repeat';
 import type { Recurrence, Task } from './types';
 
 function task(overrides: Partial<Task> = {}): Task {
@@ -127,5 +127,40 @@ describe('undoCompletion — défaire une coche', () => {
         { id: 's1', patch: { completedAt: 'hier' } },
       ],
     });
+  });
+});
+
+describe('upcomingOccurrences — l’aperçu des suivantes', () => {
+  const today = '2026-09-28'; // un lundi
+
+  it('tous les mercredis : les mercredis après celui en cours, jusqu’à la fin de la période', () => {
+    const t = task({ plannedDay: '2026-09-30', recurrence: { freq: 'weekly', interval: 1, byWeekday: [3] } });
+    expect(upcomingOccurrences(t, today, '2026-09-29', '2026-10-25')).toEqual(['2026-10-07', '2026-10-14', '2026-10-21']);
+  });
+
+  it('en retard : pas de semaines manquées, la suite part d’aujourd’hui', () => {
+    const t = task({ plannedDay: '2026-09-07', recurrence: { freq: 'weekly', interval: 1 } }); // lundis
+    expect(upcomingOccurrences(t, today, '2026-09-01', '2026-10-13')).toEqual(['2026-10-05', '2026-10-12']);
+  });
+
+  it('`count` et `until` bornent l’aperçu', () => {
+    expect(upcomingOccurrences(task({ recurrence: { freq: 'weekly', interval: 1, count: 3 } }), today, today, '2026-12-31')).toEqual(['2026-10-05', '2026-10-12']);
+    expect(upcomingOccurrences(task({ recurrence: { freq: 'weekly', interval: 1, until: '2026-10-06' } }), today, today, '2026-12-31')).toEqual(['2026-10-05']);
+  });
+
+  it('après l’avoir faite : en supposant qu’elle le sera au jour prévu', () => {
+    const t = task({ plannedDay: '2026-09-30', recurrence: { freq: 'daily', interval: 10 }, repeatFrom: 'completion' });
+    expect(upcomingOccurrences(t, today, today, '2026-10-31')).toEqual(['2026-10-10', '2026-10-20', '2026-10-30']);
+  });
+
+  it('un anniversaire : les années suivantes', () => {
+    const t = task({ plannedDay: '2027-03-15', recurrence: { freq: 'yearly', interval: 1 } });
+    expect(upcomingOccurrences(t, today, today, '2029-12-31')).toEqual(['2028-03-15', '2029-03-15']);
+  });
+
+  it('rien pour une tâche simple, faite, ou une sous-tâche', () => {
+    expect(upcomingOccurrences(task({ recurrence: null }), today, today, '2026-12-31')).toEqual([]);
+    expect(upcomingOccurrences(task({ completedAt: 'x' }), today, today, '2026-12-31')).toEqual([]);
+    expect(upcomingOccurrences(task({ parentId: 'p' }), today, today, '2026-12-31')).toEqual([]);
   });
 });

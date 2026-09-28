@@ -56,6 +56,11 @@ export function MarkDialog({ source, mark, onClose, onToggle, onOpenInModule }: 
           <p className="calendrier-mark-dialog-when">{when(mark)}</p>
           {mark.detail && <p className="calendrier-mark-dialog-detail">{mark.detail}</p>}
           {checkable && <p className="calendrier-mark-dialog-state">{mark.done ? '✓ Faite' : 'À faire'}</p>}
+          {mark.tentative && (
+            <p className="calendrier-mark-dialog-state">
+              ↻ Aperçu : elle reviendra ce jour-là. On coche l’occurrence en cours ; celle-ci prendra sa place.
+            </p>
+          )}
         </div>
         <div className="modal-foot calendrier-editor-foot">
           {checkable && (
