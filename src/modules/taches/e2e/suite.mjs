@@ -301,6 +301,29 @@ export async function run({ browser, check, BASE }) {
     longTitle.length > 200 && (await p7.locator('.notice.error').count()) === 0 && (await text(row(p7, 'Préparer le dossier de la mutuelle').locator('.taches-row-title'))).endsWith('fin'),
   );
   check('… et ne fait pas déborder la page', await p7.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1));
+  // Les répétitions dans l'ajout rapide (28/09/2026) : un anniversaire revient tous les ans.
+  await type(p7, 'Anniversaire Léa 15 03');
+  const bdayTokens = (await p7.locator('.taches-token').allTextContents()).join(' | ');
+  check('« Anniversaire Léa 15 03 » : la date et « tous les ans » sont compris', bdayTokens.includes('15 mars') && bdayTokens.includes('Tous les ans le 15 mars'), bdayTokens);
+  await p7.getByLabel('Ajouter une tâche').press('Enter');
+  await p7.locator('.taches-toast').waitFor();
+  const bday = await p7.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.title === 'Anniversaire Léa'));
+  check(
+    '… et la tâche est enregistrée, répétée tous les ans, au prochain 15 mars',
+    bday?.recurrence?.freq === 'yearly' && bday?.plannedDay?.endsWith('-03-15') && bday?.repeatFrom === 'schedule',
+    JSON.stringify(bday),
+  );
+  await add(p7, 'Sport tous les lundis 18h');
+  // Prévue au premier lundi à partir d'aujourd'hui : dans Aujourd'hui un lundi, dans À venir sinon.
+  if ((await row(p7, 'Sport').count()) === 0) await p7.getByRole('button', { name: 'À venir' }).click();
+  await row(p7, 'Sport').first().waitFor();
+  const sport = await p7.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.title === 'Sport'));
+  check(
+    '« tous les lundis 18h » : une tâche répétée chaque lundi, à 18 h, marquée ↻',
+    (await text(row(p7, 'Sport').first())).includes('↻') && JSON.stringify(sport?.recurrence?.byWeekday) === '[1]' && sport?.plannedTime === '18:00' && new Date(`${sport?.plannedDay}T12:00`).getDay() === 1,
+    JSON.stringify(sport),
+  );
+
   await ctx7.close();
 
   // --- Téléphone ---------------------------------------------------------------------------------------------

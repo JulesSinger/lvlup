@@ -4,7 +4,9 @@
  *
  * « Appeler le garage demain 9h » → titre « Appeler le garage », prévue
  * demain à 9 h. « Impôts avant le 30 ! » → échéance le 30, importante.
- * « Ampoule #maison » → dans la liste Maison.
+ * « Ampoule #maison » → dans la liste Maison. « Sport tous les lundis 18h »
+ * → répétée chaque lundi. « Anniversaire Léa 15 03 » → le prochain 15 mars,
+ * répétée tous les ans (demande de Jules, 28/09/2026).
  *
  * Écrit à la main plutôt qu'avec `chrono-node`, essayé d'abord le
  * 28/09/2026 sur une batterie de phrases : il ne comprenait ni « le 5 » ni
@@ -17,9 +19,10 @@
  * Tout se joue en jours locaux, par rapport à `today` : aucun fuseau.
  */
 import { shiftDay, weekday } from '../../../core/lib/day';
+import type { Recurrence } from '../../../core/lib/recurrence';
 import type { Priority } from './types';
 
-export type TokenKind = 'day' | 'time' | 'due' | 'priority' | 'list';
+export type TokenKind = 'day' | 'time' | 'due' | 'priority' | 'list' | 'repeat';
 
 /** Un morceau du texte compris comme autre chose qu'un titre. */
 export interface QuickToken {
@@ -37,6 +40,8 @@ export interface QuickAdd {
   dueDay: string | null;
   priority: Priority;
   listId: string | null;
+  /** La répétition comprise (« tous les lundis », « anniversaire … ») ; exige un jour prévu, toujours rempli alors */
+  recurrence: Recurrence | null;
   tokens: QuickToken[];
 }
 
@@ -163,6 +168,39 @@ const DAY_PATTERNS: { source: string; resolve: (m: RegExpExecArray, today: strin
   { source: `le (\\d{1,2})(?:er)?(?! (?:${MONTH})${R})(?!/)`, resolve: (m, t) => nextDayOfMonth(t, Number(m[1])) },
 ];
 
+// --- Les répétitions -----------------------------------------------------------
+
+const WD = WEEKDAYS.join('|');
+/** Tous les jours de la semaine cités dans un morceau : « lundis et jeudis » → [1, 4]. */
+const weekdaysIn = (text: string) => [...new Set([...text.matchAll(new RegExp(`(${WD})`, 'g'))].map((m) => WEEKDAYS.indexOf(m[1])))];
+/** Une suite de jours : « lundi », « lundis et jeudis », « lundi, mercredi et vendredi ». */
+const WD_LIST = `(?:${WD})s?(?:(?:, | et )(?:${WD})s?)*`;
+
+/** Chaque façon de dire une répétition, et la règle qu'elle donne. */
+const REPEAT_PATTERNS: { source: string; rule: (m: RegExpExecArray) => Recurrence }[] = [
+  { source: `tous les jours|chaque jour|quotidiennement`, rule: () => ({ freq: 'daily', interval: 1 }) },
+  { source: `tous les (${NUMBER}) jours`, rule: (m) => ({ freq: 'daily', interval: count(m[1]) }) },
+  { source: `toutes les semaines|chaque semaine|hebdomadairement`, rule: () => ({ freq: 'weekly', interval: 1 }) },
+  { source: `toutes les (${NUMBER}) semaines`, rule: (m) => ({ freq: 'weekly', interval: count(m[1]) }) },
+  // « tous les lundis », « chaque lundi », « les lundis et jeudis » (le pluriel seul suffit ; « le lundi » reste un jour)
+  { source: `(?:tous les|chaque) ${WD_LIST}|les (?:${WD})s(?:(?:, | et )(?:${WD})s?)*`, rule: (m) => ({ freq: 'weekly', interval: 1, byWeekday: weekdaysIn(m[0]) }) },
+  { source: `un (${WD}) sur (deux|2)`, rule: (m) => ({ freq: 'weekly', interval: 2, byWeekday: weekdaysIn(m[0]) }) },
+  { source: `tous les mois|chaque mois|mensuellement`, rule: () => ({ freq: 'monthly', interval: 1 }) },
+  { source: `tous les (${NUMBER}) mois`, rule: (m) => ({ freq: 'monthly', interval: count(m[1]) }) },
+  { source: `tous les ans|chaque annee|annuellement`, rule: () => ({ freq: 'yearly', interval: 1 }) },
+  { source: `tous les (${NUMBER}) ans`, rule: (m) => ({ freq: 'yearly', interval: count(m[1]) }) },
+];
+
+/** « anniversaire », « anniv » : une date qui revient tous les ans. */
+const BIRTHDAY = new RegExp(`${L}anniv(?:ersaire)?s?${R}`, 'u');
+
+/**
+ * Après « anniversaire » seulement, « 15 03 », « 15.03 » ou « 15-03 » sont une
+ * date (et « 15 03 1990 » aussi, l'année de naissance ignorée) : ailleurs, ce
+ * serait lire un numéro de téléphone comme une date.
+ */
+const BIRTHDAY_DATE = `(?:le )?(\\d{1,2})[ .-](\\d{1,2})(?:[ .\\/-](\\d{4}|\\d{2}))?`;
+
 /** Ce qui fait d'un jour une échéance plutôt qu'un jour prévu. */
 const DUE_PREFIX = /(?:avant|pour|d'ici|au plus tard)\s+$/;
 
@@ -176,6 +214,9 @@ interface Candidate {
   start: number;
   end: number;
   value: string;
+  rule?: Recurrence;
+  /** Compris, mais laissé dans le titre (« anniversaire » dit la répétition et reste le titre) */
+  keep?: boolean;
 }
 
 /** Garde les candidats qui ne se chevauchent pas : le plus tôt, puis le plus long. */
@@ -200,9 +241,22 @@ export function parseQuickAdd(
 ): QuickAdd {
   const folded = fold(text);
   const candidates: Candidate[] = [];
+  const birthday = BIRTHDAY.exec(folded);
+  const dayPatterns = birthday
+    ? [...DAY_PATTERNS, { source: BIRTHDAY_DATE, resolve: (m: RegExpExecArray, t: string) => nextDayMonth(t, Number(m[1]), Number(m[2])) }]
+    : DAY_PATTERNS;
+
+  // Les répétitions, avant les jours : « tous les lundis » l'emporte sur « lundi », qu'il contient.
+  for (const { source, rule } of REPEAT_PATTERNS) {
+    const re = new RegExp(`${L}(?:${source})${R}`, 'gu');
+    for (let m = re.exec(folded); m; m = re.exec(folded)) {
+      const r = rule(m);
+      if (r.interval >= 1 && r.interval <= 99) candidates.push({ kind: 'repeat', start: m.index, end: m.index + m[0].length, value: '', rule: r });
+    }
+  }
 
   // Les jours, et les échéances (un jour précédé de « avant », « pour »…).
-  for (const { source, resolve } of DAY_PATTERNS) {
+  for (const { source, resolve } of dayPatterns) {
     const re = new RegExp(`${L}(?:${source})${R}`, 'gu');
     for (let m = re.exec(folded); m; m = re.exec(folded)) {
       const day = resolve(m, today);
@@ -241,11 +295,16 @@ export function parseQuickAdd(
   for (const c of nonOverlapping(candidates.filter((c) => !ignore.has(c.kind)))) {
     if (!tokens.some((t) => t.kind === c.kind)) tokens.push(c);
   }
+  // Un anniversaire se répète tous les ans sans qu'on le dise : le mot le porte, et reste dans le titre.
+  if (birthday && !ignore.has('repeat') && !tokens.some((t) => t.kind === 'repeat') && tokens.some((t) => t.kind === 'day')) {
+    tokens.push({ kind: 'repeat', start: birthday.index, end: birthday.index + birthday[0].length, value: '', rule: { freq: 'yearly', interval: 1 }, keep: true });
+  }
   const value = (kind: TokenKind) => tokens.find((t) => t.kind === kind)?.value ?? null;
+  const rule = tokens.find((t) => t.kind === 'repeat')?.rule ?? null;
 
   let title = '';
   let cursor = 0;
-  for (const t of [...tokens].sort((a, b) => a.start - b.start)) {
+  for (const t of [...tokens].filter((t) => !t.keep).sort((a, b) => a.start - b.start)) {
     title += `${text.slice(cursor, t.start)} `;
     cursor = t.end;
   }
@@ -253,14 +312,25 @@ export function parseQuickAdd(
   title = title.replace(/\s+/g, ' ').replace(/^[\s,;:–-]+|[\s,;:–-]+$/g, '');
 
   const plannedTime = value('time');
+  let plannedDay = value('day');
+  // Un anniversaire est toujours le prochain : « 15/03/1990 » est une date de naissance, pas un jour passé.
+  if (birthday && plannedDay && plannedDay < today) {
+    plannedDay = nextDayMonth(today, Number(plannedDay.slice(8)), Number(plannedDay.slice(5, 7)));
+  }
+  if (rule && !plannedDay) {
+    // Une répétition a besoin d'un jour : le premier jour de la semaine cité à partir d'aujourd'hui, sinon aujourd'hui.
+    const days = rule.byWeekday ?? [];
+    plannedDay = days.length > 0 ? shiftDay(today, Math.min(...days.map((d) => (d - weekday(today) + 7) % 7))) : today;
+  }
   return {
     title,
     // Une heure seule vaut pour aujourd'hui (« Réunion à 18h30 »).
-    plannedDay: value('day') ?? (plannedTime ? today : null),
+    plannedDay: plannedDay ?? (plannedTime ? today : null),
     plannedTime,
     dueDay: value('due'),
     priority: (value('priority') as Priority | null) ?? 'normale',
     listId: value('list'),
+    recurrence: rule,
     tokens: tokens
       .sort((a, b) => a.start - b.start)
       .map(({ kind, start, end }) => ({ kind, start, end, text: text.slice(start, end) })),

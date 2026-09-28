@@ -207,6 +207,9 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
       dueDay: parsed.dueDay,
       priority: parsed.priority,
       listId: parsed.listId,
+      // « tous les lundis », « anniversaire … » : à date fixe, comme une date qui revient.
+      recurrence: parsed.recurrence,
+      repeatFrom: 'schedule',
     };
     // Ajoutée là où l'on est : prévue aujourd'hui dans Aujourd'hui, demain
     // dans À venir, dans la liste ouverte — sauf si le texte a dit autre chose.

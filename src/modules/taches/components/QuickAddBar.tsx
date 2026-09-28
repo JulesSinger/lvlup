@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { describeRecurrence } from '../../../core/lib/recurrence';
 import { dayLabel, shortDate, timeLabel } from '../lib/format';
 import { parseQuickAdd, type QuickAdd, type TokenKind } from '../lib/quickAdd';
 import type { TaskList } from '../lib/types';
@@ -37,6 +38,8 @@ export function QuickAddBar({ today, lists, placeholder, onAdd }: Props) {
         return `! ${PRIORITY_TEXT[parsed.priority]}`;
       case 'list':
         return `# ${lists.find((l) => l.id === parsed.listId)?.name ?? ''}`;
+      case 'repeat':
+        return parsed.recurrence && parsed.plannedDay ? `↻ ${describeRecurrence(parsed.recurrence, parsed.plannedDay)}` : '↻';
     }
   }
 

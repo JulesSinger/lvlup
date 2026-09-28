@@ -114,3 +114,95 @@ describe('parseQuickAdd — ce qui a été compris, et l’annuler', () => {
     expect(pick('Acheter 5 pommes')).toEqual(['Acheter 5 pommes', null, null, null]);
   });
 });
+
+describe('parseQuickAdd — les anniversaires, tous les ans', () => {
+  // On est le lundi 28 septembre 2026.
+  const bday = (text: string) => {
+    const r = parse(text);
+    return [r.title, r.plannedDay, r.recurrence];
+  };
+  const yearly = { freq: 'yearly', interval: 1 };
+
+  it('« anniversaire Léa 15 03 » : le prochain 15 mars, tous les ans, le mot reste dans le titre', () => {
+    expect(bday('anniversaire Léa 15 03')).toEqual(['anniversaire Léa', '2027-03-15', yearly]);
+  });
+
+  it('toutes les façons d’écrire la date', () => {
+    for (const text of ['Anniversaire Léa 15/03', 'Anniversaire Léa 15.03', 'Anniversaire Léa 15-03', 'Anniversaire Léa le 15 mars', 'Anniversaire Léa 15 mars', 'Anniversaire de Léa le 15/03']) {
+      expect(parse(text)).toMatchObject({ plannedDay: '2027-03-15', recurrence: yearly });
+    }
+  });
+
+  it('« anniv », et une date encore à venir cette année', () => {
+    expect(bday('anniv Paul 3 octobre')).toEqual(['anniv Paul', '2026-10-03', yearly]);
+    expect(bday('Anniversaire maman 28/09')).toEqual(['Anniversaire maman', '2026-09-28', yearly]);
+  });
+
+  it('une année de naissance est ignorée : c’est le prochain anniversaire qui compte', () => {
+    expect(bday('Anniversaire Léa 15/03/1990')).toEqual(['Anniversaire Léa', '2027-03-15', yearly]);
+    expect(bday('Anniversaire Léa 15 03 1990')).toEqual(['Anniversaire Léa', '2027-03-15', yearly]);
+  });
+
+  it('avec une heure, une priorité, une liste', () => {
+    const r = parse('Anniversaire Léa 15 mars 9h ! #famille', [{ id: 'f', name: 'Famille' }]);
+    expect(r).toMatchObject({ title: 'Anniversaire Léa', plannedDay: '2027-03-15', plannedTime: '09:00', priority: 'importante', listId: 'f', recurrence: yearly });
+  });
+
+  it('la pastille de répétition s’annule : une seule fois, alors', () => {
+    const r = parseQuickAdd('Anniversaire Léa 15 03', today, [], new Set(['repeat']));
+    expect([r.plannedDay, r.recurrence]).toEqual(['2027-03-15', null]);
+  });
+
+  it('sans date, « anniversaire » n’est qu’un mot ; « 15 03 » sans anniversaire n’est pas une date (un téléphone)', () => {
+    expect(bday('Idée cadeau anniversaire')).toEqual(['Idée cadeau anniversaire', null, null]);
+    expect(pick('Rappeler 01 23 45 67 89')).toEqual(['Rappeler 01 23 45 67 89', null, null, null]);
+  });
+});
+
+describe('parseQuickAdd — les répétitions', () => {
+  const r = (text: string) => {
+    const x = parse(text);
+    return [x.title, x.plannedDay, x.plannedTime, x.recurrence];
+  };
+
+  it('tous les jours, tous les N jours', () => {
+    expect(r('Médicament tous les jours 8h')).toEqual(['Médicament', today, '08:00', { freq: 'daily', interval: 1 }]);
+    expect(r('Arroser les plantes tous les 3 jours')).toEqual(['Arroser les plantes', today, null, { freq: 'daily', interval: 3 }]);
+    expect(r('Vitamines chaque jour')[3]).toEqual({ freq: 'daily', interval: 1 });
+  });
+
+  it('un jour de la semaine : le premier à partir d’aujourd’hui', () => {
+    expect(r('Sport tous les lundis 18h')).toEqual(['Sport', today, '18:00', { freq: 'weekly', interval: 1, byWeekday: [1] }]);
+    expect(r('Poubelles chaque mercredi')).toEqual(['Poubelles', '2026-09-30', null, { freq: 'weekly', interval: 1, byWeekday: [3] }]);
+    expect(r('Piscine les mardis et jeudis')).toEqual(['Piscine', '2026-09-29', null, { freq: 'weekly', interval: 1, byWeekday: [2, 4] }]);
+    expect(r('Cours tous les lundis, mercredis et vendredis')[3]).toEqual({ freq: 'weekly', interval: 1, byWeekday: [1, 3, 5] });
+    expect(r('Ménage un samedi sur deux')).toEqual(['Ménage', '2026-10-03', null, { freq: 'weekly', interval: 2, byWeekday: [6] }]);
+  });
+
+  it('toutes les semaines, toutes les N semaines', () => {
+    expect(r('Bilan toutes les semaines')).toEqual(['Bilan', today, null, { freq: 'weekly', interval: 1 }]);
+    expect(r('Draps toutes les 2 semaines')[3]).toEqual({ freq: 'weekly', interval: 2 });
+  });
+
+  it('tous les mois, avec ou sans jour', () => {
+    expect(r('Loyer tous les mois le 5')).toEqual(['Loyer', '2026-10-05', null, { freq: 'monthly', interval: 1 }]);
+    expect(r('Relevé chaque mois')).toEqual(['Relevé', today, null, { freq: 'monthly', interval: 1 }]);
+    expect(r('Coiffeur tous les 2 mois')[3]).toEqual({ freq: 'monthly', interval: 2 });
+  });
+
+  it('tous les ans, chaque année', () => {
+    expect(r('Assurance tous les ans le 1er décembre')).toEqual(['Assurance', '2026-12-01', null, { freq: 'yearly', interval: 1 }]);
+    expect(r('Bilan de santé chaque année')[3]).toEqual({ freq: 'yearly', interval: 1 });
+  });
+
+  it('« le lundi » seul reste un jour, pas une répétition', () => {
+    expect(r('Réunion le lundi')).toEqual(['Réunion', '2026-10-05', null, null]);
+  });
+
+  it('ce qui a été compris se montre, pastille « repeat » comprise', () => {
+    expect(parse('Sport tous les lundis 18h').tokens.map((t) => [t.kind, t.text])).toEqual([
+      ['repeat', 'tous les lundis'],
+      ['time', '18h'],
+    ]);
+  });
+});

@@ -569,6 +569,19 @@ privé de réseau à la demande) ; et, de bout en bout, une tâche laissée dans
 l'ouverture de Polaris, avec son identifiant, sans doublon. **Pas vérifiable automatiquement** : une
 vraie coupure en mode comptes — **à essayer en mode avion**, comme pour Cérès.
 
+**Ajouté ensuite (28/09/2026), à la demande de Jules : les répétitions dans l'ajout rapide.**
+« Anniversaire Léa 15 03 » crée une tâche au prochain 15 mars, **répétée tous les ans** — visible
+dans Éclipse par le calque de Polaris. Le mot « anniversaire » (ou « anniv ») dit la répétition et
+reste dans le titre ; après lui seulement, « 15 03 », « 15.03 », « 15-03 » sont une date (ailleurs,
+ce serait lire « 01 23 45 67 89 » comme une date), et une année de naissance (« 15/03/1990 ») est
+ignorée au profit du prochain anniversaire. Les autres tournures : « tous les jours », « tous les 3
+jours », « chaque mercredi », « tous les lundis 18h », « les mardis et jeudis », « un samedi sur
+deux », « toutes les 2 semaines », « tous les mois le 5 », « tous les 2 mois », « tous les ans le
+1er décembre », « chaque année ». Sans jour dit, la tâche part du premier jour cité à partir
+d'aujourd'hui (ou d'aujourd'hui) ; « le lundi » seul reste un jour, pas une répétition. La
+pastille « ↻ Tous les ans le 15 mars » s'annule comme les autres. Répétition à date fixe : une
+date qui revient.
+
 **Le découpage de l'étude est terminé** (7/7). Restent notés pour plus tard (§6) : poser une tâche
 sur un créneau d'Éclipse, le pont avec Zénith (une tâche cochée devient un geste ponctuel d'un
 objectif), les rappels d'Éclipse sur le mécanisme commun.
