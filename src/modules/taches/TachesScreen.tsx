@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { newId } from '../../core/data/coreStore';
 import { dayString, shiftDay } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
@@ -6,17 +6,19 @@ import { ListEditor } from './components/ListEditor';
 import { QuickAddBar } from './components/QuickAddBar';
 import { TaskEditor } from './components/TaskEditor';
 import { TaskRow } from './components/TaskRow';
+import { TriageDialog } from './components/TriageDialog';
 import { tachesStore } from './data';
 import { applyCompletion, applyUndo } from './data/applyPlans';
 import { dayLabel, shortDate } from './lib/format';
 import type { QuickAdd } from './lib/quickAdd';
+import { moveItem, positionPatches } from './lib/order';
 import { completionPlan, undoCompletion } from './lib/repeat';
 import type { Task, TaskInput, TaskList, TaskPatch } from './lib/types';
 import { validateTask } from './lib/validation';
-import { inboxView, listView, subtasksOf, todayView, upcomingView } from './lib/views';
+import { doneView, inboxView, listView, subtasksOf, todayView, upcomingView } from './lib/views';
 
-/** La vue ouverte : Aujourd'hui, À venir, la boîte de réception, ou une liste. */
-type View = 'today' | 'upcoming' | 'inbox' | `list:${string}`;
+/** La vue ouverte : Aujourd'hui, À venir, la boîte de réception, les terminées, ou une liste. */
+type View = 'today' | 'upcoming' | 'inbox' | 'done' | `list:${string}`;
 
 /** La dernière vue ouverte, retenue sur cet appareil — un confort, pas une donnée. */
 const VIEW_KEY = 'taches.view.v1';
@@ -24,7 +26,7 @@ const VIEW_KEY = 'taches.view.v1';
 function savedView(): View {
   try {
     const v = localStorage.getItem(VIEW_KEY);
-    if (v === 'today' || v === 'upcoming' || v === 'inbox' || v?.startsWith('list:')) return v as View;
+    if (v === 'today' || v === 'upcoming' || v === 'inbox' || v === 'done' || v?.startsWith('list:')) return v as View;
   } catch {
     // Stockage refusé : Aujourd'hui suffit.
   }
@@ -54,7 +56,9 @@ const PLACEHOLDERS: Record<string, string> = {
  * Écran racine de Polaris — la V1 (étape 3, docs/etude-taches.md §12) :
  * l'ajout rapide en langage naturel, les vues Aujourd'hui, À venir, Boîte de
  * réception et les listes ; cocher (et défaire), modifier, supprimer ; les
- * sous-tâches et les priorités.
+ * sous-tâches et les priorités. Étape 4 : la répétition réglée dans la
+ * fenêtre d'une tâche, la vue Terminées, réordonner une liste, et « Faire le
+ * point » sur les retards.
  *
  * Toute la logique est dans les bibliothèques pures (`lib/`) : cet écran ne
  * fait qu'appeler le contrat de stockage et afficher.
@@ -68,6 +72,11 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
   const [listEditing, setListEditing] = useState<TaskList | 'new' | null>(null);
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<Toast | null>(null);
+  const [triaging, setTriaging] = useState(false);
+  // Réordonner : l'ordre affiché pendant le glisser, et la tâche tenue.
+  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const today = dayString();
 
@@ -185,6 +194,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
     }
     if (where === 'upcoming') return upcomingView([task], today).some((d) => d.tasks.length > 0);
     if (where === 'inbox') return inboxView([task]).length > 0;
+    if (where === 'done') return false;
     return currentList !== undefined && listView([task], currentList.id).length > 0;
   }
 
@@ -214,6 +224,82 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
         return next;
       });
     }
+  }
+
+  // --- Réordonner une liste -----------------------------------------------------------
+  // Le glisser ne fait que déplacer un identifiant ; seules les positions qui
+  // changent sont écrites à la fin (`lib/order.ts`).
+
+  async function saveOrder(order: string[]) {
+    const patches = positionPatches(tasks, order);
+    if (patches.length === 0) return;
+    // L'écran garde le nouvel ordre pendant l'écriture, sans revenir en arrière.
+    setTasks((prev) => prev.map((t) => ({ ...t, position: order.includes(t.id) ? order.indexOf(t.id) : t.position })));
+    await write(async () => {
+      for (const { id, position } of patches) await tachesStore.updateTask(id, { position });
+    }).catch(() => {});
+  }
+
+  // Pendant un glisser, c'est la fenêtre qui écoute le pointeur : la ligne
+  // tenue change de place dans la page à chaque pas, et un élément déplacé
+  // perd le suivi du pointeur (vu en vérifiant : le glisser s'arrêtait à
+  // mi-chemin).
+  const drag = useRef<{ id: string; order: string[] } | null>(null);
+  useEffect(() => {
+    if (!dragId) return;
+    const move = (e: globalThis.PointerEvent) => {
+      const current = drag.current;
+      if (!current || !listRef.current) return;
+      // La nouvelle place : le nombre d'autres lignes dont le milieu est au-dessus du pointeur.
+      const others = [...listRef.current.querySelectorAll<HTMLElement>(':scope > [data-task-id]')].filter((el) => el.dataset.taskId !== current.id);
+      const to = others.filter((el) => {
+        const box = el.getBoundingClientRect();
+        return box.top + box.height / 2 < e.clientY;
+      }).length;
+      const from = current.order.indexOf(current.id);
+      if (to === from) return;
+      current.order = moveItem(current.order, from, to);
+      setDragOrder(current.order);
+    };
+    const up = () => {
+      const order = drag.current?.order;
+      drag.current = null;
+      setDragId(null);
+      setDragOrder(null);
+      if (order) void saveOrder(order);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragId]);
+
+  function dragHandle(task: Task, ids: string[]) {
+    return {
+      dragging: dragId === task.id,
+      onPointerDown: (e: PointerEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+        drag.current = { id: task.id, order: ids };
+        setDragOrder(ids);
+        setDragId(task.id);
+      },
+      onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => {
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+        e.preventDefault();
+        const from = ids.indexOf(task.id);
+        const to = e.key === 'ArrowUp' ? from - 1 : from + 1;
+        if (to < 0 || to >= ids.length) return;
+        void saveOrder(moveItem(ids, from, to)).then(() => {
+          // Le focus suit la tâche déplacée, pour enchaîner les flèches.
+          listRef.current?.querySelector<HTMLElement>(`[data-task-id="${task.id}"] .taches-handle`)?.focus();
+        });
+      },
+    };
   }
 
   // --- Modifier -------------------------------------------------------------------
@@ -268,7 +354,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
 
   // --- Affichage ---------------------------------------------------------------------
 
-  const row = (task: Task, showDay: boolean) => (
+  const row = (task: Task, showDay: boolean, handle?: ReturnType<typeof dragHandle>) => (
     <TaskRow
       key={task.id}
       task={task}
@@ -279,6 +365,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
       pending={pending.has(task.id)}
       onToggle={(t) => void toggle(t)}
       onOpen={(t) => setEditingId(t.id)}
+      handle={handle}
     />
   );
 
@@ -296,6 +383,16 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
       }
       return (
         <>
+          {overdue.length > 0 && (
+            <div className="taches-triage-banner" role="status">
+              <span>
+                {overdue.length} tâche{overdue.length > 1 ? 's' : ''} en retard.
+              </span>
+              <button className="btn btn-sm" onClick={() => setTriaging(true)}>
+                Faire le point
+              </button>
+            </div>
+          )}
           {overdue.length > 0 && (
             <section className="taches-section">
               <h2 className="taches-section-title late">En retard</h2>
@@ -317,19 +414,38 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
         </section>
       ));
     }
-    const items = view === 'inbox' ? inboxView(tasks) : currentList ? listView(tasks, currentList.id) : [];
+    if (view === 'done') {
+      const groups = doneView(tasks, (iso) => dayString(new Date(iso)));
+      if (groups.length === 0) return <div className="taches-empty"><p>Rien de terminé pour l’instant.</p></div>;
+      return groups.map(({ day, tasks: dayTasks }) => (
+        <section key={day} className="taches-section">
+          <h2 className="taches-section-title">{dayLabel(day, today)}</h2>
+          <ul className="taches-list">{dayTasks.map((t) => row(t, false))}</ul>
+        </section>
+      ));
+    }
+    if (currentList) {
+      const ordered = listView(tasks, currentList.id);
+      if (ordered.length === 0) return <div className="taches-empty"><p>Cette liste est vide.</p></div>;
+      const ids = ordered.map((t) => t.id);
+      const byId = new Map(ordered.map((t) => [t.id, t]));
+      const shown = (dragOrder ?? ids).map((id) => byId.get(id)).filter((t): t is Task => !!t);
+      return <ul className="taches-list" ref={listRef}>{shown.map((t) => row(t, true, dragHandle(t, ids)))}</ul>;
+    }
+    const items = view === 'inbox' ? inboxView(tasks) : [];
     if (items.length === 0) {
       return (
         <div className="taches-empty">
-          <p>{view === 'inbox' ? 'La boîte de réception est vide.' : 'Cette liste est vide.'}</p>
-          {view === 'inbox' && <p className="taches-hint">Ce que tu ajoutes sans liste arrive ici, pour le ranger plus tard.</p>}
+          <p>La boîte de réception est vide.</p>
+          <p className="taches-hint">Ce que tu ajoutes sans liste arrive ici, pour le ranger plus tard.</p>
         </div>
       );
     }
     return <ul className="taches-list">{items.map((t) => row(t, true))}</ul>;
   }
 
-  const title = view === 'today' ? 'Aujourd’hui' : view === 'upcoming' ? 'À venir' : view === 'inbox' ? 'Boîte de réception' : (currentList?.name ?? '');
+  const title =
+    view === 'today' ? 'Aujourd’hui' : view === 'upcoming' ? 'À venir' : view === 'inbox' ? 'Boîte de réception' : view === 'done' ? 'Terminées' : (currentList?.name ?? '');
 
   return (
     <div className="layout">
@@ -366,6 +482,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
               ['today', 'Aujourd’hui', counts.today],
               ['upcoming', 'À venir', 0],
               ['inbox', 'Boîte de réception', counts.inbox],
+              ['done', 'Terminées', 0],
             ] as const
           ).map(([id, label, n]) => (
             <button key={id} type="button" className={`taches-nav-item${view === id ? ' on' : ''}`} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>
@@ -404,7 +521,9 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
           )}
         </div>
 
-        <QuickAddBar today={today} lists={activeLists} placeholder={PLACEHOLDERS[view.startsWith('list:') ? 'list' : view]} onAdd={add} />
+        {view !== 'done' && (
+          <QuickAddBar today={today} lists={activeLists} placeholder={PLACEHOLDERS[view.startsWith('list:') ? 'list' : view]} onAdd={add} />
+        )}
 
         <div className="taches-content">{content()}</div>
 
@@ -429,6 +548,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
         {editing && (
           <TaskEditor
             task={editing}
+            today={today}
             subtasks={subtasksOf(tasks, editing.id)}
             allTasks={tasks}
             lists={lists}
@@ -438,6 +558,17 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
             onAddSubtask={addSubtask}
             onToggleSubtask={(s) => void toggle(s)}
             onDeleteSubtask={(s) => write(() => tachesStore.deleteTask(s.id))}
+          />
+        )}
+
+        {triaging && (
+          <TriageDialog
+            tasks={todayView(tasks, today).overdue}
+            today={today}
+            onClose={() => setTriaging(false)}
+            onPatch={(task, patch) => write(() => tachesStore.updateTask(task.id, patch))}
+            onDone={(task) => toggle(task)}
+            onDelete={(task) => write(() => tachesStore.deleteTask(task.id))}
           />
         )}
 

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { describeRecurrence } from '../../../core/lib/recurrence';
-import { PRIORITIES, type Priority, type Task, type TaskList, type TaskPatch } from '../lib/types';
+import { PRIORITIES, type Priority, type Recurrence, type RepeatFrom, type Task, type TaskList, type TaskPatch } from '../lib/types';
 import { validateTask } from '../lib/validation';
+import { RepeatFields } from './RepeatFields';
 
 interface Props {
   task: Task;
+  today: string;
   subtasks: readonly Task[];
   allTasks: readonly Task[];
   lists: readonly TaskList[];
@@ -22,12 +23,12 @@ const PRIORITY_LABELS: Record<Priority, string> = { normale: 'Normale', importan
 /**
  * Modifier une tâche : titre, note, liste, jour prévu et heure, échéance
  * (facultative et discrète, étude §12), priorité, et ses sous-tâches — qui,
- * elles, s'écrivent aussitôt, sans attendre « Enregistrer ».
- *
- * La répétition se lit ici mais se règle à l'étape 4.
+ * elles, s'écrivent aussitôt, sans attendre « Enregistrer ». Et sa
+ * répétition (étape 4) : une tâche répétée a besoin d'un jour prévu,
+ * aujourd'hui s'il n'y en a pas encore.
  */
 export function TaskEditor(props: Props) {
-  const { task, subtasks, allTasks, lists, onCancel, onSave, onDelete, onAddSubtask, onToggleSubtask, onDeleteSubtask } = props;
+  const { task, today, subtasks, allTasks, lists, onCancel, onSave, onDelete, onAddSubtask, onToggleSubtask, onDeleteSubtask } = props;
   const [title, setTitle] = useState(task.title);
   const [note, setNote] = useState(task.note);
   const [listId, setListId] = useState(task.listId);
@@ -36,6 +37,8 @@ export function TaskEditor(props: Props) {
   const [dueDay, setDueDay] = useState(task.dueDay ?? '');
   const [showDue, setShowDue] = useState(!!task.dueDay);
   const [priority, setPriority] = useState<Priority>(task.priority);
+  const [recurrence, setRecurrence] = useState<Recurrence | null>(task.recurrence);
+  const [repeatFrom, setRepeatFrom] = useState<RepeatFrom>(task.repeatFrom);
   const [newSub, setNewSub] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -69,6 +72,8 @@ export function TaskEditor(props: Props) {
       plannedTime: plannedDay && plannedTime ? plannedTime : null,
       dueDay: showDue && dueDay ? dueDay : null,
       priority,
+      recurrence: isSubtask ? null : recurrence,
+      repeatFrom,
     };
     const problem = validateTask({ ...task, ...patch, title: patch.title as string }, allTasks, task.id);
     if (problem) return setError(problem);
@@ -114,6 +119,17 @@ export function TaskEditor(props: Props) {
                   <input id="taches-time" type="time" value={plannedTime} onChange={(e) => setPlannedTime(e.target.value)} disabled={!plannedDay} />
                 </div>
               </div>
+
+              <RepeatFields
+                value={recurrence}
+                repeatFrom={repeatFrom}
+                startDay={plannedDay || today}
+                onChange={(rule, from) => {
+                  setRecurrence(rule);
+                  setRepeatFrom(from);
+                  if (rule && !plannedDay) setPlannedDay(today);
+                }}
+              />
 
               {showDue ? (
                 <div className="field">
@@ -170,9 +186,6 @@ export function TaskEditor(props: Props) {
             <textarea id="taches-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
 
-          {task.recurrence && task.plannedDay && (
-            <p className="taches-hint">↻ {describeRecurrence(task.recurrence, task.plannedDay)}.</p>
-          )}
 
           {!isSubtask && (
             <div className="field">

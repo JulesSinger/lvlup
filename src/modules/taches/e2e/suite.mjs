@@ -1,7 +1,9 @@
 /**
  * Suite e2e du module tâches (Polaris).
  *
- * Étape 3 (docs/etude-taches.md §15) : la V1. Un vrai parcours — l'ajout
+ * Étapes 3 et 4 (docs/etude-taches.md §15-§16) : la V1, puis la
+ * répétition réglée à l'écran, la vue Terminées, « Faire le point » et
+ * réordonner une liste. Un vrai parcours — l'ajout
  * rapide en français et ce qu'il a compris (annulable), Aujourd'hui, À
  * venir, la boîte de réception et les listes ; cocher et défaire, modifier,
  * sous-tâches, priorités, supprimer ; retrouver le tout après un
@@ -26,6 +28,23 @@ async function add(page, value) {
   await page.getByLabel('Ajouter une tâche').press('Enter');
   await page.waitForFunction(() => document.querySelector('.taches-quickadd-input')?.value === '');
 }
+
+const pad = (n) => String(n).padStart(2, '0');
+function day(offset) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+async function edit(page, title, change) {
+  await row(page, title).locator('.taches-row-body').click();
+  await page.waitForSelector('.taches-editor');
+  await change();
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.taches-editor', { state: 'detached' });
+}
+
+const titles = (page) => page.locator('.taches-row-title').allTextContents();
 
 const row = (page, title) => page.locator('.taches-row', { has: page.locator('.taches-row-title', { hasText: title }) });
 
@@ -155,6 +174,86 @@ export async function run({ browser, check, BASE }) {
   );
   check('Aucune erreur JavaScript sur ordinateur', errors.length === 0, errors.join(' | '));
   await context.close();
+
+  // --- Étape 4 : répéter, Terminées, Faire le point, réordonner -----------------------------
+  const ctx4 = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  const p4 = await ctx4.newPage();
+  const errors4 = [];
+  p4.on('pageerror', (e) => errors4.push(e.message));
+  p4.on('dialog', (d) => d.accept());
+  await openPolaris(p4, BASE);
+
+  await add(p4, 'Arroser les plantes');
+  await row(p4, 'Arroser les plantes').waitFor();
+  await edit(p4, 'Arroser les plantes', async () => {
+    await p4.locator('#taches-repeat').selectOption('daily');
+    await p4.getByRole('radio', { name: /Après l’avoir faite/ }).click();
+    await p4.locator('#taches-interval').fill('5');
+    check('La répétition se relit en toutes lettres', (await text(p4.locator('.taches-repeat-summary'))).includes('5 jours après l’avoir faite'));
+  });
+  check('Une tâche répétée le montre sur sa ligne', (await text(row(p4, 'Arroser les plantes'))).includes('↻'));
+  await p4.getByRole('checkbox', { name: 'Cocher « Arroser les plantes »' }).click();
+  await p4.locator('.taches-toast').waitFor();
+  check('Cocher une tâche répétée annonce la prochaine', (await text(p4.locator('.taches-toast'))).includes('la prochaine'));
+  await row(p4, 'Arroser les plantes').waitFor({ state: 'detached' });
+  await p4.getByRole('button', { name: 'Terminées' }).click();
+  check(
+    'Terminées garde la trace, sous « Aujourd’hui », cochée',
+    (await text(p4.locator('.taches-section', { hasText: 'Aujourd’hui' }))).includes('Arroser les plantes') &&
+      (await p4.getByRole('checkbox', { name: 'Décocher « Arroser les plantes »' }).count()) === 1,
+  );
+  check('Terminées n’a pas de barre d’ajout', (await p4.locator('.taches-quickadd').count()) === 0);
+  await p4.getByRole('button', { name: 'À venir' }).click();
+  check('… et la tâche est repartie cinq jours plus tard', (await row(p4, 'Arroser les plantes').count()) === 1);
+
+  await p4.getByRole('button', { name: /^Aujourd’hui/ }).click();
+  for (const t of ['Rappeler la banque', 'Renvoyer le colis']) {
+    await add(p4, t);
+    await row(p4, t).waitFor();
+    await edit(p4, t, () => p4.locator('#taches-day').fill(day(-1)));
+  }
+  await p4.locator('.taches-triage-banner').waitFor();
+  check('Des retards font apparaître « Faire le point »', (await text(p4.locator('.taches-triage-banner'))).includes('2 tâches en retard'));
+  await p4.getByRole('button', { name: 'Faire le point' }).click();
+  const item = (t) => p4.locator('.taches-triage-item', { hasText: t });
+  await item('Rappeler la banque').getByRole('button', { name: 'Demain' }).click();
+  await item('Rappeler la banque').waitFor({ state: 'detached' });
+  check('Un geste trie une tâche : elle quitte la liste', (await p4.locator('.taches-triage-item').count()) === 1);
+  await item('Renvoyer le colis').getByRole('button', { name: '✓ Faite' }).click();
+  await p4.waitForSelector('.taches-triage', { state: 'detached' });
+  check('Tout trié : la fenêtre se ferme, le bandeau disparaît', (await p4.locator('.taches-triage-banner').count()) === 0);
+  await p4.getByRole('button', { name: 'À venir' }).click();
+  const tomorrow4 = p4.locator('.taches-day', { has: p4.locator('.taches-section-title', { hasText: 'Demain' }) });
+  check('« Demain » l’a bien reprévue demain', (await text(tomorrow4)).includes('Rappeler la banque'));
+
+  await p4.getByRole('button', { name: '+ Liste' }).click();
+  await p4.locator('#taches-list-name').fill('Courses');
+  await p4.getByRole('button', { name: 'Créer' }).click();
+  await p4.waitForSelector('.taches-list-editor', { state: 'detached' });
+  for (const t of ['Pain', 'Lait', 'Œufs']) {
+    await add(p4, t);
+    await row(p4, t).waitFor();
+  }
+  check('Une liste garde l’ordre d’ajout', JSON.stringify(await titles(p4)) === JSON.stringify(['Pain', 'Lait', 'Œufs']));
+  await p4.getByRole('button', { name: /Déplacer « Pain »/ }).focus();
+  await p4.keyboard.press('ArrowDown');
+  await p4.waitForFunction(() => document.querySelector('.taches-row-title')?.textContent === 'Lait');
+  check('Au clavier, la flèche descend la tâche d’un cran', JSON.stringify(await titles(p4)) === JSON.stringify(['Lait', 'Pain', 'Œufs']));
+  const handle = await p4.getByRole('button', { name: /Déplacer « Œufs »/ }).boundingBox();
+  const first = await row(p4, 'Lait').boundingBox();
+  if (handle && first) {
+    await p4.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await p4.mouse.down();
+    await p4.mouse.move(handle.x + handle.width / 2, first.y + 4, { steps: 12 });
+    await p4.mouse.up();
+  }
+  await p4.waitForFunction(() => document.querySelector('.taches-row-title')?.textContent === 'Œufs', null, { timeout: 3000 }).catch(() => {});
+  check('Glisser la poignée remonte la tâche en tête', JSON.stringify(await titles(p4)) === JSON.stringify(['Œufs', 'Lait', 'Pain']), (await titles(p4)).join(', '));
+  await openPolaris(p4, BASE);
+  await row(p4, 'Œufs').waitFor();
+  check('Le nouvel ordre est gardé après un rechargement', JSON.stringify(await titles(p4)) === JSON.stringify(['Œufs', 'Lait', 'Pain']));
+  check('Aucune erreur JavaScript à l’étape 4', errors4.length === 0, errors4.join(' | '));
+  await ctx4.close();
 
   // --- Téléphone ---------------------------------------------------------------------------------------------
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });

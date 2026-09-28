@@ -289,7 +289,7 @@ explication concrète).
 | 1 ✅ | Migration, contrat et ses deux implémentations (ids choisis par l'application), module signet ; **la récurrence d'Éclipse remontée dans le socle** | le module existe — livré le 27/09/2026, voir §13 |
 | 2 ✅ | Bibliothèques pures : prochaine date (les deux répétitions), contenu et ordre d'Aujourd'hui, **analyseur de dates en français** (`chrono-node` éprouvé sur une batterie de phrases, sinon fait maison) | la règle est juste — livré le 28/09/2026, voir §14 |
 | 3 ✅ | Ajout rapide en langage naturel, vues Aujourd'hui, À venir, Boîte de réception, Listes ; cocher, modifier, supprimer ; **sous-tâches et priorités** | **la V1** — livré le 28/09/2026, voir §15 |
-| 4 | Répétition à l'écran, vue Terminées, réordonner ; « Faire le point » | les tâches de fond |
+| 4 ✅ | Répétition à l'écran, vue Terminées, réordonner ; « Faire le point » | les tâches de fond — livré le 28/09/2026, voir §16 |
 | 5 | **Rappels, mécanisme commun du socle** : table des rappels à venir, envoi par la fonction existante et pg_cron toutes les 5 minutes ; rappel à l'heure d'une tâche, et le rappel du matin | être prévenu |
 | 6 | Calque dans Éclipse, puis **cocher depuis le calendrier** | le lien attendu |
 | 7 | File hors ligne | noter sans réseau |
@@ -417,6 +417,42 @@ entrer dans Aujourd'hui) — d'où la règle réutilisée des vues ; et les jour
 prenaient le style `.empty` du socle, un grand cadre en pointillés.
 
 **Vérifié** à l'œil sur ordinateur et téléphone ; 35 vérifications de bout en bout.
+
+---
+
+## 16. Étape 4 : répéter, Terminées, réordonner, « Faire le point » (28/09/2026)
+
+**Répéter.** La fenêtre d'une tâche gagne « Répéter », sous le jour prévu : la fréquence, « tous les
+N », et le choix qui compte le plus — **« À date fixe »** (tous les lundis, même en retard) ou
+**« Après l'avoir faite »** (repart du jour où je la coche). À date fixe, les jours de la semaine
+se choisissent en pastilles ; après l'avoir faite, seul l'écart compte. La fin : jamais, à une date,
+ou après N fois. La règle se relit en toutes lettres (« 10 jours après l'avoir faite »). Choisir une
+répétition sans jour prévu la prévoit aujourd'hui. Les champs sont propres à Polaris, le moteur est
+celui du socle.
+
+**Terminées.** Une vue de plus : ce qui a été fait, jour par jour, les plus récentes d'abord — y
+compris la copie laissée par une tâche répétée cochée. Décocher y remet une tâche à faire.
+
+**Réordonner une liste.** Une poignée ⠿ devant chaque tâche d'une liste : la glisser, à la souris
+ou au doigt (la poignée ne fait pas défiler la page), ou la sélectionner et utiliser les flèches.
+Seules les positions qui changent sont écrites (`lib/order.ts`). **Défaut trouvé en vérifiant** :
+le glisser s'arrêtait à mi-chemin — la ligne tenue change de place dans la page à chaque pas, et
+un élément déplacé perd le suivi du pointeur ; c'est désormais la fenêtre qui écoute le pointeur
+pendant le glisser. La boîte de réception garde son ordre calculé (heure, priorité, échéance) : on
+y range, on n'y organise pas.
+
+**« Faire le point ».** Dans Aujourd'hui, un bandeau n'apparaît que s'il y a des retards (« 3 tâches
+en retard — Faire le point »). La fenêtre les liste, chacune triée d'un geste, et quitte la liste
+une fois triée ; elle se ferme quand il n'en reste plus. Le geste agit sur **la date qui a mis la
+tâche en retard** (`lib/triage.ts`) : jour prévu passé → aujourd'hui, demain, un autre jour, sans
+date ; échéance dépassée → l'échéance est repoussée ou retirée, jamais en silence. Une tâche
+répétée en retard ne se déplace pas (ce qui changerait son jour de la semaine ou du mois) : elle
+**passe à sa prochaine occurrence**, aujourd'hui compris. Pour toutes : « ✓ Faite » et
+« Supprimer ». « Tout pour aujourd'hui » reprévoit d'un coup ce qui peut l'être. Le rappel du
+matin viendra avec les rappels (étape 5).
+
+**Vérifié** à l'œil sur ordinateur et téléphone ; 15 vérifications de bout en bout de plus (50 pour
+Polaris), dont un vrai glisser à la souris et le nouvel ordre retrouvé après un rechargement.
 
 ---
 

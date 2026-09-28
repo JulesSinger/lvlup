@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { dayLabel, dueLabel, timeLabel } from '../lib/format';
 import type { Task } from '../lib/types';
 import { dueStatus } from '../lib/views';
@@ -15,6 +15,12 @@ interface Props {
   pending: boolean;
   onToggle: (task: Task) => void;
   onOpen: (task: Task) => void;
+  /** Dans une liste : la poignée pour réordonner, au doigt, à la souris ou au clavier (flèches). */
+  handle?: {
+    dragging: boolean;
+    onPointerDown: (e: PointerEvent<HTMLButtonElement>) => void;
+    onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => void;
+  };
 }
 
 /**
@@ -22,7 +28,7 @@ interface Props {
  * heure, jour, échéance (en rouge si dépassée), liste, priorité, répétition,
  * sous-tâches faites. Les sous-tâches se déplient sous la tâche.
  */
-export function TaskRow({ task, subtasks, today, listName, showDay, pending, onToggle, onOpen }: Props) {
+export function TaskRow({ task, subtasks, today, listName, showDay, pending, onToggle, onOpen, handle }: Props) {
   const [open, setOpen] = useState(false);
   const done = subtasks.filter((s) => s.completedAt).length;
   const due = dueStatus(task, today);
@@ -30,8 +36,20 @@ export function TaskRow({ task, subtasks, today, listName, showDay, pending, onT
   const checked = !!task.completedAt || pending;
 
   return (
-    <li className={`taches-row taches-priority-${task.priority}${checked ? ' done' : ''}`}>
+    <li className={`taches-row taches-priority-${task.priority}${checked ? ' done' : ''}${handle?.dragging ? ' dragging' : ''}`} data-task-id={task.id}>
       <div className="taches-row-main">
+        {handle && (
+          <button
+            type="button"
+            className="taches-handle"
+            aria-label={`Déplacer « ${task.title} » (flèches haut et bas)`}
+            title="Glisser pour réordonner"
+            onPointerDown={handle.onPointerDown}
+            onKeyDown={handle.onKeyDown}
+          >
+            <span aria-hidden="true">⠿</span>
+          </button>
+        )}
         <button
           type="button"
           className="taches-check"

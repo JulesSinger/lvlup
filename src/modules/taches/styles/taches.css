@@ -491,6 +491,192 @@
   transform: translateX(-50%);
 }
 
+/* --- Réordonner une liste (étape 4) ------------------------------------------------- */
+
+.taches-handle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 32px;
+  margin-right: -4px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 15px;
+  cursor: grab;
+  /* Au doigt, la poignée glisse la tâche au lieu de faire défiler la page. */
+  touch-action: none;
+}
+
+.taches-handle:hover,
+.taches-handle:focus-visible {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.taches-row.dragging {
+  background: var(--surface-2);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.taches-row.dragging .taches-handle {
+  cursor: grabbing;
+}
+
+/* --- La répétition d'une tâche (étape 4) ----------------------------------------------- */
+
+.taches-repeat select {
+  width: 100%;
+}
+
+.taches-repeat-from {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.taches-repeat-from button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.taches-repeat-from button small {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.taches-repeat-from button.on {
+  border-color: rgba(255, 159, 122, 0.6);
+  background: rgba(255, 159, 122, 0.1);
+  color: var(--text);
+}
+
+.taches-repeat-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13.5px;
+}
+
+.taches-repeat-row label {
+  min-width: 56px;
+  color: var(--text-dim);
+}
+
+.taches-repeat-row input[type='number'] {
+  width: 72px;
+}
+
+.taches-repeat-row select {
+  width: auto;
+}
+
+.taches-repeat-row input[type='date'] {
+  width: auto;
+  flex: 1 1 140px;
+}
+
+.taches-weekdays {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.taches-weekday {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.taches-weekday.on {
+  border-color: #ff9f7a;
+  background: rgba(255, 159, 122, 0.2);
+  color: var(--text);
+}
+
+.taches-repeat-summary {
+  color: #ff9f7a;
+}
+
+/* --- Faire le point (étape 4) -------------------------------------------------------------- */
+
+.taches-triage-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid rgba(255, 139, 139, 0.35);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 139, 139, 0.08);
+  font-size: 13.5px;
+}
+
+.taches-triage {
+  max-width: 560px;
+}
+
+.taches-triage-all {
+  margin-bottom: 10px;
+}
+
+.taches-triage-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.taches-triage-item {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.taches-triage-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.taches-triage-title .taches-late {
+  font-size: 12px;
+}
+
+.taches-triage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.taches-triage-actions input[type='date'] {
+  width: auto;
+}
+
 /* --- Téléphone ------------------------------------------------------------------------------ */
 
 @media (max-width: 760px) {
