@@ -140,6 +140,9 @@ export function Ceremony({
   return (
     <div
       className={`ceremony${prefersReducedMotion() ? ' still' : ''}`}
+      // Toujours sur un ciel de nuit, même en thème clair : les rangs et les
+      // lueurs de la cérémonie sont dessinés pour un fond sombre.
+      data-theme="dark"
       role="dialog"
       aria-modal="true"
       aria-label={eyebrow}

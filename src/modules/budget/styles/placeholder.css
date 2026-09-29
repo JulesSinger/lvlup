@@ -190,7 +190,7 @@
   height: 46px;
   padding: 0;
   border-radius: 50%;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--shadow-ink) 40%, transparent);
 }
 
 /* Un « + » dessiné en CSS plutôt qu'un caractère de police : le glyphe
@@ -253,7 +253,7 @@
 }
 
 .budget-color-swatch {
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: color-mix(in srgb, var(--text) 15%, transparent);
 }
 
 /* --- opérations --------------------------------------------------------- */
@@ -292,11 +292,11 @@
 }
 
 .budget-row-amount.negative {
-  color: #ff8b8b;
+  color: var(--red);
 }
 
 .budget-row-amount.positive {
-  color: #6fbf7f;
+  color: var(--green);
 }
 
 /* Une ligne d'écriture porte cinq colonnes (jour, pastille, libellé, montant,
@@ -448,19 +448,19 @@
 }
 
 .budget-month-stat-amount.expense {
-  color: #ff8b8b;
+  color: var(--red);
 }
 
 .budget-month-stat-amount.income {
-  color: #6fbf7f;
+  color: var(--green);
 }
 
 .budget-month-stat-net.negative {
-  color: #ff8b8b;
+  color: var(--red);
 }
 
 .budget-month-stat-net.positive {
-  color: #6fbf7f;
+  color: var(--green);
 }
 
 /* Le comparatif au mois précédent (demandé par Jules le 06/09/2026) — un
@@ -587,11 +587,11 @@
 .budget-pie-legend-amount {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  color: #ff8b8b;
+  color: var(--red);
 }
 
 .budget-pie-legend-amount.income {
-  color: #6fbf7f;
+  color: var(--green);
 }
 
 /* La part de la catégorie dans le total du mois : en retrait du montant,
@@ -616,11 +616,11 @@
 }
 
 .budget-pie-legend-delta.up {
-  color: #c98f8f;
+  color: color-mix(in srgb, var(--red) 55%, var(--text-faint));
 }
 
 .budget-pie-legend-delta.down {
-  color: #8fb89b;
+  color: color-mix(in srgb, var(--green) 55%, var(--text-faint));
 }
 
 .budget-filter-notice {
@@ -839,7 +839,7 @@
    même philosophie que la part « à classer » du camembert : montrer la
    vérité plutôt que la cacher (etude-astra-epargne.md §4.3). */
 .budget-envelopes-unallocated.negative strong {
-  color: #ff8b8b;
+  color: var(--red);
 }
 
 .budget-envelope-row {
@@ -1036,11 +1036,11 @@
 /* Même teintes que le Solde de l'onglet Aperçu (`.budget-month-stat-net`) :
    le signe est déjà porté par le nombre, la couleur ne fait que l'appuyer. */
 .budget-chart-table td.negative {
-  color: #ff8b8b;
+  color: var(--red);
 }
 
 .budget-chart-table td.positive {
-  color: #6fbf7f;
+  color: var(--green);
 }
 
 /* --- aperçu sur la page d'accueil publique (core/components/Landing.tsx) - */
@@ -1062,7 +1062,7 @@
 .budget-landing-bar {
   width: 11px;
   border-radius: 4px 4px 0 0;
-  background: linear-gradient(180deg, #9c8cf6, #5b4fc4);
+  background: linear-gradient(180deg, var(--indigo), color-mix(in srgb, var(--indigo) 65%, var(--bg)));
 }
 
 .budget-landing-figures {
@@ -1079,7 +1079,7 @@
 
 .budget-landing-figures span {
   font-size: 11.5px;
-  color: #52d6c8;
+  color: var(--teal);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;

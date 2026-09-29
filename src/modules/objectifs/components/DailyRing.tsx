@@ -60,8 +60,8 @@ export function DailyRing({
         />
         <defs>
           <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#b9812a" />
-            <stop offset="1" stopColor="#f2c14e" />
+            <stop offset="0" stopColor="var(--accent-deep)" />
+            <stop offset="1" stopColor="var(--accent)" />
           </linearGradient>
         </defs>
       </svg>

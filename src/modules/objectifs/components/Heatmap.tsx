@@ -96,7 +96,7 @@ export function Heatmap({
   // jamais » — et c'est exactement pour ça qu'on filtre.
   if (map.active === 0 && focus === null) return null;
 
-  const color = rank?.color2 ?? '#6a748c';
+  const color = rank?.color2 ?? 'var(--text-faint)';
   const monthByColumn = new Map(map.months.map((m) => [m.column, m.label]));
   const first = map.cells.find((c) => c.inRange)?.day ?? today;
 

@@ -176,3 +176,61 @@ describe('coquille du hub', () => {
     ).toBeLessThanOrEqual(PLAFOND_IMPORTS_MODULE_DANS_APP);
   });
 });
+
+/**
+ * Mode clair et sombre (2026-09-29).
+ *
+ * Une couleur écrite en dur dans une feuille de style ne suit pas le thème :
+ * c'est ainsi qu'un voile blanc devient invisible sur fond clair, ou qu'un
+ * rouge pastel devient illisible. Toute couleur passe donc par une variable
+ * de `core/styles/base.css`, le seul fichier qui en écrit — éventuellement
+ * mêlée à une autre par `color-mix()`.
+ *
+ * Les couleurs dans le code TypeScript restent permises : ce sont des
+ * couleurs d'identité (catégories choisies, rangs, couleur d'un module ou
+ * d'un calque), les mêmes dans les deux thèmes. Quand l'une d'elles sert de
+ * texte, on la fonce en clair avec `--ink-mix`.
+ */
+describe('thèmes clair et sombre', () => {
+  const BASE_CSS = join(SRC, 'core', 'styles', 'base.css');
+  const COULEUR_EN_DUR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\(|(?<![\w-])(?:white|black)(?![\w-])/;
+
+  it("aucune feuille de style n'écrit de couleur en dur, hors base.css", () => {
+    const fautes: string[] = [];
+    for (const f of fichiers(SRC, ['.css'])) {
+      if (f === BASE_CSS) continue;
+      const texte = lire(f).replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
+      // Chaque bloc de déclarations le plus intérieur, puis chaque valeur, même
+      // écrite sur plusieurs lignes. Les sélecteurs sont hors des accolades :
+      // un `#id` n'est pas une couleur.
+      for (const bloc of texte.matchAll(/\{([^{}]*)\}/g)) {
+        let debut = (bloc.index ?? 0) + 1;
+        for (const declaration of bloc[1].split(';')) {
+          const valeur = declaration.slice(declaration.indexOf(':') + 1);
+          if (declaration.includes(':') && COULEUR_EN_DUR.test(valeur)) {
+            const ligne = texte.slice(0, debut).split('\n').length;
+            fautes.push(`${f.replace(SRC, 'src/')}:${ligne}  ${declaration.trim().replace(/\s+/g, ' ')}`);
+          }
+          debut += declaration.length + 1;
+        }
+      }
+    }
+    expect(fautes, 'Prends une variable de core/styles/base.css (au besoin avec color-mix) :\n' + fautes.join('\n')).toEqual([]);
+  });
+
+  it('chaque couleur du thème sombre a sa valeur en clair', () => {
+    const css = lire(BASE_CSS);
+    const bloc = (debut: string) => {
+      const i = css.indexOf(debut);
+      expect(i, `bloc introuvable : ${debut}`).toBeGreaterThanOrEqual(0);
+      return css.slice(i, css.indexOf('}', i));
+    };
+    const noms = (texte: string) => new Set([...texte.matchAll(/^\s*(--[\w-]+):/gm)].map((m) => m[1]));
+    const sombre = noms(bloc(":root,\n[data-theme='dark'] {"));
+    const clair = noms(bloc("[data-theme='light'] {"));
+    // Les rayons ne sont pas des couleurs : ils ne changent pas avec le thème.
+    const manquantes = [...sombre].filter((n) => !clair.has(n) && !n.startsWith('--radius'));
+    expect(manquantes, 'variables sans valeur en clair').toEqual([]);
+    expect([...clair].filter((n) => !sombre.has(n)), 'variables sans valeur en sombre').toEqual([]);
+  });
+});

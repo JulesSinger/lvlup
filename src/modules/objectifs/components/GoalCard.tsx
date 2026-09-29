@@ -68,7 +68,7 @@ export function GoalCard({
   const state = goalState(goal, checkins);
   const barColor = progress.rank
     ? `linear-gradient(90deg, ${progress.rank.color}, ${progress.rank.color2})`
-    : 'linear-gradient(90deg, #3a4456, #4a5570)';
+    : 'linear-gradient(90deg, var(--border-strong), var(--gray))';
 
   return (
     <article

@@ -181,7 +181,7 @@ export function SpendingTrendChart({
                   x2={width - PAD.right}
                   y1={base - hauteur(t)}
                   y2={base - hauteur(t)}
-                  stroke="#262e40"
+                  stroke="var(--border)"
                   strokeWidth="1"
                 />
                 <text x={PAD.left - 10} y={base - hauteur(t) + 4} className="budget-chart-tick" textAnchor="end">
@@ -197,7 +197,7 @@ export function SpendingTrendChart({
                 x2={width - PAD.right}
                 y1={base - hauteur(average)}
                 y2={base - hauteur(average)}
-                stroke="#6a748c"
+                stroke="var(--text-faint)"
                 strokeWidth="1"
                 strokeDasharray="4 4"
               />

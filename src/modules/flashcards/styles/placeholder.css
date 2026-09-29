@@ -28,7 +28,7 @@
 
 .flashcards-placeholder-text {
   margin: 0 0 0.5rem;
-  color: var(--text-dim, #9aa3b8);
+  color: var(--text-dim, var(--gray));
   font-size: 1rem;
 }
 
@@ -519,7 +519,7 @@
 
 .flashcards-card-body:focus {
   border-color: var(--border-strong);
-  box-shadow: 0 0 0 3px rgba(242, 193, 78, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .flashcards-card-body p {
@@ -693,8 +693,8 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #52d6c8;
-  color: #06211e;
+  background: var(--teal);
+  color: var(--on-color);
   font-size: 10px;
   font-weight: 700;
   display: flex;

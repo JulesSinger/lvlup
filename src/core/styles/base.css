@@ -44,6 +44,42 @@
   --notice-error-text: #ffb4b4;
   --notice-info-text: #a9cbff;
   --notice-success-text: #9ae6a8;
+
+  /* La palette des modules : pastel, lisible sur fond sombre. Un module ne
+     choisit jamais une teinte en dur, il prend l'une de celles-ci — c'est ce
+     qui lui donne son équivalent en clair sans rien écrire de plus. */
+  --red: #ff8b8b;
+  --orange: #eba95c;
+  --coral: #ff9f7a;
+  --peach: #e79a6b;
+  --yellow: #e8c267;
+  --lime: #9bd16a;
+  --green: #6fc783;
+  --teal: #52d6c8;
+  --sky: #6fb6ff;
+  --blue: #6fa8f5;
+  --indigo: #9c8cf6;
+  --violet: #b49af2;
+  --lavender: #c9a0ff;
+  --pink: #ee88b2;
+  --gray: #9aa3b6;
+  /* Les dégradés de l'accent (boutons, marque). */
+  --accent-2: #d9a530;
+  --accent-deep: #b9812a;
+  --accent-hi: #ffd267;
+  /* Texte posé SUR une de ces couleurs (case cochée, événement…). */
+  --on-color: #0b0e14;
+  /* Encre des ombres. */
+  --shadow-ink: #000000;
+  /* Constantes, identiques dans les deux thèmes : un reflet reste blanc, un
+     viseur de caméra reste noir. */
+  --white: #ffffff;
+  --black: #000000;
+  /* Part de la couleur du texte à mêler à une couleur d'identité (d'un
+     module, d'un rang) quand elle sert de texte : 0 en sombre, où ces teintes
+     pastel se lisent telles quelles ; assez en clair pour les foncer. Usage :
+     color-mix(in oklab, <couleur>, var(--text) var(--ink-mix)). */
+  --ink-mix: 0%;
   color-scheme: dark;
 }
 
@@ -77,6 +113,31 @@
   --notice-error-text: #a4252a;
   --notice-info-text: #1f5fae;
   --notice-success-text: #1f7a33;
+
+  --red: #c9363c;
+  --orange: #b8680f;
+  --coral: #d4552a;
+  --peach: #c2703d;
+  --yellow: #a37b07;
+  --lime: #5b8f1f;
+  --green: #2a8a3e;
+  --teal: #12857a;
+  --sky: #1f78d1;
+  --blue: #2f68c9;
+  --indigo: #5b4fc4;
+  --violet: #6f4fcf;
+  --lavender: #8a4fd6;
+  --pink: #c2407a;
+  --gray: #6b7384;
+  --accent-2: #d6a232;
+  --accent-deep: #8f6508;
+  --accent-hi: #c9951c;
+  --on-color: #ffffff;
+  /* Une ombre plus légère : sur du blanc, le noir franc fait tache. */
+  --shadow-ink: #3a4256;
+  --white: #ffffff;
+  --black: #000000;
+  --ink-mix: 40%;
   color-scheme: light;
 }
 

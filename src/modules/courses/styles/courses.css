@@ -143,15 +143,15 @@
   border: 2px solid var(--border-strong);
   border-radius: 8px;
   background: none;
-  color: #0b1a2a;
+  color: var(--on-color);
   font-size: 15px;
   font-weight: 800;
   cursor: pointer;
 }
 
 .courses-line.checked .courses-check {
-  border-color: #6fb6ff;
-  background: #6fb6ff;
+  border-color: var(--sky);
+  background: var(--sky);
 }
 
 .courses-line-main {
@@ -272,12 +272,12 @@
   font-size: 10px;
   line-height: 11px;
   text-align: center;
-  color: #0b1a2a;
+  color: var(--on-color);
 }
 
 .courses-landing-line.done .courses-landing-check {
-  border-color: #6fb6ff;
-  background: #6fb6ff;
+  border-color: var(--sky);
+  background: var(--sky);
 }
 
 .courses-landing-name {
@@ -367,8 +367,8 @@
 }
 
 .courses-store-chip.on {
-  border-color: #6fb6ff;
-  background: rgba(111, 182, 255, 0.14);
+  border-color: var(--sky);
+  background: color-mix(in srgb, var(--sky) 14%, transparent);
   color: var(--text);
 }
 
@@ -539,7 +539,7 @@
 }
 
 .courses-chart-bar {
-  fill: #6fb6ff;
+  fill: var(--sky);
   opacity: 0.7;
 }
 
@@ -606,12 +606,12 @@
 
 .courses-price-line {
   fill: none;
-  stroke: #6fb6ff;
+  stroke: var(--sky);
   stroke-width: 3;
 }
 
 .courses-price-dot {
-  fill: #6fb6ff;
+  fill: var(--sky);
 }
 
 .courses-price-points {

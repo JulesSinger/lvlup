@@ -18,7 +18,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(420px 200px at 22% 50%, rgba(242, 193, 78, 0.1), transparent 70%);
+  background: radial-gradient(420px 200px at 22% 50%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%);
 }
 
 .ring-wrap {
@@ -41,7 +41,7 @@
 }
 
 .ring-wrap.done .ring-progress {
-  filter: drop-shadow(0 0 10px rgba(242, 193, 78, 0.55));
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 55%, transparent));
 }
 
 .ring-center {
@@ -111,7 +111,7 @@
 }
 
 .flame.lit {
-  filter: drop-shadow(0 0 14px rgba(255, 157, 77, 0.45));
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--flame) 45%, transparent));
   animation: flicker 2.4s ease-in-out infinite alternate;
 }
 
@@ -127,7 +127,7 @@
 .flame-count {
   font-size: 28px;
   font-weight: 800;
-  color: var(--flame, #ff9d4d);
+  color: var(--flame, var(--flame));
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -163,11 +163,11 @@
 }
 
 .streak-day.done {
-  background: rgba(255, 157, 77, 0.16);
+  background: color-mix(in srgb, var(--flame) 16%, transparent);
 }
 
 .streak-day.frozen {
-  background: rgba(88, 166, 255, 0.14);
+  background: color-mix(in srgb, var(--sky) 14%, transparent);
 }
 
 /* Une flamme éteinte : même grisaille que celle du jour, en plus petit. */
@@ -349,7 +349,7 @@
 
 .ceremony-streak b {
   font-size: 30px;
-  color: var(--flame, #ff9d4d);
+  color: var(--flame, var(--flame));
 }
 
 .ceremony-streak span:last-child {
@@ -411,8 +411,8 @@
 /* L'état « fait » doit se lire d'un coup d'œil : plus de doute sur ce qui
    reste à faire aujourd'hui. */
 .checkin-chip.done {
-  background: rgba(63, 185, 80, 0.12);
-  border-color: rgba(63, 185, 80, 0.5);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 50%, transparent);
   animation: chip-done 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -439,7 +439,7 @@
 .checkin-chip.done .checkin-title {
   color: var(--text-faint);
   text-decoration: line-through;
-  text-decoration-color: rgba(63, 185, 80, 0.5);
+  text-decoration-color: color-mix(in srgb, var(--success) 50%, transparent);
 }
 
 /* Le « +15 » qui s'envole : la récompense se voit partir vers l'anneau. */
@@ -452,7 +452,7 @@
   font-weight: 800;
   color: var(--accent);
   pointer-events: none;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 2px 10px color-mix(in srgb, var(--shadow-ink) 60%, transparent);
   animation: pp-fly 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -481,7 +481,7 @@
 }
 
 .checkin-note-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
   color: var(--text);
 }
 
@@ -510,7 +510,7 @@
 .checkin-amount {
   padding: 1px 7px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   font-size: 11.5px;
   font-weight: 600;
   color: var(--text-dim);
@@ -519,8 +519,8 @@
 }
 
 .checkin-chip.done .checkin-amount {
-  background: rgba(63, 185, 80, 0.16);
-  color: #8ee39c;
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success-text);
 }
 
 /* ------------------------------------------------------ gestes ponctuels */
@@ -593,9 +593,9 @@
 }
 
 .streak-banner {
-  background: rgba(255, 157, 77, 0.1);
-  border-color: rgba(255, 157, 77, 0.4);
-  color: #ffc79b;
+  background: color-mix(in srgb, var(--flame) 10%, transparent);
+  border-color: color-mix(in srgb, var(--flame) 40%, transparent);
+  color: color-mix(in srgb, var(--flame) 55%, var(--text));
   margin-bottom: 0;
 }
 
@@ -674,7 +674,7 @@
 }
 
 .stat-streak.lit {
-  color: #ff9d4d;
+  color: var(--flame);
 }
 
 .stat-streak.risk {
@@ -682,7 +682,7 @@
 }
 
 .stat-freezes {
-  color: #8cc4ff;
+  color: var(--sky);
   font-weight: 700;
   text-transform: none;
   letter-spacing: 0;
@@ -721,7 +721,7 @@
 }
 
 .week-delta.down {
-  color: #ff9d4d;
+  color: var(--flame);
 }
 
 .week-label {
@@ -771,9 +771,9 @@
 }
 
 .trophy.unlocked {
-  border-color: rgba(242, 193, 78, 0.4);
-  background: linear-gradient(165deg, rgba(242, 193, 78, 0.09), var(--surface) 55%);
-  box-shadow: 0 0 24px rgba(242, 193, 78, 0.08);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: linear-gradient(165deg, color-mix(in srgb, var(--accent) 9%, transparent), var(--surface) 55%);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .trophy.unlocked:hover {
@@ -811,7 +811,7 @@
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--accent);
-  border: 1px solid rgba(242, 193, 78, 0.4);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   border-radius: 999px;
   padding: 2px 9px;
 }
@@ -825,14 +825,14 @@
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  border-color: rgba(140, 196, 255, 0.45);
-  color: #8cc4ff;
+  border-color: color-mix(in srgb, var(--sky) 45%, transparent);
+  color: var(--sky);
   white-space: nowrap;
 }
 
 .buy-freeze:hover:not(:disabled) {
-  border-color: #8cc4ff;
-  background: rgba(140, 196, 255, 0.12);
+  border-color: var(--sky);
+  background: color-mix(in srgb, var(--sky) 12%, transparent);
 }
 
 /* Hors de portée : le bouton reste, la jauge se remplit.
@@ -843,9 +843,9 @@
    mot en deux — vu en capture, pas déduit. Et l'opacité de `.btn:disabled` est
    reprise plus bas : à 0.5, la jauge s'effaçait, or c'est elle qu'on montre. */
 .buy-freeze.is-short {
-  border-color: rgba(140, 196, 255, 0.22);
-  color: rgba(140, 196, 255, 0.62);
-  background-image: linear-gradient(rgba(140, 196, 255, 0.55), rgba(140, 196, 255, 0.55));
+  border-color: color-mix(in srgb, var(--sky) 22%, transparent);
+  color: color-mix(in srgb, var(--sky) 62%, transparent);
+  background-image: linear-gradient(color-mix(in srgb, var(--sky) 55%, transparent), color-mix(in srgb, var(--sky) 55%, transparent));
   background-repeat: no-repeat;
   background-position: left bottom;
   background-size: var(--freeze-fill, 0%) 3px;
@@ -871,7 +871,7 @@
   margin-left: auto;
   align-self: center;
   font-size: 12px;
-  color: rgba(140, 196, 255, 0.6);
+  color: color-mix(in srgb, var(--sky) 60%, transparent);
   white-space: nowrap;
 }
 

@@ -7,12 +7,12 @@
 }
 
 /* Les couleurs des listes, par nom (mêmes teintes qu'Éclipse). */
-.taches-color-bleu { --taches-color: #6fa8f5; }
-.taches-color-vert { --taches-color: #6fc783; }
-.taches-color-orange { --taches-color: #eba95c; }
-.taches-color-rose { --taches-color: #ee88b2; }
-.taches-color-violet { --taches-color: #b49af2; }
-.taches-color-gris { --taches-color: #9aa3b6; }
+.taches-color-bleu { --taches-color: var(--blue); }
+.taches-color-vert { --taches-color: var(--green); }
+.taches-color-orange { --taches-color: var(--orange); }
+.taches-color-rose { --taches-color: var(--pink); }
+.taches-color-violet { --taches-color: var(--violet); }
+.taches-color-gris { --taches-color: var(--gray); }
 
 /* --- La navigation entre les vues --------------------------------------- */
 
@@ -43,8 +43,8 @@
 
 .taches-nav-item.on {
   color: var(--text);
-  border-color: rgba(255, 159, 122, 0.6);
-  background: rgba(255, 159, 122, 0.12);
+  border-color: color-mix(in srgb, var(--coral) 60%, transparent);
+  background: color-mix(in srgb, var(--coral) 12%, transparent);
 }
 
 .taches-nav-sep {
@@ -58,7 +58,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--taches-color, #9aa3b6);
+  background: var(--taches-color, var(--gray));
 }
 
 .taches-nav-add {
@@ -115,11 +115,11 @@
 }
 
 .taches-quickadd-row:focus-within {
-  border-color: rgba(255, 159, 122, 0.6);
+  border-color: color-mix(in srgb, var(--coral) 60%, transparent);
 }
 
 .taches-quickadd-plus {
-  color: #ff9f7a;
+  color: var(--coral);
   font-size: 18px;
 }
 
@@ -142,9 +142,9 @@
 
 .taches-token {
   padding: 3px 9px;
-  border: 1px solid rgba(255, 159, 122, 0.45);
+  border: 1px solid color-mix(in srgb, var(--coral) 45%, transparent);
   border-radius: 999px;
-  background: rgba(255, 159, 122, 0.1);
+  background: color-mix(in srgb, var(--coral) 10%, transparent);
   color: var(--text);
   font-size: 12.5px;
   cursor: pointer;
@@ -156,8 +156,8 @@
 }
 
 .taches-token-due {
-  border-color: rgba(255, 139, 139, 0.45);
-  background: rgba(255, 139, 139, 0.1);
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
+  background: color-mix(in srgb, var(--red) 10%, transparent);
 }
 
 /* --- Les tâches ---------------------------------------------------------------------- */
@@ -176,7 +176,7 @@
 }
 
 .taches-section-title.late {
-  color: #ff8b8b;
+  color: var(--red);
 }
 
 .taches-day-empty {
@@ -216,19 +216,19 @@
   border: 2px solid var(--text-faint);
   border-radius: 50%;
   background: transparent;
-  color: #0b0e14;
+  color: var(--on-color);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
 
 .taches-check:hover {
-  border-color: #ff9f7a;
+  border-color: var(--coral);
 }
 
 .taches-check[aria-checked='true'] {
-  border-color: #ff9f7a;
-  background: #ff9f7a;
+  border-color: var(--coral);
+  background: var(--coral);
 }
 
 .taches-check.small {
@@ -239,11 +239,11 @@
 
 /* La priorité colore le rond, comme dans les applications du marché. */
 .taches-priority-importante > .taches-row-main > .taches-check {
-  border-color: #eba95c;
+  border-color: var(--orange);
 }
 
 .taches-priority-urgente > .taches-row-main > .taches-check {
-  border-color: #ff8b8b;
+  border-color: var(--red);
 }
 
 .taches-row-body {
@@ -327,25 +327,25 @@
 
 .taches-late,
 .taches-due.overdue {
-  color: #ff8b8b;
+  color: var(--red);
 }
 
 .taches-due.today,
 .taches-due.soon {
-  color: #eba95c;
+  color: var(--orange);
 }
 
 .taches-flag.importante {
-  color: #eba95c;
+  color: var(--orange);
 }
 
 .taches-flag.urgente {
-  color: #ff8b8b;
+  color: var(--red);
   font-weight: 600;
 }
 
 .taches-waiting {
-  color: #eba95c;
+  color: var(--orange);
 }
 
 .taches-waiting-notice {
@@ -484,13 +484,13 @@
 }
 
 .taches-priority-choice.importante.on {
-  border-color: #eba95c;
-  color: #eba95c;
+  border-color: var(--orange);
+  color: var(--orange);
 }
 
 .taches-priority-choice.urgente.on {
-  border-color: #ff8b8b;
-  color: #ff8b8b;
+  border-color: var(--red);
+  color: var(--red);
 }
 
 .taches-editor-foot {
@@ -535,7 +535,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow-ink) 45%, transparent);
   font-size: 13.5px;
   transform: translateX(-50%);
 }
@@ -568,7 +568,7 @@
 
 .taches-row.dragging {
   background: var(--surface-2);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--shadow-ink) 35%, transparent);
 }
 
 .taches-row.dragging .taches-handle {
@@ -609,8 +609,8 @@
 }
 
 .taches-repeat-from button.on {
-  border-color: rgba(255, 159, 122, 0.6);
-  background: rgba(255, 159, 122, 0.1);
+  border-color: color-mix(in srgb, var(--coral) 60%, transparent);
+  background: color-mix(in srgb, var(--coral) 10%, transparent);
   color: var(--text);
 }
 
@@ -660,13 +660,13 @@
 }
 
 .taches-weekday.on {
-  border-color: #ff9f7a;
-  background: rgba(255, 159, 122, 0.2);
+  border-color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 20%, transparent);
   color: var(--text);
 }
 
 .taches-repeat-summary {
-  color: #ff9f7a;
+  color: var(--coral);
 }
 
 /* --- Faire le point (étape 4) -------------------------------------------------------------- */
@@ -678,9 +678,9 @@
   gap: 12px;
   margin-bottom: 14px;
   padding: 10px 12px 10px 14px;
-  border: 1px solid rgba(255, 139, 139, 0.35);
+  border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
   border-radius: var(--radius-sm);
-  background: rgba(255, 139, 139, 0.08);
+  background: color-mix(in srgb, var(--red) 8%, transparent);
   font-size: 13.5px;
 }
 
@@ -792,7 +792,7 @@
   gap: 7px;
   padding: 4px 8px;
   border-radius: 5px;
-  background: rgba(255, 159, 122, 0.08);
+  background: color-mix(in srgb, var(--coral) 8%, transparent);
 }
 
 .taches-landing-check {
@@ -800,14 +800,14 @@
   place-items: center;
   width: 13px;
   height: 13px;
-  border: 1.5px solid #ff9f7a;
+  border: 1.5px solid var(--coral);
   border-radius: 50%;
   font-size: 9px;
-  color: #0b0e14;
+  color: var(--on-color);
 }
 
 .taches-landing-task.done .taches-landing-check {
-  background: #ff9f7a;
+  background: var(--coral);
 }
 
 .taches-landing-title {
@@ -825,5 +825,5 @@
 }
 
 .taches-landing-detail.urgent {
-  color: #ff8b8b;
+  color: var(--red);
 }

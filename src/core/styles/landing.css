@@ -17,9 +17,9 @@
   height: 620px;
   pointer-events: none;
   background:
-    radial-gradient(520px 300px at 50% 40%, rgba(242, 193, 78, 0.13), transparent 70%),
-    radial-gradient(420px 260px at 22% 30%, rgba(156, 140, 246, 0.1), transparent 70%),
-    radial-gradient(420px 260px at 78% 30%, rgba(82, 214, 200, 0.1), transparent 70%);
+    radial-gradient(520px 300px at 50% 40%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 70%),
+    radial-gradient(420px 260px at 22% 30%, color-mix(in srgb, var(--indigo) 10%, transparent), transparent 70%),
+    radial-gradient(420px 260px at 78% 30%, color-mix(in srgb, var(--teal) 10%, transparent), transparent 70%);
 }
 
 /* révélation au défilement */
@@ -99,7 +99,7 @@
 }
 
 .lp-title-accent {
-  background: linear-gradient(120deg, #f2c14e 0%, #9c8cf6 52%, #52d6c8 100%);
+  background: linear-gradient(120deg, var(--accent) 0%, var(--indigo) 52%, var(--teal) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

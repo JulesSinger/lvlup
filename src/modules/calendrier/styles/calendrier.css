@@ -27,17 +27,17 @@
   --fc-neutral-bg-color: var(--surface);
   --fc-neutral-text-color: var(--text-dim);
   --fc-list-event-hover-bg-color: var(--surface-2);
-  --fc-today-bg-color: rgba(201, 160, 255, 0.07);
-  --fc-now-indicator-color: #c9a0ff;
-  --fc-highlight-color: rgba(201, 160, 255, 0.18);
+  --fc-today-bg-color: color-mix(in srgb, var(--lavender) 7%, transparent);
+  --fc-now-indicator-color: var(--lavender);
+  --fc-highlight-color: color-mix(in srgb, var(--lavender) 18%, transparent);
   --fc-button-bg-color: var(--surface-2);
   --fc-button-border-color: var(--border-strong);
   --fc-button-text-color: var(--text);
   --fc-button-hover-bg-color: var(--surface);
   --fc-button-hover-border-color: var(--border-strong);
-  --fc-button-active-bg-color: rgba(201, 160, 255, 0.22);
-  --fc-button-active-border-color: #c9a0ff;
-  --fc-event-text-color: #0b0e14;
+  --fc-button-active-bg-color: color-mix(in srgb, var(--lavender) 22%, transparent);
+  --fc-button-active-border-color: var(--lavender);
+  --fc-event-text-color: var(--on-color);
   color: var(--text);
   font-size: 13px;
 }
@@ -80,7 +80,7 @@
 
 .calendrier-view .fc .fc-day-today .fc-daygrid-day-number,
 .calendrier-view .fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
-  color: #c9a0ff;
+  color: var(--lavender);
   font-weight: 700;
 }
 
@@ -92,16 +92,16 @@
 /* Une occurrence de série : un liseré, pour la distinguer d'un événement unique. */
 .calendrier-view .fc .calendrier-event-recurring {
   border-left-width: 3px;
-  border-left-color: rgba(11, 14, 20, 0.45);
+  border-left-color: color-mix(in srgb, var(--bg) 45%, transparent);
 }
 
 /* Les six couleurs, sur la grille, dans le mois, et en pastille dans l'agenda. */
-.calendrier-view .fc .calendrier-event-bleu { background-color: #6fa8f5; border-color: #6fa8f5; }
-.calendrier-view .fc .calendrier-event-vert { background-color: #6fc783; border-color: #6fc783; }
-.calendrier-view .fc .calendrier-event-orange { background-color: #eba95c; border-color: #eba95c; }
-.calendrier-view .fc .calendrier-event-rose { background-color: #ee88b2; border-color: #ee88b2; }
-.calendrier-view .fc .calendrier-event-violet { background-color: #b49af2; border-color: #b49af2; }
-.calendrier-view .fc .calendrier-event-gris { background-color: #9aa3b6; border-color: #9aa3b6; }
+.calendrier-view .fc .calendrier-event-bleu { background-color: var(--blue); border-color: var(--blue); }
+.calendrier-view .fc .calendrier-event-vert { background-color: var(--green); border-color: var(--green); }
+.calendrier-view .fc .calendrier-event-orange { background-color: var(--orange); border-color: var(--orange); }
+.calendrier-view .fc .calendrier-event-rose { background-color: var(--pink); border-color: var(--pink); }
+.calendrier-view .fc .calendrier-event-violet { background-color: var(--violet); border-color: var(--violet); }
+.calendrier-view .fc .calendrier-event-gris { background-color: var(--gray); border-color: var(--gray); }
 
 /* Dans le mois, un événement horaire est un point et du texte, sans fond. */
 .calendrier-view .fc .fc-daygrid-dot-event {
@@ -111,21 +111,21 @@
 }
 
 .calendrier-view .fc .fc-daygrid-dot-event .fc-daygrid-event-dot { border-color: currentColor; }
-.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-bleu .fc-daygrid-event-dot { border-color: #6fa8f5; }
-.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-vert .fc-daygrid-event-dot { border-color: #6fc783; }
-.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-orange .fc-daygrid-event-dot { border-color: #eba95c; }
-.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-rose .fc-daygrid-event-dot { border-color: #ee88b2; }
-.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-violet .fc-daygrid-event-dot { border-color: #b49af2; }
-.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-gris .fc-daygrid-event-dot { border-color: #9aa3b6; }
+.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-bleu .fc-daygrid-event-dot { border-color: var(--blue); }
+.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-vert .fc-daygrid-event-dot { border-color: var(--green); }
+.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-orange .fc-daygrid-event-dot { border-color: var(--orange); }
+.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-rose .fc-daygrid-event-dot { border-color: var(--pink); }
+.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-violet .fc-daygrid-event-dot { border-color: var(--violet); }
+.calendrier-view .fc .fc-daygrid-dot-event.calendrier-event-gris .fc-daygrid-event-dot { border-color: var(--gray); }
 
 /* L'agenda : fond de ligne neutre, pastille de la couleur de l'événement. */
 .calendrier-view .fc .fc-list-event { background-color: transparent; color: var(--text); }
-.calendrier-view .fc .fc-list-event.calendrier-event-bleu .fc-list-event-dot { border-color: #6fa8f5; }
-.calendrier-view .fc .fc-list-event.calendrier-event-vert .fc-list-event-dot { border-color: #6fc783; }
-.calendrier-view .fc .fc-list-event.calendrier-event-orange .fc-list-event-dot { border-color: #eba95c; }
-.calendrier-view .fc .fc-list-event.calendrier-event-rose .fc-list-event-dot { border-color: #ee88b2; }
-.calendrier-view .fc .fc-list-event.calendrier-event-violet .fc-list-event-dot { border-color: #b49af2; }
-.calendrier-view .fc .fc-list-event.calendrier-event-gris .fc-list-event-dot { border-color: #9aa3b6; }
+.calendrier-view .fc .fc-list-event.calendrier-event-bleu .fc-list-event-dot { border-color: var(--blue); }
+.calendrier-view .fc .fc-list-event.calendrier-event-vert .fc-list-event-dot { border-color: var(--green); }
+.calendrier-view .fc .fc-list-event.calendrier-event-orange .fc-list-event-dot { border-color: var(--orange); }
+.calendrier-view .fc .fc-list-event.calendrier-event-rose .fc-list-event-dot { border-color: var(--pink); }
+.calendrier-view .fc .fc-list-event.calendrier-event-violet .fc-list-event-dot { border-color: var(--violet); }
+.calendrier-view .fc .fc-list-event.calendrier-event-gris .fc-list-event-dot { border-color: var(--gray); }
 
 /* --- Fenêtre de création et de modification ---------------------------- */
 
@@ -177,12 +177,12 @@
   box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text);
 }
 
-.calendrier-color-bleu { background: #6fa8f5; }
-.calendrier-color-vert { background: #6fc783; }
-.calendrier-color-orange { background: #eba95c; }
-.calendrier-color-rose { background: #ee88b2; }
-.calendrier-color-violet { background: #b49af2; }
-.calendrier-color-gris { background: #9aa3b6; }
+.calendrier-color-bleu { background: var(--blue); }
+.calendrier-color-vert { background: var(--green); }
+.calendrier-color-orange { background: var(--orange); }
+.calendrier-color-rose { background: var(--pink); }
+.calendrier-color-violet { background: var(--violet); }
+.calendrier-color-gris { background: var(--gray); }
 
 .calendrier-series-note {
   margin: 0 0 12px;
@@ -423,13 +423,13 @@
 }
 
 .calendrier-weekday.on {
-  background: rgba(201, 160, 255, 0.2);
-  border-color: #c9a0ff;
+  background: color-mix(in srgb, var(--lavender) 20%, transparent);
+  border-color: var(--lavender);
   color: var(--text);
 }
 
 .calendrier-recurrence-summary {
-  color: #c9a0ff;
+  color: var(--lavender);
 }
 
 /* --- « Cet événement, les suivants ou tous » ---------------------------- */
@@ -551,19 +551,19 @@
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  border-left: 3px solid #6fb6ff;
+  border-left: 3px solid var(--sky);
   border-radius: 5px;
-  background: rgba(111, 182, 255, 0.1);
+  background: color-mix(in srgb, var(--sky) 10%, transparent);
 }
 
 .calendrier-landing-event.vert {
-  border-left-color: #7fcf8a;
-  background: rgba(127, 207, 138, 0.1);
+  border-left-color: var(--green);
+  background: color-mix(in srgb, var(--green) 10%, transparent);
 }
 
 .calendrier-landing-event.rose {
-  border-left-color: #f08bb4;
-  background: rgba(240, 139, 180, 0.1);
+  border-left-color: var(--pink);
+  background: color-mix(in srgb, var(--pink) 10%, transparent);
 }
 
 .calendrier-landing-time {

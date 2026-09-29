@@ -79,7 +79,7 @@
 
 /* Un bouton d'outil resté enfoncé : le panneau qu'il ouvre est visible. */
 .btn.btn-ghost.active {
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
   color: var(--text);
 }
 
@@ -175,11 +175,11 @@
 .measure-legend::before {
   content: '';
   width: 14px;
-  border-top: 1px dashed #2c3550;
+  border-top: 1px dashed var(--border-strong);
 }
 
 .measure-legend.goal::before {
-  border-top-color: #3fb950;
+  border-top-color: var(--success);
 }
 
 .measure-legend.goal {
@@ -275,7 +275,7 @@
   width: 100%;
   min-height: 2px;
   border-radius: 2px 2px 0 0;
-  background: #b9812a;
+  background: var(--accent-deep);
 }
 
 .goal-amount-foot {

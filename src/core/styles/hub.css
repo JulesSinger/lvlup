@@ -105,7 +105,7 @@
 
 .hub-picker-label {
   font-weight: 700;
-  color: var(--accent);
+  color: color-mix(in oklab, var(--accent), var(--text) var(--ink-mix));
 }
 
 /* Sous le nom de marque, ce que le module fait (ajouté le 07/09/2026 —

@@ -90,7 +90,7 @@
 
 .goal-level.active {
   border-color: var(--accent);
-  background: rgba(242, 193, 78, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
   color: var(--text);
 }
 
@@ -287,5 +287,5 @@
 .settings-theme .btn[aria-pressed='true'] {
   border-color: var(--accent);
   color: var(--accent);
-  background: rgba(242, 193, 78, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }

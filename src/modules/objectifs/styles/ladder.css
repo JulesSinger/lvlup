@@ -39,7 +39,7 @@
 .tier-check.done {
   background: var(--success);
   border-color: var(--success);
-  color: #04210f;
+  color: var(--on-color);
 }
 
 .tier-body {
@@ -128,7 +128,7 @@
 .ladder-kind-unit {
   padding: 1px 7px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }

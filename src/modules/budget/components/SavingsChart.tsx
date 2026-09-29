@@ -13,7 +13,7 @@ import type { SavingsPoint } from '../lib/envelopes';
  * autre (`conventions.test.ts`).
  */
 
-const SERIES = '#6fbf7f';
+const SERIES = 'var(--green)';
 const PAD = { top: 18, right: 16, bottom: 26, left: 64 };
 const HEIGHT = 200;
 
@@ -113,7 +113,7 @@ export function SavingsChart({ points }: { points: SavingsPoint[] }) {
 
           {ticks.map((t) => (
             <g key={t}>
-              <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke="#262e40" strokeWidth="1" />
+              <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeWidth="1" />
               <text x={PAD.left - 10} y={y(t) + 4} className="budget-chart-tick" textAnchor="end">
                 {(t / 100).toLocaleString('fr-FR')} €
               </text>
@@ -139,14 +139,14 @@ export function SavingsChart({ points }: { points: SavingsPoint[] }) {
                 x2={x(hover as number)}
                 y1={PAD.top}
                 y2={PAD.top + plotH}
-                stroke="#36405a"
+                stroke="var(--border-strong)"
                 strokeWidth="1"
               />
-              <circle cx={x(hover as number)} cy={y(active.totalCents)} r="5" fill={SERIES} stroke="#161b27" strokeWidth="2" />
+              <circle cx={x(hover as number)} cy={y(active.totalCents)} r="5" fill={SERIES} stroke="var(--surface)" strokeWidth="2" />
             </g>
           )}
 
-          <circle cx={x(points.length - 1)} cy={y(last.totalCents)} r="4.5" fill={SERIES} stroke="#161b27" strokeWidth="2" />
+          <circle cx={x(points.length - 1)} cy={y(last.totalCents)} r="4.5" fill={SERIES} stroke="var(--surface)" strokeWidth="2" />
         </svg>
 
         {active && (

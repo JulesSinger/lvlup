@@ -5,8 +5,9 @@
   z-index: 100;
   display: grid;
   place-items: center;
-  background: rgba(4, 6, 12, 0.88);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(6px);
+  color: var(--text);
   cursor: pointer;
   animation: ceremony-in 0.25s ease both;
 }
@@ -130,7 +131,7 @@
   font-size: 38px;
   font-weight: 700;
   letter-spacing: 0.05em;
-  text-shadow: 0 2px 30px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 2px 30px color-mix(in srgb, var(--shadow-ink) 50%, transparent);
   animation: rise-in 0.5s ease 0.3s both;
 }
 
@@ -145,8 +146,8 @@
   font-size: 15px;
   font-weight: 750;
   color: var(--accent);
-  background: rgba(242, 193, 78, 0.12);
-  border: 1px solid rgba(242, 193, 78, 0.4);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   border-radius: 999px;
   padding: 5px 16px;
   font-variant-numeric: tabular-nums;
@@ -199,8 +200,8 @@
   gap: 11px;
   padding: 8px 13px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
   animation: rise-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -248,7 +249,7 @@
   position: absolute;
   top: 18px;
   right: 18px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 8px 10px;
@@ -257,7 +258,7 @@
 }
 
 .ceremony-mute:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--text) 12%, transparent);
 }
 
 /* Version apaisée pour prefers-reduced-motion */
@@ -318,7 +319,7 @@
 
 @keyframes tier-flash {
   0% {
-    background: rgba(63, 185, 80, 0.16);
+    background: color-mix(in srgb, var(--success) 16%, transparent);
   }
   100% {
     background: transparent;
@@ -335,7 +336,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+  background: linear-gradient(105deg, transparent 30%, color-mix(in srgb, var(--white) 35%, transparent) 50%, transparent 70%);
   transform: translateX(-100%);
   animation: bar-shine 2.8s ease 1s infinite;
 }

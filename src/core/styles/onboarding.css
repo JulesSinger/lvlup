@@ -57,7 +57,7 @@
 
 .starter-tab.active {
   border-color: var(--accent);
-  background: rgba(242, 193, 78, 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--text);
 }
 

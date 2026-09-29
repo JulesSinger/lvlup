@@ -13,8 +13,8 @@ import type { NetPoint } from '../lib/spendingTrend';
  * d'alerte plus appuyé que le vert d'en face.
  */
 
-const POSITIVE = '#6fbf7f';
-const NEGATIVE = '#ff8b8b';
+const POSITIVE = 'var(--green)';
+const NEGATIVE = 'var(--red)';
 const PAD = { top: 18, right: 16, bottom: 34, left: 56 };
 const HEIGHT = 220;
 const GAP = 3;
@@ -148,7 +148,7 @@ export function NetTrendChart({ points }: { points: NetPoint[] }) {
                   x2={width - PAD.right}
                   y1={tickY(t)}
                   y2={tickY(t)}
-                  stroke={t === 0 ? '#36405a' : '#262e40'}
+                  stroke={t === 0 ? 'var(--border-strong)' : 'var(--border)'}
                   strokeWidth="1"
                 />
                 <text x={PAD.left - 10} y={tickY(t) + 4} className="budget-chart-tick" textAnchor="end">

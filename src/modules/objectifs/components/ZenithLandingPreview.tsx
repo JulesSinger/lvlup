@@ -11,7 +11,7 @@ export function ZenithLandingPreview() {
     <div className="objectifs-landing-preview">
       <div className="objectifs-landing-ring">
         <svg viewBox="0 0 62 62">
-          <circle cx="31" cy="31" r="26" fill="none" stroke="#262e40" strokeWidth="7" />
+          <circle cx="31" cy="31" r="26" fill="none" stroke="var(--border)" strokeWidth="7" />
           <circle
             cx="31"
             cy="31"

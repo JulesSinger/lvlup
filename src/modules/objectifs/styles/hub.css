@@ -123,12 +123,12 @@
 
 .next-validate {
   flex-shrink: 0;
-  border-color: rgba(242, 193, 78, 0.35);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
   color: var(--accent);
 }
 
 .next-validate:hover {
-  background: rgba(242, 193, 78, 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   border-color: var(--accent);
 }
 

@@ -46,7 +46,7 @@ export function ProfileHeader({
         style={{
           background: rank
             ? `linear-gradient(150deg, ${rank.color2}, ${rank.color})`
-            : 'linear-gradient(150deg, #39415a, #262e40)',
+            : 'linear-gradient(150deg, var(--border-strong), var(--border))',
           color: rank ? rank.ink : 'var(--text-faint)',
         }}
       >
@@ -55,7 +55,7 @@ export function ProfileHeader({
 
       <div className="profile-body">
         <div className="profile-label">Rang du profil</div>
-        <div className="profile-rank" style={{ color: rank ? rank.color2 : 'var(--text-dim)' }}>
+        <div className="profile-rank" style={{ color: rank ? `color-mix(in oklab, ${rank.color2}, var(--text) var(--ink-mix))` : 'var(--text-dim)' }}>
           {rank ? rank.label : 'Non classé'}
         </div>
         <div className="profile-meta">

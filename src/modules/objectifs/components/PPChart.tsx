@@ -14,14 +14,14 @@ import type { Checkin, Goal } from '../lib/types';
  * l'unité de l'app : le profil, la carte du hub et le prix d'un gel s'y
  * comptent déjà.
  *
- * Choix de couleur : #b9812a (l'or Zénith, pas dans sa version claire mais
+ * Choix de couleur : `--accent-deep` (#b9812a en sombre, l'or Zénith, pas dans sa version claire mais
  * dans le pas validé pour fond sombre — luminosité dans la bande 0,48–0,67 et
  * contraste ≥ 3:1 sur la surface). Les textes restent en gris de texte : la
  * couleur appartient aux marques, jamais aux libellés.
  */
 
-const SERIES = '#b9812a';
-const SURFACE = '#161b27';
+const SERIES = 'var(--accent-deep)';
+const SURFACE = 'var(--surface)';
 const PAD = { top: 18, right: 24, bottom: 34, left: 50 };
 const HEIGHT = 240;
 /** Écart entre deux barres : la surface doit passer entre elles. */
@@ -174,7 +174,7 @@ export function PPChart({ goals, checkins }: { goals: Goal[]; checkins: Checkin[
                   x2={width - PAD.right}
                   y1={base - hauteur(t)}
                   y2={base - hauteur(t)}
-                  stroke="#262e40"
+                  stroke="var(--border)"
                   strokeWidth="1"
                 />
                 <text

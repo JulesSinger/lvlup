@@ -22,7 +22,8 @@ export function RankBadge({
       className={`rank-badge${size === 'lg' ? ' lg' : ''}`}
       style={{
         background: `linear-gradient(135deg, ${rank.color}2e, ${rank.color2}1f)`,
-        color: rank.color2,
+        // Foncée en thème clair : la teinte claire du rang ne se lit pas sur blanc.
+        color: `color-mix(in oklab, ${rank.color2}, var(--text) var(--ink-mix))`,
         borderColor: `${rank.color}66`,
       }}
     >
@@ -50,7 +51,7 @@ export function RankSelect({
       id={id}
       value={value}
       onChange={(e) => onChange(e.target.value as RankId)}
-      style={{ color: rank.color2, borderColor: `${rank.color}66` }}
+      style={{ color: `color-mix(in oklab, ${rank.color2}, var(--text) var(--ink-mix))`, borderColor: `${rank.color}66` }}
       aria-label="Rang du palier"
     >
       {RANKS.map((r) => (

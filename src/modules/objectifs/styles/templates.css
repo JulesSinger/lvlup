@@ -50,7 +50,7 @@
 }
 
 .picker-tab.active {
-  background: rgba(201, 162, 39, 0.16);
+  background: color-mix(in srgb, var(--yellow) 16%, transparent);
   border-color: var(--accent);
   color: var(--accent);
   font-weight: 600;

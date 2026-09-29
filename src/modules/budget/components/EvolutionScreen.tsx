@@ -7,9 +7,9 @@ import { NetTrendChart } from './NetTrendChart';
 import { SpendingTrendChart } from './SpendingTrendChart';
 
 /** La vue « Total » n'a pas de couleur de catégorie à elle : l'accent partagé d'Atlas. */
-const TOTAL_COLOR = '#f2c14e';
+const TOTAL_COLOR = 'var(--accent)';
 /** Même vert que le « Solde » positif de l'onglet Aperçu — cohérence des teintes. */
-const INCOME_COLOR = '#6fbf7f';
+const INCOME_COLOR = 'var(--green)';
 
 /**
  * L'onglet Évolution (demandé par Jules le 06/09/2026) : « avoir de la

@@ -128,7 +128,7 @@
      luminosité : la grille se lisait comme des carrés flottants séparés par
      du vide, au lieu d'un calendrier avec des cases remplies et des cases
      vides. C'est le vide qui donne son sens au plein. */
-  background: rgba(0, 0, 0, 0.32);
+  background: color-mix(in srgb, var(--shadow-ink) 32%, transparent);
   border: 1px solid var(--border);
 }
 
@@ -141,7 +141,7 @@
    manqué, assez présent pour que la grille reste une grille. */
 .heat-cell.ghost {
   background: transparent;
-  border-color: rgba(255, 255, 255, 0.05);
+  border-color: color-mix(in srgb, var(--text) 5%, transparent);
 }
 
 .heat-cell[data-level='1'] {
@@ -275,7 +275,7 @@
    deux jours de suite. C'est le seul endroit où la grille prend la parole. */
 .heat-cell.warn {
   border: 1.5px dashed var(--flame);
-  background: rgba(255, 157, 77, 0.08);
+  background: color-mix(in srgb, var(--flame) 8%, transparent);
 }
 
 @media (max-width: 620px) {
@@ -291,7 +291,7 @@
 }
 
 .goal.complete {
-  border-color: rgba(63, 185, 80, 0.35);
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
 }
 
 .goal-head {

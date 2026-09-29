@@ -23,8 +23,8 @@ import type { Action, Checkin, Tier } from '../lib/types';
  * (`ActionMeasureChart`, dans `Heatmap.tsx` — juste l'historique, sans cible).
  */
 
-const SERIES = '#b9812a';
-const SURFACE = '#161b27';
+const SERIES = 'var(--accent-deep)';
+const SURFACE = 'var(--surface)';
 const HEIGHT = 96;
 const PAD = { top: 12, right: 12, bottom: 18, left: 12 };
 
@@ -99,7 +99,7 @@ export function MeasureCurve({
           x2={width - PAD.right}
           y1={y(first.value)}
           y2={y(first.value)}
-          stroke="#2c3550"
+          stroke="var(--border-strong)"
           strokeWidth="1"
           strokeDasharray="3 4"
         />
@@ -109,7 +109,7 @@ export function MeasureCurve({
             x2={width - PAD.right}
             y1={y(target)}
             y2={y(target)}
-            stroke="#3fb950"
+            stroke="var(--success)"
             strokeWidth="1"
             strokeDasharray="4 4"
             opacity="0.75"
