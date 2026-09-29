@@ -56,6 +56,29 @@ export function DeckDetail({ deck, onBack, onError }: Props) {
     void refresh();
   }, [refresh]);
 
+  // Raccourci « N » : une nouvelle carte sans passer par la souris, comme la
+  // nouvelle écriture de Budget. Ignoré pendant la frappe (l'éditeur du recto
+  // et du verso est un `contenteditable`), quand une fenêtre ou une révision
+  // est ouverte, et avec un modificateur (Cmd/Ctrl+N reste au navigateur).
+  useEffect(() => {
+    if (editing !== null || importingList || reviewing) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key.toLowerCase() !== 'n') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = document.activeElement;
+      if (
+        target instanceof HTMLElement &&
+        (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)
+      ) {
+        return;
+      }
+      e.preventDefault();
+      setEditing('new');
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editing, importingList, reviewing]);
+
   const queue = useMemo(() => dueCards(cards, dayString()).slice(0, SESSION_LIMIT), [cards]);
   const distribution = useMemo(() => boxDistribution(cards), [cards]);
   const shown = boxFilter === null ? cards : cards.filter((c) => c.box === boxFilter);
@@ -187,7 +210,11 @@ export function DeckDetail({ deck, onBack, onError }: Props) {
           )}
 
           <div className="flashcards-cards-actions">
-            <button className="btn btn-primary flashcards-add" onClick={() => setEditing('new')}>
+            <button
+              className="btn btn-primary flashcards-add"
+              onClick={() => setEditing('new')}
+              title="Nouvelle carte (N)"
+            >
               + Nouvelle carte
             </button>
             <button className="btn" onClick={() => setImportingList(true)}>

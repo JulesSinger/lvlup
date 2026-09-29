@@ -251,6 +251,27 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.flashcards-card-row');
   check('La carte survit à un aller-retour', (await page.locator('.flashcards-card-row').count()) === 1);
 
+  // Raccourci « N » : une nouvelle carte au clavier, sans que le « n » tapé
+  // n'atterrisse dans le recto.
+  await page.keyboard.press('n');
+  await page.waitForSelector('.flashcards-card-editor');
+  check('« N » ouvre une nouvelle carte dans le paquet', await page.locator('.flashcards-card-editor').isVisible());
+  check(
+    'Le « n » du raccourci ne s’écrit pas dans le recto',
+    ((await page.locator('#flashcards-card-front').textContent()) ?? '').trim() === '',
+  );
+  // Un clic à côté de la fenêtre ne doit pas effacer une carte en cours.
+  await typeIntoCardField(page, 'flashcards-card-front', 'Adiós');
+  await page.locator('.overlay').click({ position: { x: 5, y: 5 } });
+  check(
+    'Un clic à côté ne ferme pas la fenêtre d’une carte',
+    (await page.locator('.flashcards-card-editor').isVisible()) &&
+      ((await page.locator('#flashcards-card-front').textContent()) ?? '').includes('Adiós'),
+  );
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.flashcards-card-editor', { state: 'detached' });
+  check('Échap referme sans créer de carte', (await page.locator('.flashcards-card-row').count()) === 1);
+
   page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Supprimer' }).click();
   await page.waitForSelector('.flashcards-deck-detail .empty h3');

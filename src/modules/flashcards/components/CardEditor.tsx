@@ -91,13 +91,14 @@ export function CardEditor({ card, onCancel, onSave }: Props) {
     }
   }
 
+  // Un clic à côté ne ferme pas : il effaçait un recto ou un verso en cours
+  // de saisie. On ferme par ✕, Annuler ou Échap.
   return (
-    <div className="overlay" onClick={onCancel}>
+    <div className="overlay">
       <div
         className="modal flashcards-card-editor"
         role="dialog"
         aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
           <span className="modal-title">{isEdit ? 'Modifier la carte' : 'Nouvelle carte'}</span>
