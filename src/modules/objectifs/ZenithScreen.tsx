@@ -52,9 +52,6 @@ const VIEWS: { id: View; label: string; icon: string }[] = [
   { id: 'historique', label: 'Historique', icon: '↺' },
 ];
 
-/** Emplacements réservés des prochains sprints — visibles mais inactifs. */
-const SOON: { label: string; icon: string }[] = [{ label: 'Amis', icon: '⚔' }];
-
 /**
  * L'écran entier de Zénith : hub, objectifs, historique, trophées.
  *
@@ -788,15 +785,6 @@ export function ZenithScreen({
                 <span className="nav-count">{activeGoals.length}</span>
               )}
             </button>
-          ))}
-          {SOON.map((item) => (
-            <span key={item.label} className="nav-item soon" aria-disabled="true">
-              <span className="nav-icon" aria-hidden="true">
-                {item.icon}
-              </span>
-              <span className="nav-label">{item.label}</span>
-              <span className="nav-soon">bientôt</span>
-            </span>
           ))}
         </nav>
 
