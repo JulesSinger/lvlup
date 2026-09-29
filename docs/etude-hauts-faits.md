@@ -1,0 +1,404 @@
+# Hauts faits — étude du huitième module
+
+*Étude de conception, écrite avant le code — même exercice que `docs/etude-taches.md`.
+Objectif : savoir ce que le module doit être, ce qu'Atlas permet sous sa contrainte « gratuit à
+vie » (les photos surtout), et comment il doit se présenter, avant d'écrire une ligne. Les
+décisions qui reviennent à Jules sont regroupées en fin de document (§12). Une maquette
+accompagne l'étude : `docs/maquette-hauts-faits.html`.*
+
+Demande de Jules (29/09/2026) : « un module "Hauts faits" de la vie : passer le brevet, le bac,
+faire un semi, premier appartement, 6 mois à l'étranger, diplôme d'ingénieur… avec la date et
+potentiellement des photos pour me rappeler. […] La présentation / la forme compte beaucoup pour
+ce module aussi. »
+
+---
+
+## 1. Ce que le module est, et ce qu'il n'est pas
+
+Les sept modules d'Atlas servent le **quotidien** : on y écrit tous les jours, vite, souvent au
+téléphone. Celui-ci est l'inverse :
+
+- **peu d'entrées, chacune précieuse** : une vie, c'est quelques dizaines de hauts faits, une
+  centaine au plus. Personne n'en ajoute trois par jour ;
+- **rétroactif** : la plupart datent d'avant Atlas (le brevet, il y a dix ans). Il faut donc
+  accepter une date **imprécise** — on sait l'année du brevet, rarement le jour ;
+- **fait pour être regardé**, plus que pour être saisi. La saisie peut prendre deux minutes ;
+  l'écran qui les montre, lui, doit donner envie d'y revenir.
+
+D'où la conséquence qui guide toute l'étude : **la forme n'est pas une finition, c'est la
+fonctionnalité.** Un tableau de lignes datées ferait le même travail qu'une note dans le
+téléphone ; ce qui justifie un module, c'est la frise, les photos, l'âge qu'on avait, le
+« il y a 7 ans aujourd'hui ».
+
+**La frontière avec Objectifs.** Objectifs a déjà des trophées : ils récompensent un palier
+franchi *dans l'app*, calculés par elle. Un haut fait est un moment *de la vie*, raconté par
+soi, souvent sans aucun rapport avec un objectif suivi. Les deux se touchent à un seul endroit :
+un objectif mené au bout (« courir un semi ») mérite d'être **gravé** ici — c'est un lien
+facultatif (§7), pas une fusion.
+
+**Ce que le module n'est pas** : un journal intime (pas d'entrée quotidienne), un album photo
+(pas de photos sans haut fait), un réseau social (rien n'est partagé — règle n°2 de `CLAUDE.md`).
+
+---
+
+## 2. Le marché, et ce qu'on en retient
+
+| Produit | Ce qu'il fait bien | Ce qu'on en garde |
+|---|---|---|
+| **Day One**, journaux intimes | « Ce jour-là » : ressortir ce qui s'est passé à la même date les années précédentes | le bandeau **« Ce jour-là »** et un rappel facultatif |
+| **Photos d'Apple, Google Photos** | les souvenirs : une photo plein écran, une date, une émotion | la **photo de couverture en grand**, le titre posé dessus |
+| **Hauts faits des jeux vidéo** (le mot vient de là : c'est le nom français des *achievements* de World of Warcraft) | la plaque : un emblème, un titre, une date de déblocage, un chiffre | le **médaillon** et le **chiffre clé** (« 1 h 52 », « mention Bien ») |
+| **« Your life in weeks »** (Tim Urban, *Wait But Why*) | une vie entière en une grille de ~4 700 cases, une par semaine | la vue **« Une vie en semaines »**, les hauts faits posés dans la grille |
+| **Frises chronologiques** (applis de *timeline*, CV visuels) | l'axe du temps, les périodes en bandes | la **frise** comme vue principale, les **périodes** (6 mois à l'étranger) en bande |
+
+Ce que le marché fait aussi, et qu'on **laisse de côté** : partager publiquement, comparer aux
+autres, badges imposés par l'app (« tu n'as pas encore débloqué Voyage ») — une case vide qu'on
+n'a pas choisie culpabilise, elle ne motive pas.
+
+---
+
+## 3. Les briques d'un haut fait
+
+| Champ | Obligatoire | Pourquoi |
+|---|---|---|
+| **Titre** | oui | « Brevet des collèges », « Semi-marathon de Paris » |
+| **Date** avec sa **précision** (jour, mois ou année) | oui | le brevet : « 2014 » suffit ; le semi : « 2 mars 2025 ». Stockée comme le premier jour de la période + sa précision, pour trier sans mentir à l'affichage |
+| **Date de fin** | non | fait du haut fait une **période** : « 6 mois à Madrid », « école d'ingénieur 2019 – 2022 » |
+| **Catégorie** | oui | Études, Sport, Voyage, Chez-soi, Travail, Famille & amis, Création, Autre — une couleur et un emoji chacune (§12, Q3) |
+| **Importance** : majeur ou non | non (non par défaut) | un majeur prend une grande carte avec sa photo dans la frise ; les autres restent compacts. C'est ce qui donne du relief à la frise au lieu d'une liste uniforme |
+| **Chiffre clé** | non | un texte court mis en médaillon : « 1 h 52 min », « 16,4 / 20 », « mention Très bien », « 42 m² » |
+| **Lieu** | non | texte libre (« Madrid », « Lycée Henri-IV ») — pas de carte en V1 (§4.6) |
+| **Avec qui** | non | texte libre : « avec Léa et Tom » |
+| **Récit** | non | quelques lignes pour se souvenir : ce qu'on ressentait, le détail qu'on oubliera |
+| **Photos** | non | 0 à 12, une de couverture (§5) |
+
+L'**âge** qu'on avait n'est pas un champ : il se calcule, à condition d'avoir donné sa date de
+naissance (un réglage du module, facultatif — sans elle, pas d'âge ni de « vie en semaines »).
+
+---
+
+## 4. La présentation — le cœur du module
+
+Tout ce qui suit reprend le langage d'Atlas (fond sombre étoilé, Cinzel pour les titres, Inter
+pour le texte, palette commune de `base.css`), et marche dans les deux thèmes. La maquette
+montre la frise, la fiche et la vie en semaines.
+
+### 4.1 La frise (vue principale)
+
+- Un axe vertical ; **chaque année en grand chiffre Cinzel**, avec l'âge à côté : « 2014 ·
+  15 ans ». Les années sans haut fait se resserrent (une fine graduation) au lieu de laisser des
+  trous.
+- Un haut fait **majeur** : grande carte, photo de couverture en plein, titre posé sur un
+  dégradé, chiffre clé en médaillon. Un haut fait **ordinaire** : une ligne compacte, pastille de
+  catégorie, titre, date.
+- Une **période** : une bande colorée le long de l'axe, de son début à sa fin (« Erasmus,
+  Madrid »), avec ce qui s'y est passé à côté.
+- Sur ordinateur, les cartes s'alternent de part et d'autre de l'axe ; sur téléphone, une seule
+  colonne, l'axe à gauche.
+- Du plus récent en haut, par défaut (question §12, Q5).
+- Filtre par catégorie en pastilles, comme ailleurs dans Atlas.
+- Les cartes **apparaissent au défilement** (fondu et léger glissement), sauf avec
+  `prefers-reduced-motion`.
+
+### 4.2 La fiche d'un haut fait
+
+Plein écran, pensée comme une page de souvenir : la couverture en haut, sur toute la largeur,
+titre en Cinzel posé dessus ; en dessous, la date longue et **« il y a 7 ans · tu avais
+18 ans »**, le médaillon du chiffre clé, le lieu, avec qui, le récit, puis la galerie. Toucher
+une photo ouvre la **visionneuse** : plein écran, fond noir, glisser d'une photo à l'autre,
+Échap ou glisser vers le bas pour fermer.
+
+Sans photo, la fiche ne doit pas paraître vide : l'emblème de la catégorie en grand, sur un
+fond teinté de sa couleur, tient lieu de couverture.
+
+### 4.3 Une vie en semaines
+
+La grille de Tim Urban : une ligne par année de vie, 52 cases par ligne ; les semaines vécues
+remplies, celle-ci qui brille, les hauts faits posés en points de leur couleur, les périodes en
+bandes. Toucher un point ouvre sa fiche. C'est la vue la plus frappante du module, et elle ne
+coûte presque rien : quelques milliers de cases dans un seul SVG (ou un `<canvas>`, à mesurer).
+Elle demande la date de naissance ; sans elle, elle explique pourquoi et propose de la donner.
+
+Le nombre de lignes affichées est une question de ton (§12, Q6) : jusqu'à aujourd'hui seulement,
+ou jusqu'à 90 ans avec les semaines à venir en creux — ce qui est le propos de l'original, mais
+peut peser.
+
+### 4.4 « Ce jour-là »
+
+Quand un haut fait tombe **à la même date** (précision au jour) une année passée, un bandeau en
+tête de la frise : « Il y a 3 ans aujourd'hui — Semi-marathon de Paris ». Pour la précision au
+mois, le bandeau vaut pour tout le mois (« Il y a 6 ans ce mois-ci »). Avec, en option et
+coupé par défaut, un **rappel poussé** le matin même, par le mécanisme commun des rappels
+(`coreStore.scheduleReminders`, §6 de `CLAUDE.md`) — aucune infrastructure nouvelle.
+
+### 4.5 La vitrine
+
+Une deuxième vue, en grille : un **médaillon par haut fait**, regroupés par catégorie, comme une
+salle des trophées. Plus dense que la frise, pour voir d'un coup d'œil « tout ce que j'ai fait
+en sport ». Jamais de médaillon vide pour ce qu'on n'a pas fait (§2).
+
+### 4.6 Ce qui attendra
+
+- **La carte des lieux** (Leaflet et les tuiles OpenStreetMap, gratuites mais avec une politique
+  d'usage, et un géocodage limité à un appel par seconde) : faisable, mais c'est un chantier en
+  soi. Le lieu reste un texte en V1 ; la carte viendra si Jules veut « voir où ».
+- **La carte souvenir** : une image générée (canvas) d'un haut fait — photo, titre, date — à
+  garder ou à envoyer par le partage du téléphone. Joli, pas indispensable.
+- **Les hauts faits à venir** (une *bucket list*) : c'est plutôt le rôle d'Objectifs ; à
+  trancher (§12, Q7).
+
+### 4.7 La cérémonie
+
+Ajouter un haut fait, c'est rare : ça mérite un petit moment. À l'enregistrement, la carte se
+pose dans la frise avec un éclat doré et un scintillement bref (pas de confettis : ce n'est pas
+une victoire du jour, c'est un souvenir). Objectifs a sa cérémonie de palier ; celle-ci en est
+une cousine sobre, écrite dans le module (aucun import entre modules).
+
+---
+
+## 5. Les photos — la vraie difficulté
+
+C'est la première fois qu'Atlas stocke des **fichiers**. Tout le reste du module est du déjà-vu.
+
+### 5.1 Où les mettre sans rien payer
+
+**Supabase Storage**, inclus dans le palier gratuit du projet déjà en place : **1 Go de
+fichiers** (et une bande passante sortante mensuelle limitée) — chiffres à revérifier sur la
+page de tarifs au moment de construire. Écartés : Cloudflare R2 (10 Go gratuits, mais une carte
+bancaire est exigée à l'activation — règle n°1), Google Drive ou iCloud (pas d'accès simple et
+gratuit depuis une page web sans serveur).
+
+Un **bucket privé** `hautsfaits`, chaque fichier rangé sous `<id du compte>/…`, et des
+politiques RLS sur `storage.objects` qui n'autorisent un compte qu'à son propre dossier — le même
+principe que les tables, écrit dans la migration.
+
+### 5.2 Faire tenir 1 Go
+
+Une photo d'iPhone pèse 3 à 5 Mo. **L'app la réduit avant l'envoi**, dans le navigateur
+(`createImageBitmap` puis un `<canvas>`) :
+
+- une version **grande** (2 048 px sur le grand côté, qualité ~0,82) : ~300 à 500 Ko ;
+- une **miniature** (480 px) : ~30 à 40 Ko, la seule chargée par la frise.
+
+Soit **2 000 à 3 000 photos** dans 1 Go — large pour une personne, à surveiller pour « quelques
+proches » puisque le quota est commun au projet. D'où un plafond par haut fait (12 photos, à
+discuter) et une jauge dans les réglages du module.
+
+Deux bonus de ce ré-encodage : il **retire les métadonnées** (dont la position GPS) de la copie
+stockée, et il normalise le format (Safari fournit déjà du JPEG à un `<input type="file">`,
+même pour une photo HEIC).
+
+### 5.3 La date de la photo, proposée
+
+Avant de réduire la photo, l'app lit sa date de prise de vue (EXIF `DateTimeOriginal`, un petit
+lecteur maison, pur et testé) et **propose** de dater le haut fait avec elle quand la date est
+encore vide. Retrouver le jour exact du semi de 2019 devient un geste.
+
+### 5.4 Charger peu, une seule fois
+
+La frise ne demande que des miniatures ; la grande version ne se charge qu'à l'ouverture de la
+visionneuse. Un bucket privé se lit par des **liens signés**, qui changent à chaque demande : le
+cache du service worker ne les reconnaîtrait pas. Les photos sont donc téléchargées par leur
+chemin et gardées sur l'appareil (Cache API, clé = chemin, qui ne change jamais puisqu'une
+photo n'est jamais réécrite) : chaque photo traverse le réseau **une fois par appareil**.
+
+### 5.5 En mode local
+
+`localStorage` plafonne vers 5 Mo : inutilisable. L'implémentation locale range les photos dans
+**IndexedDB**. Le contrat de stockage garde la même forme dans les deux modes (`addPhoto`,
+`photoUrl`, `removePhoto`) — règle de `CLAUDE.md` §3.
+
+### 5.6 La sauvegarde, et la règle « ne jamais perdre une donnée »
+
+Le fichier de sauvegarde d'Atlas est un JSON : y mettre les photos en base64 le ferait passer à
+des centaines de Mo. Proposition :
+
+- la sauvegarde contient **tous les hauts faits et la liste de leurs photos**, pas leur contenu ;
+- un bouton du module, « **Télécharger toutes mes photos** », produit une archive (un `.zip`
+  écrit dans le navigateur) ;
+- l'app le dit en toutes lettres à l'ajout : **l'original reste dans la photothèque du
+  téléphone**, Atlas en garde une copie allégée.
+
+### 5.7 Supprimer
+
+Le stockage de fichiers ne suit pas les `on delete cascade` des tables. Supprimer un haut fait
+supprime d'abord la ligne (et ses photos en base, par cascade), **puis** les fichiers : une
+coupure entre les deux laisse au pire un fichier orphelin (de la place perdue, rattrapée par un
+ménage au chargement), jamais un haut fait qui pointe vers des photos disparues.
+
+### 5.8 Le socle ou le module ?
+
+Stocker un fichier pourrait servir ailleurs un jour (un dessin dans une carte de Flashcards, une
+photo de ticket dans Courses). La règle de `CLAUDE.md` §3 dit : **une pièce dont deux modules ont
+besoin monte au socle**. Un seul module en a besoin aujourd'hui : l'envoi et la réduction vivent
+dans le module, écrits pour pouvoir monter le jour où un deuxième en aura besoin — comme la file
+hors ligne l'a fait avec Cérès.
+
+---
+
+## 6. Hors ligne
+
+Ajouter un haut fait n'a rien d'urgent ni de mobile : on le fait chez soi, au calme. **Pas de
+file hors ligne en V1** (proposition) : une écriture sans réseau échoue avec un message et le
+formulaire reste rempli, comme chez Courses. Les ids sont choisis par l'application dès l'étape
+1, pour pouvoir brancher la file commune plus tard sans migration. L'envoi d'une photo montre sa
+progression et se relance s'il échoue ; le haut fait, lui, est enregistré avant ses photos.
+
+---
+
+## 7. Les liens avec les autres modules
+
+Tous facultatifs, tous par les mécanismes existants — aucun import entre modules :
+
+| Lien | Mécanisme | Quand |
+|---|---|---|
+| Les anniversaires de hauts faits dans **Calendar** | un calque `calendarSources` (masqué d'office), comme Budget | après la V1 |
+| Le rappel « Ce jour-là » | `coreStore.scheduleReminders`, coupé par défaut | après la V1 |
+| **« Graver dans les Hauts faits »** depuis Objectifs, quand un objectif est mené au bout | un service `feats` déclaré par ce module (`provides`), qui ouvre l'éditeur pré-rempli via `onOpenModule('hautsfaits', 'draft:…')` | plus tard, à décider |
+
+---
+
+## 8. Le modèle de données
+
+```sql
+hautsfaits_feats (
+  id uuid primary key,                 -- choisi par l'application
+  user_id uuid not null references auth.users on delete cascade,
+  title text not null,                 -- 1 à 200 caractères
+  category text not null,              -- CHECK : FEAT_CATEGORIES (as const + test, §5 de CLAUDE.md)
+  date_start date not null,            -- premier jour de la période décrite
+  date_precision text not null,        -- 'day' | 'month' | 'year'
+  date_end date,                       -- période ; >= date_start
+  date_end_precision text,
+  major boolean not null default false,
+  highlight text,                      -- le chiffre clé, 60 caractères au plus
+  place text, people text, story text,
+  cover_photo_id uuid,                 -- l'une de ses photos, ou la première
+  created_at, updated_at
+)
+
+hautsfaits_photos (
+  id uuid primary key,
+  user_id uuid not null …,
+  feat_id uuid not null references hautsfaits_feats on delete cascade,
+  path text not null, thumb_path text not null,   -- dans le bucket `hautsfaits`
+  width int, height int, taken_at timestamptz,
+  position int not null, caption text
+)
+
+hautsfaits_settings (
+  user_id uuid primary key …,
+  birth_date date,                     -- facultative : âge et « vie en semaines »
+  on_this_day_reminder boolean not null default false
+)
+```
+
+Plus le bucket et ses politiques sur `storage.objects`. RLS complet sur les trois tables, avec
+les quatre politiques nommées. Migration `AAAA-MM-JJ-hautsfaits-tables.sql`.
+
+Une date à précision « année » est stockée au 1er janvier, « mois » au 1er du mois : le tri
+marche tel quel, et c'est l'affichage (`formatFeatDate`) qui ne dit que ce qu'on sait. La date
+de naissance vit en base plutôt que sur l'appareil, comme les réglages de Tâches : c'est une
+donnée du compte, pas d'un téléphone.
+
+---
+
+## 9. Ce qui va bloquer, ou coûter
+
+| Point | Coût | Parade |
+|---|---|---|
+| Premier stockage de fichiers d'Atlas | moyen : bucket, politiques, envoi, liens | tout dans une étape à part (étape 4), testé en mode comptes |
+| Quota de 1 Go commun au projet | faible pour une personne | réduction à l'envoi, plafond par haut fait, jauge |
+| Sauvegarde sans les photos | la règle n°3 en tension | archive `.zip` séparée, message clair, originaux dans le téléphone |
+| Mode local : IndexedDB | nouveau dans Atlas | petit module du stockage local, testé avec `fake-indexeddb` (dépendance de test seulement) ou par la suite e2e |
+| Photos en e2e | la suite doit envoyer une image | une petite image générée par Playwright (`setInputFiles` avec un tampon) |
+| Frise et vie en semaines : de la mise en page, pas de la logique | se vérifie à l'œil | captures sur ordinateur et téléphone, dans les deux thèmes, à chaque étape |
+| `var()` dans les attributs SVG sur iPhone | noté comme à vérifier (journal du 29/09) | à regarder sur le téléphone avec la vie en semaines |
+
+Aucune dépendance nouvelle indispensable. L'archive `.zip` en demanderait une petite (fflate,
+MIT) ou un écrivain maison sans compression — les JPEG ne se compressent de toute façon plus.
+
+---
+
+## 10. Nommer le module
+
+Règle du 28/09/2026 : un nom fonctionnel. **« Hauts faits »** l'est, et c'est le mot de Jules.
+Proposé :
+
+- nom affiché **Hauts faits**, emoji **🏅** (🏆 évoquerait les trophées d'Objectifs ; 🏅 est la
+  médaille qu'on garde) ;
+- nom technique **`hautsfaits`** (minuscules, sans accent ni tiret : c'est le préfixe des
+  tables et des classes CSS) ;
+- accent **rose** (`#ee88b2`, `--pink`), la seule teinte de la palette qu'aucun module ne porte
+  encore — ou l'or, si on veut le côté médaille, au risque de se confondre avec Objectifs.
+
+Description pour le hub : « Les grands moments de ta vie, en frise et en photos ».
+
+---
+
+## 11. Fonctionnalités et découpage
+
+### Liste des fonctionnalités
+
+**V1** — ce qui fait exister le module :
+
+1. Créer, modifier, supprimer un haut fait : titre, date à précision variable, date de fin
+   (période), catégorie, majeur, chiffre clé, lieu, avec qui, récit.
+2. **La frise** : années et âge, cartes majeures et compactes, périodes en bandes, filtre par
+   catégorie, apparition au défilement.
+3. **La fiche** plein écran, avec « il y a N ans · tu avais N ans ».
+4. **Les photos** : ajout depuis le téléphone, réduction dans le navigateur, couverture,
+   ordre, suppression, visionneuse plein écran ; date de prise de vue proposée.
+5. Date de naissance dans les réglages du module.
+6. La cérémonie sobre à l'ajout.
+7. Quelques **suggestions** à l'écran vide, pour démarrer (« Brevet », « Bac », « Permis de
+   conduire », « Premier appartement », « Premier emploi »…) : un toucher pré-remplit le
+   titre et la catégorie. Un module rétroactif commence par une page blanche intimidante.
+
+**Juste après** :
+
+8. **Une vie en semaines.**
+9. **« Ce jour-là »** en bandeau, puis le rappel poussé facultatif.
+10. **La vitrine** des médaillons par catégorie.
+11. Le calque des anniversaires dans Calendar.
+12. « Télécharger toutes mes photos » (archive).
+
+**Plus tard, si l'envie vient** : la carte des lieux, la carte souvenir partageable,
+« Graver dans les Hauts faits » depuis Objectifs, la file hors ligne.
+
+### Découpage en étapes
+
+| Étape | Contenu | Ce qui est vrai à la fin |
+|---|---|---|
+| 1 | migration (tables, sans le bucket), contrat `HautsFaitsStore`, `LocalHautsFaits`, `SupabaseHautsFaits`, module signet, aperçu d'accueil | le module existe et passe `conventions.test.ts` |
+| 2 | bibliothèques pures : dates à précision (`formatFeatDate`, tri, validation), âge, regroupement par année avec les années vides resserrées, « ce jour-là », suggestions | les règles sont justes avant d'être affichées |
+| 3 | la frise, la fiche, l'éditeur, la cérémonie, les suggestions — **sans photo** | **la V1 sans photos** : on peut écrire sa vie |
+| 4 | les photos : bucket et politiques, réduction, miniatures, IndexedDB en local, EXIF, visionneuse, cache sur l'appareil, ménage des orphelins | **la V1 complète** |
+| 5 | une vie en semaines, « ce jour-là », la vitrine | la forme complète |
+| 6 | calque Calendar, rappel « ce jour-là », archive des photos | les liens |
+
+Chaque étape sur sa branche, `npm run test` et `npm run check` verts, journal tenu, captures
+sur ordinateur et téléphone dans les deux thèmes pour toutes les étapes qui touchent l'écran.
+
+---
+
+## 12. Questions à trancher ensemble
+
+1. **Nom et emoji** : « Hauts faits » 🏅, technique `hautsfaits` — d'accord ? Accent rose ou or ?
+2. **Les photos en V1**, ou d'abord une V1 sans photo (étape 3) pour valider la forme, puis les
+   photos (étape 4) ? Recommandé : dans cet ordre, mais les deux dans le même élan.
+3. **Catégories** : une liste fixe (Études, Sport, Voyage, Chez-soi, Travail, Famille & amis,
+   Création, Autre — plus simple, couleurs cohérentes), ou des catégories à soi comme dans
+   Budget ? Recommandé : fixe en V1.
+4. **Combien de photos par haut fait** : 12 ? Et accepter les vidéos ? (Recommandé : non — une
+   seule vidéo de 30 s pèse autant que cent photos.)
+5. **Sens de la frise** : le plus récent en haut (on voit d'abord le dernier haut fait), ou
+   l'enfance en haut (on lit sa vie comme un livre) ? Un bouton pour inverser, retenu sur
+   l'appareil ?
+6. **Une vie en semaines** : jusqu'à aujourd'hui, ou jusqu'à 90 ans avec l'avenir en creux ?
+7. **Hauts faits à venir** (bucket list) ici, ou c'est le rôle d'Objectifs ? Recommandé :
+   Objectifs, avec le lien « Graver » plus tard.
+8. **La sauvegarde des photos** : l'archive séparée te convient-elle, sachant que le JSON de
+   sauvegarde ne les contiendra pas ?
+9. **Partagé à des proches** un jour (« voir les hauts faits de Léa ») ? Recommandé : non —
+   règle n°2, et le RLS actuel ne le permet pas sans chantier.

@@ -1,0 +1,450 @@
+<title>Hauts faits, maquette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Maquette du module Hauts faits d'Atlas : frise verticale sur un axe doré,
+   fiche plein écran, vitrine de médaillons, une vie en semaines.
+   Reprend la palette et les polices du socle (core/styles/base.css). */
+:root {
+  --bg: #0b0e14; --bg-2: #11151f; --surface: #161b27; --surface-2: #1c2232;
+  --border: #262e40; --border-strong: #36405a;
+  --text: #e8ecf4; --text-dim: #97a1b8; --text-faint: #6a748c;
+  --gold: #f2c14e; --gold-hi: #ffd267; --gold-deep: #b9812a;
+  --pink: #ee88b2; --sky: #6fb6ff; --green: #6fc783; --coral: #ff9f7a;
+  --violet: #b49af2; --teal: #52d6c8; --yellow: #e8c267; --gray: #9aa3b6;
+  --on-color: #0b0e14; --overlay: rgba(4, 6, 12, 0.86);
+  --glow-1: #1b2440; --glow-2: #241d3a;
+  --ink-mix: 0%;
+  --display: 'Cinzel', 'Trajan Pro', Georgia, serif;
+  --body: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f6f4ef; --bg-2: #efece4; --surface: #ffffff; --surface-2: #f3f0e8;
+    --border: #e2ddd0; --border-strong: #cfc8b6;
+    --text: #1d2130; --text-dim: #545b6e; --text-faint: #858b9a;
+    --gold: #b58212; --gold-hi: #d19a1d; --gold-deep: #8a6210;
+    --pink: #c24f82; --sky: #2f78c4; --green: #2f8c4a; --coral: #cf5a34;
+    --violet: #7358c9; --teal: #178a7e; --yellow: #a07a10; --gray: #6b7385;
+    --on-color: #ffffff; --overlay: rgba(20, 22, 30, 0.8);
+    --glow-1: #e9e4d6; --glow-2: #efe3ea; --ink-mix: 40%;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f6f4ef; --bg-2: #efece4; --surface: #ffffff; --surface-2: #f3f0e8;
+  --border: #e2ddd0; --border-strong: #cfc8b6;
+  --text: #1d2130; --text-dim: #545b6e; --text-faint: #858b9a;
+  --gold: #b58212; --gold-hi: #d19a1d; --gold-deep: #8a6210;
+  --pink: #c24f82; --sky: #2f78c4; --green: #2f8c4a; --coral: #cf5a34;
+  --violet: #7358c9; --teal: #178a7e; --yellow: #a07a10; --gray: #6b7385;
+  --on-color: #ffffff; --overlay: rgba(20, 22, 30, 0.8);
+  --glow-1: #e9e4d6; --glow-2: #efe3ea; --ink-mix: 40%;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text); font-family: var(--body);
+  font-size: 15px; line-height: 1.5;
+  background-image: radial-gradient(900px 500px at 10% -10%, var(--glow-1), transparent 70%),
+                    radial-gradient(700px 500px at 100% 0%, var(--glow-2), transparent 70%);
+  background-attachment: fixed;
+}
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 20px; padding-block: 24px 80px; }
+.note {
+  font-size: 12.5px; color: var(--text-faint); border: 1px dashed var(--border-strong);
+  border-radius: 10px; padding: 8px 12px; margin-bottom: 20px;
+}
+
+/* En-tête du module, comme les autres écrans d'Atlas */
+.head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.head h1 { font-family: var(--display); font-weight: 600; font-size: 26px; margin: 0; letter-spacing: 0.02em; }
+.head .emoji { font-size: 26px; }
+.head .count { color: var(--text-faint); font-size: 13px; margin-left: auto; }
+.tabs { display: flex; gap: 6px; margin: 18px 0 20px; flex-wrap: wrap; }
+.tab {
+  font: 500 13.5px var(--body); color: var(--text-dim); background: transparent;
+  border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px; cursor: pointer;
+}
+.tab[aria-selected="true"] { color: var(--on-color); background: var(--gold); border-color: var(--gold); }
+.tab:focus-visible, .chip:focus-visible, .card:focus-visible, .row:focus-visible, .medal:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+
+/* « Ce jour-là » */
+.onthisday {
+  display: flex; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 14px;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--gold) 16%, transparent), color-mix(in srgb, var(--pink) 10%, transparent));
+  border: 1px solid color-mix(in srgb, var(--gold) 35%, transparent); margin-bottom: 18px; cursor: pointer;
+}
+.onthisday .spark { font-size: 22px; }
+.onthisday small { display: block; color: var(--gold); font-weight: 600; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; }
+.onthisday b { font-family: var(--display); font-weight: 600; font-size: 16px; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 26px; }
+.chip {
+  font: 500 12.5px var(--body); color: var(--text-dim); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 999px; padding: 5px 11px; cursor: pointer;
+}
+.chip[aria-pressed="true"] { border-color: var(--c, var(--gold)); color: var(--text); background: color-mix(in srgb, var(--c, var(--gold)) 14%, var(--surface)); }
+
+/* La frise */
+.timeline { position: relative; }
+.timeline::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-1px);
+  background: linear-gradient(var(--gold), color-mix(in srgb, var(--gold) 20%, transparent));
+}
+.year { position: relative; display: flex; justify-content: center; margin: 34px 0 18px; }
+.year:first-child { margin-top: 0; }
+.year span {
+  position: relative; background: var(--bg); padding: 2px 14px;
+  font-family: var(--display); font-weight: 700; font-size: 30px; color: var(--gold); letter-spacing: 0.04em;
+}
+.year em { font-style: normal; font-family: var(--body); font-size: 13px; color: var(--text-faint); margin-left: 8px; letter-spacing: 0; }
+.year.gap span { font-size: 15px; color: var(--text-faint); font-weight: 500; }
+.item { position: relative; width: 50%; padding: 0 34px 18px; }
+.item.l { left: 0; }
+.item.r { left: 50%; }
+.item::before {
+  content: ""; position: absolute; top: 18px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--bg); border: 3px solid var(--c);
+}
+.item.l::before { right: -7px; }
+.item.r::before { left: -7px; }
+
+.card {
+  display: block; width: 100%; text-align: left; border: 1px solid var(--border); border-radius: 16px;
+  overflow: hidden; background: var(--surface); color: inherit; cursor: pointer; padding: 0;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--c) 60%, transparent); box-shadow: 0 12px 30px color-mix(in srgb, var(--black, #000) 30%, transparent); }
+.cover { position: relative; aspect-ratio: 16 / 9; background: var(--ph); display: flex; align-items: flex-end; }
+.cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 40%, rgba(5, 7, 12, 0.82)); }
+.cover .t { position: relative; z-index: 1; padding: 14px 16px; color: #f4f1ea; }
+.cover .t b { display: block; font-family: var(--display); font-weight: 600; font-size: 19px; line-height: 1.25; text-wrap: balance; }
+.cover .t small { font-size: 12.5px; opacity: 0.85; }
+.medallion {
+  position: absolute; z-index: 1; top: 12px; right: 12px; padding: 6px 11px; border-radius: 999px;
+  background: rgba(10, 12, 18, 0.62); border: 1px solid rgba(255, 210, 103, 0.7); color: #ffd267;
+  font: 600 12.5px var(--body); backdrop-filter: blur(6px); font-variant-numeric: tabular-nums;
+}
+.card .foot { display: flex; gap: 8px; align-items: center; padding: 10px 14px; font-size: 12.5px; color: var(--text-dim); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+
+.row {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; color: inherit;
+  border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 10px 14px; cursor: pointer;
+}
+.row:hover { border-color: color-mix(in srgb, var(--c) 60%, transparent); }
+.badge {
+  width: 36px; height: 36px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 17px;
+  background: color-mix(in srgb, var(--c) 18%, transparent); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent);
+}
+.row b { display: block; font-weight: 600; font-size: 14.5px; }
+.row small { color: var(--text-faint); font-size: 12.5px; }
+.row .hl { margin-left: auto; font-size: 12.5px; color: color-mix(in oklab, var(--gold), var(--text) var(--ink-mix)); font-weight: 600; white-space: nowrap; }
+
+/* Une période : une bande le long de l'axe */
+.period {
+  position: absolute; left: calc(50% - 5px); width: 10px; border-radius: 6px;
+  background: color-mix(in srgb, var(--c) 55%, transparent);
+}
+.period-label {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: color-mix(in oklab, var(--c), var(--text) var(--ink-mix)); margin-bottom: 8px;
+}
+
+/* Apparition au défilement : l'état de repos est visible */
+@media (prefers-reduced-motion: no-preference) {
+  .item.in { animation: rise 0.6s ease both; }
+  @keyframes rise { from { opacity: 0.001; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+}
+
+/* La fiche */
+.sheet { position: fixed; inset: 0; z-index: 10; background: var(--overlay); display: grid; place-items: center; padding: 16px; }
+.sheet-in {
+  width: min(720px, 100%); max-height: 100%; overflow: auto; background: var(--bg-2);
+  border: 1px solid var(--border); border-radius: 20px;
+}
+.sheet .cover { aspect-ratio: 16 / 8; }
+.sheet .cover .t b { font-size: 30px; }
+.close {
+  position: absolute; z-index: 2; top: 12px; left: 12px; width: 36px; height: 36px; border-radius: 50%;
+  border: 0; background: rgba(10, 12, 18, 0.6); color: #fff; font-size: 18px; cursor: pointer;
+}
+.sheet-body { padding: 20px 24px 26px; display: grid; gap: 16px; }
+.when { font-size: 14px; color: var(--text-dim); }
+.when b { color: var(--text); font-weight: 600; }
+.ago { font-family: var(--display); color: var(--gold); font-size: 17px; font-weight: 600; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.fact { font-size: 13px; padding: 6px 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); }
+.story { font-size: 15.5px; line-height: 1.65; max-width: 62ch; margin: 0; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.gallery div { aspect-ratio: 1; border-radius: 10px; background: var(--ph); }
+
+/* La vitrine */
+.shelf h3 { font-family: var(--display); font-weight: 600; font-size: 17px; margin: 22px 0 12px; display: flex; gap: 8px; align-items: center; }
+.shelf h3 small { font-family: var(--body); color: var(--text-faint); font-size: 12.5px; font-weight: 500; }
+.medals { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+.medal { background: none; border: 0; color: inherit; cursor: pointer; text-align: center; padding: 6px; display: grid; justify-items: center; gap: 8px; }
+.medal .disc {
+  width: 86px; height: 86px; border-radius: 50%; display: grid; place-items: center; font-size: 34px; position: relative;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 45%, var(--surface)), var(--surface) 70%);
+  border: 2px solid color-mix(in srgb, var(--c) 70%, transparent);
+  box-shadow: inset 0 0 0 5px var(--bg-2), inset 0 0 0 6px color-mix(in srgb, var(--c) 40%, transparent);
+}
+.medal b { font-size: 13.5px; font-weight: 600; line-height: 1.3; text-wrap: balance; }
+.medal small { color: var(--text-faint); font-size: 12px; }
+
+/* Une vie en semaines */
+.weeks-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; color: var(--text-dim); font-size: 13.5px; }
+.weeks-head .spacer { flex: 1; }
+.weeks-box { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
+#weeks { display: block; width: 100%; min-width: 520px; height: auto; }
+#weeks .w { fill: var(--border); }
+#weeks .lived { fill: color-mix(in srgb, var(--gold) 38%, var(--surface-2)); }
+#weeks .now { fill: var(--gold-hi); }
+#weeks .lbl { fill: var(--text-faint); font: 10px var(--body); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 12.5px; color: var(--text-dim); }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+
+@media (max-width: 720px) {
+  .timeline::before { left: 14px; }
+  .period { left: 9px; }
+  .year { justify-content: flex-start; padding-left: 30px; }
+  .year span { padding-left: 0; }
+  .item, .item.r { left: 0; width: 100%; padding: 0 0 16px 38px; }
+  .item.l::before, .item.r::before { left: 8px; right: auto; }
+  .sheet { padding: 0; }
+  .sheet-in { border-radius: 0; height: 100%; }
+  .sheet .cover .t b { font-size: 24px; }
+}
+</style>
+
+<div class="wrap">
+  <p class="note">Maquette de l'étude <code>docs/etude-hauts-faits.md</code>. Données d'exemple, photos figurées par des dégradés. Touchez une carte pour ouvrir sa fiche.</p>
+
+  <header class="head">
+    <span class="emoji" aria-hidden="true">🏅</span>
+    <h1>Hauts faits</h1>
+    <span class="count">9 hauts faits · depuis 2014</span>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-view="frise" id="tab-frise">Frise</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="vitrine" id="tab-vitrine">Vitrine</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="semaines" id="tab-semaines">Une vie en semaines</button>
+  </div>
+
+  <section id="view-frise">
+    <div class="onthisday" role="button" tabindex="0" data-open="appart">
+      <span class="spark" aria-hidden="true">✨</span>
+      <div><small>Ce jour-là · il y a 4 ans</small><b>Premier appartement, à Lyon</b></div>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="timeline" id="timeline"></div>
+  </section>
+
+  <section id="view-vitrine" hidden></section>
+
+  <section id="view-semaines" hidden>
+    <div class="weeks-head">
+      <span>Né le 12 mars 1999 (exemple) · 1 438 semaines vécues</span>
+      <span class="spacer"></span>
+      <button class="chip" id="horizon" aria-pressed="false">Jusqu'à 90 ans</button>
+    </div>
+    <div class="weeks-box"><svg id="weeks" role="img" aria-label="Une vie en semaines : une ligne par année, une case par semaine"></svg></div>
+    <div class="legend" id="legend"></div>
+  </section>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-in" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <div class="cover" id="sheet-cover" style="position:relative">
+      <button class="close" id="close" aria-label="Fermer">✕</button>
+      <span class="medallion" id="sheet-medal"></span>
+      <div class="t"><b id="sheet-title"></b></div>
+    </div>
+    <div class="sheet-body">
+      <div class="ago" id="sheet-ago"></div>
+      <div class="when" id="sheet-when"></div>
+      <div class="facts" id="sheet-facts"></div>
+      <p class="story" id="sheet-story"></p>
+      <div class="gallery" id="sheet-gallery"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BIRTH = new Date(1999, 2, 12);
+const TODAY = new Date(2026, 8, 29);
+const CATS = {
+  etudes:  { label: 'Études',  emoji: '🎓', c: 'var(--sky)' },
+  sport:   { label: 'Sport',   emoji: '🏃', c: 'var(--green)' },
+  voyage:  { label: 'Voyage',  emoji: '✈️', c: 'var(--coral)' },
+  chezsoi: { label: 'Chez-soi', emoji: '🔑', c: 'var(--violet)' },
+  travail: { label: 'Travail', emoji: '💼', c: 'var(--teal)' },
+};
+// Dégradés qui figurent une photo de couverture (paysage, piste, ville…).
+const PH = {
+  brevet: 'linear-gradient(160deg,#2c3e66,#5b7bb5 55%,#c9d6ee)',
+  bac: 'linear-gradient(170deg,#1f3558,#3f6ea8 50%,#f0c75e 120%)',
+  permis: 'linear-gradient(180deg,#89a9c9,#c7d3dd 50%,#555c66 51%,#3b4048)',
+  ecole: 'linear-gradient(160deg,#20304a,#35577e 60%,#8fb0d4)',
+  madrid: 'linear-gradient(180deg,#f7b267 0%,#f4845f 40%,#b5485c 70%,#3a2a4d)',
+  diplome: 'linear-gradient(150deg,#1b2440,#2d4a7a 50%,#e8c267 130%)',
+  appart: 'linear-gradient(170deg,#3a2f4f,#6b5b95 55%,#e7c6a2)',
+  job: 'linear-gradient(160deg,#10333a,#1d6b70 60%,#9fe3d8)',
+  semi: 'linear-gradient(180deg,#9cd3f0 0%,#d9eef7 40%,#3f7d4f 41%,#2d5a3a 70%,#c05a3b 71%,#a4492f)',
+};
+const FEATS = [
+  { id: 'semi', title: 'Semi-marathon de Paris', cat: 'sport', date: [2025, 3, 2], prec: 'day', major: true, hl: '1 h 52 min', place: 'Paris', people: 'avec Tom', story: "Le mur au 17e kilomètre, puis la rue de Rivoli en descente. J'ai pleuré en passant la ligne, et je ne sais toujours pas pourquoi.", photos: 5 },
+  { id: 'job', title: 'Premier CDI', cat: 'travail', date: [2022, 11], prec: 'month', hl: 'Ingénieur', place: 'Lyon' },
+  { id: 'appart', title: 'Premier appartement, à Lyon', cat: 'chezsoi', date: [2022, 9, 29], prec: 'day', major: true, hl: '42 m²', place: 'Croix-Rousse, Lyon', story: "Les clés à 18 h, un matelas par terre et une pizza sur le carton de la cuisine. Premier soir chez moi.", photos: 3 },
+  { id: 'diplome', title: "Diplôme d'ingénieur", cat: 'etudes', date: [2022, 7, 1], prec: 'day', major: true, hl: 'Promo 2022', place: 'INSA Lyon', people: 'avec les parents', story: "La remise des diplômes dans l'amphi, les chapeaux lancés trop tôt.", photos: 4 },
+  { id: 'madrid', title: 'Six mois à Madrid', cat: 'voyage', date: [2021, 1], prec: 'month', end: [2021, 6], major: true, hl: 'Erasmus', place: 'Madrid', story: "Le cours du matin, la sieste imposée par la chaleur, et un espagnol qui a fini par sortir tout seul.", photos: 8 },
+  { id: 'ecole', title: "École d'ingénieur", cat: 'etudes', date: [2019, 9], prec: 'month', end: [2022, 7], hl: '3 ans', place: 'INSA Lyon' },
+  { id: 'permis', title: 'Permis de conduire', cat: 'chezsoi', date: [2018, 6], prec: 'month', hl: 'Du premier coup' },
+  { id: 'bac', title: 'Baccalauréat', cat: 'etudes', date: [2017, 7, 5], prec: 'day', major: true, hl: 'Mention Bien', place: 'Lycée du Parc', story: "Les résultats affichés sur les grilles du lycée, le téléphone qui vibre sans arrêt.", photos: 2 },
+  { id: 'brevet', title: 'Brevet des collèges', cat: 'etudes', date: [2014], prec: 'year', hl: 'Mention Très bien' },
+];
+const MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const fmt = (d, p) => p === 'year' ? `${d[0]}` : p === 'month' ? `${MONTHS[d[1]-1]} ${d[0]}` : `${d[2]} ${MONTHS[d[1]-1]} ${d[0]}`;
+const asDate = d => new Date(d[0], (d[1] || 1) - 1, d[2] || 1);
+const ageAt = d => { const x = asDate(d); let a = x.getFullYear() - BIRTH.getFullYear(); if (x < new Date(x.getFullYear(), BIRTH.getMonth(), BIRTH.getDate())) a--; return a; };
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const dateLine = f => f.end ? `${fmt(f.date, f.prec)} – ${fmt(f.end, 'month')}` : fmt(f.date, f.prec);
+
+let filter = null;
+
+function renderChips() {
+  const el = document.getElementById('chips');
+  const all = [['', 'Tout', 'var(--gold)'], ...Object.entries(CATS).map(([k, c]) => [k, `${c.emoji} ${c.label}`, c.c])];
+  el.innerHTML = all.map(([k, l, c]) => `<button class="chip" style="--c:${c}" aria-pressed="${(filter || '') === k}" data-cat="${k}">${l}</button>`).join('');
+}
+
+function renderTimeline() {
+  const list = FEATS.filter(f => !filter || f.cat === filter);
+  let html = '', lastYear = null, side = 0;
+  for (const f of list) {
+    const y = f.date[0];
+    if (y !== lastYear) {
+      if (lastYear && lastYear - y > 2) html += `<div class="year gap"><span>${y + 1} – ${lastYear - 1}</span></div>`;
+      html += `<div class="year"><span>${y}<em>${ageAt([y, 12, 31]) } ans</em></span></div>`;
+      lastYear = y;
+    }
+    const c = CATS[f.cat];
+    const s = side++ % 2 ? 'r' : 'l';
+    const period = f.end ? `<div class="period-label" style="--c:${c.c}">▍Période · ${dateLine(f)}</div>` : '';
+    const body = f.major
+      ? `<button class="card" style="--c:${c.c}" data-open="${f.id}">
+           <div class="cover" style="--ph:${PH[f.id]}">
+             ${f.hl ? `<span class="medallion">${esc(f.hl)}</span>` : ''}
+             <div class="t"><b>${esc(f.title)}</b><small>${dateLine(f)} · ${ageAt(f.date)} ans</small></div>
+           </div>
+           <div class="foot"><span class="dot"></span>${c.label}${f.place ? ' · ' + esc(f.place) : ''}${f.photos ? ` · ${f.photos} photos` : ''}</div>
+         </button>`
+      : `<button class="row" style="--c:${c.c}" data-open="${f.id}">
+           <span class="badge" aria-hidden="true">${c.emoji}</span>
+           <span><b>${esc(f.title)}</b><small>${dateLine(f)} · ${ageAt(f.date)} ans</small></span>
+           ${f.hl ? `<span class="hl">${esc(f.hl)}</span>` : ''}
+         </button>`;
+    html += `<div class="item ${s}" style="--c:${c.c}">${period}${body}</div>`;
+  }
+  document.getElementById('timeline').innerHTML = html;
+  observe();
+}
+
+function observe() {
+  if (!('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.item').forEach(i => { if (i.getBoundingClientRect().top > innerHeight) io.observe(i); });
+}
+
+function renderVitrine() {
+  const el = document.getElementById('view-vitrine');
+  el.innerHTML = Object.entries(CATS).map(([k, c]) => {
+    const fs = FEATS.filter(f => f.cat === k);
+    if (!fs.length) return '';
+    return `<div class="shelf"><h3>${c.emoji} ${c.label}<small>${fs.length}</small></h3><div class="medals">${
+      fs.map(f => `<button class="medal" style="--c:${c.c}" data-open="${f.id}"><span class="disc" aria-hidden="true">${c.emoji}</span><b>${esc(f.title)}</b><small>${fmt(f.date, f.prec)}</small></button>`).join('')
+    }</div></div>`;
+  }).join('');
+}
+
+function renderWeeks(toNinety) {
+  const svg = document.getElementById('weeks');
+  const lived = Math.floor((TODAY - BIRTH) / (7 * 864e5));
+  const years = toNinety ? 90 : Math.ceil(lived / 52) ;
+  const cell = 9, gap = 2.4, left = 28, top = 8;
+  const W = left + 52 * (cell + gap), H = top + years * (cell + gap) + 4;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const marks = {};
+  for (const f of FEATS) {
+    const s = Math.floor((asDate(f.date) - BIRTH) / (7 * 864e5));
+    const e = f.end ? Math.floor((asDate(f.end) - BIRTH) / (7 * 864e5)) : s;
+    for (let w = s; w <= e; w++) marks[w] = { c: CATS[f.cat].c, id: f.id, point: w === s };
+  }
+  let out = '';
+  for (let y = 0; y < years; y++) {
+    if (y % 5 === 0) out += `<text class="lbl" x="${left - 6}" y="${top + y * (cell + gap) + cell - 1}" text-anchor="end">${y}</text>`;
+    for (let w = 0; w < 52; w++) {
+      const i = y * 52 + w, x = left + w * (cell + gap), yy = top + y * (cell + gap);
+      const m = marks[i];
+      if (m && m.point) out += `<circle cx="${x + cell / 2}" cy="${yy + cell / 2}" r="${cell / 2 + 1}" fill="${m.c}" data-open="${m.id}" style="cursor:pointer"><title>${esc(FEATS.find(f => f.id === m.id).title)}</title></circle>`;
+      else if (m) out += `<rect x="${x}" y="${yy}" width="${cell}" height="${cell}" rx="2" fill="${m.c}" opacity="0.55"/>`;
+      else out += `<rect class="${i === lived ? 'now' : i < lived ? 'lived' : 'w'}" x="${x}" y="${yy}" width="${cell}" height="${cell}" rx="2"/>`;
+    }
+  }
+  svg.innerHTML = out;
+  document.getElementById('legend').innerHTML =
+    Object.values(CATS).map(c => `<span><span class="dot" style="--c:${c.c}"></span>${c.label}</span>`).join('') +
+    `<span><span class="dot" style="--c:var(--gold-hi)"></span>Cette semaine</span>`;
+}
+
+function openSheet(id) {
+  const f = FEATS.find(x => x.id === id); if (!f) return;
+  const c = CATS[f.cat];
+  const cover = document.getElementById('sheet-cover');
+  cover.style.setProperty('--ph', PH[f.id]);
+  document.getElementById('sheet-title').textContent = f.title;
+  const medal = document.getElementById('sheet-medal');
+  medal.textContent = f.hl || ''; medal.hidden = !f.hl;
+  const years = TODAY.getFullYear() - f.date[0] - (TODAY < new Date(TODAY.getFullYear(), (f.date[1] || 1) - 1, f.date[2] || 1) ? 1 : 0);
+  document.getElementById('sheet-ago').textContent = `Il y a ${years} an${years > 1 ? 's' : ''} · tu avais ${ageAt(f.date)} ans`;
+  document.getElementById('sheet-when').innerHTML = `<b>${dateLine(f)}</b>${f.place ? ' · ' + esc(f.place) : ''}`;
+  document.getElementById('sheet-facts').innerHTML =
+    `<span class="fact">${c.emoji} ${c.label}</span>` + (f.people ? `<span class="fact">👥 ${esc(f.people)}</span>` : '');
+  document.getElementById('sheet-story').textContent = f.story || '';
+  document.getElementById('sheet-gallery').innerHTML = Array.from({ length: f.photos || 0 }, (_, i) =>
+    `<div style="--ph:${PH[f.id]};filter:hue-rotate(${i * 18}deg) brightness(${1 - i * 0.05})"></div>`).join('');
+  document.getElementById('sheet').hidden = false;
+  document.getElementById('close').focus();
+}
+const closeSheet = () => { document.getElementById('sheet').hidden = true; };
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-open]'); if (t) return openSheet(t.dataset.open);
+  const chip = e.target.closest('[data-cat]');
+  if (chip) { filter = chip.dataset.cat || null; renderChips(); renderTimeline(); return; }
+  const tab = e.target.closest('[data-view]');
+  if (tab) {
+    document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', b === tab));
+    ['frise', 'vitrine', 'semaines'].forEach(v => { document.getElementById('view-' + v).hidden = v !== tab.dataset.view; });
+    try { localStorage.setItem('hf.view', tab.dataset.view); } catch (_) {}
+  }
+});
+document.getElementById('horizon').addEventListener('click', e => {
+  const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+  e.currentTarget.setAttribute('aria-pressed', on); renderWeeks(on);
+});
+document.getElementById('close').addEventListener('click', closeSheet);
+document.getElementById('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeSheet();
+  if (e.key === 'Enter' && e.target.classList.contains('onthisday')) openSheet(e.target.dataset.open);
+});
+
+renderChips(); renderTimeline(); renderVitrine(); renderWeeks(false);
+try { const v = localStorage.getItem('hf.view'); if (v) document.getElementById('tab-' + v)?.click(); } catch (_) {}
+</script>
