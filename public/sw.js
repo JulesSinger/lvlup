@@ -7,7 +7,10 @@
  *   (l'app s'ouvre dans le métro, les données locales font le reste) ;
  * - tout le reste (Supabase, etc.) : jamais intercepté.
  */
-const CACHE = 'zenith-v2';
+// Changer ce nom vide l'ancien cache à l'activation. v3 (2026-09-29) : les
+// icônes d'Atlas remplacent celles de Zénith, et /icons/ est servi cache
+// d'abord — sans ça, un appareil garderait l'ancienne icône pour toujours.
+const CACHE = 'zenith-v3';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
