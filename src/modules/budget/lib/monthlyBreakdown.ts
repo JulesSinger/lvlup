@@ -224,3 +224,15 @@ export function formatMonthDelta(delta: MonthDelta): string | null {
   const rounded = Math.round(delta.percent);
   return `${rounded > 0 ? '+' : ''}${rounded} %`;
 }
+
+/**
+ * La part d'une catégorie dans le total du mois (« 32 % »), arrondie à
+ * l'unité. Une part non nulle mais sous 1 % s'écrit « < 1 % » plutôt que
+ * « 0 % », qui laisserait croire qu'elle ne compte pas.
+ */
+export function formatShare(cents: number, totalCents: number): string {
+  if (totalCents <= 0 || cents <= 0) return '0 %';
+  const percent = (cents / totalCents) * 100;
+  if (percent < 1) return '< 1 %';
+  return `${Math.round(percent)} %`;
+}

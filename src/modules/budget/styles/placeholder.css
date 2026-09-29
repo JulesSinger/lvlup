@@ -594,6 +594,17 @@
   color: #6fbf7f;
 }
 
+/* La part de la catégorie dans le total du mois : en retrait du montant,
+   largeur fixe pour que les pourcentages s'alignent d'une ligne à l'autre. */
+.budget-pie-legend-share {
+  min-width: 42px;
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
 /* Le comparatif au mois précédent, en teinte discrète — pas la même
    saturation que le montant à côté : un repère à lire en passant, pas une
    alerte (voir monthlyBreakdown.ts, `monthDelta`). */

@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'vitest';
-import { computeMonthlyBreakdown, deltaMap, formatMonthDelta, monthDelta, subcategoryBreakdown } from './monthlyBreakdown';
+import {
+  computeMonthlyBreakdown,
+  deltaMap,
+  formatMonthDelta,
+  formatShare,
+  monthDelta,
+  subcategoryBreakdown,
+} from './monthlyBreakdown';
 import type { BudgetSlice } from './monthlyBreakdown';
 import type { BudgetCategory, BudgetEntry } from './types';
 
@@ -298,5 +305,21 @@ describe('formatMonthDelta', () => {
 
   test('un pourcentage négatif garde le sien, sans doublon', () => {
     expect(formatMonthDelta({ kind: 'change', percent: -8.2 })).toBe('-8 %');
+  });
+});
+
+describe('formatShare', () => {
+  test('donne la part arrondie à l’unité', () => {
+    expect(formatShare(5000, 6000)).toBe('83 %');
+    expect(formatShare(1000, 6000)).toBe('17 %');
+    expect(formatShare(6000, 6000)).toBe('100 %');
+  });
+
+  test('écrit « < 1 % » pour une part minuscule, jamais « 0 % »', () => {
+    expect(formatShare(40, 10000)).toBe('< 1 %');
+  });
+
+  test('rend 0 % sans total plutôt que de diviser par zéro', () => {
+    expect(formatShare(0, 0)).toBe('0 %');
   });
 });

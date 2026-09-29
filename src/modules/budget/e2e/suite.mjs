@@ -240,6 +240,11 @@ export async function run({ browser, check, BASE }) {
     ((await page.locator('.budget-pie-legend-item', { hasText: 'À classer' }).textContent()) ?? '').includes('10,00'),
   );
   check(
+    'Chaque part affiche ce qu’elle pèse dans les dépenses du mois',
+    (await page.locator('.budget-pie-legend-item', { hasText: 'Courses' }).locator('.budget-pie-legend-share').textContent()) === '83 %' &&
+      (await page.locator('.budget-pie-legend-item', { hasText: 'À classer' }).locator('.budget-pie-legend-share').textContent()) === '17 %',
+  );
+  check(
     'Le total dépensé du mois est la somme des deux parts (50 + 10 = 60 €)',
     (await page.locator('.budget-month-stat-amount.expense').textContent())?.trim() === '-60,00 €',
   );

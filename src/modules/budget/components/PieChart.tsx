@@ -1,5 +1,5 @@
 import { formatCents } from '../lib/amount';
-import { formatMonthDelta } from '../lib/monthlyBreakdown';
+import { formatMonthDelta, formatShare } from '../lib/monthlyBreakdown';
 import type { BudgetSlice, MonthDelta } from '../lib/monthlyBreakdown';
 
 interface Props {
@@ -129,6 +129,9 @@ export function PieChart({ slices, totalCents, selectedCategoryId, onSelect, var
                 )}
                 <span className={`budget-pie-legend-amount${isIncome ? ' income' : ''}`}>
                   {formatCents(isIncome ? slice.cents : -slice.cents)}
+                </span>
+                <span className="budget-pie-legend-share" title={isIncome ? 'Part des entrées du mois' : 'Part des dépenses du mois'}>
+                  {formatShare(slice.cents, totalCents)}
                 </span>
               </button>
             </li>
