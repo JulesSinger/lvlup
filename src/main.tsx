@@ -5,6 +5,11 @@ import '@fontsource/cinzel/600.css';
 import '@fontsource/cinzel/700.css';
 import './styles.css';
 import App from './App.tsx';
+import { watchSystemTheme } from './core/lib/theme';
+
+// Le thème est déjà posé par le script d'index.html ; il reste à suivre
+// l'appareil quand le choix est « Système ».
+watchSystemTheme();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

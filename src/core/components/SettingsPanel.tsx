@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react';
 import { coreStore } from '../data';
 import type { Settings } from '../data/coreStore';
 import type { AtlasModule } from '../lib/module';
+import { THEME_CHOICES, applyTheme, readThemeChoice, saveThemeChoice } from '../lib/theme';
+import type { ThemeChoice } from '../lib/theme';
 import type { AppUser } from '../lib/types';
+
+const THEME_LABELS: Record<ThemeChoice, string> = {
+  dark: 'Sombre',
+  light: 'Clair',
+  system: 'Système',
+};
 
 /**
  * Panneau de réglages — tout ce qui ne se règle qu'une fois : le rythme
@@ -40,6 +48,13 @@ export function SettingsPanel({
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [passwordDone, setPasswordDone] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [theme, setTheme] = useState<ThemeChoice>(readThemeChoice);
+
+  function chooseTheme(choice: ThemeChoice) {
+    setTheme(choice);
+    saveThemeChoice(choice);
+    applyTheme(choice);
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -100,6 +115,27 @@ export function SettingsPanel({
               </div>
             </section>
           )}
+
+          <section className="settings-block">
+            <h3 className="settings-title">Apparence</h3>
+            <p className="settings-hint">
+              Retenu sur cet appareil. « Système » suit le réglage clair ou sombre du téléphone ou de
+              l'ordinateur.
+            </p>
+            <div className="settings-actions settings-theme" role="group" aria-label="Thème">
+              {[...THEME_CHOICES].reverse().map((choice) => (
+                <button
+                  key={choice}
+                  type="button"
+                  className="btn btn-sm"
+                  aria-pressed={theme === choice}
+                  onClick={() => chooseTheme(choice)}
+                >
+                  {THEME_LABELS[choice]}
+                </button>
+              ))}
+            </div>
+          </section>
 
           {modules.map((m) =>
             m.SettingsSection ? (

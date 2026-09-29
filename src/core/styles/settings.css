@@ -41,13 +41,13 @@
 }
 
 .settings-ok {
-  color: var(--rank-emeraude, #5be08d);
+  color: var(--success-text);
   font-size: 13px;
   margin: 10px 0 0;
 }
 
 .settings-problem {
-  color: #ff8f7f;
+  color: var(--danger-text);
   font-size: 13px;
   margin: 10px 0 0;
 }
@@ -228,7 +228,7 @@
 
 .password-toggle:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--tint);
 }
 
 .password-toggle:focus-visible {
@@ -282,3 +282,10 @@
   justify-content: flex-start;
 }
 
+
+/* Le thème choisi, marqué comme un bouton enfoncé. */
+.settings-theme .btn[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(242, 193, 78, 0.1);
+}

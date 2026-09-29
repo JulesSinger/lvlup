@@ -20,7 +20,7 @@
     border-top: 1px solid var(--border);
     /* Fond quasi opaque plutôt que backdrop-filter : le blur permanent coûte
        cher sur GPU mobile pour un gain visuel minime. */
-    background: rgba(11, 14, 20, 0.97);
+    background: var(--bar-bg);
     z-index: 60;
   }
 

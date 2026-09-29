@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AtlasModule } from '../lib/module';
+import { applyTheme } from '../lib/theme';
 import { AuthScreen } from './AuthScreen';
 import { StarField } from './StarField';
 
@@ -53,6 +54,20 @@ export function Landing({ modules }: { modules: readonly AtlasModule[] }) {
   /** `null` = on est encore sur la présentation. Sinon, le formulaire demandé. */
   const [auth, setAuth] = useState<'signin' | 'signup' | null>(null);
   const root = useReveal();
+
+  // La présentation reste sombre quel que soit le thème choisi : le champ
+  // d'étoiles et le halo n'ont de sens que sur un ciel de nuit. Le thème
+  // choisi revient dès qu'on la quitte, formulaire de connexion compris.
+  const presenting = auth === null;
+  useEffect(() => {
+    if (!presenting) return;
+    document.documentElement.dataset.themeForced = 'dark';
+    applyTheme(undefined, 'dark');
+    return () => {
+      delete document.documentElement.dataset.themeForced;
+      applyTheme();
+    };
+  }, [presenting]);
 
   if (auth) return <AuthScreen initialMode={auth} onBack={() => setAuth(null)} />;
 

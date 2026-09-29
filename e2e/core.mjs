@@ -51,6 +51,47 @@ export async function run({ browser, check, BASE }) {
     descriptions.join(' | '),
   );
 
+  // --- Thème clair / sombre (étape 1 du mode clair, 2026-09-29) -------------
+  // Sombre par défaut ; le choix se fait dans les réglages, vaut pour
+  // l'appareil, et survit au rechargement sans passer d'abord par le sombre.
+  {
+    const theme = () => page.evaluate(() => document.documentElement.dataset.theme);
+    const bodyBg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    const barColor = () =>
+      page.evaluate(() => document.querySelector('meta[name="theme-color"]')?.getAttribute('content'));
+
+    check('Sombre par défaut, sans choix enregistré', (await theme()) === 'dark', await theme());
+    check('Le fond sombre d’origine', (await bodyBg()) === 'rgb(11, 14, 20)', await bodyBg());
+
+    await page.getByRole('button', { name: '⚙ Réglages' }).click();
+    const group = page.getByRole('group', { name: 'Thème' });
+    check('Les réglages proposent Sombre, Clair et Système', (await group.getByRole('button').count()) === 3);
+    await group.getByRole('button', { name: 'Clair' }).click();
+    check('« Clair » passe l’app en clair', (await theme()) === 'light', await theme());
+    check('Le fond devient clair', (await bodyBg()) === 'rgb(244, 245, 249)', await bodyBg());
+    check('La barre du navigateur suit', (await barColor()) === '#f4f5f9', await barColor());
+    check(
+      'Le choix est marqué dans les réglages',
+      (await group.getByRole('button', { name: 'Clair' }).getAttribute('aria-pressed')) === 'true',
+    );
+
+    await page.reload();
+    await page.waitForSelector('.hub-picker-card');
+    check('Le clair survit au rechargement', (await theme()) === 'light', await theme());
+
+    await page.getByRole('button', { name: '⚙ Réglages' }).click();
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await group.getByRole('button', { name: 'Système' }).click();
+    check('« Système » suit un appareil en sombre', (await theme()) === 'dark', await theme());
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+    check('… et bascule avec lui, sans recharger', (await theme()) === 'light', await theme());
+
+    await group.getByRole('button', { name: 'Sombre' }).click();
+    check('« Sombre » ramène le thème d’origine', (await theme()) === 'dark', await theme());
+    await page.keyboard.press('Escape');
+  }
+
   await context.close();
 
   // Écran d'authentification : il n'apparaît qu'en mode Supabase, on le vérifie
@@ -180,5 +221,21 @@ export async function run({ browser, check, BASE }) {
     check('On peut revenir à la connexion', (await authPage.locator('#password').count()) === 1);
     await authPage.close();
     await authContext.close();
+
+    // La présentation publique reste sombre même en thème clair : son champ
+    // d'étoiles n'a de sens que sur un ciel de nuit. Le formulaire, lui, suit.
+    {
+      const lightContext = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+      await lightContext.addInitScript(() => localStorage.setItem('atlas.theme.v1', 'light'));
+      const lightPage = await lightContext.newPage();
+      await lightPage.goto(process.env.AUTH_BASE);
+      await lightPage.waitForSelector('.lp-hero');
+      const theme = () => lightPage.evaluate(() => document.documentElement.dataset.theme);
+      check('La présentation reste sombre en thème clair', (await theme()) === 'dark', await theme());
+      await lightPage.getByRole('button', { name: 'Se connecter', exact: true }).first().click();
+      await lightPage.waitForSelector('.auth-card');
+      check('Le formulaire de connexion suit le thème choisi', (await theme()) === 'light', await theme());
+      await lightContext.close();
+    }
   }
 }
