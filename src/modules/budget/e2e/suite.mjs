@@ -144,6 +144,13 @@ export async function run({ browser, check, BASE }) {
   await page.locator('#budget-entry-label').fill('Remboursement ami');
   await page.getByRole('button', { name: '+ Entrée' }).click();
   await page.locator('#budget-entry-amount').fill('20');
+  // Un clic à côté de la fenêtre ne doit pas effacer la saisie en cours.
+  await page.locator('.overlay').click({ position: { x: 5, y: 5 } });
+  check(
+    'Un clic à côté ne ferme pas la fenêtre d’une écriture',
+    (await page.locator('.budget-entry-editor').isVisible()) &&
+      (await page.locator('#budget-entry-amount').inputValue()) === '20',
+  );
   await page.getByRole('button', { name: 'Enregistrer' }).click();
   await page.waitForTimeout(200);
   check('Deux écritures dans la liste', (await page.locator('.budget-entry-row').count()) === 2);

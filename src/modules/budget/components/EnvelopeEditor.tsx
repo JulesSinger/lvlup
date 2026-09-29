@@ -54,12 +54,11 @@ export function EnvelopeEditor({ envelope, onCancel, onSave }: Props) {
   }
 
   return (
-    <div className="overlay" onClick={onCancel}>
+    <div className="overlay">
       <div
         className="modal budget-envelope-editor"
         role="dialog"
         aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
           <span className="modal-title">{isEdit ? "Modifier l'enveloppe" : 'Nouvelle enveloppe'}</span>

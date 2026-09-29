@@ -82,12 +82,11 @@ export function CategoryEditor({ category, parent = null, onCancel, onSave }: Pr
   }
 
   return (
-    <div className="overlay" onClick={onCancel}>
+    <div className="overlay">
       <div
         className="modal budget-category-editor"
         role="dialog"
         aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
           <span className="modal-title">

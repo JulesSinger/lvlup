@@ -118,13 +118,14 @@ export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onC
     }
   }
 
+  // Un clic à côté ne ferme pas : il effaçait une saisie en cours. On ferme
+  // par ✕, Annuler ou Échap.
   return (
-    <div className="overlay" onClick={onCancel}>
+    <div className="overlay">
       <div
         className="modal budget-entry-editor"
         role="dialog"
         aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
           <span className="modal-title">{isEdit ? "Modifier l'écriture" : 'Nouvelle écriture'}</span>
