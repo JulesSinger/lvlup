@@ -1,5 +1,6 @@
 import type { AtlasModule } from '../lib/module';
 import type { AppUser } from '../lib/types';
+import AtlasMark from './AtlasMark';
 
 /**
  * Écran d'accueil du hub : la liste des modules.
@@ -24,7 +25,7 @@ export function ModulePicker({
     <div className="hub-picker">
       <header className="hub-picker-top">
         <div className="brand">
-          <span className="brand-mark">▲</span>
+          <AtlasMark />
           <span className="brand-name">Atlas</span>
         </div>
         <div className="hub-picker-actions">

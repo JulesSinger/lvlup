@@ -5,6 +5,7 @@ import type { AtlasModule } from '../lib/module';
 import { THEME_CHOICES, applyTheme, readThemeChoice, saveThemeChoice } from '../lib/theme';
 import type { ThemeChoice } from '../lib/theme';
 import type { AppUser } from '../lib/types';
+import AtlasMark from './AtlasMark';
 
 const THEME_LABELS: Record<ThemeChoice, string> = {
   dark: 'Sombre',
@@ -110,7 +111,7 @@ export function SettingsPanel({
                     onBackToHub();
                   }}
                 >
-                  ▲ Changer de module
+                  <AtlasMark className="atlas-mark-inline" /> Changer de module
                 </button>
               </div>
             </section>

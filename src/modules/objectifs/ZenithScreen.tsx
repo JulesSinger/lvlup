@@ -42,11 +42,12 @@ import type {
   Tier,
   TierInput,
 } from './lib/types';
+import AtlasMark from '../../core/components/AtlasMark';
 
 type View = 'accueil' | 'objectifs' | 'historique' | 'trophees';
 
 const VIEWS: { id: View; label: string; icon: string }[] = [
-  { id: 'accueil', label: 'Accueil', icon: '▲' },
+  { id: 'accueil', label: 'Accueil', icon: '⌂' },
   { id: 'objectifs', label: 'Objectifs', icon: '◎' },
   { id: 'trophees', label: 'Trophées', icon: '🏆' },
   { id: 'historique', label: 'Historique', icon: '↺' },
@@ -798,7 +799,7 @@ export function ZenithScreen({
             </div>
           )}
           <button className="btn btn-ghost btn-sm sidebar-settings" onClick={onBackToHub}>
-            ▲ Modules
+            <AtlasMark className="atlas-mark-inline" /> Modules
           </button>
           <button className="btn btn-ghost btn-sm sidebar-settings" onClick={onOpenSettings}>
             ⚙ Réglages

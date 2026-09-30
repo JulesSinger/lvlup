@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { coreStore } from '../data';
+import AtlasMark from './AtlasMark';
 
 /**
  * Écran affiché quand on arrive par le lien « mot de passe oublié ».
@@ -41,7 +42,7 @@ export function PasswordRecovery({ onDone }: { onDone: () => void }) {
     <div className="auth-screen">
       <form className="auth-card" onSubmit={submit}>
         <div className="brand auth-brand">
-          <span className="brand-mark">▲</span>
+          <AtlasMark />
           <span className="brand-name">Atlas</span>
         </div>
         <h1 className="auth-title">Choisis un nouveau mot de passe</h1>

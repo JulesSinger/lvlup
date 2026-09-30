@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { coreStore } from '../data';
+import AtlasMark from './AtlasMark';
 
 type Mode = 'signin' | 'signup' | 'forgot';
 
@@ -55,7 +56,7 @@ export function AuthScreen({
     <div className="auth-screen">
       <form className="auth-card" onSubmit={submit}>
         <div className="brand">
-          <span className="brand-mark">▲</span> Atlas
+          <AtlasMark /> Atlas
         </div>
         <p className="auth-tagline">Un module par domaine, un seul endroit qui t'appartient.</p>
 

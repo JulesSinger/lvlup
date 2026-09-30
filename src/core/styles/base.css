@@ -277,3 +277,21 @@ textarea {
   box-shadow: 0 0 18px rgba(242, 193, 78, 0.25);
 }
 
+/* La marque d'Atlas (AtlasMark) est la sphère elle-même, sans pastille : elle
+   n'a besoin ni du fond or ni du halo, que gardent les emojis des modules.
+   `color` teinte ses méridiens, sombres sur l'or comme dans l'icône. */
+.brand-mark-atlas {
+  background: none;
+  box-shadow: none;
+  padding: 1px;
+  color: var(--accent-ink);
+}
+
+.atlas-mark-inline {
+  display: inline-block;
+  width: 1.25em;
+  height: 1.25em;
+  vertical-align: -0.3em;
+  color: var(--accent-ink);
+}
+

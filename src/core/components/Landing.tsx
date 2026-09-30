@@ -3,6 +3,7 @@ import type { AtlasModule } from '../lib/module';
 import { applyTheme } from '../lib/theme';
 import { AuthScreen } from './AuthScreen';
 import { StarField } from './StarField';
+import AtlasMark from './AtlasMark';
 
 /**
  * Page d'accueil publique — ce que voit quelqu'un qui reçoit le lien.
@@ -80,7 +81,7 @@ export function Landing({ modules }: { modules: readonly AtlasModule[] }) {
 
       <header className="lp-nav">
         <div className="brand">
-          <span className="brand-mark">▲</span>
+          <AtlasMark />
           <span className="brand-name">Atlas</span>
         </div>
         {/* Deux libellés : le long sur ordinateur, le court sur téléphone. Un
