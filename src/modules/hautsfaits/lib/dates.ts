@@ -95,3 +95,25 @@ export function sortFeats<T extends Pick<Feat, 'dateStart' | 'datePrecision' | '
     return a.createdAt < b.createdAt ? -sign : a.createdAt > b.createdAt ? sign : 0;
   });
 }
+
+/**
+ * La durée d'une période, bouts compris et pas plus précise que ses dates :
+ * « 8 jours » (3 – 10 août), « 6 mois » (janvier – juin), « 3 ans ». Rien
+ * pour une période connue à l'année près : « 2019 – 2022 » dure trois ou
+ * quatre ans, on ne sait pas.
+ */
+export function durationLabel(feat: Pick<Feat, 'dateStart' | 'datePrecision' | 'dateEnd' | 'dateEndPrecision'>): string | null {
+  if (!feat.dateEnd) return null;
+  const endPrecision = feat.dateEndPrecision ?? feat.datePrecision;
+  if (feat.datePrecision === 'year' || endPrecision === 'year') return null;
+  const [ys, ms, ds] = parts(feat.dateStart);
+  const [ye, me, de] = parts(feat.dateEnd);
+  if (feat.datePrecision === 'day' && endPrecision === 'day') {
+    const days = Math.round((Date.UTC(ye, me - 1, de) - Date.UTC(ys, ms - 1, ds)) / 86_400_000) + 1;
+    if (days < 31) return `${days} jours`;
+  }
+  const months = (ye - ys) * 12 + (me - ms) + 1;
+  if (months < 12) return `${months} mois`;
+  const years = Math.round(months / 12);
+  return years === 1 ? '1 an' : `${years} ans`;
+}

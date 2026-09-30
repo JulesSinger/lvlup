@@ -480,3 +480,53 @@ Six bibliothèques pures dans `lib/`, sans écran :
 `1080/1080` → `1112/1112` tests unitaires (+32 : `dates.test.ts` 9, `age.test.ts` 9,
 `timeline.test.ts` 8 — frise, « ce jour-là » et idées —, `validation.test.ts` 6), vérifications
 e2e inchangées en nombre, **782/782** en local.
+
+---
+
+## 16. Étape 3 : la frise, sans photos (30/09/2026)
+
+**L'écran** (`HautsFaitsScreen`) : l'en-tête compte les hauts faits et dit depuis quand ; le
+bandeau **« Ce jour-là »** s'il y a lieu (un toucher ouvre la fiche) ; les pastilles de
+catégorie, seulement quand il y en a au moins deux ; puis **la frise** (`Timeline`), qui ne fait
+que dessiner `buildTimeline` : les années en grand chiffre Cinzel avec l'âge atteint, les grands
+hauts faits en **cartes à couverture**, les autres en **lignes compactes**, les années vides
+resserrées en une graduation. Sur ordinateur, les hauts faits s'alternent de part et d'autre
+d'un axe doré ; sur téléphone, l'axe passe à gauche. Les hauts faits sous le bord de l'écran
+apparaissent en douceur au défilement ; ceux déjà visibles ne bougent pas, et rien ne bouge avec
+`prefers-reduced-motion`.
+
+**La couverture sans photo** (`FeatCover`) : l'emblème de la catégorie en grand, incliné, sur un
+fond teinté de sa couleur, le titre posé dessus et le chiffre clé en médaillon. Les photos
+prendront sa place à l'étape 4.
+
+**La fiche** (`FeatSheet`) : la couverture en grand, puis « Il y a 1 an · tu avais 25 ans », la
+date (et la durée d'une période), le lieu, la catégorie, avec qui, le récit. Sans date de
+naissance, elle propose de l'ajouter. **Supprimer demande confirmation dans la fiche même**
+(« Supprimer … pour de bon ? » — Garder / Supprimer), jamais par une boîte du navigateur. Plein
+écran sur téléphone.
+
+**La fenêtre** (`FeatEditor`, `DateField`) : le titre, la catégorie en pastilles, la **date
+saisie aussi précisément qu'on la connaît** — Jour (un calendrier), Mois (une liste et l'année ;
+`<input type="month">` écarté, Safari sur ordinateur ne le connaît pas), Année —, « C'est une
+période » qui ouvre la fin avec la même précision, « Un des grands », le chiffre clé, le lieu,
+avec qui, le récit. Changer de précision garde ce qu'on a dit (`lib/editorDraft.ts`, testé) :
+« 2 mars 2025 » → Mois → Jour revient au 2 mars. Comme dans Flashcards depuis le 29/09, **un clic
+à côté ne ferme pas la fenêtre** : il effacerait ce qui a été écrit. Une erreur d'enregistrement
+laisse la fenêtre remplie. Le bouton dit « Graver » pour un nouveau haut fait.
+
+**La cérémonie** : le haut fait tout juste gravé est amené à l'écran, se pose avec un éclat doré
+et une étincelle qui s'envole (1,5 s), sans confettis.
+
+**L'écran vide** : une phrase, les neuf idées en pastilles (un toucher pré-remplit titre,
+catégorie et précision), et « ＋ Autre chose ».
+
+**La date de naissance** se règle dans le panneau de réglages commun
+(`HautsFaitsSettingsSection`). L'écran restant ouvert derrière, un petit signal propre au module
+(`data/settingsSignal.ts`) lui dit de relire ses réglages : l'âge apparaît dès la fenêtre fermée,
+sans recharger. Le socle n'en sait rien.
+
+Vérifié à l'œil sur captures (ordinateur en sombre et en clair, téléphone), avec une frise
+d'exemple de huit hauts faits. `1112/1112` → `1121/1121` tests unitaires (+9 :
+`editorDraft.test.ts`, dont la durée d'une période), 782 → 809 vérifications en local et 801 →
+828 en mode comptes (+27 : les 4 du signet remplacées par 31 sur le vrai parcours), **809/809**
+et **828/828**.

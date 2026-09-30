@@ -1,29 +1,732 @@
-/* Hauts faits — étape 1 : un signet, en attendant la frise. */
+/* Hauts faits — la frise, la fiche, la fenêtre (étape 3).
+   `--hautsfaits-c` porte la couleur de la catégorie, posée par le composant. */
 
-.hautsfaits-placeholder {
+.hautsfaits-main {
+  max-width: 920px;
+}
+
+/* --- En-tête ---------------------------------------------------------- */
+
+.hautsfaits-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 18px;
+}
+
+.hautsfaits-count {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* « Ce jour-là » */
+.hautsfaits-memory {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  text-align: left;
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: var(--radius);
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--accent) 15%, transparent),
+    color-mix(in srgb, var(--pink) 10%, transparent)
+  );
+  cursor: pointer;
+}
+
+.hautsfaits-memory:hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.hautsfaits-memory-spark {
+  font-size: 22px;
+}
+
+.hautsfaits-memory small {
+  display: block;
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.hautsfaits-memory strong {
+  font-family: 'Cinzel', 'Inter', serif;
+  font-size: 16.5px;
+  font-weight: 600;
+}
+
+/* --- Pastilles (filtres et catégories de la fenêtre) ------------------- */
+
+.hautsfaits-filters,
+.hautsfaits-category-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hautsfaits-filters {
+  margin-bottom: 26px;
+}
+
+.hautsfaits-chip {
+  --hautsfaits-c: var(--accent);
+  padding: 6px 11px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.hautsfaits-chip.on {
+  color: var(--text);
+  border-color: var(--hautsfaits-c);
+  background: color-mix(in srgb, var(--hautsfaits-c) 15%, var(--surface));
+}
+
+/* --- La frise --------------------------------------------------------- */
+
+.hautsfaits-timeline {
+  position: relative;
+  margin: 0;
+  padding: 0 0 40px;
+  list-style: none;
+}
+
+.hautsfaits-timeline::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-1px);
+  background: linear-gradient(var(--accent), color-mix(in srgb, var(--accent) 10%, transparent));
+}
+
+.hautsfaits-year {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 30px 0 16px;
+}
+
+.hautsfaits-year:first-child {
+  margin-top: 0;
+}
+
+.hautsfaits-year-label {
+  position: relative;
+  padding: 2px 14px;
+  font-family: 'Cinzel', 'Inter', serif;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: var(--bg);
+  border-radius: 999px;
+}
+
+.hautsfaits-year-label small {
+  margin-left: 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--text-faint);
+}
+
+/* Les années vides, resserrées en une graduation. */
+.hautsfaits-gap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 26px 0 0;
+}
+
+.hautsfaits-gap span {
+  padding: 1px 10px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+  background: var(--bg);
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+}
+
+.hautsfaits-item {
+  position: relative;
+  width: 50%;
+  padding: 0 32px 16px;
+}
+
+.hautsfaits-item.right {
+  margin-left: 50%;
+}
+
+.hautsfaits-item::before {
+  content: '';
+  position: absolute;
+  top: 18px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 3px solid var(--hautsfaits-c);
+  z-index: 1;
+}
+
+.hautsfaits-item.left::before {
+  right: -8px;
+}
+
+.hautsfaits-item.right::before {
+  left: -8px;
+}
+
+/* Une grande carte */
+.hautsfaits-card,
+.hautsfaits-line {
+  display: block;
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.hautsfaits-card {
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.hautsfaits-card:hover,
+.hautsfaits-line:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--hautsfaits-c) 60%, transparent);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--shadow-ink) 22%, transparent);
+}
+
+.hautsfaits-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.hautsfaits-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hautsfaits-c);
+}
+
+/* La couverture : l'emblème de la catégorie, en attendant les photos. */
+.hautsfaits-cover {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  aspect-ratio: 16 / 8;
+  max-width: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 78% 32%, color-mix(in srgb, var(--hautsfaits-c) 42%, transparent), transparent 62%),
+    linear-gradient(160deg, color-mix(in srgb, var(--hautsfaits-c) 20%, var(--surface-2)), var(--surface));
+}
+
+.hautsfaits-cover.large {
+  aspect-ratio: 16 / 7;
+}
+
+.hautsfaits-cover-emblem {
+  position: absolute;
+  top: 50%;
+  right: 9%;
+  font-size: 64px;
+  line-height: 1;
+  transform: translateY(-58%) rotate(-8deg);
+  filter: drop-shadow(0 8px 18px color-mix(in srgb, var(--shadow-ink) 35%, transparent));
+}
+
+.hautsfaits-cover.large .hautsfaits-cover-emblem {
+  font-size: 96px;
+}
+
+.hautsfaits-cover-title {
+  position: relative;
+  max-width: 72%;
+  margin: 0;
+  padding: 14px 16px;
+  font-family: 'Cinzel', 'Inter', serif;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.hautsfaits-cover.large .hautsfaits-cover-title {
+  padding: 20px 24px;
+  font-size: 28px;
+}
+
+.hautsfaits-medallion {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  max-width: calc(100% - 28px);
+  padding: 5px 11px;
+  font-size: 12.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Une ligne compacte */
+.hautsfaits-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+}
+
+.hautsfaits-badge {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  font-size: 17px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--hautsfaits-c) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hautsfaits-c) 50%, transparent);
+}
+
+.hautsfaits-line-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hautsfaits-line-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.hautsfaits-line-when,
+.hautsfaits-card-when {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.hautsfaits-line-highlight {
+  flex: none;
+  max-width: 40%;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Apparition au défilement, et la cérémonie d'un haut fait tout juste gravé. */
+@media (prefers-reduced-motion: no-preference) {
+  .hautsfaits-item.waiting {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  .hautsfaits-item.waiting.revealed {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 0.6s ease,
+      transform 0.6s ease;
+  }
+
+  .hautsfaits-item.new > button {
+    animation: hautsfaits-engrave 1.4s ease-out both;
+  }
+
+  .hautsfaits-item.new::after {
+    content: '✦';
+    position: absolute;
+    top: -6px;
+    right: 26px;
+    font-size: 18px;
+    color: var(--accent);
+    pointer-events: none;
+    animation: hautsfaits-spark 1.6s ease-out both;
+  }
+}
+
+@keyframes hautsfaits-engrave {
+  0% {
+    opacity: 0.2;
+    transform: scale(0.94);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.02);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+@keyframes hautsfaits-spark {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.6);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-22px) scale(1.2) rotate(40deg);
+  }
+}
+
+/* --- L'écran vide, et ses idées ----------------------------------------- */
+
+.hautsfaits-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  min-height: 70vh;
-  padding: 2rem;
+  gap: 14px;
+  max-width: 560px;
+  margin: 28px auto 0;
+  padding: 36px 24px;
   text-align: center;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
 }
 
-.hautsfaits-placeholder-emoji {
-  font-size: 2.5rem;
+.hautsfaits-empty-emblem {
+  font-size: 44px;
 }
 
-.hautsfaits-placeholder-title {
+.hautsfaits-empty-title {
   margin: 0;
-  font-size: 1.4rem;
+  font-family: 'Cinzel', 'Inter', serif;
+  font-size: 24px;
+  font-weight: 600;
+  text-wrap: balance;
 }
 
-.hautsfaits-placeholder-text {
-  margin: 0 0 0.5rem;
+.hautsfaits-empty-text {
+  max-width: 44ch;
+  margin: 0;
   color: var(--text-dim);
-  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.hautsfaits-ideas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 6px 0 4px;
+}
+
+.hautsfaits-idea {
+  padding: 8px 13px;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.hautsfaits-idea:hover {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+/* --- La fiche ----------------------------------------------------------- */
+
+.hautsfaits-sheet {
+  width: min(720px, 100%);
+  min-width: 0;
+  max-height: min(92vh, 1000px);
+  overflow-y: auto;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}
+
+.hautsfaits-sheet-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.hautsfaits-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 24px 8px;
+}
+
+.hautsfaits-sheet-body p {
+  margin: 0;
+}
+
+.hautsfaits-sheet-since {
+  font-family: 'Cinzel', 'Inter', serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.hautsfaits-sheet-when {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.hautsfaits-sheet-when strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hautsfaits-sheet-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hautsfaits-fact {
+  padding: 5px 11px;
+  font-size: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.hautsfaits-sheet-story {
+  max-width: 62ch;
+  font-size: 15.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.hautsfaits-sheet-invite {
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.hautsfaits-link {
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.hautsfaits-sheet-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  padding: 14px 24px 18px;
+}
+
+.hautsfaits-sheet-confirm {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+}
+
+.hautsfaits-spacer {
+  flex: 1;
+}
+
+/* --- La fenêtre --------------------------------------------------------- */
+
+.hautsfaits-editor {
+  width: min(640px, 100%);
+}
+
+.hautsfaits-switch {
+  margin: 0 0 14px;
+}
+
+.hautsfaits-editor-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.hautsfaits-date-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.hautsfaits-segmented {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.hautsfaits-segment {
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text-dim);
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.hautsfaits-segment.on {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+.hautsfaits-date-inputs {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-width: 180px;
+}
+
+.hautsfaits-date-inputs select {
+  flex: 1;
+}
+
+.hautsfaits-year-input {
+  flex: 0 0 90px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Téléphone ---------------------------------------------------------- */
+
+@media (max-width: 760px) {
+  /* Même piège qu'Astra, Cérès et Comète (CLAUDE.md §8) : sur mobile, la
+     marge automatique de `.main` désactive l'étirement. */
+  .hautsfaits-main {
+    width: 100%;
+  }
+
+  .hautsfaits-topbar-btn {
+    width: 40px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .hautsfaits-topbar-label {
+    display: none;
+  }
+
+  .hautsfaits-timeline::before {
+    left: 15px;
+  }
+
+  .hautsfaits-year,
+  .hautsfaits-gap {
+    justify-content: flex-start;
+  }
+
+  .hautsfaits-year-label {
+    padding-left: 30px;
+    font-size: 26px;
+  }
+
+  .hautsfaits-gap span {
+    margin-left: 32px;
+  }
+
+  .hautsfaits-item,
+  .hautsfaits-item.right {
+    width: 100%;
+    margin-left: 0;
+    padding: 0 0 14px 38px;
+  }
+
+  .hautsfaits-item.left::before,
+  .hautsfaits-item.right::before {
+    right: auto;
+    left: 9px;
+  }
+
+  .hautsfaits-cover.large .hautsfaits-cover-title {
+    font-size: 23px;
+  }
+
+  .hautsfaits-sheet-overlay {
+    padding: 0;
+  }
+
+  .hautsfaits-sheet {
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+  }
+
+  .hautsfaits-editor-pair {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
 }
 
 /* --- Aperçu sur la page d'accueil publique (HautsFaitsLandingPreview) --- */
