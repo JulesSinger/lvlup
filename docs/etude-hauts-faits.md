@@ -439,8 +439,8 @@ restauration garde les identifiants, pour que les photos retrouvent leur haut fa
 **Le module** `hautsfaits`, un écran signet et un aperçu pour la page d'accueil (une petite
 frise d'exemple).
 
-`1069/1069` → `1080/1080` tests unitaires (+11 : `localHautsFaits.test.ts` 8, `schema.test.ts`
-3 ; les vérifications de `conventions.test.ts` s'appliquent d'office au nouveau module),
+`1060/1060` → `1080/1080` tests unitaires (+20 : `localHautsFaits.test.ts` 8, `schema.test.ts`
+3, `conventions.test.ts` +9 pour le nouveau module),
 **782/782** vérifications en local et **801/801** en mode comptes (+4 chacune).
 
 **Migration à appliquer** dans Supabase Studio avant d'utiliser Hauts faits en mode comptes.
