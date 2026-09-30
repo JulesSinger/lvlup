@@ -81,3 +81,6 @@
 
 /* --- Hauts faits : les grands moments de la vie (étape 1) ------------ */
 @import './modules/hautsfaits/styles/hautsfaits.css';
+
+/* --- Socle : passer d'un module à l'autre (2026-09-30) --------------- */
+@import './core/styles/switcher.css';

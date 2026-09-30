@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
+import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { CategoryEditor } from './components/CategoryEditor';
 import { EnvelopesScreen } from './components/EnvelopesScreen';
 import { EvolutionScreen } from './components/EvolutionScreen';
@@ -43,7 +44,7 @@ type View = 'categories' | 'month' | 'import' | 'epargne' | 'evolution';
  * l'argent ce mois-ci », mais « et par rapport à d'habitude ». Juste après
  * Aperçu, dont c'est le prolongement naturel dans le temps.
  */
-export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, label, emoji }: ModuleScreenProps) {
+export function BudgetScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji }: ModuleScreenProps) {
   const [view, setView] = useState<View>('month');
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,14 +133,8 @@ export function BudgetScreen({ error, onError, onOpenSettings, onBackToHub, relo
     <div className="layout">
       <main className="main budget-main">
         <header className="topbar">
-          <div className="brand">
-            <span className="brand-mark">{emoji}</span>
-            <span className="brand-name">{label}</span>
-          </div>
+          <ModuleBrand label={label} emoji={emoji} onSwitchModule={onSwitchModule} />
           <div className="topbar-actions">
-            <button className="btn btn-ghost btn-sm" onClick={onBackToHub}>
-              ← Modules
-            </button>
             <button className="btn btn-ghost btn-sm" onClick={onOpenSettings}>
               ⚙ Réglages
             </button>

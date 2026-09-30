@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isNetworkError } from '../../core/data/outbox';
 import type { ModuleScreenProps } from '../../core/lib/module';
+import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { AddFoodDialog } from './components/AddFoodDialog';
 import { DaySummary } from './components/DaySummary';
 import { EntryEditor } from './components/EntryEditor';
@@ -27,7 +28,7 @@ import { MEALS, MEAL_LABELS, type Entry, type Meal, type Target, type TargetInpu
  * dès la V1 : les aliments récents dans la fenêtre d'ajout, et la copie d'un
  * repas de la veille.
  */
-export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, label, emoji }: ModuleScreenProps) {
+export function NutritionScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji }: ModuleScreenProps) {
   const today = dayString();
   const [day, setDay] = useState(today);
   /** Un jour, ou les sept jours qui finissent par `day` (étape 7). */
@@ -171,20 +172,8 @@ export function NutritionScreen({ error, onError, onOpenSettings, onBackToHub, r
     <div className="layout">
       <main className="main nutrition-main">
         <header className="topbar">
-          <div className="brand">
-            <span className="brand-mark">{emoji}</span>
-            <span className="brand-name">{label}</span>
-          </div>
+          <ModuleBrand label={label} emoji={emoji} onSwitchModule={onSwitchModule} />
           <div className="topbar-actions">
-            <button
-              className="btn btn-ghost btn-sm nutrition-topbar-btn"
-              onClick={onBackToHub}
-              title="Modules"
-              aria-label="Modules"
-            >
-              <span aria-hidden="true">←</span>
-              <span className="nutrition-topbar-label">Modules</span>
-            </button>
             <button
               className="btn btn-ghost btn-sm nutrition-topbar-btn"
               onClick={() => setShowFoods(true)}

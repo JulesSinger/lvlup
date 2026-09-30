@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
+import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { BoxDots } from './components/BoxDots';
 import { DeckDetail } from './components/DeckDetail';
 import { DeckEditor } from './components/DeckEditor';
@@ -27,7 +28,7 @@ export function FlashcardsScreen({
   error,
   onError,
   onOpenSettings,
-  onBackToHub,
+  onSwitchModule,
   reloadToken,
   label,
   emoji,
@@ -134,20 +135,8 @@ export function FlashcardsScreen({
     <div className="layout">
       <main className="main">
         <header className="topbar">
-          <div className="brand">
-            <span className="brand-mark">{emoji}</span>
-            <span className="brand-name">{label}</span>
-          </div>
+          <ModuleBrand label={label} emoji={emoji} onSwitchModule={onSwitchModule} />
           <div className="topbar-actions">
-            <button
-              className="btn btn-ghost btn-sm flashcards-topbar-btn"
-              onClick={onBackToHub}
-              title="Modules"
-              aria-label="Modules"
-            >
-              <span aria-hidden="true">←</span>
-              <span className="flashcards-topbar-label">Modules</span>
-            </button>
             <button
               className="btn btn-ghost btn-sm flashcards-topbar-btn"
               onClick={() => setShowStats(true)}

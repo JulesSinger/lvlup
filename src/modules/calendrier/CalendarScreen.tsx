@@ -9,6 +9,7 @@ import { calendarStore } from './data';
 import { applyPlan } from './data/applyPlan';
 import { defaultSpan, markItem, toCalendarItem, type EventSpan } from './lib/calendarBridge';
 import { dayString, shiftDay } from '../../core/lib/day';
+import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { expandEvents, type Occurrence } from './lib/recurrence';
 import { planDelete, planEdit, type OccurrenceValues, type Scope } from './lib/seriesEdit';
 import type { CalendarEvent, EventException, EventInput } from './lib/types';
@@ -69,7 +70,7 @@ function valuesOf(o: Occurrence): OccurrenceValues {
  * déplacer ou supprimer une occurrence demande « cet événement, les
  * suivants ou tous », traduit en écritures par `lib/seriesEdit.ts`.
  */
-export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, onOpenModule, reloadToken, services, label, emoji }: ModuleScreenProps) {
+export function CalendarScreen({ error, onError, onOpenSettings, onSwitchModule, onOpenModule, reloadToken, services, label, emoji }: ModuleScreenProps) {
   const narrow = typeof window !== 'undefined' && window.innerWidth < NARROW;
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [exceptions, setExceptions] = useState<EventException[]>([]);
@@ -270,10 +271,7 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, on
     <div className="layout">
       <main className="main calendrier-main">
         <header className="topbar">
-          <div className="brand">
-            <span className="brand-mark">{emoji}</span>
-            <span className="brand-name">{label}</span>
-          </div>
+          <ModuleBrand label={label} emoji={emoji} onSwitchModule={onSwitchModule} />
           <div className="topbar-actions">
             <button
               className="btn btn-primary btn-sm calendrier-new"
@@ -283,10 +281,6 @@ export function CalendarScreen({ error, onError, onOpenSettings, onBackToHub, on
             >
               <span aria-hidden="true">+</span>
               <span className="calendrier-topbar-label">Nouvel événement</span>
-            </button>
-            <button className="btn btn-ghost btn-sm calendrier-topbar-btn" onClick={onBackToHub} title="Modules" aria-label="Modules">
-              <span aria-hidden="true">←</span>
-              <span className="calendrier-topbar-label">Modules</span>
             </button>
             <button className="btn btn-ghost btn-sm calendrier-topbar-btn" onClick={onOpenSettings} title="Réglages" aria-label="Réglages">
               <span aria-hidden="true">⚙</span>

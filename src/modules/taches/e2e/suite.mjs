@@ -10,10 +10,21 @@
  * rechargement — plus le rendu téléphone.
  */
 
+/**
+ * Rouvre Atlas sur la liste des modules, par un vrai rechargement. Depuis le
+ * 30/09/2026, Atlas rouvre le dernier module ouvert (et l'adresse le garde) :
+ * on passe donc l'adresse à `#/`, la liste, avant de recharger.
+ */
+const toHub = async (page) => {
+  await page.evaluate(() => history.replaceState(null, '', '#/'));
+  await page.reload();
+};
+
 const text = async (locator) => ((await locator.textContent()) ?? '').replace(/\s/g, ' ');
 
 async function openTâches(page, BASE) {
   await page.goto(BASE);
+  await toHub(page);
   await page.waitForSelector('.hub-picker-card');
   await page.getByRole('button', { name: /Tâches/ }).click();
   await page.waitForSelector('.taches-quickadd');
@@ -56,6 +67,7 @@ export async function run({ browser, check, BASE }) {
   page.on('dialog', (d) => d.accept());
 
   await page.goto(BASE);
+  await toHub(page);
   await page.waitForSelector('.hub-picker-card');
   const card = page.getByRole('button', { name: /Tâches/ });
   check('La carte Tâches apparaît sur l’écran de choix', await card.isVisible());

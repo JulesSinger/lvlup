@@ -38,6 +38,13 @@ export interface ModuleScreenProps {
   /** Revient à l'écran de choix du module. */
   onBackToHub: () => void;
   /**
+   * Ouvre la grille des modules (depuis le 30/09/2026) : l'écran la branche
+   * sur son nom, en haut (`core/components/ModuleBrand`). Sur ordinateur, la
+   * barre d'icônes du socle est là en plus ; sur téléphone, c'est le seul
+   * chemin vers un autre module.
+   */
+  onSwitchModule: () => void;
+  /**
    * Le nom affiché et l'icône du module, tels que sa déclaration les donne
    * (`label`, `emoji`) : l'en-tête d'un écran les lit ici plutôt que de les
    * recopier, pour qu'un changement de nom ne se fasse qu'à un endroit

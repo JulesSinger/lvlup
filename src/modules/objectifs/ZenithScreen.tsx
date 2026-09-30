@@ -42,7 +42,7 @@ import type {
   Tier,
   TierInput,
 } from './lib/types';
-import AtlasMark from '../../core/components/AtlasMark';
+import { ModuleBrand } from '../../core/components/ModuleBrand';
 
 type View = 'accueil' | 'objectifs' | 'historique' | 'trophees';
 
@@ -66,7 +66,7 @@ export function ZenithScreen({
   error,
   onError,
   onOpenSettings,
-  onBackToHub,
+  onSwitchModule,
   reloadToken,
   label,
   emoji,
@@ -765,10 +765,7 @@ export function ZenithScreen({
   return (
     <div className="layout">
       <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">{emoji}</span>
-          <span className="brand-name">{label}</span>
-        </div>
+        <ModuleBrand label={label} emoji={emoji} onSwitchModule={onSwitchModule} />
 
         <nav className="nav" aria-label="Navigation principale">
           {VIEWS.map((v) => (
@@ -798,9 +795,6 @@ export function ZenithScreen({
               {user.email}
             </div>
           )}
-          <button className="btn btn-ghost btn-sm sidebar-settings" onClick={onBackToHub}>
-            <AtlasMark className="atlas-mark-inline" /> Modules
-          </button>
           <button className="btn btn-ghost btn-sm sidebar-settings" onClick={onOpenSettings}>
             ⚙ Réglages
           </button>
@@ -809,6 +803,9 @@ export function ZenithScreen({
 
       <main className="main">
         <header className="topbar">
+          {/* Sur téléphone, la marque de la barre latérale est cachée : c'est ici qu'on
+              touche le module pour ouvrir la grille des autres. */}
+          <ModuleBrand label={label} emoji={emoji} onSwitchModule={onSwitchModule} className="objectifs-mobile-brand" />
           <h1 className="page-title">{VIEWS.find((v) => v.id === view)?.label}</h1>
           {/* Une seule porte vers les réglages, la même sur tous les écrans :
               sauvegardes, rappel, compte et rythme quotidien vivent tous

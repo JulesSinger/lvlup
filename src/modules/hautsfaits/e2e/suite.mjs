@@ -16,10 +16,21 @@
  * fiche, et les fichiers qui partent avec leur haut fait.
  */
 
+/**
+ * Rouvre Atlas sur la liste des modules, par un vrai rechargement. Depuis le
+ * 30/09/2026, Atlas rouvre le dernier module ouvert (et l'adresse le garde) :
+ * on passe donc l'adresse à `#/`, la liste, avant de recharger.
+ */
+const toHub = async (page) => {
+  await page.evaluate(() => history.replaceState(null, '', '#/'));
+  await page.reload();
+};
+
 const text = async (locator) => ((await locator.textContent()) ?? '').replace(/\s/g, ' ');
 
 async function openModule(page, BASE) {
   await page.goto(BASE);
+  await toHub(page);
   await page.waitForSelector('.hub-picker-card');
   await page.getByRole('button', { name: /Hauts faits/ }).click();
   await page.waitForSelector('.hautsfaits-empty, .hautsfaits-timeline');
@@ -121,6 +132,7 @@ export async function run({ browser, check, BASE }) {
   page.on('pageerror', (e) => errors.push(e.message));
 
   await page.goto(BASE);
+  await toHub(page);
   await page.waitForSelector('.hub-picker-card');
   const card = page.getByRole('button', { name: /Hauts faits/ });
   check('La carte Hauts faits apparaît sur l’écran de choix', await card.isVisible());

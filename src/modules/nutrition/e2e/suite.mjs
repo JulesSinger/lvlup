@@ -12,6 +12,16 @@
  */
 
 /** Pomme, chair et peau, crue : 54 kcal / 100 g dans la table CIQUAL 2025. */
+/**
+ * Rouvre Atlas sur la liste des modules, par un vrai rechargement. Depuis le
+ * 30/09/2026, Atlas rouvre le dernier module ouvert (et l'adresse le garde) :
+ * on passe donc l'adresse à `#/`, la liste, avant de recharger.
+ */
+const toHub = async (page) => {
+  await page.evaluate(() => history.replaceState(null, '', '#/'));
+  await page.reload();
+};
+
 const APPLE = 'Pomme, chair et peau, crue';
 
 /**
@@ -35,6 +45,7 @@ export async function run({ browser, check, BASE }) {
   });
 
   await page.goto(BASE);
+  await toHub(page);
   await page.waitForSelector('.hub-picker-card');
   const card = page.getByRole('button', { name: /Nutrition/ });
   check('La carte Nutrition apparaît sur l’écran de choix', await card.isVisible());
@@ -99,7 +110,7 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.nutrition-entry-editor', { state: 'detached' });
   check('Corriger la quantité remet les valeurs à l’échelle (200 g = 108 kcal)', (await page.locator('.nutrition-summary-kcal-value').textContent()) === '108');
 
-  await page.reload();
+  await toHub(page);
   await page.waitForSelector('.hub-picker-card');
   await page.getByRole('button', { name: /Nutrition/ }).click();
   await page.waitForSelector('.nutrition-entry');
@@ -380,7 +391,7 @@ export async function run({ browser, check, BASE }) {
   await page.getByRole('tab', { name: 'Jour' }).click();
   await page.waitForSelector('.nutrition-summary');
 
-  await page.getByRole('button', { name: 'Modules' }).click();
+  await page.getByRole('button', { name: 'Tous les modules' }).click();
   await page.waitForSelector('.hub-picker-card');
   check('Retour aux modules ramène sur l’écran de choix', await page.locator('.hub-picker').isVisible());
   await context.close();
@@ -389,6 +400,7 @@ export async function run({ browser, check, BASE }) {
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const mp = await mobile.newPage();
   await mp.goto(BASE);
+  await toHub(mp);
   await mp.waitForSelector('.hub-picker-card');
   await mp.getByRole('button', { name: /Nutrition/ }).click();
   await mp.waitForSelector('.nutrition-summary');

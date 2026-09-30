@@ -3,6 +3,7 @@ import { newId } from '../../core/data/coreStore';
 import { isNetworkError } from '../../core/data/outbox';
 import { dayString, shiftDay } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
+import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { ForecastRow } from './components/ForecastRow';
 import { ListEditor } from './components/ListEditor';
 import { QuickAddBar } from './components/QuickAddBar';
@@ -68,7 +69,7 @@ const PLACEHOLDERS: Record<string, string> = {
  * Toute la logique est dans les bibliothèques pures (`lib/`) : cet écran ne
  * fait qu'appeler le contrat de stockage et afficher.
  */
-export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, intent, label, emoji }: ModuleScreenProps) {
+export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, intent, label, emoji }: ModuleScreenProps) {
   const [lists, setLists] = useState<TaskList[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -539,15 +540,8 @@ export function TachesScreen({ error, onError, onOpenSettings, onBackToHub, relo
     <div className="layout">
       <main className="main taches-main">
         <header className="topbar">
-          <div className="brand">
-            <span className="brand-mark">{emoji}</span>
-            <span className="brand-name">{label}</span>
-          </div>
+          <ModuleBrand label={label} emoji={emoji} onSwitchModule={onSwitchModule} />
           <div className="topbar-actions">
-            <button className="btn btn-ghost btn-sm taches-topbar-btn" onClick={onBackToHub} title="Modules" aria-label="Modules">
-              <span aria-hidden="true">←</span>
-              <span className="taches-topbar-label">Modules</span>
-            </button>
             <button className="btn btn-ghost btn-sm taches-topbar-btn" onClick={onOpenSettings} title="Réglages" aria-label="Réglages">
               <span aria-hidden="true">⚙</span>
               <span className="taches-topbar-label">Réglages</span>

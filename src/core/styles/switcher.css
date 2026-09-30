@@ -1,0 +1,340 @@
+/* Passer d'un module à l'autre (30/09/2026) : la barre d'icônes sur
+   ordinateur, le nom du module cliquable, la grille des modules.
+   `--atlas-module-accent` porte la couleur d'identité d'un module (sa fiche),
+   posée par le composant. */
+
+/* --- La coquille : la barre à gauche, le module à côté ------------------- */
+
+.atlas-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.atlas-shell-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- La barre d'icônes ---------------------------------------------------- */
+
+.atlas-rail {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 64px;
+  height: 100vh;
+  padding: 14px 0;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+}
+
+.atlas-rail-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.atlas-rail-btn {
+  --atlas-module-accent: var(--accent);
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.atlas-rail-btn:hover {
+  background: var(--tint);
+}
+
+.atlas-rail-btn:active {
+  transform: scale(0.94);
+}
+
+.atlas-rail-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.atlas-rail-module[aria-current='page'] {
+  background: color-mix(in srgb, var(--atlas-module-accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--atlas-module-accent) 45%, transparent);
+}
+
+/* Le liseré du module ouvert, collé au bord gauche de la barre. */
+.atlas-rail-module[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: -11px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  background: var(--atlas-module-accent);
+  border-radius: 0 3px 3px 0;
+}
+
+.atlas-rail-mark {
+  display: block;
+  width: 34px;
+  height: 34px;
+  color: var(--accent-ink);
+}
+
+/* Le nom, en infobulle, au survol et au focus clavier. */
+.atlas-rail-btn[data-tip]:hover::after,
+.atlas-rail-btn[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  z-index: 40;
+  padding: 5px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+/* --- Le nom du module, en haut : un bouton ------------------------------- */
+
+.atlas-module-brand {
+  margin: 0;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 19px;
+  font-weight: 700;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.atlas-module-brand:hover {
+  background: var(--tint);
+}
+
+.atlas-module-brand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.atlas-module-brand-chevron {
+  margin-left: -4px;
+  font-size: 12px;
+  color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+
+.atlas-module-brand:hover .atlas-module-brand-chevron {
+  transform: translateY(2px);
+}
+
+/* --- La grille des modules ------------------------------------------------ */
+
+.atlas-switcher-overlay {
+  position: fixed;
+  inset: 0;
+  /* Au-dessus des fenêtres (50) et de la barre du bas d'Objectifs (60). */
+  z-index: 75;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--overlay-bg);
+  backdrop-filter: blur(3px);
+}
+
+.atlas-switcher {
+  width: min(480px, 100%);
+  min-width: 0;
+  padding: 16px 18px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}
+
+.atlas-switcher-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.atlas-switcher-title {
+  margin: 0;
+  font-family: 'Cinzel', 'Inter', serif;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.atlas-switcher-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.atlas-switcher-module {
+  --atlas-module-accent: var(--accent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 12px 4px 10px;
+  font: inherit;
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  cursor: pointer;
+}
+
+.atlas-switcher-module:hover {
+  background: var(--tint);
+}
+
+.atlas-switcher-module:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.atlas-switcher-module[aria-current='page'] {
+  color: var(--text);
+  background: color-mix(in srgb, var(--atlas-module-accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--atlas-module-accent) 45%, transparent);
+}
+
+.atlas-switcher-glyph {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  font-size: 27px;
+  background: color-mix(in srgb, var(--atlas-module-accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--atlas-module-accent) 35%, transparent);
+  border-radius: 16px;
+}
+
+.atlas-switcher-label {
+  max-width: 100%;
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atlas-switcher-home {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.atlas-switcher-home:hover {
+  border-color: var(--accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .atlas-switcher {
+    animation: atlas-switcher-in 0.16s ease-out;
+  }
+}
+
+@keyframes atlas-switcher-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/* --- Téléphone : pas de barre, la grille monte du bas --------------------- */
+
+@media (max-width: 760px) {
+  .atlas-shell {
+    display: block;
+  }
+
+  .atlas-rail {
+    display: none;
+  }
+
+  .atlas-switcher-overlay {
+    align-items: end;
+    padding: 0;
+  }
+
+  .atlas-switcher {
+    width: 100%;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
+    border-bottom: 0;
+    border-radius: 22px 22px 0 0;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .atlas-switcher {
+      animation: atlas-switcher-up 0.22s ease-out;
+    }
+  }
+
+  /* Un nom long ne pousse pas les boutons hors de l'en-tête. */
+  .atlas-module-brand {
+    min-width: 0;
+    padding: 4px 6px;
+  }
+
+  .atlas-module-brand .brand-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@keyframes atlas-switcher-up {
+  from {
+    transform: translateY(100%);
+  }
+}

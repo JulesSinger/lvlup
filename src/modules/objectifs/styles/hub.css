@@ -184,3 +184,22 @@
   padding-right: 4px;
 }
 
+
+/* Le nom du module dans l'en-tête, pour ouvrir la grille des modules : sur
+   téléphone seulement, où la marque de la barre latérale est cachée. Le titre
+   de la vue est juste à côté : l'icône suffit. */
+.objectifs-mobile-brand {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .objectifs-mobile-brand {
+    display: flex;
+    flex: none;
+    padding: 4px;
+  }
+
+  .objectifs-mobile-brand .brand-name {
+    display: none;
+  }
+}

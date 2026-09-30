@@ -12,12 +12,23 @@
  * Texte d'un élément, espaces normalisées : les milliers s'affichent avec
  * l'espace fine insécable du français.
  */
+/**
+ * Rouvre Atlas sur la liste des modules, par un vrai rechargement. Depuis le
+ * 30/09/2026, Atlas rouvre le dernier module ouvert (et l'adresse le garde) :
+ * on passe donc l'adresse à `#/`, la liste, avant de recharger.
+ */
+const toHub = async (page) => {
+  await page.evaluate(() => history.replaceState(null, '', '#/'));
+  await page.reload();
+};
+
 async function text(locator) {
   return ((await locator.textContent()) ?? '').replace(/\s/g, ' ');
 }
 
 async function openComete(page, BASE) {
   await page.goto(BASE);
+  await toHub(page);
   await page.waitForSelector('.hub-picker-card');
   await page.getByRole('button', { name: /Courses/ }).click();
   await page.waitForSelector('.courses-add');
@@ -37,6 +48,7 @@ export async function run({ browser, check, BASE }) {
   const page = await context.newPage();
 
   await page.goto(BASE);
+  await toHub(page);
   await page.waitForSelector('.hub-picker-card');
   const card = page.getByRole('button', { name: /Courses/ });
   check('La carte Courses apparaît sur l’écran de choix', await card.isVisible());
@@ -116,7 +128,7 @@ export async function run({ browser, check, BASE }) {
   check('Décocher retire du panier', !((await tomates.getAttribute('class'))?.includes('checked') ?? true));
   check('Le résumé compte ce qui reste à prendre', (await text(page.locator('.courses-summary'))).includes('2 à prendre · 1 dans le panier'));
 
-  await page.reload();
+  await toHub(page);
   await page.waitForSelector('.hub-picker-card');
   await page.getByRole('button', { name: /Courses/ }).click();
   await page.waitForSelector('.courses-line');
@@ -267,7 +279,7 @@ export async function run({ browser, check, BASE }) {
 
   // De l'autre côté : Budget a reçu les dépenses, et perdu celles des courses supprimées.
   // (Seule vérification qui entre dans un autre module : c'est l'objet même du lien.)
-  await page.getByRole('button', { name: 'Modules' }).click();
+  await page.getByRole('button', { name: 'Tous les modules' }).click();
   await page.waitForSelector('.hub-picker-card');
   await page.getByRole('button', { name: /Budget/ }).click();
   await page.waitForSelector('.budget-tab');
@@ -283,12 +295,12 @@ export async function run({ browser, check, BASE }) {
     'Sans catégorie « Courses » créée dans Budget, la dépense y est « à classer »',
     (await budgetRows.first().locator('.budget-row-category').textContent()) === 'À classer',
   );
-  await page.getByRole('button', { name: /Modules/ }).first().click();
+  await page.getByRole('button', { name: 'Tous les modules' }).click();
   await page.waitForSelector('.hub-picker-card');
   await page.getByRole('button', { name: /Courses/ }).click();
   await page.waitForSelector('.courses-add');
 
-  await page.getByRole('button', { name: 'Modules' }).click();
+  await page.getByRole('button', { name: 'Tous les modules' }).click();
   await page.waitForSelector('.hub-picker-card');
   check('Retour aux modules ramène sur l’écran de choix', await page.locator('.hub-picker').isVisible());
   await context.close();

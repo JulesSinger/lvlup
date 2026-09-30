@@ -19,10 +19,21 @@ import { fileURLToPath } from 'node:url';
  * un export synthétique, fidèle octet pour octet au format documenté dans
  * `docs/astra-import-boursobank.md` — voir aussi `boursobankImport.test.ts`.
  */
+/**
+ * Rouvre Atlas sur la liste des modules, par un vrai rechargement. Depuis le
+ * 30/09/2026, Atlas rouvre le dernier module ouvert (et l'adresse le garde) :
+ * on passe donc l'adresse à `#/`, la liste, avant de recharger.
+ */
+const toHub = async (page) => {
+  await page.evaluate(() => history.replaceState(null, '', '#/'));
+  await page.reload();
+};
+
 const FIXTURE_CSV_PATH = fileURLToPath(new URL('../../../../docs/exemples/releve-exemple.csv', import.meta.url));
 
 async function enterBudget(p, base) {
   await p.goto(base);
+  await toHub(p);
   await p.waitForSelector('.hub-picker-card');
   await p.getByRole('button', { name: /Budget/ }).click();
 }
@@ -33,7 +44,7 @@ async function enterBudget(p, base) {
  * partie du rechargement, pas une étape à part.
  */
 async function reloadBudget(p) {
-  await p.reload();
+  await toHub(p);
   await p.waitForSelector('.hub-picker-card');
   await p.getByRole('button', { name: /Budget/ }).click();
 }
@@ -592,7 +603,7 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.budget-envelopes-total-amount').textContent())?.trim() === '500,00 €',
   );
 
-  await page.getByRole('button', { name: '← Modules' }).click();
+  await page.getByRole('button', { name: 'Tous les modules' }).click();
   await page.waitForSelector('.hub-picker-card');
   check('Le retour ramène sur l’écran de choix', await page.locator('.hub-picker').isVisible());
 
@@ -638,7 +649,7 @@ export async function run({ browser, check, BASE }) {
       snap.budgetRules = [{ id: 'r1', pattern: 'monoprix', categoryId: 'c-courses', priority: 1 }];
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await up.reload();
+    await toHub(up);
     await up.waitForSelector('.hub-picker-card');
     await up.getByRole('button', { name: /Budget/ }).click();
     await up.waitForSelector('.budget-row');
@@ -747,7 +758,7 @@ export async function run({ browser, check, BASE }) {
       snap.budgetRules = [];
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await sc.reload();
+    await toHub(sc);
     await sc.waitForSelector('.hub-picker-card');
     await sc.getByRole('button', { name: /Budget/ }).click();
     await sc.waitForSelector('.budget-pie-legend-item');
@@ -875,7 +886,7 @@ export async function run({ browser, check, BASE }) {
       snap.budgetRules = [];
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await ev.reload();
+    await toHub(ev);
     await ev.waitForSelector('.hub-picker-card');
     await ev.getByRole('button', { name: /Budget/ }).click();
     await ev.waitForSelector('.budget-tab', { hasText: 'Évolution' });
@@ -981,7 +992,7 @@ export async function run({ browser, check, BASE }) {
       snap.budgetRules = [];
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await nt.reload();
+    await toHub(nt);
     await nt.waitForSelector('.hub-picker-card');
     await nt.getByRole('button', { name: /Budget/ }).click();
     await nt.waitForSelector('.budget-tab', { hasText: 'Évolution' });
@@ -1071,7 +1082,7 @@ export async function run({ browser, check, BASE }) {
       snap.budgetRules = [];
       localStorage.setItem('palier.v1', JSON.stringify(snap));
     });
-    await cmp.reload();
+    await toHub(cmp);
     await cmp.waitForSelector('.hub-picker-card');
     await cmp.getByRole('button', { name: /Budget/ }).click();
     await cmp.waitForSelector('.budget-pie-legend-item');

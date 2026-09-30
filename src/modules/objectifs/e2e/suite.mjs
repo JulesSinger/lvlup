@@ -91,7 +91,7 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.next-tier').count()) === 3,
     String(await page.locator('.next-tier').count()),
   );
-  await page.getByRole('button', { name: 'Objectifs' }).click();
+  await page.getByRole('button', { name: /^Objectifs/ }).click();
   await page.waitForSelector('.goal');
   check('3 objectifs créés', (await page.locator('.goal').count()) === 3);
   check(
@@ -159,7 +159,7 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.activity-item').count()) === 2,
     String(await page.locator('.activity-item').count()),
   );
-  await page.getByRole('button', { name: 'Objectifs' }).click();
+  await page.getByRole('button', { name: /^Objectifs/ }).click();
   await page.waitForSelector('.ladder');
 
   // 3. Ajout d'un palier à un objectif existant
@@ -184,7 +184,7 @@ export async function run({ browser, check, BASE }) {
   // 4. Persistance après rechargement (retour sur le hub par défaut)
   await reloadZenith(page);
   await page.waitForSelector('.brand');
-  await page.getByRole('button', { name: 'Objectifs' }).click();
+  await page.getByRole('button', { name: /^Objectifs/ }).click();
   await page.waitForSelector('.goal');
   check('Données persistées après rechargement', (await page.locator('.goal').count()) === 3);
   check(
@@ -236,7 +236,7 @@ export async function run({ browser, check, BASE }) {
   await page.screenshot({ path: 'screens/historique.png', fullPage: true });
 
   // 6. Création : bibliothèque de modèles puis éditeur
-  await page.getByRole('button', { name: 'Objectifs' }).click();
+  await page.getByRole('button', { name: /^Objectifs/ }).click();
   await page.getByRole('button', { name: 'Nouvel objectif' }).click();
   await page.waitForSelector('.picker-grid');
   check(
@@ -479,7 +479,7 @@ export async function run({ browser, check, BASE }) {
   );
 
   // Édition d'une action : renommer + changer les PP
-  await page.getByRole('button', { name: 'Objectifs' }).click();
+  await page.getByRole('button', { name: /^Objectifs/ }).click();
   await page.waitForSelector('.goal');
   await page.locator('.goal').first().locator('.goal-head').click();
   await page.waitForSelector('.action-editor');
@@ -621,7 +621,7 @@ export async function run({ browser, check, BASE }) {
 
   // Aucun palier ne bouge : sinon « 30 jours sans écran » se validerait en
   // notant trente fois « j'y ai pensé ».
-  await page.getByRole('button', { name: 'Objectifs' }).click();
+  await page.getByRole('button', { name: /^Objectifs/ }).click();
   await page.waitForSelector('.goal');
   check(
     'Aucun palier ne monte grâce à un geste ponctuel',
@@ -653,7 +653,7 @@ export async function run({ browser, check, BASE }) {
 
 
   // 10. Vue finale
-  await page.getByRole('button', { name: 'Objectifs' }).click();
+  await page.getByRole('button', { name: /^Objectifs/ }).click();
   await page.waitForSelector('.goal');
   await page.locator('.goal').nth(1).locator('.goal-head').click();
   await page.waitForTimeout(200);
@@ -818,7 +818,7 @@ export async function run({ browser, check, BASE }) {
     );
   }
 
-  await mobile.getByRole('button', { name: 'Objectifs' }).click();
+  await mobile.getByRole('button', { name: /^Objectifs/ }).click();
   await mobile.waitForSelector('.goal');
   await mobile.locator('.goal-head').first().click();
   await mobile.waitForTimeout(200);
@@ -1100,7 +1100,7 @@ export async function run({ browser, check, BASE }) {
       await cp.locator('.meter-count').first().textContent(),
     );
 
-    await cp.getByRole('button', { name: 'Objectifs' }).click();
+    await cp.getByRole('button', { name: /^Objectifs/ }).click();
     await cp.waitForSelector('.goal');
     await cp.locator('.goal-head').first().click();
     await cp.waitForTimeout(400);
@@ -1121,7 +1121,7 @@ export async function run({ browser, check, BASE }) {
     await cp.locator('.checkin-chip.done').first().click();
     await cp.waitForTimeout(900);
     await dismissCeremonies(cp);
-    await cp.getByRole('button', { name: 'Objectifs' }).click();
+    await cp.getByRole('button', { name: /^Objectifs/ }).click();
     await cp.waitForSelector('.goal');
     // L'échelle est restée dépliée depuis tout à l'heure : re-cliquer sur
     // l'en-tête la refermerait.
@@ -1260,7 +1260,7 @@ export async function run({ browser, check, BASE }) {
     );
 
     // 4. La courbe : la pente, pas le pourcentage.
-    await qp.getByRole('button', { name: 'Objectifs' }).click();
+    await qp.getByRole('button', { name: /^Objectifs/ }).click();
     await qp.waitForSelector('.goal');
     await qp.locator('.goal-head').first().click();
     await qp.waitForSelector('.ladder');
@@ -1594,7 +1594,7 @@ export async function run({ browser, check, BASE }) {
     });
     await reloadZenith(hp);
     await hp.waitForSelector('.hub');
-    await hp.getByRole('button', { name: 'Objectifs' }).click();
+    await hp.getByRole('button', { name: /^Objectifs/ }).click();
     await hp.waitForSelector('.goal');
     await hp.waitForTimeout(700);
 
@@ -1849,7 +1849,7 @@ export async function run({ browser, check, BASE }) {
     });
     await reloadZenith(fp);
     await fp.waitForSelector('.hub');
-    await fp.getByRole('button', { name: 'Objectifs' }).click();
+    await fp.getByRole('button', { name: /^Objectifs/ }).click();
     await fp.waitForSelector('.heat');
     await fp.waitForTimeout(700);
 
@@ -2031,7 +2031,7 @@ export async function run({ browser, check, BASE }) {
     await cp.getByRole('button', { name: "Créer l'objectif" }).click();
     await dismissCeremonies(cp);
     await cp.waitForTimeout(500);
-    await cp.getByRole('button', { name: 'Objectifs' }).click();
+    await cp.getByRole('button', { name: /^Objectifs/ }).click();
     await cp.waitForSelector('.goal');
     const carte = cp.locator('.goal', { hasText: 'Traverser la France à pied' });
     if ((await carte.locator('.goal-head').getAttribute('aria-expanded')) !== 'true') {
@@ -2063,7 +2063,7 @@ export async function run({ browser, check, BASE }) {
     );
 
     // Un palier ajouté ensuite hérite, sans rien demander.
-    await cp.getByRole('button', { name: 'Objectifs' }).click();
+    await cp.getByRole('button', { name: /^Objectifs/ }).click();
     await cp.waitForSelector('.goal');
     await carte.locator('.ladder-add input').fill('Courir 100 km');
     await carte.getByRole('button', { name: 'Ajouter', exact: true }).click();
@@ -2282,7 +2282,7 @@ export async function run({ browser, check, BASE }) {
     } else {
       await petite.click();
       await ob.waitForTimeout(900);
-      await ob.getByRole('button', { name: 'Objectifs' }).click();
+      await ob.getByRole('button', { name: /^Objectifs/ }).click();
       await ob.waitForSelector('.goal');
       // La carte est déjà dépliée : l'accompagnement ajoute l'objectif créé à
       // `expanded`. Cliquer l'en-tête la refermerait, et `.ladder` disparu,
@@ -2362,7 +2362,7 @@ export async function run({ browser, check, BASE }) {
     );
 
     // La carte de l'objectif porte le cumul des deux, semaine par semaine.
-    await km.getByRole('button', { name: 'Objectifs' }).click();
+    await km.getByRole('button', { name: /^Objectifs/ }).click();
     await km.waitForSelector('.goal');
     const carteKm = km.locator('.goal', { hasText: 'Courir un marathon' });
     if ((await carteKm.locator('.goal-amount').count()) === 0) {
@@ -2435,7 +2435,7 @@ export async function run({ browser, check, BASE }) {
     // Une action ajoutée à la main hérite désormais d'une quantité (le
     // correctif du jour) — pour rejouer le cas vraiment sans quantité, on la
     // repasse en « Simple » juste après, ce qui l'efface.
-    await en.getByRole('button', { name: 'Objectifs' }).click();
+    await en.getByRole('button', { name: /^Objectifs/ }).click();
     await en.waitForSelector('.action-editor');
     await en.locator('.action-add input').fill('Duolingo');
     await en.getByRole('button', { name: "Ajouter l'action" }).click();
@@ -2458,7 +2458,7 @@ export async function run({ browser, check, BASE }) {
     await blocEn.locator('.checkin-chip', { hasText: 'Duolingo' }).click();
     await en.waitForTimeout(600);
 
-    await en.getByRole('button', { name: 'Objectifs' }).click();
+    await en.getByRole('button', { name: /^Objectifs/ }).click();
     await en.waitForSelector('.goal');
     const carteEn = en.locator('.goal', { hasText: 'Apprendre l’anglais' });
     if ((await carteEn.locator('.action-editor').count()) === 0) {
@@ -2510,7 +2510,7 @@ export async function run({ browser, check, BASE }) {
     await dismissCeremonies(jr);
     await jr.waitForTimeout(500);
 
-    await jr.getByRole('button', { name: 'Objectifs' }).click();
+    await jr.getByRole('button', { name: /^Objectifs/ }).click();
     await jr.waitForSelector('.action-editor');
     await jr.locator('.action-add input').fill('Duolingo');
     await jr.getByRole('button', { name: "Ajouter l'action" }).click();
@@ -2522,7 +2522,7 @@ export async function run({ browser, check, BASE }) {
     await blocJr.locator('.checkin-chip', { hasText: 'Duolingo' }).click();
     await jr.waitForTimeout(600);
 
-    await jr.getByRole('button', { name: 'Objectifs' }).click();
+    await jr.getByRole('button', { name: /^Objectifs/ }).click();
     await jr.waitForSelector('.goal');
     const carteJr = jr.locator('.goal', { hasText: 'Pratiquer l’anglais' });
     if ((await carteJr.locator('.action-editor').count()) === 0) {

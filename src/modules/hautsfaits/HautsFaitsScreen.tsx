@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { newId } from '../../core/data/coreStore';
 import { dayString } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
+import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { FeatEditor } from './components/FeatEditor';
 import { FeatSheet } from './components/FeatSheet';
 import { Timeline } from './components/Timeline';
@@ -35,7 +36,7 @@ type Editing = { feat: Feat | null; draft: FeatDraft };
  * §4), avec ses photos depuis l'étape 4. Le plus récent en haut (décision du
  * 29/09/2026). La vie en semaines et la vitrine viendront à l'étape 5.
  */
-export function HautsFaitsScreen({ label, emoji, error, onError, onOpenSettings, onBackToHub, reloadToken }: ModuleScreenProps) {
+export function HautsFaitsScreen({ label, emoji, error, onError, onOpenSettings, onSwitchModule, reloadToken }: ModuleScreenProps) {
   const [feats, setFeats] = useState<Feat[] | null>(null);
   const [settings, setSettings] = useState<HautsFaitsSettings>(DEFAULT_HAUTSFAITS_SETTINGS);
   const [category, setCategory] = useState<FeatCategory | null>(null);
@@ -190,15 +191,8 @@ export function HautsFaitsScreen({ label, emoji, error, onError, onOpenSettings,
     <div className="layout">
       <main className="main hautsfaits-main">
         <header className="topbar">
-          <div className="brand">
-            <span className="brand-mark">{emoji}</span>
-            <span className="brand-name">{label}</span>
-          </div>
+          <ModuleBrand label={label} emoji={emoji} onSwitchModule={onSwitchModule} />
           <div className="topbar-actions">
-            <button className="btn btn-ghost btn-sm hautsfaits-topbar-btn" onClick={onBackToHub} title="Modules" aria-label="Modules">
-              <span aria-hidden="true">←</span>
-              <span className="hautsfaits-topbar-label">Modules</span>
-            </button>
             <button className="btn btn-ghost btn-sm hautsfaits-topbar-btn" onClick={onOpenSettings} title="Réglages" aria-label="Réglages">
               <span aria-hidden="true">⚙</span>
               <span className="hautsfaits-topbar-label">Réglages</span>

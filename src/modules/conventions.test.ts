@@ -113,6 +113,16 @@ describe('conventions des modules', () => {
       expect(existsSync(join(dir, 'e2e'))).toBe(true);
     });
 
+    it('met son nom en haut avec ModuleBrand, la porte vers les autres modules', () => {
+      // Depuis le 30/09/2026, sur téléphone, toucher le nom du module en haut
+      // est le seul chemin vers un autre module (la barre d'icônes n'y a pas
+      // la place). Un écran qui écrirait sa marque à la main enfermerait
+      // l'utilisateur dans le module.
+      const ecrans = fichiers(dir).filter((f) => f.endsWith('.tsx') && lire(f).includes('ModuleScreenProps'));
+      expect(ecrans.length, `aucun écran de module (ModuleScreenProps) dans ${id}`).toBeGreaterThan(0);
+      expect(ecrans.some((f) => /<ModuleBrand\b[^>]*onSwitchModule=\{onSwitchModule\}/.test(lire(f)))).toBe(true);
+    });
+
     it("n'importe depuis aucun autre module", () => {
       // C'est la règle qui rend les modules réellement indépendants : deux
       // agents peuvent alors travailler chacun dans son dossier sans se lire.

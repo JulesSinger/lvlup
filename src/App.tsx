@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Landing } from './core/components/Landing';
 import { ModulePicker } from './core/components/ModulePicker';
+import { ModuleRail } from './core/components/ModuleRail';
+import { ModuleSwitcher } from './core/components/ModuleSwitcher';
 import { PasswordRecovery } from './core/components/PasswordRecovery';
 import { SettingsPanel } from './core/components/SettingsPanel';
 import { coreStore } from './core/data';
 import { exportBackup, importBackup, readBackupFile } from './core/data/backup';
 import { DEFAULT_SETTINGS, type Settings } from './core/data/coreStore';
+import { hashFor, initialModule, readLastModule, routeFromHash, saveLastModule } from './core/lib/moduleRoute';
 import { timezoneOffsetMinutes } from './core/lib/push';
 import { collectServices } from './core/lib/services';
 import type { AppUser } from './core/lib/types';
@@ -16,6 +19,14 @@ import { MODULES } from './modules';
  * une fois : le registre ne change pas pendant la vie de l'application.
  */
 const SERVICES = collectServices(MODULES);
+const MODULE_IDS = MODULES.map((m) => m.id);
+
+/** Le module à ouvrir maintenant : celui de l'adresse, sinon le dernier, sinon la liste. */
+const startingModule = () => initialModule(window.location.hash, readLastModule(), MODULE_IDS);
+
+/** Un champ où l'on tape : les raccourcis clavier ne s'y déclenchent pas. */
+const isTyping = (target: EventTarget | null) =>
+  target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
 /**
  * La coquille du hub.
@@ -33,14 +44,14 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [recovering, setRecovering] = useState(false);
   /**
-   * Module actuellement affiché. Avec un seul module, on y entre directement
-   * — l'écran de choix n'a de sens qu'à partir de deux, et c'est ce qui
-   * permet à toutes les vérifications existantes de continuer à s'exécuter
-   * sans passer par un clic supplémentaire.
+   * Module actuellement affiché : celui de l'adresse (`#/budget`), sinon le
+   * dernier ouvert sur cet appareil, sinon la liste (`core/lib/moduleRoute.ts`,
+   * depuis le 30/09/2026 — avant, Atlas repartait toujours de la liste). Avec
+   * un seul module, on y entre directement.
    */
-  const [moduleId, setModuleId] = useState<string | null>(
-    MODULES.length === 1 ? MODULES[0].id : null,
-  );
+  const [moduleId, setModuleId] = useState<string | null>(startingModule);
+  /** La grille des modules est ouverte. */
+  const [switching, setSwitching] = useState(false);
   /** Ce qu'un module a demandé d'ouvrir chez un autre (« task:<id> ») ; le socle ne le lit pas. */
   const [intent, setIntent] = useState<string | null>(null);
   /** Incrémenté après une restauration : signale au module actif de se relire. */
@@ -79,8 +90,9 @@ export default function App() {
   // (connexion, déconnexion, autre compte).
   useEffect(() => {
     setShowSettings(false);
+    setSwitching(false);
     setError('');
-    setModuleId(MODULES.length === 1 ? MODULES[0].id : null);
+    setModuleId(startingModule());
     if (!user) {
       setSettings(DEFAULT_SETTINGS);
       return;
@@ -91,6 +103,57 @@ export default function App() {
       .catch((err) => setError(err instanceof Error ? err.message : 'Réglages illisibles.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  /**
+   * Aller à un module (ou à la liste, `null`). Chaque changement ajoute une
+   * entrée à l'historique : le geste « retour » du téléphone ou du navigateur
+   * ramène au module d'avant. L'adresse n'est jamais réécrite au démarrage —
+   * seulement ici, sur un geste de l'utilisateur — pour ne pas écraser un lien
+   * de Supabase avant qu'il ait été lu.
+   */
+  const navigate = useCallback((id: string | null, nextIntent: string | null = null) => {
+    setError('');
+    setIntent(nextIntent);
+    setSwitching(false);
+    setModuleId(id);
+    saveLastModule(id);
+    const hash = hashFor(id);
+    if (window.location.hash !== hash) window.history.pushState(null, '', hash);
+  }, []);
+
+  // Une ouverture sans hash (l'icône de l'écran d'accueil) : on inscrit la route
+  // de départ sans ajouter d'entrée, pour que le premier « retour » y ramène.
+  // Seulement quand l'adresse n'a AUCUN hash : un lien de Supabase n'est jamais touché.
+  useEffect(() => {
+    if (!window.location.hash) window.history.replaceState(null, '', hashFor(startingModule()));
+  }, []);
+
+  // Retour et avant du navigateur : l'adresse dit où aller.
+  useEffect(() => {
+    const onPop = () => {
+      const hash = window.location.hash;
+      const route = hash ? routeFromHash(hash, MODULE_IDS) : null;
+      if (route === undefined) return; // un hash qui n'est pas à nous (Supabase…)
+      setSwitching(false);
+      setIntent(null);
+      setModuleId(MODULES.length === 1 ? MODULES[0].id : route);
+      saveLastModule(route);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // ⌘K / Ctrl+K ouvre la grille des modules, partout sauf en tapant.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'k' || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      if (isTyping(e.target) || !user) return;
+      e.preventDefault();
+      setSwitching((open) => !open);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [user]);
 
   // Lien « mot de passe oublié » : on intercepte avant tout le reste.
   useEffect(() => coreStore.onPasswordRecovery(() => setRecovering(true)), []);
@@ -167,32 +230,50 @@ export default function App() {
         <ModulePicker
           modules={MODULES}
           user={user!}
-          onSelect={(id) => {
-            setIntent(null);
-            setModuleId(id);
-          }}
+          onSelect={(id) => navigate(id)}
           onOpenSettings={() => setShowSettings(true)}
         />
       ) : (
-        <activeModule.Screen
-          user={user!}
-          settings={settings}
-          error={error}
-          onError={setError}
-          onOpenSettings={() => setShowSettings(true)}
-          onBackToHub={() => setModuleId(null)}
-          label={activeModule.label}
-          emoji={activeModule.emoji}
-          onOpenModule={(id, next) => {
-            // Un module absent du registre : rien à ouvrir, on reste où l'on est.
-            if (!MODULES.some((m) => m.id === id)) return;
-            setError('');
-            setIntent(next ?? null);
-            setModuleId(id);
-          }}
-          intent={intent}
-          reloadToken={reloadToken}
-          services={SERVICES}
+        <div className="atlas-shell">
+          <ModuleRail
+            modules={MODULES}
+            activeId={activeModule.id}
+            onSelect={(id) => navigate(id)}
+            onHome={() => navigate(null)}
+          />
+          <div className="atlas-shell-main">
+            <activeModule.Screen
+              // La clé remonte l'écran quand on change de module : chacun repart de son propre état.
+              key={activeModule.id}
+              user={user!}
+              settings={settings}
+              error={error}
+              onError={setError}
+              onOpenSettings={() => setShowSettings(true)}
+              onBackToHub={() => navigate(null)}
+              onSwitchModule={() => setSwitching(true)}
+              label={activeModule.label}
+              emoji={activeModule.emoji}
+              onOpenModule={(id, next) => {
+                // Un module absent du registre : rien à ouvrir, on reste où l'on est.
+                if (!MODULES.some((m) => m.id === id)) return;
+                navigate(id, next ?? null);
+              }}
+              intent={intent}
+              reloadToken={reloadToken}
+              services={SERVICES}
+            />
+          </div>
+        </div>
+      )}
+
+      {switching && (
+        <ModuleSwitcher
+          modules={MODULES}
+          activeId={activeModule?.id ?? null}
+          onSelect={(id) => navigate(id)}
+          onHome={() => navigate(null)}
+          onClose={() => setSwitching(false)}
         />
       )}
 
@@ -212,7 +293,7 @@ export default function App() {
           modules={MODULES}
           // Inutile de proposer de « changer de module » si on est déjà sur
           // l'écran qui les liste.
-          onBackToHub={activeModule ? () => setModuleId(null) : undefined}
+          onBackToHub={activeModule ? () => navigate(null) : undefined}
         />
       )}
     </>

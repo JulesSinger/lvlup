@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
+import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { AddItemBar } from './components/AddItemBar';
 import { CloseTripDialog, type CloseForm } from './components/CloseTripDialog';
 import { ItemEditor } from './components/ItemEditor';
@@ -37,7 +38,7 @@ import {
  * est annulée à l'écran et l'erreur s'affiche, sans rien perdre de ce qui
  * était tapé.
  */
-export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, reloadToken, services, label, emoji }: ModuleScreenProps) {
+export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, services, label, emoji }: ModuleScreenProps) {
   const expenses = services.expenses;
   const [items, setItems] = useState<Item[]>([]);
   const [entries, setEntries] = useState<ListEntry[]>([]);
@@ -198,20 +199,8 @@ export function CoursesScreen({ error, onError, onOpenSettings, onBackToHub, rel
     <div className="layout">
       <main className="main courses-main">
         <header className="topbar">
-          <div className="brand">
-            <span className="brand-mark">{emoji}</span>
-            <span className="brand-name">{label}</span>
-          </div>
+          <ModuleBrand label={label} emoji={emoji} onSwitchModule={onSwitchModule} />
           <div className="topbar-actions">
-            <button
-              className="btn btn-ghost btn-sm courses-topbar-btn"
-              onClick={onBackToHub}
-              title="Modules"
-              aria-label="Modules"
-            >
-              <span aria-hidden="true">←</span>
-              <span className="courses-topbar-label">Modules</span>
-            </button>
             <button
               className="btn btn-ghost btn-sm courses-topbar-btn"
               onClick={onOpenSettings}

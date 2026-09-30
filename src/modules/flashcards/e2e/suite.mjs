@@ -10,8 +10,19 @@
  * même motif.
  */
 
+/**
+ * Rouvre Atlas sur la liste des modules, par un vrai rechargement. Depuis le
+ * 30/09/2026, Atlas rouvre le dernier module ouvert (et l'adresse le garde) :
+ * on passe donc l'adresse à `#/`, la liste, avant de recharger.
+ */
+const toHub = async (page) => {
+  await page.evaluate(() => history.replaceState(null, '', '#/'));
+  await page.reload();
+};
+
 async function enterFlashcards(p, base) {
   await p.goto(base);
+  await toHub(p);
   await p.waitForSelector('.hub-picker-card');
   await p.getByRole('button', { name: /Flashcards/ }).click();
 }
@@ -22,7 +33,7 @@ async function enterFlashcards(p, base) {
  * partie du rechargement, pas une étape à part.
  */
 async function reloadFlashcards(p) {
-  await p.reload();
+  await toHub(p);
   await p.waitForSelector('.hub-picker-card');
   await p.getByRole('button', { name: /Flashcards/ }).click();
 }
@@ -324,7 +335,7 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.empty h3');
   check('Supprimer les deux paquets ramène à l’écran vide', await page.locator('.empty h3').isVisible());
 
-  await page.getByRole('button', { name: 'Modules' }).click();
+  await page.getByRole('button', { name: 'Tous les modules' }).click();
   await page.waitForSelector('.hub-picker-card');
   check('Le retour ramène sur l’écran de choix', await page.locator('.hub-picker').isVisible());
 

@@ -13,6 +13,16 @@
  * la semaine en cours, c'est là que tout se passe.
  */
 
+/**
+ * Rouvre Atlas sur la liste des modules, par un vrai rechargement. Depuis le
+ * 30/09/2026, Atlas rouvre le dernier module ouvert (et l'adresse le garde) :
+ * on passe donc l'adresse à `#/`, la liste, avant de recharger.
+ */
+const toHub = async (page) => {
+  await page.evaluate(() => history.replaceState(null, '', '#/'));
+  await page.reload();
+};
+
 const pad = (n) => String(n).padStart(2, '0');
 const text = async (locator) => ((await locator.textContent()) ?? '').replace(/\s/g, ' ');
 function day(offset = 0) {
@@ -23,6 +33,7 @@ function day(offset = 0) {
 
 async function openEclipse(page, BASE) {
   await page.goto(BASE);
+  await toHub(page);
   await page.waitForSelector('.hub-picker-card');
   await page.getByRole('button', { name: /Calendar/ }).click();
   await page.waitForSelector('.fc');
@@ -101,6 +112,7 @@ export async function run({ browser, check, BASE }) {
   });
 
   await page.goto(BASE);
+  await toHub(page);
   await page.waitForSelector('.hub-picker-card');
   const card = page.getByRole('button', { name: /Calendar/ });
   check('La carte Calendar apparaît sur l’écran de choix', await card.isVisible());
@@ -345,7 +357,7 @@ export async function run({ browser, check, BASE }) {
   );
   check('Aucune erreur JavaScript sur ordinateur', errors.length === 0, errors.join(' | '));
 
-  await page.getByRole('button', { name: 'Modules' }).click();
+  await page.getByRole('button', { name: 'Tous les modules' }).click();
   await page.waitForSelector('.hub-picker-card');
   check('« Modules » ramène sur l’écran de choix', await page.locator('.hub-picker').isVisible());
   await context.close();
