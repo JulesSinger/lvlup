@@ -7,9 +7,43 @@ import {
   type FeatCategory,
   type FeatInput,
   type FeatPatch,
+  type FeatPhoto,
   type HautsFaitsSettings,
+  type PhotoSize,
+  type PreparedPhoto,
 } from '../lib/types';
 import type { HautsFaitsBackup, HautsFaitsStore } from './hautsFaitsStore';
+import { cachedBlob, forgetCached } from './photoCache';
+
+/** Le bucket privé des photos (migration 2026-09-30-hautsfaits-photos.sql). */
+const BUCKET = 'hautsfaits';
+
+interface PhotoRow {
+  id: string;
+  feat_id: string;
+  path: string;
+  thumb_path: string;
+  width: number;
+  height: number;
+  bytes: number;
+  taken_at: string | null;
+  position: number;
+  created_at: string;
+}
+
+/** Postgres rend un `timestamp` « 2025-03-02T09:41:07 » ou avec des fractions : on garde la seconde. */
+const toPhoto = (r: PhotoRow): FeatPhoto => ({
+  id: r.id,
+  featId: r.feat_id,
+  path: r.path,
+  thumbPath: r.thumb_path,
+  width: r.width,
+  height: r.height,
+  bytes: r.bytes,
+  takenAt: r.taken_at ? r.taken_at.replace(' ', 'T').slice(0, 19) : null,
+  position: r.position,
+  createdAt: r.created_at,
+});
 
 interface FeatRow {
   id: string;
@@ -114,7 +148,78 @@ export class SupabaseHautsFaits implements HautsFaitsStore {
   }
 
   async deleteFeat(id: string) {
+    const photos = (unwrap(await this.client.from('hautsfaits_photos').select('*').eq('feat_id', id)) as PhotoRow[]).map(toPhoto);
+    // La ligne d'abord (ses photos partent par cascade), les fichiers ensuite.
     check((await this.client.from('hautsfaits_feats').delete().eq('id', id)).error);
+    await this.removeFiles(photos.flatMap((p) => [p.path, p.thumbPath]));
+  }
+
+  /**
+   * Un fichier qu'on n'arrive pas à supprimer n'est que de la place perdue :
+   * la ligne est déjà partie, on ne bloque pas l'utilisateur pour ça.
+   */
+  private async removeFiles(paths: string[]) {
+    if (paths.length === 0) return;
+    await forgetCached(paths);
+    const { error } = await this.client.storage.from(BUCKET).remove(paths);
+    if (error) console.warn('Hauts faits : fichiers restés dans le stockage', paths, error.message);
+  }
+
+  async listPhotos(): Promise<FeatPhoto[]> {
+    return (unwrap(await this.client.from('hautsfaits_photos').select('*').order('position')) as PhotoRow[]).map(toPhoto);
+  }
+
+  async addPhoto(featId: string, photo: PreparedPhoto, position: number, id: string = crypto.randomUUID()): Promise<FeatPhoto> {
+    const userId = await this.requireUserId();
+    // Le premier segment du chemin est le compte : c'est ce que vérifient les politiques du bucket.
+    const path = `${userId}/${featId}/${id}.jpg`;
+    const thumbPath = `${userId}/${featId}/${id}-thumb.jpg`;
+    const bucket = this.client.storage.from(BUCKET);
+    for (const [target, blob] of [
+      [path, photo.full],
+      [thumbPath, photo.thumb],
+    ] as const) {
+      // `upsert` : un envoi rejoué après une coupure réécrit le même fichier plutôt que d'échouer.
+      const { error } = await bucket.upload(target, blob, { contentType: 'image/jpeg', upsert: true, cacheControl: '31536000' });
+      if (error) throw new Error(`La photo n’a pas pu être envoyée : ${error.message}`);
+    }
+    const { error } = await this.client.from('hautsfaits_photos').upsert(
+      {
+        id,
+        user_id: userId,
+        feat_id: featId,
+        path,
+        thumb_path: thumbPath,
+        width: photo.width,
+        height: photo.height,
+        bytes: photo.full.size + photo.thumb.size,
+        taken_at: photo.takenAt,
+        position,
+      },
+      { onConflict: 'id', ignoreDuplicates: true },
+    );
+    check(error);
+    return toPhoto(unwrap(await this.client.from('hautsfaits_photos').select('*').eq('id', id).single()) as PhotoRow);
+  }
+
+  async photoBlob(photo: FeatPhoto, size: PhotoSize): Promise<Blob> {
+    const path = size === 'full' ? photo.path : photo.thumbPath;
+    return cachedBlob(path, async () => {
+      const { data, error } = await this.client.storage.from(BUCKET).download(path);
+      if (error || !data) throw new Error('Cette photo n’a pas pu être chargée.');
+      return data;
+    });
+  }
+
+  async setPhotoPositions(positions: { id: string; position: number }[]) {
+    for (const { id, position } of positions) {
+      check((await this.client.from('hautsfaits_photos').update({ position }).eq('id', id)).error);
+    }
+  }
+
+  async removePhoto(photo: FeatPhoto) {
+    check((await this.client.from('hautsfaits_photos').delete().eq('id', photo.id)).error);
+    await this.removeFiles([photo.path, photo.thumbPath]);
   }
 
   async getSettings(): Promise<HautsFaitsSettings> {
@@ -143,13 +248,15 @@ export class SupabaseHautsFaits implements HautsFaitsStore {
   }
 
   async exportData(): Promise<HautsFaitsBackup> {
-    return { feats: await this.listFeats(), settings: await this.getSettings() };
+    return { feats: await this.listFeats(), settings: await this.getSettings(), photos: await this.listPhotos() };
   }
 
   /**
    * Remplace tout, comme une restauration de sauvegarde. Les identifiants
-   * sont gardés (des uuid choisis par l'application) : les photos, à
-   * l'étape 4, retrouveront leur haut fait sans table de correspondance.
+   * sont gardés (des uuid choisis par l'application) : les photos
+   * retrouvent leur haut fait sans table de correspondance, et leurs
+   * fichiers, restés dans le stockage, sur le même compte (étude §5.6). Les
+   * fichiers ne sont jamais effacés par une restauration.
    */
   async importData(data: HautsFaitsBackup) {
     const userId = await this.requireUserId();
@@ -157,6 +264,27 @@ export class SupabaseHautsFaits implements HautsFaitsStore {
     const feats = data.feats ?? [];
     if (feats.length > 0) {
       check((await this.client.from('hautsfaits_feats').insert(feats.map((f) => ({ id: f.id, user_id: userId, ...featColumns(f) })))).error);
+    }
+    const photos = (data.photos ?? []).filter((p) => feats.some((f) => f.id === p.featId));
+    if (photos.length > 0) {
+      check(
+        (
+          await this.client.from('hautsfaits_photos').insert(
+            photos.map((p) => ({
+              id: p.id,
+              user_id: userId,
+              feat_id: p.featId,
+              path: p.path,
+              thumb_path: p.thumbPath,
+              width: p.width,
+              height: p.height,
+              bytes: p.bytes,
+              taken_at: p.takenAt,
+              position: p.position,
+            })),
+          )
+        ).error,
+      );
     }
     if (data.settings) await this.saveSettings(data.settings);
   }

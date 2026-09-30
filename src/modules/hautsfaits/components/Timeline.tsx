@@ -3,8 +3,9 @@ import { ageAtFeat, ageLabel } from '../lib/age';
 import { CATEGORY_INFO } from '../lib/categories';
 import { durationLabel, formatFeatSpan } from '../lib/dates';
 import { gapLabel, type TimelineRow } from '../lib/timeline';
-import type { Feat } from '../lib/types';
+import type { Feat, FeatPhoto } from '../lib/types';
 import { FeatCover } from './FeatCover';
+import { PhotoImg } from './PhotoImg';
 
 /**
  * La frise (docs/etude-hauts-faits.md §4.1). Elle ne fait que dessiner les
@@ -15,11 +16,14 @@ import { FeatCover } from './FeatCover';
  */
 export function Timeline({
   rows,
+  photos,
   birthDate,
   justAdded,
   onOpen,
 }: {
   rows: TimelineRow[];
+  /** Les photos de chaque haut fait, dans leur ordre (la première fait la couverture). */
+  photos: Map<string, FeatPhoto[]>;
   birthDate: string | null;
   /** Le haut fait tout juste gravé : il se pose avec un éclat (la cérémonie, §4.7). */
   justAdded: string | null;
@@ -50,6 +54,8 @@ export function Timeline({
         }
         const feat = row.feat;
         const info = CATEGORY_INFO[feat.category];
+        const featPhotos = photos.get(feat.id) ?? [];
+        const cover = featPhotos[0] ?? null;
         const age = ageAtFeat(birthDate, feat.dateStart, feat.datePrecision);
         const duration = durationLabel(feat);
         const when = [formatFeatSpan(feat), duration, age && ageLabel(age, feat.datePrecision)].filter(Boolean).join(' · ');
@@ -58,18 +64,19 @@ export function Timeline({
           <li key={feat.id} className={classes} data-feat={feat.id} style={{ '--hautsfaits-c': info.color } as React.CSSProperties}>
             {feat.major ? (
               <button className="hautsfaits-card" onClick={() => onOpen(feat)}>
-                <FeatCover feat={feat}>
+                <FeatCover feat={feat} photo={cover}>
                   <span className="hautsfaits-cover-title">{feat.title}</span>
                 </FeatCover>
                 <span className="hautsfaits-card-foot">
                   <span className="hautsfaits-dot" aria-hidden="true" />
                   <span className="hautsfaits-card-when">{when}</span>
+                  {featPhotos.length > 1 && <span className="hautsfaits-card-count">{featPhotos.length} photos</span>}
                 </span>
               </button>
             ) : (
               <button className="hautsfaits-line" onClick={() => onOpen(feat)}>
-                <span className="hautsfaits-badge" aria-hidden="true">
-                  {info.emoji}
+                <span className={`hautsfaits-badge${cover ? ' has-photo' : ''}`} aria-hidden="true">
+                  {cover ? <PhotoImg photo={cover} size="thumb" alt="" /> : info.emoji}
                 </span>
                 <span className="hautsfaits-line-text">
                   <span className="hautsfaits-line-title">{feat.title}</span>

@@ -68,3 +68,42 @@ export interface HautsFaitsSettings {
 }
 
 export const DEFAULT_HAUTSFAITS_SETTINGS: HautsFaitsSettings = { birthDate: null, onThisDayReminder: false };
+
+/** Au plus 12 photos par haut fait (décision du 29/09/2026). */
+export const PHOTOS_MAX = 12;
+/** Le grand côté de la version affichée en grand, puis de la miniature (frise, galerie). */
+export const PHOTO_FULL_SIZE = 2048;
+export const PHOTO_THUMB_SIZE = 720;
+
+/**
+ * Une photo d'un haut fait. Les images elles-mêmes vivent à part (IndexedDB
+ * en local, le stockage de fichiers de Supabase avec un compte) : cette ligne
+ * dit où les trouver. La couverture d'un haut fait est sa photo en première
+ * position.
+ */
+export interface FeatPhoto {
+  id: string;
+  featId: string;
+  path: string;
+  thumbPath: string;
+  /** Dimensions de la grande version. */
+  width: number;
+  height: number;
+  /** Poids des deux versions, pour dire la place occupée. */
+  bytes: number;
+  /** Date de prise de vue lue dans la photo (AAAA-MM-JJTHH:MM:SS, heure locale), ou `null`. */
+  takenAt: string | null;
+  position: number;
+  createdAt: string;
+}
+
+/** Une photo réduite dans le navigateur, prête à être envoyée. */
+export interface PreparedPhoto {
+  full: Blob;
+  thumb: Blob;
+  width: number;
+  height: number;
+  takenAt: string | null;
+}
+
+export type PhotoSize = 'thumb' | 'full';

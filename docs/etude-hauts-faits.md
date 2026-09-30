@@ -530,3 +530,62 @@ d'exemple de huit hauts faits. `1112/1112` → `1121/1121` tests unitaires (+9 :
 `editorDraft.test.ts`, dont la durée d'une période), 782 → 809 vérifications en local et 801 →
 828 en mode comptes (+27 : les 4 du signet remplacées par 31 sur le vrai parcours), **809/809**
 et **828/828**.
+
+---
+
+## 17. Étape 4 : les photos (30/09/2026)
+
+**La migration** `supabase/2026-09-30-hautsfaits-photos.sql`, **premier stockage de fichiers
+d'Atlas** : la table `hautsfaits_photos` (RLS complet) et un **bucket privé** `hautsfaits` (JPEG
+seulement, 5 Mo au plus par fichier), dont les politiques sur `storage.objects` ne laissent un
+compte toucher qu'à son dossier — le premier segment du chemin est son identifiant. **La
+couverture est la photo en première position** : pas de colonne `cover_photo_id` à tenir à jour
+(l'étude §8 en prévoyait une).
+
+**Le contrat** gagne `listPhotos`, `addPhoto`, `photoBlob`, `setPhotoPositions`, `removePhoto`,
+dans les deux implémentations :
+
+- **en local**, les lignes vont dans le blob partagé, les images dans **IndexedDB**
+  (`data/blobStore.ts`, base `atlas-hautsfaits`) ; en mémoire sous Node, pour les tests ;
+- **avec un compte**, les images dans le bucket, sous `<compte>/<haut fait>/<photo>.jpg` (et
+  `-thumb.jpg`), puis gardées sur l'appareil dans le Cache API sous leur chemin
+  (`data/photoCache.ts`, cache `hautsfaits-photos-v1`) : chaque photo ne traverse le réseau
+  qu'une fois par appareil.
+
+**L'ordre des écritures** protège la règle n°3 : ajouter range les images **puis** écrit la
+ligne ; retirer (une photo ou tout un haut fait) retire la ligne **puis** les fichiers. Une
+coupure laisse au pire un fichier sans ligne, de la place perdue, jamais une ligne vers une image
+absente. `addPhoto` est rejouable (même id, `upsert` des fichiers). La sauvegarde garde la liste
+des photos, pas leur contenu ; une restauration **n'efface jamais un fichier** : sur le même
+compte ou le même appareil, chaque photo retrouve son image.
+
+**Réduire avant d'envoyer** (`data/preparePhoto.ts`) : une grande version de 2 048 px (jamais
+agrandie) et une miniature de **720 px** (480 prévus par l'étude : trop flou sur un écran Retina
+dans une carte de la frise), en JPEG. Le ré-encodage retire toutes les métadonnées, **position
+GPS comprise** — vérifié de bout en bout sur les octets rangés. Un fichier que le navigateur ne
+sait pas lire (un HEIC sur Chrome d'ordinateur) le dit en toutes lettres.
+
+**La date de prise de vue** : un lecteur EXIF maison (`lib/exif.ts`, pur et testé, les deux
+ordres d'octets, fichiers tronqués compris) la lit **avant** la réduction. À la création, si une
+photo choisie dit une autre date, la fenêtre propose « 📷 Photo prise le 17 juin 2023 — Utiliser
+cette date ». Proposée, jamais imposée.
+
+**À l'écran** : la première photo fait la couverture de la carte (titre en blanc sur un dégradé
+sombre, dans les deux thèmes) et la pastille d'une ligne compacte ; la carte dit « 3 photos ». La
+fiche passe à la grande version (la miniature en attendant) et montre la **galerie** ; toucher une
+photo ouvre la **visionneuse** (noire dans les deux thèmes ; glisser, flèches ou boutons ; Échap
+ou glisser vers le bas ferme la visionneuse sans fermer la fiche). « Arranger » : « En couverture »,
+et « Retirer » en deux touchers. On peut choisir ses photos **dès la création** (envoyées une fois
+le haut fait enregistré) ou les ajouter depuis la fiche. L'envoi se suit dans un bandeau (« Ajout
+des photos : 2 / 3 ») ; une photo qui échoue n'arrête pas les suivantes. Les réglages disent la
+place prise (« 23 photos, 8,4 Mo »). Les photos se chargent **à part** des hauts faits : si leur
+table manque encore, la frise s'affiche quand même, avec un message. Sur téléphone, la couverture
+de la fiche passe en 4:3.
+
+**Non vérifié automatiquement** : le chemin Supabase (envoi dans le bucket, politiques, cache sur
+l'appareil) — la suite tourne en local. **À essayer pour de vrai avec un compte**, et sur l'iPhone
+(photo HEIC de la photothèque, appareil photo).
+
+`1121/1121` → `1134/1134` tests unitaires (+13 : `photos.test.ts` 8 dont le lecteur EXIF,
+`localHautsFaits.test.ts` +5), 809 → 828 vérifications en local et 828 → 847 en mode comptes
+(+19, avec de vrais JPEG fabriqués dans le navigateur), **828/828** et **847/847**.

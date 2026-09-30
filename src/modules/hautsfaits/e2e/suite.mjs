@@ -8,6 +8,12 @@
  * panneau commun, « Ce jour-là », filtrer, modifier, refuser une date à
  * venir, supprimer, retrouver le tout après un rechargement — plus le rendu
  * téléphone.
+ *
+ * Étape 4 (§17) : les photos, avec de vrais JPEG fabriqués dans le
+ * navigateur (l'un porte une date EXIF) et les vrais sélecteurs de fichiers —
+ * choisir à la création, la date de la photo proposée, la couverture dans la
+ * frise, la visionneuse, changer de couverture, retirer, ajouter depuis la
+ * fiche, et les fichiers qui partent avec leur haut fait.
  */
 
 const text = async (locator) => ((await locator.textContent()) ?? '').replace(/\s/g, ' ');
@@ -34,6 +40,63 @@ async function frise(page) {
       return li.querySelector('.hautsfaits-cover-title, .hautsfaits-line-title').textContent.trim();
     }),
   );
+}
+
+/** Un vrai JPEG, dessiné dans le navigateur : un dégradé et un disque, à la teinte donnée. */
+async function jpeg(page, hue, { width = 1600, height = 1200 } = {}) {
+  const base64 = await page.evaluate(
+    ([hue, width, height]) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      const g = ctx.createLinearGradient(0, 0, width, height);
+      g.addColorStop(0, `hsl(${hue}, 70%, 35%)`);
+      g.addColorStop(1, `hsl(${hue + 60}, 70%, 60%)`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = `hsl(${hue + 180}, 80%, 70%)`;
+      ctx.beginPath();
+      ctx.arc(width * 0.7, height * 0.4, height * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      return canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+    },
+    [hue, width, height],
+  );
+  return Buffer.from(base64, 'base64');
+}
+
+/** Glisse un segment EXIF (DateTimeOriginal) juste après le début d'un JPEG, comme un appareil photo. */
+function withExifDate(buffer, date) {
+  const le16 = (v) => [v & 0xff, v >> 8];
+  const le32 = (v) => [v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, v >>> 24];
+  const text = [...date].map((c) => c.charCodeAt(0)).concat(0);
+  // En-tête TIFF (8), IFD0 à 8 avec le pointeur vers l'IFD Exif (18), IFD Exif à 26 (18), la date à 44.
+  const tiff = [0x49, 0x49, ...le16(42), ...le32(8), ...le16(1), ...le16(0x8769), ...le16(4), ...le32(1), ...le32(26), ...le32(0)];
+  tiff.push(...le16(1), ...le16(0x9003), ...le16(2), ...le32(20), ...le32(44), ...le32(0), ...text);
+  const app1 = [0x45, 0x78, 0x69, 0x66, 0, 0, ...tiff];
+  const segment = Buffer.from([0xff, 0xe1, (app1.length + 2) >> 8, (app1.length + 2) & 0xff, ...app1]);
+  return Buffer.concat([buffer.subarray(0, 2), segment, buffer.subarray(2)]);
+}
+
+const file = (name, buffer) => ({ name, mimeType: 'image/jpeg', buffer });
+
+/** Le nombre d'images rangées dans IndexedDB (grandes versions et miniatures). */
+const storedImages = (page) =>
+  page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const request = indexedDB.open('atlas-hautsfaits');
+        request.onsuccess = () => {
+          const count = request.result.transaction('photos').objectStore('photos').count();
+          count.onsuccess = () => resolve(count.result);
+        };
+      }),
+  );
+
+/** Attend la fin d'un envoi de photos. */
+async function uploaded(page) {
+  await page.waitForSelector('.hautsfaits-toast', { state: 'detached' });
 }
 
 async function save(page) {
@@ -171,6 +234,82 @@ export async function run({ browser, check, BASE }) {
   check('Filtrer ne garde que la catégorie choisie', JSON.stringify(await frise(page)) === JSON.stringify(['2017', 'Baccalauréat']));
   await page.getByRole('button', { name: 'Tout', exact: true }).click();
 
+  // --- Les photos (étape 4) ----------------------------------------------------------------------
+  const blue = await jpeg(page, 210);
+  const sunset = withExifDate(await jpeg(page, 20), '2023:06:17 15:30:00');
+  await page.getByRole('button', { name: '＋ Haut fait' }).click();
+  await page.locator('#hautsfaits-title').fill('Mariage de Léa');
+  await page.getByRole('button', { name: /Famille & amis/ }).click();
+  await page.getByText('Un des grands').click();
+  await page.locator('.hautsfaits-editor input[type="file"]').setInputFiles([file('ciel.jpg', blue), file('soir.jpg', sunset)]);
+  await page.waitForFunction(() => document.querySelectorAll('.hautsfaits-pending li').length === 2);
+  check('À la création, les photos choisies s’affichent avant d’enregistrer', (await page.locator('.hautsfaits-pending img').count()) === 2);
+  check('La date lue dans une photo est proposée', (await text(page.locator('.hautsfaits-date-suggestion'))).includes('Photo prise le 17 juin 2023'));
+  await page.getByRole('button', { name: 'Utiliser cette date' }).click();
+  check('… et la prendre remplit la date', (await page.locator('#hautsfaits-start-day').inputValue()) === '2023-06-17' && (await page.locator('.hautsfaits-date-suggestion').count()) === 0);
+  await save(page);
+  await uploaded(page);
+  const mariage = page.locator('.hautsfaits-card', { hasText: 'Mariage de Léa' });
+  await mariage.locator('.hautsfaits-cover.has-photo img').waitFor();
+  const coverWidth = await mariage.locator('.hautsfaits-cover img').evaluate((img) => img.complete && img.naturalWidth);
+  check('La première photo fait la couverture de la carte, en miniature', coverWidth === 720, `largeur ${coverWidth}`);
+  check('La carte dit combien de photos', (await text(mariage)).includes('2 photos'));
+  check('Deux images par photo, rangées dans IndexedDB', (await storedImages(page)) === 4);
+  const exifKept = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const request = indexedDB.open('atlas-hautsfaits');
+        request.onsuccess = () => {
+          const all = request.result.transaction('photos').objectStore('photos').getAll();
+          all.onsuccess = async () => {
+            const texts = await Promise.all(all.result.map(async (blob) => new TextDecoder('latin1').decode(await blob.arrayBuffer())));
+            resolve(texts.some((t) => t.includes('Exif') || t.includes('2023:06:17')));
+          };
+        };
+      }),
+  );
+  check('Les copies rangées n’ont plus de métadonnées (date d’origine, position GPS)', exifKept === false);
+
+  await openFeat(page, 'Mariage de Léa');
+  const gallery = page.locator('.hautsfaits-gallery');
+  check('La fiche montre la galerie, la couverture marquée', (await gallery.locator('.hautsfaits-gallery-thumb').count()) === 2 && (await text(gallery.locator('.hautsfaits-gallery-item').first())).includes('Couverture'));
+  // L'image d'origine fait 1 600 px : la grande version la garde telle quelle, jamais agrandie.
+  await page.waitForFunction(() => document.querySelector('.hautsfaits-sheet .hautsfaits-cover img')?.naturalWidth === 1600);
+  check('La couverture de la fiche passe à la grande version, sans l’agrandir', true);
+  const secondSrc = await gallery.locator('.hautsfaits-gallery-thumb img').nth(1).getAttribute('src');
+  await gallery.getByRole('button', { name: 'Voir la photo 2' }).click();
+  const lightbox = page.locator('.hautsfaits-lightbox');
+  await lightbox.waitFor();
+  check('Toucher une photo ouvre la visionneuse', (await text(lightbox.locator('.hautsfaits-lightbox-count'))) === '2 / 2');
+  await page.keyboard.press('ArrowRight');
+  check('Les flèches passent d’une photo à l’autre', (await text(lightbox.locator('.hautsfaits-lightbox-count'))) === '1 / 2');
+  await page.keyboard.press('Escape');
+  await lightbox.waitFor({ state: 'detached' });
+  check('Échap ferme la visionneuse, pas la fiche', await page.locator('.hautsfaits-sheet').isVisible());
+
+  await gallery.getByRole('button', { name: 'Arranger' }).click();
+  await gallery.getByRole('button', { name: 'En couverture' }).click();
+  await page.waitForFunction((src) => document.querySelector('.hautsfaits-gallery-thumb img')?.getAttribute('src') === src, secondSrc);
+  check('« En couverture » fait passer une photo en tête', (await gallery.locator('.hautsfaits-gallery-thumb img').first().getAttribute('src')) === secondSrc);
+  await gallery.getByRole('button', { name: 'Retirer', exact: true }).nth(1).click();
+  check('Retirer demande un second toucher', (await gallery.getByRole('button', { name: 'Retirer pour de bon' }).count()) === 1 && (await gallery.locator('.hautsfaits-gallery-thumb').count()) === 2);
+  await gallery.getByRole('button', { name: 'Retirer pour de bon' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.hautsfaits-gallery-thumb').length === 1);
+  check('… puis retire la photo et ses deux fichiers', (await storedImages(page)) === 2);
+  await gallery.locator('input[type="file"]').setInputFiles([file('vert.jpg', await jpeg(page, 120)), file('rose.jpg', await jpeg(page, 320, { width: 900, height: 1400 }))]);
+  await uploaded(page);
+  await page.waitForFunction(() => document.querySelectorAll('.hautsfaits-gallery-thumb').length === 3);
+  check('Ajouter des photos depuis la fiche, à la suite', (await text(page.locator('.hautsfaits-card', { hasText: 'Mariage de Léa' }))).includes('3 photos'));
+  await closeSheet(page);
+
+  await openFeat(page, 'Premier appartement');
+  await page.locator('.hautsfaits-sheet input[type="file"]').setInputFiles([file('cles.jpg', await jpeg(page, 45))]);
+  await uploaded(page);
+  await page.locator('.hautsfaits-sheet .hautsfaits-gallery-thumb').waitFor();
+  check('Une ligne compacte montre sa photo en pastille', (await page.locator('.hautsfaits-line', { hasText: 'Premier appartement' }).locator('.hautsfaits-badge.has-photo img').count()) === 1);
+  const beforeDelete = await storedImages(page);
+  await closeSheet(page);
+
   // --- Supprimer ---------------------------------------------------------------------------------
   await openFeat(page, 'Premier appartement');
   await page.getByRole('button', { name: 'Supprimer…' }).click();
@@ -180,10 +319,19 @@ export async function run({ browser, check, BASE }) {
   await page.getByRole('button', { name: 'Supprimer', exact: true }).click();
   await page.waitForSelector('.hautsfaits-sheet', { state: 'detached' });
   check('… puis supprime', (await page.locator('.hautsfaits-line', { hasText: 'Premier appartement' }).count()) === 0 && (await page.locator('.hautsfaits-memory').count()) === 0);
+  check('Supprimer un haut fait emporte les fichiers de ses photos, pas ceux des autres', beforeDelete === 8 && (await storedImages(page)) === 6, `${beforeDelete} → ${await storedImages(page)}`);
 
   // --- Tout survit à un rechargement -------------------------------------------------------------
   await openModule(page, BASE);
-  check('Après un rechargement, la frise et l’âge sont là', (await frise(page)).length === 8 && (await text(page.locator('.hautsfaits-year-label').first())).includes('26 ans'));
+  check(
+    'Après un rechargement, la frise et l’âge sont là',
+    JSON.stringify(await frise(page)) ===
+      JSON.stringify(['2025', 'Semi-marathon de Paris 2025', '… 2024', '2023', 'Mariage de Léa', '… 2022', '2021', 'Six mois à Madrid', '… 2018 – 2020', '2017', 'Baccalauréat']) &&
+      (await text(page.locator('.hautsfaits-year-label').first())).includes('26 ans'),
+    (await frise(page)).join(' | '),
+  );
+  await page.locator('.hautsfaits-card', { hasText: 'Mariage de Léa' }).locator('.hautsfaits-cover.has-photo img').waitFor();
+  check('… et les photos aussi', (await page.locator('.hautsfaits-card', { hasText: 'Mariage de Léa' }).locator('.hautsfaits-cover img').evaluate((img) => img.naturalWidth)) > 0);
   check('Aucune erreur JavaScript sur ordinateur', errors.length === 0, errors.join(' | '));
   await context.close();
 

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { MemoryBlobStore } from './blobStore';
 import { LocalHautsFaits } from './localHautsFaits';
 
 /**
@@ -96,5 +97,76 @@ describe('LocalHautsFaits', () => {
     await store.importData(backup);
     expect((await store.listFeats())[0]).toEqual(feat);
     expect((await store.getSettings()).birthDate).toBe('1999-03-12');
+  });
+
+  describe('les photos', () => {
+    const image = (text: string) => ({
+      full: new Blob([`grande ${text}`], { type: 'image/jpeg' }),
+      thumb: new Blob([`miniature ${text}`], { type: 'image/jpeg' }),
+      width: 2048,
+      height: 1536,
+      takenAt: '2025-03-02T09:41:07',
+    });
+    let blobs: MemoryBlobStore;
+
+    beforeEach(() => {
+      blobs = new MemoryBlobStore();
+      store = new LocalHautsFaits(blobs);
+    });
+
+    it('range les deux versions à part, et la ligne dit où les trouver', async () => {
+      const feat = await store.createFeat(BREVET);
+      const photo = await store.addPhoto(feat.id, image('a'), 0, 'p1');
+      expect(photo).toMatchObject({ featId: feat.id, width: 2048, height: 1536, takenAt: '2025-03-02T09:41:07', position: 0 });
+      expect(photo.bytes).toBe(image('a').full.size + image('a').thumb.size);
+      expect(await (await store.photoBlob(photo, 'full')).text()).toBe('grande a');
+      expect(await (await store.photoBlob(photo, 'thumb')).text()).toBe('miniature a');
+      // Les images ne vont jamais dans le blob local partagé, trop petit pour elles.
+      expect(localStorage.getItem('palier.v1')).not.toContain('grande a');
+    });
+
+    it('rejouée avec le même id, une photo n’est rangée qu’une fois ; sans haut fait, elle est refusée', async () => {
+      const feat = await store.createFeat(BREVET);
+      await store.addPhoto(feat.id, image('a'), 0, 'p1');
+      await store.addPhoto(feat.id, image('a'), 0, 'p1');
+      expect(await store.listPhotos()).toHaveLength(1);
+      await expect(store.addPhoto('inconnu', image('b'), 0)).rejects.toThrow('n’existe plus');
+    });
+
+    it('change l’ordre, retire une photo et ses fichiers', async () => {
+      const feat = await store.createFeat(BREVET);
+      const a = await store.addPhoto(feat.id, image('a'), 0);
+      const b = await store.addPhoto(feat.id, image('b'), 1);
+      await store.setPhotoPositions([
+        { id: b.id, position: 0 },
+        { id: a.id, position: 1 },
+      ]);
+      expect((await store.listPhotos()).find((p) => p.id === b.id)?.position).toBe(0);
+      await store.removePhoto(a);
+      expect((await store.listPhotos()).map((p) => p.id)).toEqual([b.id]);
+      expect(blobs.size).toBe(2);
+      await expect(store.photoBlob(a, 'full')).rejects.toThrow('plus sur cet appareil');
+    });
+
+    it('supprimer un haut fait emporte ses photos et leurs fichiers, pas celles des autres', async () => {
+      const brevet = await store.createFeat(BREVET);
+      const bac = await store.createFeat({ ...BREVET, title: 'Bac', dateStart: '2017-01-01' });
+      await store.addPhoto(brevet.id, image('a'), 0);
+      await store.addPhoto(bac.id, image('b'), 0);
+      await store.deleteFeat(brevet.id);
+      expect((await store.listPhotos()).map((p) => p.featId)).toEqual([bac.id]);
+      expect(blobs.size).toBe(2);
+    });
+
+    it('la sauvegarde garde la liste des photos, pas leur contenu ; restaurée ici, chacune retrouve son image', async () => {
+      const feat = await store.createFeat(BREVET);
+      const photo = await store.addPhoto(feat.id, image('a'), 0);
+      const backup = await store.exportData();
+      expect(JSON.stringify(backup)).not.toContain('grande a');
+      memory.clear();
+      await store.importData(backup);
+      expect(await store.listPhotos()).toEqual([photo]);
+      expect(await (await store.photoBlob(photo, 'full')).text()).toBe('grande a');
+    });
   });
 });

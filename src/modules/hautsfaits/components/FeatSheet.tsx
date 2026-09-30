@@ -2,27 +2,39 @@ import { useEffect, useRef, useState } from 'react';
 import { ageAtFeat, ageLabel, sinceLabel } from '../lib/age';
 import { CATEGORY_INFO } from '../lib/categories';
 import { durationLabel, formatFeatSpan } from '../lib/dates';
-import type { Feat } from '../lib/types';
+import type { Feat, FeatPhoto } from '../lib/types';
 import { FeatCover } from './FeatCover';
+import { PhotoGallery } from './PhotoGallery';
 
 /**
  * La fiche d'un haut fait, en grand : une page de souvenir plutôt qu'un
  * formulaire (docs/etude-hauts-faits.md §4.2). La couverture, le titre, le
- * temps écoulé et l'âge qu'on avait, puis le reste. Les photos rejoindront
- * la couverture et la galerie à l'étape 4.
+ * temps écoulé et l'âge qu'on avait, puis le reste, et la galerie de ses
+ * photos (étape 4) : la première fait la couverture.
  */
 export function FeatSheet({
   feat,
+  photos,
+  uploading,
   birthDate,
   today,
+  onAddPhotos,
+  onMakeCover,
+  onRemovePhoto,
   onEdit,
   onDelete,
   onClose,
   onAddBirthDate,
 }: {
   feat: Feat;
+  photos: FeatPhoto[];
+  /** Des photos partent : on n'en ajoute pas d'autres en même temps. */
+  uploading: boolean;
   birthDate: string | null;
   today: string;
+  onAddPhotos: (files: File[]) => void;
+  onMakeCover: (photo: FeatPhoto) => void;
+  onRemovePhoto: (photo: FeatPhoto) => void;
   onEdit: () => void;
   onDelete: () => Promise<void>;
   onClose: () => void;
@@ -63,7 +75,7 @@ export function FeatSheet({
         aria-labelledby="hautsfaits-sheet-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <FeatCover feat={feat} large>
+        <FeatCover feat={feat} photo={photos[0] ?? null} large>
           <button ref={closeRef} className="hautsfaits-sheet-close" onClick={onClose} aria-label="Fermer">
             ✕
           </button>
@@ -95,6 +107,8 @@ export function FeatSheet({
           </div>
 
           {feat.story && <p className="hautsfaits-sheet-story">{feat.story}</p>}
+
+          <PhotoGallery title={feat.title} photos={photos} busy={uploading} onAdd={onAddPhotos} onMakeCover={onMakeCover} onRemove={onRemovePhoto} />
 
           {!birthDate && (
             <p className="hautsfaits-sheet-invite">
