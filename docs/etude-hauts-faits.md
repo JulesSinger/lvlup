@@ -443,7 +443,7 @@ frise d'exemple).
 3, `conventions.test.ts` +9 pour le nouveau module),
 **782/782** vérifications en local et **801/801** en mode comptes (+4 chacune).
 
-**Migration à appliquer** dans Supabase Studio avant d'utiliser Hauts faits en mode comptes.
+**Migration appliquée par Jules** sur Supabase (confirmé le 30/09/2026).
 
 ---
 
