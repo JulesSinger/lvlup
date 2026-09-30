@@ -3,6 +3,7 @@ import { budgetModule } from './budget/module';
 import { calendrierModule } from './calendrier/module';
 import { coursesModule } from './courses/module';
 import { flashcardsModule } from './flashcards/module';
+import { hautsfaitsModule } from './hautsfaits/module';
 import { nutritionModule } from './nutrition/module';
 import { objectifsModule } from './objectifs/module';
 import { tachesModule } from './taches/module';
@@ -22,4 +23,5 @@ export const MODULES: readonly AtlasModule[] = [
   coursesModule,
   calendrierModule,
   tachesModule,
+  hautsfaitsModule,
 ];

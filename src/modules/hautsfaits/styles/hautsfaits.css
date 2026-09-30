@@ -1,0 +1,72 @@
+/* Hauts faits — étape 1 : un signet, en attendant la frise. */
+
+.hautsfaits-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 70vh;
+  padding: 2rem;
+  text-align: center;
+}
+
+.hautsfaits-placeholder-emoji {
+  font-size: 2.5rem;
+}
+
+.hautsfaits-placeholder-title {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.hautsfaits-placeholder-text {
+  margin: 0 0 0.5rem;
+  color: var(--text-dim);
+  font-size: 1rem;
+}
+
+/* --- Aperçu sur la page d'accueil publique (HautsFaitsLandingPreview) --- */
+
+.hautsfaits-landing-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 220px;
+  margin: 0 auto;
+  font-size: 12px;
+}
+
+.hautsfaits-landing-feat {
+  display: grid;
+  grid-template-columns: 34px 10px 1fr auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.hautsfaits-landing-year {
+  font-family: 'Cinzel', 'Inter', serif;
+  font-weight: 600;
+  color: var(--pink);
+  text-align: right;
+}
+
+.hautsfaits-landing-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--pink);
+  background: var(--bg);
+}
+
+.hautsfaits-landing-title {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hautsfaits-landing-detail {
+  font-size: 11px;
+  color: var(--text-faint);
+}

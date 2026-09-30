@@ -402,3 +402,45 @@ sur ordinateur et téléphone dans les deux thèmes pour toutes les étapes qui 
    sauvegarde ne les contiendra pas ?
 9. **Partagé à des proches** un jour (« voir les hauts faits de Léa ») ? Recommandé : non —
    règle n°2, et le RLS actuel ne le permet pas sans chantier.
+
+---
+
+## 13. Décisions prises avec Jules (29/09/2026)
+
+1. **Nom** : Hauts faits 🏅, nom technique `hautsfaits`. Couleur rose (`#ee88b2`), non
+   contestée.
+2. **Photos** : dans l'ordre recommandé, une V1 sans photos (étape 3) pour valider la forme,
+   puis les photos (étape 4) juste après.
+3. **Catégories fixes** pour le moment : Études, Sport, Voyage, Chez-soi, Travail, Famille &
+   amis (`proches`), Création, Autre.
+4. Recommandations acceptées (« ça me convient ») : 12 photos au plus par haut fait, pas de
+   vidéo ; la sauvegarde JSON sans les photos, avec une archive à part ; les hauts faits à venir
+   restent le rôle d'Objectifs ; rien de partagé.
+5. **Sens de la frise** : le plus récent en haut.
+6. **Une vie en semaines** : jusqu'à aujourd'hui, avec une bascule pour afficher jusqu'à 90 ans.
+
+---
+
+## 14. Étape 1 : le module existe (30/09/2026)
+
+**La migration** `supabase/2026-09-30-hautsfaits-tables.sql` : `hautsfaits_feats` et
+`hautsfaits_settings`, RLS complet. La base refuse d'elle-même : une catégorie ou une précision
+inconnue, une date qui ne tombe pas au début de sa période (« mois » = le 1er, « année » = le
+1er janvier), une fin sans précision (ou l'inverse), une fin avant le début. Les photos auront
+leur migration à l'étape 4.
+
+**Le contrat** `HautsFaitsStore` et ses deux implémentations. `createFeat(input, id)` est
+**rejouable** (id choisi par l'application), comme les tâches et les entrées de Cérès. Retirer
+la fin d'une période retire sa précision, dans les deux modes. Les réglages (date de naissance,
+rappel « Ce jour-là ») sont dans le contrat dès maintenant. Catégories, précisions et longueur
+du titre sont comparées aux contraintes de la migration par `lib/schema.test.ts`. La
+restauration garde les identifiants, pour que les photos retrouvent leur haut fait.
+
+**Le module** `hautsfaits`, un écran signet et un aperçu pour la page d'accueil (une petite
+frise d'exemple).
+
+`1069/1069` → `1080/1080` tests unitaires (+11 : `localHautsFaits.test.ts` 8, `schema.test.ts`
+3 ; les vérifications de `conventions.test.ts` s'appliquent d'office au nouveau module),
+**782/782** vérifications en local et **801/801** en mode comptes (+4 chacune).
+
+**Migration à appliquer** dans Supabase Studio avant d'utiliser Hauts faits en mode comptes.

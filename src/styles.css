@@ -78,3 +78,6 @@
 
 /* --- Polaris : les tâches (étape 1) ------------------------------------ */
 @import './modules/taches/styles/taches.css';
+
+/* --- Hauts faits : les grands moments de la vie (étape 1) ------------ */
+@import './modules/hautsfaits/styles/hautsfaits.css';
