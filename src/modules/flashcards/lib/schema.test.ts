@@ -1,6 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { BOX_COUNT } from './types';
+import { BOX_COUNT, CARD_FACE_MAX } from './types';
 
 /**
  * Le type TypeScript et la contrainte Postgres doivent dire la même chose —
@@ -35,5 +36,24 @@ describe('le type et la base disent la même chose (Orbite)', () => {
     expect(boxBound(REVIEWS_MIGRATION, 'flashcards_reviews_box_after_check', 'box_after')).toBe(
       BOX_COUNT,
     );
+  });
+
+  it('la longueur d’un recto ou d’un verso acceptée par Postgres correspond à CARD_FACE_MAX', () => {
+    // La dernière définition fait foi : la contrainte d'origine, sans nom,
+    // a été remplacée par une contrainte nommée (2026-09-29-flashcards-drawings.sql).
+    const dir = new URL('../../../../supabase', import.meta.url).pathname;
+    const sql = readdirSync(dir)
+      .filter((n) => n.endsWith('.sql'))
+      .sort()
+      .map((n) => readFileSync(join(dir, n), 'utf8'))
+      .join('\n');
+    for (const face of ['front', 'back']) {
+      const last = [
+        ...sql.matchAll(
+          new RegExp(`flashcards_cards_${face}_check\\s+check\\s*\\(char_length\\(${face}\\) between 1 and (\\d+)\\)`, 'gi'),
+        ),
+      ].pop();
+      expect(Number(last?.[1]), face).toBe(CARD_FACE_MAX);
+    }
   });
 });

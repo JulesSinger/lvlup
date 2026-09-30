@@ -11,6 +11,14 @@
  */
 export const BOX_COUNT = 5;
 
+/**
+ * Longueur maximale d'un recto ou d'un verso, en caractères de HTML. Portée
+ * de 2000 à 200 000 le 29/09/2026 pour les dessins, rangés sous forme de
+ * traits dans ce HTML (`lib/drawing.ts`). Égale à la contrainte de
+ * `2026-09-29-flashcards-drawings.sql` — `lib/schema.test.ts` compare les deux.
+ */
+export const CARD_FACE_MAX = 200000;
+
 /** Un paquet — le conteneur nommé, même rôle qu'un objectif pour Zénith. */
 export interface Deck {
   id: string;

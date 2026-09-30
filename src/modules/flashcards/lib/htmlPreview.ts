@@ -21,9 +21,15 @@ const ENTITIES: Record<string, string> = {
   '&nbsp;': ' ',
 };
 
+/** Un dessin (`lib/drawing.ts`) : pas de texte à montrer, mais sa présence se dit. */
+const DRAWING_RE = /<div\b[^>]*\sdata-drawing="[^"]*"[^>]*>\s*<\/div>/gi;
+
 /** Réduit du HTML à du texte simple, sans balise ni entité. */
 export function htmlToPlainText(html: string): string {
-  const withoutTags = html.replace(BLOCK_BREAK_RE, ' ').replace(TAG_RE, '');
+  const withoutTags = html
+    .replace(DRAWING_RE, ' ✏️ dessin ')
+    .replace(BLOCK_BREAK_RE, ' ')
+    .replace(TAG_RE, '');
   const decoded = withoutTags.replace(ENTITY_RE, (m) => ENTITIES[m]);
   return decoded.replace(/\s+/g, ' ').trim();
 }

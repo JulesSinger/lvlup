@@ -48,3 +48,11 @@ describe('truncatePreview', () => {
     expect(truncatePreview('12345', 5)).toBe('12345');
   });
 });
+
+describe('un dessin dans l’aperçu', () => {
+  it('se dit « ✏️ dessin » plutôt que de disparaître', () => {
+    expect(htmlToPlainText('<p>Le cœur</p><div data-drawing="ink:3:1,1 5,5" class="flashcards-drawing"></div>')).toBe(
+      'Le cœur ✏️ dessin',
+    );
+  });
+});

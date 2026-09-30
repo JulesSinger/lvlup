@@ -625,6 +625,86 @@ export async function run({ browser, check, BASE }) {
     await fresh.close();
   }
 
+  // --- Dessins (29/09/2026) -------------------------------------------------
+  // Dessin libre à la souris dans le recto ou le verso, regardé pendant la
+  // révision. Stocké en traits dans le HTML de la carte, redessiné en SVG.
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const dp = await fresh.newPage();
+    dp.on('pageerror', (e) => errors.push(e.message));
+    await enterFlashcards(dp, BASE);
+    await dp.getByRole('button', { name: 'Créer mon premier paquet' }).click();
+    await dp.locator('#flashcards-deck-name').fill('Anatomie');
+    await dp.getByRole('button', { name: 'Enregistrer' }).click();
+    await dp.locator('.flashcards-row', { hasText: 'Anatomie' }).click();
+    await dp.getByRole('button', { name: 'Créer ma première carte' }).click();
+    await typeIntoCardField(dp, 'flashcards-card-front', 'Le cœur');
+
+    // Un trait tiré à la souris sur la zone de dessin.
+    async function drawLine(x1, y1, x2, y2) {
+      const box = await dp.locator('.flashcards-drawing-surface').boundingBox();
+      await dp.mouse.move(box.x + box.width * x1, box.y + box.height * y1);
+      await dp.mouse.down();
+      for (let i = 1; i <= 10; i++) {
+        await dp.mouse.move(
+          box.x + box.width * (x1 + ((x2 - x1) * i) / 10),
+          box.y + box.height * (y1 + ((y2 - y1) * i) / 10),
+        );
+      }
+      await dp.mouse.up();
+    }
+
+    await dp.getByRole('button', { name: 'Dessin', exact: true }).first().click();
+    await dp.waitForSelector('.flashcards-drawing-pad');
+    check('Le bouton ✏️ ouvre la fenêtre de dessin', await dp.locator('.flashcards-drawing-pad').isVisible());
+    await drawLine(0.2, 0.3, 0.7, 0.6);
+    await dp.getByRole('button', { name: 'Rouge' }).click();
+    await drawLine(0.3, 0.7, 0.6, 0.2);
+    check(
+      'Deux traits tirés à la souris, deux traits dessinés',
+      (await dp.locator('.flashcards-drawing-surface path').count()) === 2,
+    );
+    await dp.getByRole('button', { name: '↶ Défaire' }).click();
+    check('« Défaire » retire le dernier trait', (await dp.locator('.flashcards-drawing-surface path').count()) === 1);
+    await dp.keyboard.press('Escape');
+    check(
+      'Échap ferme le dessin sans fermer la carte',
+      (await dp.locator('.flashcards-drawing-pad').count()) === 0 &&
+        (await dp.locator('.flashcards-card-editor').isVisible()),
+    );
+
+    await dp.getByRole('button', { name: 'Dessin', exact: true }).first().click();
+    await drawLine(0.2, 0.3, 0.7, 0.6);
+    await dp.locator('.flashcards-drawing-overlay').click({ position: { x: 5, y: 5 } });
+    check('Un clic à côté ne ferme pas le dessin', await dp.locator('.flashcards-drawing-pad').isVisible());
+    await dp.getByRole('button', { name: 'Enregistrer le dessin' }).click();
+    check(
+      'Le dessin s’insère dans le recto',
+      (await dp.locator('#flashcards-card-front .flashcards-drawing svg path').count()) === 1,
+    );
+
+    await typeIntoCardField(dp, 'flashcards-card-back', 'Organe');
+    await dp.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+    await dp.waitForSelector('.flashcards-card-row');
+    check(
+      'L’aperçu de la carte signale le dessin',
+      ((await dp.locator('.flashcards-card-front').first().textContent()) ?? '').includes('✏️ dessin'),
+    );
+
+    // Il survit à un rechargement, puis s'affiche pendant la révision.
+    await reloadFlashcards(dp);
+    await dp.locator('.flashcards-row', { hasText: 'Anatomie' }).click();
+    await dp.locator('.flashcards-review-start').click();
+    await dp.waitForSelector('.flashcards-review-card');
+    check(
+      'Le dessin s’affiche pendant la révision',
+      (await dp.locator('.flashcards-review-card .flashcards-drawing svg path').count()) === 1,
+    );
+
+    check('Aucune erreur JavaScript (dessins)', errors.length === 0, errors.join(' | '));
+    await fresh.close();
+  }
+
   // --- Rendu mobile --------------------------------------------------------
   // Jamais vérifié jusqu'ici, contrairement à Objectifs et Budget : le bandeau,
   // les pastilles, les paquets et l'écran de révision doivent tenir sur un

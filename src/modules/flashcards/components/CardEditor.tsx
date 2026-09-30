@@ -3,7 +3,9 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import Highlight from '@tiptap/extension-highlight';
 import Placeholder from '@tiptap/extension-placeholder';
 import StarterKit from '@tiptap/starter-kit';
+import { CARD_FACE_MAX } from '../lib/types';
 import type { Card } from '../lib/types';
+import { DrawingExtension } from './DrawingNode';
 import { EditorToolbar } from './EditorToolbar';
 
 interface Props {
@@ -31,6 +33,8 @@ function bodyExtensions(placeholder: string) {
     }),
     Highlight,
     Placeholder.configure({ placeholder }),
+    // Le bloc de dessin (29/09/2026), inséré par le bouton ✏️ de la barre.
+    DrawingExtension,
   ];
 }
 
@@ -81,10 +85,18 @@ export function CardEditor({ card, onCancel, onSave }: Props) {
       setError('Le recto et le verso sont tous les deux obligatoires.');
       return;
     }
+    const front = frontEditor.getHTML();
+    const back = backEditor.getHTML();
+    // La base refuse au-delà : autant le dire ici, en clair, plutôt que de
+    // laisser Postgres répondre par un nom de contrainte.
+    if (front.length > CARD_FACE_MAX || back.length > CARD_FACE_MAX) {
+      setError('Cette carte est trop lourde : allège un dessin ou raccourcis le texte.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
-      await onSave({ front: frontEditor.getHTML(), back: backEditor.getHTML() });
+      await onSave({ front, back });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Enregistrement impossible.');
       setSaving(false);

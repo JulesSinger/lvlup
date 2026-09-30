@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useEditorState, type Editor } from '@tiptap/react';
+import { DrawingPad } from './DrawingPad';
 
 interface Props {
   editor: Editor | null;
@@ -124,6 +126,10 @@ export function EditorToolbar({ editor }: Props) {
       }),
     }) ?? INACTIVE;
 
+  // Le bouton « Dessin » ouvre une fenêtre plutôt que de basculer une mise
+  // en forme : le dessin s'insère à la position du curseur une fois enregistré.
+  const [drawing, setDrawing] = useState(false);
+
   if (!editor) return null;
 
   return (
@@ -142,6 +148,26 @@ export function EditorToolbar({ editor }: Props) {
           {label}
         </button>
       ))}
+      <button
+        type="button"
+        className="flashcards-format-btn flashcards-format-btn-drawing"
+        title="Dessin"
+        aria-label="Dessin"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setDrawing(true)}
+      >
+        ✏️
+      </button>
+      {drawing && (
+        <DrawingPad
+          initial=""
+          onCancel={() => setDrawing(false)}
+          onSave={(encoded) => {
+            editor.chain().focus().insertContent({ type: 'drawing', attrs: { data: encoded } }).run();
+            setDrawing(false);
+          }}
+        />
+      )}
     </div>
   );
 }

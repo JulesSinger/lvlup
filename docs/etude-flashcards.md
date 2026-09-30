@@ -731,3 +731,47 @@ côte à côte à toute largeur.
 `554/554` tests unitaires → `564/564` (+10 : `lib/htmlPreview.test.ts`), `466/466` local →
 `468/468` (+2 : une réponse longue tronquée dans la liste, texte complet retrouvé en infobulle),
 `478/478` en mode comptes → `480/480` (+2).
+
+## 22. Des dessins sur les cartes (29/09/2026)
+
+Demande de Jules : « est-ce possible de pouvoir faire des dessins sur les flashcards ? ».
+Précisé ensuite : **sur ordinateur, dessin libre seulement, et seulement regarder les dessins**
+pendant la révision (pas de réponse dessinée avant de retourner la carte, pas de photo annotée).
+
+**À l'écran.** Un bouton ✏️ au bout de la barre de mise en forme du recto et du verso ouvre une
+fenêtre de dessin (`DrawingPad`) : cinq couleurs (encre, rouge, bleu, vert, orange), trois
+épaisseurs, une gomme qui retire un trait entier, « ↶ Défaire » (et Ctrl+Z), « Tout effacer ».
+Enregistré, le dessin devient un bloc de la carte (`DrawingNode`, un nœud Tiptap atomique) avec
+« Modifier le dessin » et « Retirer ». Il s'affiche en révision, et l'aperçu tronqué de la liste
+dit « ✏️ dessin » à sa place.
+
+**Stocké en traits, pas en image.** Un dessin est rangé dans le HTML du recto ou du verso sous la
+forme `<div data-drawing="ink:6:12,40 13,42|red:3:…" class="flashcards-drawing"></div>` : une
+couleur, une épaisseur et des points entiers par trait, dans un cadre de 640 × 360. Quelques Ko par
+croquis, aucune table ni stockage de fichiers (règle n°1 : rien qui puisse coûter), et la
+sauvegarde l'emporte sans le connaître. Seule conséquence en base : les 2000 caractères du recto
+et du verso ne suffisaient plus, portés à 200 000 (`CARD_FACE_MAX`, migration
+`2026-09-29-flashcards-drawings.sql`, comparés par `schema.test.ts`) ; l'app refuse elle-même
+au-delà, avec un message lisible plutôt qu'un nom de contrainte Postgres.
+
+**Le SVG n'est jamais stocké.** `lib/drawing.ts` le recalcule à chaque affichage depuis des traits
+**validés** : entiers bornés au cadre, couleurs et épaisseurs prises dans des listes, un trait mal
+formé écarté en entier plutôt que deviné, 20 000 points au plus. C'est ce qui garde sûr le
+`dangerouslySetInnerHTML` de `RichText` (§19) : une carte retouchée à la main — une sauvegarde
+modifiée, par exemple — ne peut rien glisser dans la page par un dessin. Les couleurs sont des
+noms (`ink` = `var(--text)`) : le dessin suit le thème, encre claire en sombre, foncée en clair.
+
+**Choix écartés.** Excalidraw (MIT, mais plus d'un Mo à charger pour un croquis) et tldraw (licence
+payante en production). Retenu : `perfect-freehand` (MIT, quelques Ko), qui ne fait que lisser un
+trait à partir de ses points ; tout le reste est à nous.
+
+**Pièges évités.** La fenêtre est rendue dans `document.body` (portail React) : ouverte depuis
+l'intérieur de l'éditeur, elle y recevrait sinon les gestes que Tiptap interprète lui-même. Elle
+écoute Échap **en capture**, pour ne pas fermer avec elle la fenêtre de la carte, dessous. Un clic
+à côté ne ferme rien, comme les autres formulaires du module.
+
+`1045/1045` tests unitaires → `1060/1060` (+15 : `drawing.test.ts` 13, aperçu 1, schéma 1),
+769 → 778 vérifications en local (+9, dont de vrais traits tirés à la souris). Le mode comptes
+des vérifications tourne contre un Supabase factice : l'enregistrement d'une carte dessinée dans
+la vraie base est à essayer une fois la migration appliquée, et l'affichage en révision sur
+iPhone à regarder une fois.
