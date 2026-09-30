@@ -444,3 +444,39 @@ frise d'exemple).
 **782/782** vérifications en local et **801/801** en mode comptes (+4 chacune).
 
 **Migration à appliquer** dans Supabase Studio avant d'utiliser Hauts faits en mode comptes.
+
+---
+
+## 15. Étape 2 : les règles, testées avant tout écran (30/09/2026)
+
+Six bibliothèques pures dans `lib/`, sans écran :
+
+- **`dates.ts`** : `alignDate` (la date rangée au début de sa période, ce que la base exige),
+  `periodLastDay`, `formatFeatDate` (« 2014 », « juin 2018 », « 1er juillet 2022 »),
+  `formatFeatSpan` pour une période, sans répéter ce qui est commun aux deux bouts
+  (« janvier – juin 2021 », « 3 – 10 août 2023 »), et `sortFeats`. **Une date imprécise se place
+  au début de sa période**, comme elle est rangée : « 2022 » passe après les jours connus de 2022
+  dans la frise récente.
+- **`age.ts`** : l'âge qu'on avait, **sans deviner**. Au jour près, « tu avais 18 ans ». Quand la
+  période englobe un anniversaire (le brevet « en 2014 », né en mars 1999 : 14 ou 15 ans), on dit
+  l'âge atteint : « l'année de tes 15 ans », « le mois de tes 23 ans ». `sinceLabel` dit le temps
+  écoulé **pas plus précisément que la date** : un haut fait daté d'une année se compte en années
+  (« l'an dernier », « il y a 12 ans »), au jour près on descend jusqu'à « hier ».
+- **`timeline.ts`** : `buildTimeline` met la frise en lignes (année avec l'âge atteint, hauts
+  faits, et une ligne qui **resserre les années vides** : « 2015 – 2016 »), dans les deux sens,
+  filtrable par catégorie. L'écran n'aura qu'à dessiner.
+- **`onThisDay.ts`** : ce qui revient aujourd'hui, les dates exactes puis les mois, le plus récent
+  d'abord. Une date connue à l'année près ne revient jamais (on ne sait pas quel jour fêter). Un
+  29 février revient le 28 les années qui n'en ont pas.
+- **`suggestions.ts`** : neuf idées pour démarrer ; une idée disparaît dès qu'un haut fait porte
+  son titre, casse, accents et espaces ignorés.
+- **`validation.ts`** : les règles de la base dites en français, plus une qu'elle ne vérifie pas :
+  **un haut fait est déjà arrivé**, sa date n'est pas après aujourd'hui (l'année ou le mois en
+  cours restent permis). La **fin** d'une période peut, elle, être à venir : six mois à
+  l'étranger commencés le mois dernier se notent déjà.
+- **`categories.ts`** : nom, emoji et couleur de chaque catégorie (la couleur par sa variable de
+  la palette, pour suivre le thème clair).
+
+`1080/1080` → `1112/1112` tests unitaires (+32 : `dates.test.ts` 9, `age.test.ts` 9,
+`timeline.test.ts` 8 — frise, « ce jour-là » et idées —, `validation.test.ts` 6), vérifications
+e2e inchangées en nombre, **782/782** en local.

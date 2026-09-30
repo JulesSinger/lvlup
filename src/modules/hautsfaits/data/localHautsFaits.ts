@@ -16,7 +16,7 @@ function read(): Snapshot {
   const settings = raw.hautsfaitsSettings as Partial<HautsFaitsSettings> | undefined;
   return {
     feats: arrayOf<Feat>(raw.hautsfaitsFeats),
-    settings: { ...DEFAULT_HAUTSFAITS_SETTINGS, ...(settings ?? {}) },
+    settings: { ...DEFAULT_HAUTSFAITS_SETTINGS, ...settings },
   };
 }
 
@@ -93,6 +93,6 @@ export class LocalHautsFaits implements HautsFaitsStore {
   }
 
   async importData(data: HautsFaitsBackup) {
-    write({ feats: data.feats ?? [], settings: { ...DEFAULT_HAUTSFAITS_SETTINGS, ...(data.settings ?? {}) } });
+    write({ feats: data.feats ?? [], settings: { ...DEFAULT_HAUTSFAITS_SETTINGS, ...data.settings } });
   }
 }
