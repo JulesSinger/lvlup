@@ -135,6 +135,22 @@ select cron.schedule(
 
 La `service_role` reste côté base : elle ne transite jamais par le navigateur.
 
+**Les deux valeurs entre chevrons doivent vraiment être remplacées.** Le 01/10/2026, on a
+découvert que le cron tournait depuis sa mise en place avec `<PROJET>` resté tel quel : chaque
+passage échouait (`invalid URL … Bad hostname`) avant même d'appeler la fonction, et **aucun
+rappel n'était jamais parti** — ni celui de Zénith, ni ceux de Polaris, ni ceux d'Éclipse —
+sans que rien ne le signale dans l'app. Relancer `cron.schedule` avec le même nom remplace la
+planification. Pour vérifier, quelques minutes après :
+
+```sql
+select start_time, status, return_message
+from cron.job_run_details order by start_time desc limit 5;
+```
+
+`status` doit valoir `succeeded`. Pour voir la réponse de la fonction elle-même :
+`select status_code, content from net._http_response order by created desc limit 3;`
+(`{"mode":"cron", …}` attendu ; `401` = la clé `service_role` est fausse).
+
 ---
 
 ## Vérifier que ça marche
