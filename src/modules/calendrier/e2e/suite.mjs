@@ -389,6 +389,7 @@ export async function run({ browser, check, BASE }) {
       tachesTasks: [
         { id: 'p1', listId: null, parentId: null, title: 'Rendre le livre', note: '', plannedDay: today, plannedTime: null, dueDay: null, priority: 'normale', recurrence: null, repeatFrom: 'schedule', position: 0, completedAt: null, createdAt: '' },
         { id: 'p2', listId: null, parentId: null, title: 'Appeler le garage', note: '', plannedDay: today, plannedTime: '14:00', durationMinutes: 90, dueDay: null, priority: 'urgente', recurrence: null, repeatFrom: 'schedule', position: 1, completedAt: null, createdAt: '' },
+        { id: 'p4', listId: null, parentId: null, title: 'Arroser', note: '', plannedDay: today, plannedTime: '09:00', durationMinutes: 15, dueDay: null, priority: 'normale', recurrence: null, repeatFrom: 'schedule', position: 3, completedAt: null, createdAt: '' },
         { id: 'p3', listId: null, parentId: null, title: 'Faire les courses', note: '', plannedDay: today, plannedTime: null, dueDay: null, priority: 'normale', recurrence: { freq: 'weekly', interval: 1 }, repeatFrom: 'schedule', position: 2, completedAt: null, createdAt: '' },
       ],
     });
@@ -430,6 +431,19 @@ export async function run({ browser, check, BASE }) {
     '… pour sa durée : 14 h – 15 h 30',
     (await text(lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' }))).includes('15:30'),
   );
+
+  // Une tâche d'un quart d'heure : son rond tient dans son bloc (01/10/2026).
+  {
+    const short = lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Arroser' });
+    await short.scrollIntoViewIfNeeded();
+    const box = await short.boundingBox();
+    const dot = await short.locator('.calendrier-mark-check').boundingBox();
+    check(
+      'Le rond d’une tâche de 15 minutes ne dépasse pas de son bloc',
+      !!box && !!dot && dot.y >= box.y - 0.5 && dot.y + dot.height <= box.y + box.height + 0.5,
+      JSON.stringify({ box, dot }),
+    );
+  }
 
   // Glisser une tâche vers 16 h, puis l'étirer d'une heure : Tâches la reprévoit (28/09/2026).
   {

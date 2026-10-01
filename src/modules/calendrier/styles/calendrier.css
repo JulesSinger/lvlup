@@ -312,6 +312,35 @@
   text-overflow: ellipsis;
 }
 
+/* Dans la grille horaire, une tâche courte (15 ou 30 minutes) fait à peine
+   13 à 17 px de haut : le rond de 15 px, bordure comprise, et une ligne de
+   texte en débordaient. La marque prend la hauteur du bloc, le rond s'y
+   ajuste (`min()` : jamais plus de 15 px, jamais plus que le bloc), et le
+   texte d'une marque courte se resserre. Une tâche longue garde son rond en
+   haut, à côté de son heure. */
+.calendrier-view .fc .fc-timegrid-event .calendrier-mark {
+  height: 100%;
+  align-items: flex-start;
+}
+
+.calendrier-view .fc .fc-timegrid-event .calendrier-mark-check {
+  width: auto;
+  height: min(15px, 100%);
+  aspect-ratio: 1;
+  box-sizing: border-box;
+}
+
+.calendrier-view .fc .fc-timegrid-event-short .calendrier-mark {
+  align-items: center;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.calendrier-view .fc .fc-timegrid-event-short .calendrier-mark-check {
+  height: min(13px, 100%);
+  font-size: 8px;
+}
+
 .calendrier-view .fc .calendrier-layer-done .calendrier-mark-title {
   text-decoration: line-through;
 }
