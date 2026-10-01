@@ -1,0 +1,467 @@
+# Projets — étude du neuvième module (les projets clients)
+
+*Étude de conception, écrite avant le code — même exercice que `docs/etude-taches.md` et
+`docs/etude-hauts-faits.md`. Objectif : voir ce que fait le marché, ce qu'un projet de site pour
+un commerçant demande vraiment, du premier appel à la mise en ligne, et ce que le module échange
+avec le reste d'Atlas. Les décisions qui reviennent encore à Jules sont regroupées en fin de
+document (§11). Une maquette accompagne l'étude : `docs/maquette-projets.html`.*
+
+Demande de Jules (01/10/2026) : « un module de gestion de projet : onboarding, besoins, suivi des
+tâches, deadlines projets, listes de tâches, documents, images, design, avancement… Je vais
+peut-être me lancer en auto-entrepreneur et développer des sites pour des commerçants du genre
+food truck, coiffeur, fleuriste, mais il faut que je sois organisé si j'ai plusieurs projets et
+pour être carré dans mon travail. »
+
+**Quatre décisions prises d'emblée avec Jules (01/10/2026)**, avant la rédaction :
+
+1. **Les tâches d'un projet vivent dans le projet**, rangées par phase. Celles qui ont une date
+   apparaissent en calque dans Calendar. Le module Tâches reste la to-do personnelle.
+2. **Outil personnel, aucun espace client** : le client ne voit rien, ne se connecte jamais.
+3. **L'argent : un prix et le suivi de ce qui est encaissé** (acompte, solde), avec un envoi
+   facultatif vers Budget. Ni devis ni factures générés ici.
+4. **Les fichiers : des liens, plus quelques images** (logo, photos du commerce), réduites dans
+   le navigateur, sur le stockage déjà posé par Hauts faits.
+
+---
+
+## 1. Ce que le module est, et ce qu'il n'est pas
+
+Les autres modules d'Atlas servent la vie personnelle. Celui-ci sert un **métier** : il porte du
+travail fait pour quelqu'un d'autre, avec un engagement (une date promise, un prix convenu) et
+des informations qui viennent du client (ses horaires, sa carte, ses photos, ses accès).
+
+Ce qui le rend différent d'une liste de tâches :
+
+- **plusieurs projets en même temps**, chacun à une étape différente — d'où le besoin d'une vue
+  qui dit d'un coup d'œil *où en est chacun et lequel est en danger* ;
+- **un projet se ressemble d'un client à l'autre** : un site de fleuriste et un site de coiffeur
+  passent par les mêmes étapes (récupérer les contenus, maquette, développement, recette, mise en
+  ligne). Le gain principal est là : **ne jamais repartir de zéro**, partir d'un modèle et ne
+  rien oublier (le nom de domaine, les mentions légales, la fiche Google) ;
+- **beaucoup d'attente du client** : « j'attends les photos », « j'attends sa validation de la
+  maquette ». Un projet bloqué par le client n'est pas un projet en retard par sa faute — la
+  distinction doit se voir ;
+- **de l'argent attendu** : un acompte à la signature, un solde à la livraison. Oublier de
+  relancer un solde est une erreur de débutant classique.
+
+**Ce que le module n'est pas** :
+
+- **pas un CRM** de prospection (pas de suivi de campagnes, pas de pipeline commercial
+  sophistiqué) : un prospect est juste le premier statut d'un projet ;
+- **pas un logiciel de facturation** : les devis et factures d'un micro-entrepreneur ont des
+  mentions obligatoires et une numérotation continue, et la **facturation électronique**
+  devient obligatoire pour les micro-entreprises (réception dès septembre 2026, émission
+  prévue en septembre 2027 — calendrier à revérifier au moment de s'installer). C'est le
+  métier d'un outil dédié (Indy, Abby, Freebe, Henrri, ou la plateforme publique), pas d'Atlas ;
+- **pas un espace client** : règle n°2 de `CLAUDE.md`, et décision 2 ci-dessus ;
+- **pas un coffre-fort** : on **ne stocke jamais un mot de passe** client ici (§3.7).
+
+**Les frontières avec les autres modules** :
+
+| Module | Ce qu'il garde | Ce que Projets garde |
+|---|---|---|
+| Tâches | la to-do perso (« appeler la banque ») | les tâches d'un projet client, dans leur phase |
+| Calendar | les rendez-vous (« RDV fleuriste 14 h ») | les échéances et tâches datées, en **calque** |
+| Budget | la vérité bancaire, toutes les entrées et sorties | ce qui est convenu et attendu de chaque client |
+| Objectifs | « signer 3 clients cette année », s'il le veut | rien de cela |
+
+Un rendez-vous client reste un **événement de Calendar** : le module n'a pas son propre agenda.
+
+---
+
+## 2. Le marché, et ce qu'on en retient
+
+| Produit | Ce qu'il fait bien | Ce qu'on en garde |
+|---|---|---|
+| **Trello**, tableaux kanban | les cartes qui avancent de colonne en colonne | le **pipeline des projets** en colonnes |
+| **Asana, ClickUp** | projets, sections, tâches, échéances, modèles de projet | **phases** + **modèle de projet** dupliqué à la création |
+| **Basecamp** | un projet = un lieu unique (tâches, documents, messages) ; la « hill chart » qui distingue *je cherche encore* de *j'exécute* | la **fiche projet** qui rassemble tout ; l'avancement par phase plutôt qu'un seul pourcentage |
+| **Notion** (modèles « freelance OS ») | clients, projets, factures liés entre eux | la relation **client → projets** |
+| **Dubsado, HoneyBook, Moxie, Bonsai, Plutio** (outils de freelance) | le **questionnaire d'onboarding**, le parcours type (prospect → devis → contrat → acompte → livraison), les rappels de paiement | le **questionnaire de besoins**, le **statut**, l'**échéancier** de paiements |
+| **Indy, Abby, Freebe** (micro-entrepreneurs français) | devis, factures, livre des recettes, déclarations URSSAF | **rien d'écrit ici** : on s'arrête au suivi de l'encaissé (§1) ; le **livre des recettes** peut toutefois se déduire des paiements notés (§3.8) |
+| **Agences web** (listes de mise en ligne) | une *checklist* de lancement : HTTPS, mentions légales, favicon, fiche Google Business, sauvegarde | la phase **« Mise en ligne »** du modèle, déjà remplie |
+
+Ce que le marché fait aussi, et qu'on **laisse de côté** : portail client, signature électronique
+de contrats, chat avec le client, facturation, suivi du temps imposé, diagrammes de Gantt (pour
+des projets de quelques semaines menés seul, une liste de phases datées suffit).
+
+---
+
+## 3. Les briques d'un projet
+
+### 3.1 Le client
+
+Un **client** est un commerce : nom (« Fleurs de Lou »), activité (fleuriste, coiffeur, food
+truck… — liste fixe avec « autre », §11), contact (prénom, téléphone, e-mail), adresse, réseaux
+(Instagram, Facebook, fiche Google), et une note libre.
+
+**Un client peut avoir plusieurs projets** : le site, puis une refonte deux ans plus tard, ou un
+contrat de maintenance. Séparer client et projet évite de retaper ses coordonnées et permet de
+voir « tout ce que j'ai fait pour lui ».
+
+### 3.2 Le projet et son statut
+
+Un projet a un **titre** (« Site vitrine »), un **client**, un **statut**, une **date de début**,
+une **échéance** (la mise en ligne promise), un **prix** et une **note**.
+
+Le statut, en pipeline (proposé, §11) :
+
+| Statut | Sens |
+|---|---|
+| **Piste** | premier contact, rien de signé |
+| **Devis envoyé** | j'attends sa réponse |
+| **Signé** | accord, acompte attendu ou reçu, pas encore commencé |
+| **En cours** | je travaille dessus |
+| **En recette** | le client relit et valide |
+| **En ligne** | livré ; reste éventuellement le solde |
+| **Maintenance** | suivi régulier après la livraison (facultatif) |
+| **Terminé** / **Perdu** | archivés, hors du tableau de bord |
+
+Un indicateur à part, **« En attente du client »** (avec ce qu'on attend : « photos », « retour
+maquette »), peut se poser sur un projet de n'importe quel statut actif. C'est lui qui distingue
+un projet bloqué d'un projet en retard (§1).
+
+### 3.3 Les phases et les tâches
+
+Un projet se découpe en **phases** ordonnées, chacune avec ses **tâches**. Le modèle proposé pour
+un site vitrine de commerçant :
+
+1. **Découverte** — premier rendez-vous, questionnaire de besoins rempli, devis envoyé, acompte
+   reçu.
+2. **Contenus** — logo, photos, textes (présentation, horaires, carte ou tarifs), accès aux
+   réseaux et à la fiche Google.
+3. **Maquette** — arborescence, maquette de l'accueil, validation du client.
+4. **Développement** — pages, formulaire de contact, carte, responsive, référencement de base.
+5. **Recette** — relecture par le client, corrections, tests téléphone.
+6. **Mise en ligne** — nom de domaine, hébergement, HTTPS, mentions légales et politique de
+   confidentialité, Search Console, fiche Google à jour, sauvegarde.
+7. **Après** — formation du client, solde encaissé, demande d'avis, relance à trois mois.
+
+**Le modèle est dupliqué à la création** du projet, puis chaque projet vit sa vie : ajouter,
+retirer, renommer une phase ou une tâche ne touche ni le modèle ni les autres projets. Le modèle
+lui-même est modifiable (on apprend d'un projet à l'autre) — dans la V1, un modèle écrit dans le
+code ; un éditeur de modèles plus tard (§11).
+
+Une **tâche** a un titre, une note, un **jour prévu** et une **échéance** facultatifs (comme
+Tâches), une coche, et peut être marquée **« attend le client »**. Pas de priorité ni de
+répétition dans la V1 : la phase donne déjà l'ordre, et une tâche de projet se fait une fois.
+Une **phase** peut avoir sa propre échéance (« maquette validée le 15 »).
+
+### 3.4 Les besoins : le questionnaire d'onboarding
+
+Le premier rendez-vous avec un commerçant revient toujours aux mêmes questions. Les écrire une
+fois, et les remplir pendant l'entretien, c'est ce qui rend « carré » :
+
+- **L'activité** : ce qu'il vend, à qui, ce qui le distingue, ses concurrents qu'il aime bien ;
+- **Le but du site** : être trouvé sur Google, montrer la carte, prendre des réservations ou des
+  commandes, rassurer avant une visite ;
+- **Les pages** : accueil, présentation, carte/prestations/tarifs, galerie, horaires et accès,
+  contact, mentions légales — cochées ;
+- **Les fonctions** : formulaire, réservation en ligne (outil tiers ?), commande, carte Google,
+  lien Instagram, avis Google, emplacements du jour (food truck) ;
+- **Les contenus** : qui fournit textes et photos, et quand ;
+- **L'identité** : logo existant ou non, couleurs, ambiance, sites qu'il aime ;
+- **Le technique** : nom de domaine (a-t-il déjà un ? chez qui ?), hébergement, adresse e-mail
+  pro, qui gère le site après ;
+- **Le cadre** : budget, date souhaitée, contraintes (ouverture d'une boutique, saison).
+
+Chaque question a une réponse libre, et une case **« à demander au client »** qui la fait
+remonter dans « En attente du client ». Les réponses forment le **cahier des charges** du
+projet, lisible d'un bloc (et imprimable plus tard).
+
+Rangées en **JSON** dans le projet (une clé par question), pas une table par question : le
+questionnaire évoluera, et une question retirée ne doit pas effacer une ancienne réponse.
+
+### 3.5 Le design
+
+Une fiche courte, faite pour être relue en développant : **couleurs** (pastilles avec leur code
+hexadécimal, copiables d'un toucher), **polices** (titre, texte), **ambiance** en trois mots,
+**sites de référence** (liens), **logo** (image, §3.6), liens vers la **maquette** (Figma,
+Canva, Penpot).
+
+### 3.6 Documents, liens et images
+
+- **Liens typés** : maquette (Figma, Canva, Penpot), dossier partagé (Drive, Dropbox), site en
+  préproduction, site en ligne, hébergeur, registraire du domaine, devis et facture (le PDF reste
+  dans l'outil de facturation, on y pointe), autre. Le type donne une icône et un ordre.
+- **Images** : logo, photos du commerce, captures de la maquette validée — **peu, et réduites**
+  dans le navigateur avant l'envoi, comme Hauts faits (§5 de son étude) : 2 048 px et une
+  miniature, métadonnées retirées. Plafond proposé : 20 images par projet (§11).
+
+Les gros fichiers du client (photos en pleine taille, PDF de carte, vidéos) restent dans son
+dossier partagé, référencé par un lien. Le 1 Go gratuit de Supabase Storage est **partagé avec
+les photos de Hauts faits** : ne garder ici que ce qu'on regarde souvent.
+
+### 3.7 Les accès — jamais de mot de passe
+
+Un projet web oblige à manier des accès : registraire, hébergeur, back-office, compte Google du
+commerce. Le module garde **où** (l'adresse de connexion), **à quel compte** (l'identifiant) et
+**qui en est propriétaire** (le client, idéalement), mais **jamais le mot de passe**. Raisons :
+
+- Atlas n'est pas chiffré de bout en bout : un mot de passe en clair dans une table, c'est un
+  mot de passe lisible par quiconque obtient la base ou une sauvegarde JSON ;
+- la sauvegarde exportée (`backup.ts`) emporterait tous les accès de tous les clients dans un
+  fichier qui traîne dans les Téléchargements ;
+- un gestionnaire de mots de passe (Bitwarden, gratuit ; le trousseau d'Apple) fait ce travail
+  bien mieux. La fiche peut dire « dans Bitwarden, entrée *Fleurs de Lou — OVH* ».
+
+C'est une règle de l'écran (le champ n'existe pas) et une phrase dans la fiche, pas une
+promesse qu'on espère tenir.
+
+### 3.8 L'argent
+
+- **Prix convenu** du projet (en centimes entiers, comme Budget).
+- **Échéancier** : des paiements attendus, chacun avec un libellé (« Acompte 30 % », « Solde »),
+  un montant, une date prévue, et une **date de réception** une fois encaissé. Un modèle
+  d'échéancier propose 30 % à la signature, 70 % à la mise en ligne (§11).
+- À l'écran : **encaissé / reste à encaisser**, et les paiements **en retard** (date prévue
+  passée, non reçus) remontent dans le tableau de bord.
+- **Envoi à Budget** (décision 3) : un paiement reçu peut créer une **entrée** dans Budget,
+  catégorie « Revenus freelance » (trouvée par son nom, sinon « à classer »).
+- **Le livre des recettes** : un micro-entrepreneur doit tenir un registre chronologique de ses
+  encaissements (date, client, montant, mode de règlement, référence de la facture). Les
+  paiements notés ici en contiennent tout, à condition d'ajouter le **mode de règlement** et la
+  **référence de facture** : une vue « Recettes » par année, exportable en CSV, est presque
+  gratuite à écrire. Elle **n'est pas une comptabilité certifiée**, et l'outil de facturation
+  en tient sans doute déjà un — à proposer, pas à imposer (§11).
+- Le **chiffre d'affaires de l'année** (somme encaissée), utile pour la déclaration URSSAF
+  mensuelle ou trimestrielle et pour surveiller le plafond du régime — affiché, jamais calculé
+  en impôt ou en cotisations (les taux changent, ce n'est pas le rôle d'Atlas).
+
+### 3.9 Le journal du projet
+
+Des **notes datées** : « Appel : elle veut ajouter la carte des mariages », « Maquette validée
+par SMS », « Relancé pour le solde ». C'est la mémoire du projet, et ce qui protège en cas de
+désaccord (« vous aviez validé le 12 »). Une ligne de texte et une date, rien de plus.
+
+### 3.10 Le temps passé (facultatif, §11)
+
+Noter le temps passé par projet (une durée par jour, pas de chronomètre) donne le **taux horaire
+réel** : 900 € pour 30 h, c'est 30 €/h ; pour 60 h, 15 €/h. C'est l'information qui apprend à
+chiffrer ses devis suivants. Coûte une petite table et un champ ; utile seulement si on s'astreint
+à le noter.
+
+---
+
+## 4. Les vues
+
+### 4.1 Le tableau de bord (l'écran d'ouverture)
+
+Répond à la question du matin : **sur quoi je travaille, qu'est-ce qui brûle, qu'est-ce que
+j'attends ?**
+
+- **À faire cette semaine** : les tâches prévues ou à échéance dans les 7 jours, tous projets
+  confondus, cochables directement, avec le projet en étiquette ;
+- **En retard** : tâches et phases dépassées, projets dont l'échéance est passée ;
+- **En attente du client** : ce qu'on attend, de qui, depuis combien de jours (pour savoir quand
+  relancer) ;
+- **Projets actifs** : une carte par projet — client, statut, avancement par phase (une barre
+  segmentée), échéance et jours restants ;
+- **Argent** : encaissé ce mois et cette année, reste à encaisser, paiements en retard.
+
+### 4.2 Le pipeline
+
+Les projets en **colonnes par statut** (Piste → Maintenance), comme Trello. Changer de statut
+se fait depuis la fiche (un sélecteur) ; le glisser d'une colonne à l'autre peut venir plus tard,
+le tableau de bord étant la vue de tous les jours. Sur téléphone, les colonnes deviennent des
+sections empilées.
+
+### 4.3 La fiche projet
+
+En-tête : client, titre, statut, échéance, avancement. Puis des **onglets** :
+
+| Onglet | Contenu |
+|---|---|
+| **Aperçu** | prochaines tâches, attente client, argent en une ligne, derniers mots du journal |
+| **Tâches** | les phases dépliables, leurs tâches, ajout rapide dans une phase |
+| **Besoins** | le questionnaire, remplissable pendant le rendez-vous |
+| **Design** | couleurs, polices, logo, références, liens de maquette |
+| **Documents** | liens typés, images, accès (sans mot de passe) |
+| **Argent** | prix, échéancier, encaissé, reste |
+| **Journal** | les notes datées |
+
+### 4.4 Clients
+
+La liste des clients, chacun avec ses coordonnées et ses projets. Toucher un numéro appelle,
+toucher une adresse ouvre la carte (`tel:`, `mailto:`, lien vers un plan).
+
+### 4.5 L'avancement — calculé, jamais saisi
+
+L'avancement d'une phase est la **part de ses tâches cochées** ; celui du projet, la moyenne
+des phases ou la part de toutes ses tâches (§11 tranche, proposé : toutes les tâches, plus
+simple à comprendre). Il n'y a **aucun pourcentage à taper** : un chiffre saisi à la main ment
+dès qu'on oublie de le mettre à jour. Une phase sans tâche ne compte pas.
+
+Le projet est **en danger** si son échéance tombe dans moins de 7 jours et qu'il reste plus de
+la moitié de ses tâches, ou si une phase dépasse sa date. Règle pure et testée, signalée sans
+rouge criard (même philosophie que Budget : informer, pas culpabiliser).
+
+---
+
+## 5. Hors ligne
+
+Ce module se travaille surtout **au bureau**, à l'ordinateur. Deux exceptions : noter les
+besoins **chez le commerçant**, et cocher une tâche en déplacement. Proposé : **pas de file hors
+ligne en V1**, mais des **identifiants choisis par l'application** dès l'étape 1 (comme Tâches et
+Nutrition), pour brancher la file commune (`core/data/outbox.ts`) plus tard sans migration. En
+attendant, une écriture sans réseau échoue avec un message et le formulaire reste rempli —
+c'est la règle n°3 : ne rien perdre de ce qui a été saisi. Le questionnaire de besoins garde en
+plus un **brouillon sur l'appareil** tant qu'il n'est pas enregistré (le rendez-vous peut avoir
+lieu dans une boutique sans réseau).
+
+---
+
+## 6. Les liens avec les modules d'Atlas
+
+| Module | Lien | Sens | Valeur | Socle à toucher ? |
+|---|---|---|---|---|
+| **Calendar** | échéances de projet, de phase, tâches datées, paiements attendus, en **calque** | lecture | **forte** | non — `calendarSources` existe |
+| **Calendar** | cocher et déplacer une tâche de projet depuis le calendrier | écriture | forte | non — `toggleMark` / `moveMark` existent depuis Tâches |
+| **Calendar** | toucher la marque → « Ouvrir dans Projets » | navigation | moyenne | non — `onOpenModule(…, 'task:<id>')` existe |
+| **Budget** | un paiement reçu devient une **entrée** | écriture | forte | **oui** : `ExpenseService` ne sait créer que des dépenses (le montant est rendu négatif dans `budget/data/expenseService.ts`). À étendre (ci-dessous) |
+| **Rappels** | échéance à J-2, paiement attendu le jour même, relance « en attente du client depuis 7 jours » | — | moyenne | non — `scheduleReminders('projets', …)` existe |
+| **Tâches** | rien : la to-do perso reste séparée (décision 1) | — | — | — |
+| **Hauts faits** | « premier client », graver à la main | — | faible | — |
+
+**Étendre le service de Budget.** Deux formes possibles, au choix lors de l'étape 5 :
+
+- un champ `direction: 'expense' | 'income'` sur `ExpenseRequest` (défaut : dépense), Budget
+  applique le signe en conséquence — le plus petit changement, Courses inchangé ;
+- un service frère `incomes`, de même forme.
+
+Le premier est recommandé : le service garde un seul nom, et une référence stable
+`projets:paiement:<numéro>` rend l'envoi rejouable sans doublon, comme Courses
+(`comete:course:<numéro>`). Comme pour Courses, une **référence numérotée** plutôt qu'un uuid,
+qu'une restauration ne change pas.
+
+---
+
+## 7. Le modèle de données
+
+Nom technique proposé : `projets`. Toutes les tables portent `user_id`, le RLS complet (quatre
+politiques nommées), un index sur `user_id`, et des **identifiants choisis par l'application**.
+
+| Table | Colonnes principales |
+|---|---|
+| `projets_clients` | `name`, `trade` (CHECK, liste `as const`), `contact_name`, `phone`, `email`, `address`, `links jsonb` (réseaux), `note`, `archived`, `created_at` |
+| `projets_projects` | `client_id` (`on delete restrict` : on archive un client, on ne supprime pas son historique), `number` (unique par compte, pour les références stables), `title`, `status` (CHECK), `waiting_for` (texte, null = n'attend rien), `waiting_since`, `start_day`, `due_day`, `price_cents`, `needs jsonb` (le questionnaire), `design jsonb`, `note`, `created_at` |
+| `projets_phases` | `project_id` (`on delete cascade`), `title`, `position`, `due_day` |
+| `projets_tasks` | `project_id`, `phase_id` (`on delete cascade`), `title`, `note`, `planned_day`, `due_day`, `waiting_client`, `position`, `completed_at` |
+| `projets_links` | `project_id`, `kind` (CHECK), `label`, `url`, `login` (identifiant, **jamais de mot de passe**), `position` |
+| `projets_payments` | `project_id`, `number`, `label`, `amount_cents` (> 0), `expected_day`, `received_day`, `method` (CHECK : virement, espèces, chèque, carte, autre), `invoice_ref` |
+| `projets_notes` | `project_id`, `day`, `text`, `created_at` |
+| `projets_images` | `project_id`, `kind` (logo, photo, maquette), `path`, `thumb_path`, `width`, `height`, `position` — fichiers dans un bucket privé `projets`, dossier par compte, **même motif** que `supabase/2026-09-30-hautsfaits-photos.sql` |
+| `projets_time` *(si §11 le retient)* | `project_id`, `day`, `minutes` |
+
+Choix à justifier dans le code :
+
+- **Le questionnaire et le design en JSON** (§3.4) : leur forme changera plus souvent que le
+  reste ; une colonne par question imposerait une migration par question.
+- **Le modèle de phases dans le code** (`lib/templates.ts`), recopié à la création : aucune
+  table de modèles dans la V1.
+- **Le prix et les paiements séparés** : le prix est ce qui a été convenu, les paiements ce qui
+  est attendu et reçu ; un avenant change le prix sans réécrire les paiements passés.
+- **Les valeurs `CHECK`** (statuts, métiers, sortes de liens, modes de règlement) ont leur pendant
+  `as const` et un `schema.test.ts`, comme le veut `CLAUDE.md` §5.
+
+**Les images, et la question du socle.** Hauts faits a écrit la réduction (`preparePhoto.ts`),
+le cache (`photoCache.ts`) et le stockage local (`blobStore.ts`) **dans le module**, « tant qu'un
+seul en a besoin » (journal du 30/09/2026). Projets serait le deuxième. Deux voies :
+
+- **recopier** ces fichiers dans le module — rapide, deux copies à maintenir ;
+- **remonter** l'envoi et la lecture d'images dans le socle (`core/data/images/`), Hauts faits
+  et Projets s'en servant, chacun avec son bucket — c'est la règle de §3 (« une pièce dont deux
+  modules ont besoin appartient au socle »), et c'est ce qui a été fait pour la récurrence avec
+  Tâches.
+
+Recommandé : **remonter**, à l'étape 7 (les images), en vérifiant que la suite de Hauts faits
+passe à l'identique — c'est la vérification du déplacement.
+
+**La sauvegarde** suit le registre : le module y entre sous `projets`, sans les images (comme
+Hauts faits : la liste, pas le contenu).
+
+---
+
+## 8. Ce qui va bloquer, ou coûter
+
+| Sujet | Difficulté | Réponse |
+|---|---|---|
+| **L'usine à gaz** : clients, projets, phases, tâches, besoins, design, liens, images, argent, journal, temps | **le vrai risque** | une V1 resserrée (clients, projets, phases, tâches, tableau de bord) ; le reste par étapes, chacune utile seule |
+| Le questionnaire qui vieillit | faible | JSON, questions identifiées par une clé stable, une question retirée garde sa réponse visible |
+| Étendre le service de Budget | faible | un champ `direction`, testé des deux côtés (§6) |
+| Stockage d'images partagé (1 Go gratuit) | faible | images réduites, plafond par projet, gros fichiers en liens (§3.6) |
+| Remonter les images au socle | moyenne | à l'étape 7, déplacement vérifié par la suite de Hauts faits |
+| Réglementaire (factures, livre des recettes, plafond) | à **ne pas** prendre | rien n'est facturé ici ; le livre des recettes est une vue d'aide, présentée comme telle (§3.8) |
+| Données personnelles des clients (nom, téléphone) | faible | elles restent dans le compte de Jules, sous RLS ; aucune n'est envoyée ailleurs |
+| Hors ligne | faible, déjà fait trois fois | ids choisis par l'app dès l'étape 1, file plus tard ; brouillon local pour les besoins (§5) |
+
+Rien de payant, rien qui ne tienne dans l'offre gratuite.
+
+---
+
+## 9. Nommer le module
+
+Règle du 28/09/2026 : un module porte un **nom fonctionnel**. Propositions :
+
+- **Projets** 💼 — ce qu'il range ; neutre, clair, et ne présume pas que tous les projets seront
+  des sites. **Recommandé.**
+- **Clients** 🤝 — dit pour qui, mais la vue principale est le travail, pas le carnet
+  d'adresses.
+- **Freelance** 🧑‍💻 — dit le métier, mais un mot anglais de plus (Jules a accepté *Flashcards* et
+  *Calendar*, c'est donc possible).
+- **Atelier** 🛠️ — joli, moins immédiat.
+
+Nom technique : **`projets`**. Couleur proposée : un indigo, `#7f9cf5` — les teintes déjà prises
+sont l'or, le violet, le bleu ciel, le turquoise, le lilas, le citron vert, le rose et le corail.
+
+---
+
+## 10. Découpage proposé
+
+| Étape | Contenu | Résultat |
+|---|---|---|
+| 1 | Migration (clients, projets, phases, tâches, notes), contrat et ses deux implémentations, module signet et aperçu d'accueil | le module existe |
+| 2 | Bibliothèques pures : modèle de phases et sa copie, avancement, « en danger », tableau de bord (ce qui entre dans « cette semaine », « en retard », « en attente »), validation | les règles sont justes |
+| 3 | Clients, création d'un projet depuis le modèle, fiche (Aperçu, Tâches, Journal), statut et « en attente du client », tableau de bord | **la V1** |
+| 4 | Besoins (questionnaire, brouillon local), Design, Documents (liens et accès sans mot de passe), pipeline | le projet complet |
+| 5 | Argent : migration des paiements, échéancier, encaissé / reste, envoi à Budget (service étendu au socle), vue Recettes si retenue | l'argent suivi |
+| 6 | Calque dans Calendar (échéances, tâches cochables et déplaçables, paiements attendus), rappels | le lien avec le reste d'Atlas |
+| 7 | Images (logo, photos, maquettes) — avec, si décidé, l'envoi d'images remonté au socle | les images |
+| plus tard | éditeur de modèles, plusieurs modèles (vitrine, boutique, maintenance), temps passé, récap imprimable du projet, file hors ligne | — |
+
+---
+
+## 11. Questions à trancher ensemble
+
+1. **Le nom** : Projets, Clients, Freelance, Atelier, autre ? Et l'emoji.
+2. **Les statuts du pipeline** (§3.2) : la liste proposée convient-elle ? « Maintenance » en fait
+   partie ?
+3. **Les métiers des clients** : liste fixe (food truck, restaurant, coiffeur, fleuriste,
+   boulangerie, artisan, commerce, autre) ou texte libre ?
+4. **Le modèle de projet** (§3.3) : les sept phases proposées te parlent-elles ? Un seul modèle
+   (site vitrine) dans la V1, ou plusieurs (vitrine, boutique en ligne, maintenance) ?
+5. **Le questionnaire de besoins** (§3.4) : fixe et écrit dans le code (on l'enrichit au fil des
+   versions), ou modifiable dans l'app ?
+6. **L'échéancier par défaut** (§3.8) : 30 % / 70 %, 50 % / 50 %, ou rien de proposé ?
+7. **Les paiements reçus vers Budget** : automatiquement à chaque encaissement, ou une case
+   à cocher (comme Courses, cochée par défaut) ?
+8. **La vue Recettes** (livre des recettes exportable) : utile, ou ton outil de facturation s'en
+   chargera ?
+9. **Le temps passé** (§3.10) : le noter, oui ou non ?
+10. **Les images remontées au socle** (§7), partagées avec Hauts faits : d'accord ?
+11. **Le plafond d'images** par projet : 20 ?
+12. **L'avancement** (§4.5) : part de toutes les tâches du projet, ou moyenne des phases ?
+
+---
+
+## Sources
+
+- Réforme de la facturation électronique : calendrier publié par l'administration (impots.gouv.fr,
+  « facturation électronique entre entreprises ») — réception obligatoire pour toutes les
+  entreprises au 1er septembre 2026, émission pour les PME et micro-entreprises au 1er septembre
+  2027. **À revérifier** au moment de créer l'entreprise : ce calendrier a déjà été repoussé.
+- Obligations du micro-entrepreneur (livre des recettes, mentions des factures, plafonds de
+  chiffre d'affaires) : autoentrepreneur.urssaf.fr et service-public.fr.
+- Produits cités (§2) : présentations publiques de Trello, Asana, ClickUp, Basecamp, Notion,
+  Dubsado, HoneyBook, Moxie, Bonsai, Plutio, Indy, Abby, Freebe. Aucune fonctionnalité n'a été
+  essayée dans le détail ; l'étude retient des idées, pas des comparatifs.

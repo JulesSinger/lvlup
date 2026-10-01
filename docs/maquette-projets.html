@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projets, maquette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Maquette du module Projets d'Atlas (docs/etude-projets.md) : tableau de bord,
+   pipeline, fiche projet. Données fictives, quatre commerçants.
+   Palette et polices du socle (core/styles/base.css), accent indigo proposé. */
+:root {
+  --bg: #0b0e14; --bg-2: #11151f; --surface: #161b27; --surface-2: #1c2232;
+  --border: #262e40; --border-strong: #36405a;
+  --text: #e8ecf4; --text-dim: #97a1b8; --text-faint: #6a748c;
+  --accent: #7f9cf5; --accent-hi: #a3b8ff;
+  --gold: #f2c14e; --pink: #ee88b2; --sky: #6fb6ff; --green: #6fc783; --coral: #ff9f7a;
+  --violet: #b49af2; --teal: #52d6c8; --red: #ff7b7b; --gray: #9aa3b6;
+  --on-color: #0b0e14;
+  --glow-1: #1b2440; --glow-2: #1d2240;
+  --display: 'Cinzel', 'Trajan Pro', Georgia, serif;
+  --body: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f6f4ef; --bg-2: #efece4; --surface: #ffffff; --surface-2: #f3f0e8;
+    --border: #e2ddd0; --border-strong: #cfc8b6;
+    --text: #1d2130; --text-dim: #545b6e; --text-faint: #858b9a;
+    --accent: #4a63c9; --accent-hi: #3a52b3;
+    --gold: #b58212; --pink: #c24f82; --sky: #2f78c4; --green: #2f8c4a; --coral: #cf5a34;
+    --violet: #7358c9; --teal: #178a7e; --red: #c43c3c; --gray: #6b7385;
+    --on-color: #ffffff; --glow-1: #e6e8f2; --glow-2: #ece6f0;
+    color-scheme: light;
+  }
+}
+:root[data-theme="dark"] { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text); font-family: var(--body);
+  font-size: 15px; line-height: 1.5;
+  background-image: radial-gradient(900px 500px at 10% -10%, var(--glow-1), transparent 70%),
+                    radial-gradient(700px 500px at 100% 0%, var(--glow-2), transparent 70%);
+  background-attachment: fixed;
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 80px; }
+.note {
+  font-size: 12.5px; color: var(--text-faint); border: 1px dashed var(--border-strong);
+  border-radius: 10px; padding: 8px 12px; margin-bottom: 20px;
+}
+.head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.head h1 { font-family: var(--display); font-weight: 600; font-size: 26px; margin: 0; letter-spacing: 0.02em; }
+.head .emoji { font-size: 26px; }
+.head .add {
+  margin-left: auto; font: 600 13.5px var(--body); color: var(--on-color); background: var(--accent);
+  border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer;
+}
+.tabs { display: flex; gap: 6px; margin: 18px 0 20px; flex-wrap: wrap; }
+.tab {
+  font: 500 13.5px var(--body); color: var(--text-dim); background: transparent;
+  border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px; cursor: pointer;
+}
+.tab[aria-selected="true"] { color: var(--on-color); background: var(--accent); border-color: var(--accent); }
+button:focus-visible, .proj:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 2px; }
+
+h2 {
+  font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-faint); margin: 0 0 10px; display: flex; gap: 8px; align-items: baseline;
+}
+h2 .n { color: var(--text-dim); letter-spacing: 0; text-transform: none; font-weight: 500; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
+
+/* Tableau de bord */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; }
+.stat small { display: block; font-size: 12px; color: var(--text-faint); }
+.stat b { font-size: 20px; font-weight: 600; }
+.stat.warn b { color: var(--coral); }
+.dash { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; align-items: start; }
+.col { display: grid; gap: 16px; }
+
+.task { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-top: 1px solid var(--border); }
+.task:first-of-type { border-top: 0; }
+.check {
+  flex: none; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border-strong);
+  margin-top: 2px; background: transparent; cursor: pointer; padding: 0;
+}
+.task.done .check { background: var(--green); border-color: var(--green); }
+.task.done .t { text-decoration: line-through; color: var(--text-faint); }
+.task .t { flex: 1; min-width: 0; }
+.task .meta { display: inline-block; width: 100%; font-size: 12px; color: var(--text-faint); }
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 500; border-radius: 999px; padding: 1px 8px;
+  color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent);
+}
+.when { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.when.late { color: var(--coral); font-weight: 600; }
+
+.wait { display: flex; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--border); }
+.wait:first-of-type { border-top: 0; }
+.wait .t { flex: 1; min-width: 0; }
+.wait .days { font-size: 12px; color: var(--text-dim); }
+.wait .days.old { color: var(--coral); }
+
+.projs { display: grid; gap: 10px; }
+.proj {
+  display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px;
+  border-left: 4px solid var(--c);
+}
+.proj:hover { border-color: var(--border-strong); border-left-color: var(--c); }
+.proj .top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.proj .client { font-weight: 600; }
+.proj .title { color: var(--text-dim); font-size: 13.5px; }
+.proj .due { margin-left: auto; font-size: 12.5px; color: var(--text-dim); }
+.proj .due.risk { color: var(--coral); font-weight: 600; }
+.status {
+  font-size: 11.5px; font-weight: 600; border-radius: 6px; padding: 1px 7px;
+  color: var(--s); border: 1px solid color-mix(in srgb, var(--s) 45%, transparent);
+}
+.phases { display: flex; gap: 3px; margin: 10px 0 4px; }
+.phases i {
+  flex: 1; height: 6px; border-radius: 3px; background: var(--surface-2); position: relative; overflow: hidden;
+}
+.phases i::after {
+  content: ""; position: absolute; inset: 0; width: var(--p); background: var(--c); border-radius: 3px;
+}
+.proj .foot { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-faint); }
+
+.money { display: grid; gap: 6px; font-size: 14px; }
+.money .row { display: flex; justify-content: space-between; gap: 10px; }
+.money .row span:last-child { font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
+.money .late { color: var(--coral); }
+
+/* Pipeline */
+.pipe { display: grid; grid-template-columns: repeat(6, minmax(150px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 8px; }
+.lane { background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px; min-height: 160px; }
+.lane h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--s); display: flex; justify-content: space-between; }
+.lane h3 span { color: var(--text-faint); font-weight: 500; }
+.mini { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--c); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; font-size: 13px; }
+.mini b { display: block; font-weight: 600; }
+.mini small { color: var(--text-faint); font-size: 12px; }
+.mini .wt { display: block; margin-top: 4px; font-size: 11.5px; color: var(--gold); }
+
+/* Fiche projet */
+.back { font: 500 13px var(--body); color: var(--text-dim); background: none; border: 0; padding: 0; cursor: pointer; margin-bottom: 12px; }
+.sheet-head { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 6px; }
+.logo {
+  width: 56px; height: 56px; border-radius: 14px; flex: none; display: grid; place-items: center;
+  font-size: 28px; background: color-mix(in srgb, var(--pink) 18%, var(--surface)); border: 1px solid var(--border);
+}
+.sheet-head h2.title { font-family: var(--display); text-transform: none; letter-spacing: 0.01em; font-size: 22px; color: var(--text); margin: 0; }
+.sheet-head .sub { color: var(--text-dim); font-size: 13.5px; }
+.sheet-head .right { margin-left: auto; text-align: right; font-size: 13px; color: var(--text-dim); }
+.sheet-head .right b { display: block; font-size: 22px; color: var(--text); font-weight: 600; }
+.waitbar {
+  display: flex; gap: 10px; align-items: center; margin: 12px 0 4px; padding: 9px 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--gold) 12%, transparent); border: 1px solid color-mix(in srgb, var(--gold) 35%, transparent);
+  font-size: 13.5px;
+}
+.waitbar b { color: var(--gold); }
+.subtabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 16px 0; overflow-x: auto; }
+.subtab {
+  font: 500 13.5px var(--body); color: var(--text-dim); background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 8px 12px; cursor: pointer; white-space: nowrap;
+}
+.subtab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+
+.phase { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; background: var(--surface); }
+.phase summary {
+  list-style: none; cursor: pointer; display: flex; gap: 10px; align-items: center; padding: 10px 14px;
+}
+.phase summary::-webkit-details-marker { display: none; }
+.phase summary .pn { font-weight: 600; }
+.phase summary .pc { font-size: 12.5px; color: var(--text-faint); }
+.phase summary .bar { flex: 1; max-width: 160px; height: 6px; border-radius: 3px; background: var(--surface-2); margin-left: auto; overflow: hidden; }
+.phase summary .bar i { display: block; height: 100%; width: var(--p); background: var(--accent); border-radius: 3px; }
+.phase summary .pd { font-size: 12px; color: var(--text-dim); min-width: 64px; text-align: right; }
+.phase .body { padding: 0 14px 8px; }
+.phase .addt { font: 13px var(--body); color: var(--text-faint); background: none; border: 0; padding: 6px 0 4px 28px; cursor: pointer; }
+.wtag { font-size: 11.5px; color: var(--gold); margin-left: 6px; }
+
+.needs { display: grid; gap: 10px; }
+.q { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; }
+.q small { display: block; font-size: 12px; color: var(--text-faint); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.q p { margin: 4px 0 0; }
+.q .ask { color: var(--gold); font-size: 13px; }
+.pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.pill { font-size: 12.5px; border: 1px solid var(--border-strong); border-radius: 999px; padding: 2px 10px; color: var(--text-dim); }
+.pill.on { border-color: var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+.sw { text-align: center; font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.sw i { display: block; width: 54px; height: 54px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 4px; background: var(--h); }
+.links { display: grid; gap: 6px; }
+.link { display: flex; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--border); font-size: 14px; }
+.link:first-child { border-top: 0; }
+.link .ic { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-2); flex: none; }
+.link .u { color: var(--text-faint); font-size: 12px; display: block; }
+.lock { font-size: 12px; color: var(--text-faint); margin-top: 8px; }
+.thumbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.thumbs i { aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--border); background: var(--g); }
+
+.pay { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 14px; align-items: center; font-size: 14px; }
+.pay .h { font-size: 12px; color: var(--text-faint); }
+.pay .ok { color: var(--green); font-size: 12.5px; }
+.pay .due { color: var(--text-dim); font-size: 12.5px; }
+.pay .amt { text-align: right; font-variant-numeric: tabular-nums; }
+.gauge { height: 10px; border-radius: 5px; background: var(--surface-2); overflow: hidden; margin: 10px 0 6px; }
+.gauge i { display: block; height: 100%; width: 30%; background: var(--green); }
+
+.journal .e { display: flex; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 14px; }
+.journal .e:first-child { border-top: 0; }
+.journal .d { color: var(--text-faint); font-size: 12.5px; min-width: 58px; }
+
+@media (max-width: 760px) {
+  .stats { grid-template-columns: 1fr 1fr; }
+  .dash, .two { grid-template-columns: 1fr; }
+  .pipe { grid-template-columns: 1fr; overflow: visible; }
+  .lane { min-height: 0; }
+  .sheet-head .right { margin-left: 0; text-align: left; }
+  .phase summary .bar { display: none; }
+  .head .add span { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="note">Maquette statique de <code>docs/etude-projets.md</code> — données fictives. Le nom (« Projets »), l'emoji et l'indigo sont des propositions (§9, §11).</p>
+
+  <header class="head">
+    <span class="emoji">💼</span>
+    <h1>Projets</h1>
+    <button class="add" type="button">+ <span>Nouveau projet</span></button>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-view="dash">Tableau de bord</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="pipe">Pipeline</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="sheet">Fiche projet</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="clients" disabled title="Hors maquette">Clients</button>
+  </nav>
+
+  <!-- TABLEAU DE BORD -->
+  <section id="view-dash">
+    <div class="stats">
+      <div class="stat"><small>Projets actifs</small><b>3</b></div>
+      <div class="stat warn"><small>En retard</small><b>2</b></div>
+      <div class="stat"><small>Encaissé en octobre</small><b>540 €</b></div>
+      <div class="stat"><small>Reste à encaisser</small><b>2 460 €</b></div>
+    </div>
+
+    <div class="dash">
+      <div class="col">
+        <div class="panel">
+          <h2>Cette semaine <span class="n">7 tâches</span></h2>
+          <div class="task"><button class="check" aria-label="Cocher"></button><span class="t">Corriger le menu sur téléphone<span class="meta"><span class="tag" style="--c: var(--pink)">Fleurs de Lou</span> · Recette</span></span><span class="when late">hier</span></div>
+          <div class="task"><button class="check" aria-label="Cocher"></button><span class="t">Maquette de l'accueil<span class="meta"><span class="tag" style="--c: var(--coral)">Le Camion Gourmand</span> · Maquette</span></span><span class="when">aujourd'hui</span></div>
+          <div class="task done"><button class="check" aria-label="Décocher"></button><span class="t">Acheter le nom de domaine<span class="meta"><span class="tag" style="--c: var(--pink)">Fleurs de Lou</span> · Mise en ligne</span></span><span class="when">aujourd'hui</span></div>
+          <div class="task"><button class="check" aria-label="Cocher"></button><span class="t">Carte des emplacements de la semaine<span class="meta"><span class="tag" style="--c: var(--coral)">Le Camion Gourmand</span> · Développement</span></span><span class="when">jeu. 3</span></div>
+          <div class="task"><button class="check" aria-label="Cocher"></button><span class="t">Rappeler pour le devis<span class="meta"><span class="tag" style="--c: var(--teal)">Boulangerie Ferrand</span> · Découverte</span></span><span class="when">ven. 4</span></div>
+        </div>
+
+        <div class="panel">
+          <h2>En attente du client <span class="n">2</span></h2>
+          <div class="wait"><span>⏳</span><span class="t"><b>Les photos des bouquets</b><br><span class="tag" style="--c: var(--pink)">Fleurs de Lou</span></span><span class="days old">depuis 9 jours</span></div>
+          <div class="wait"><span>⏳</span><span class="t"><b>Validation des tarifs</b><br><span class="tag" style="--c: var(--sky)">Mèche Rebelle</span></span><span class="days">depuis 2 jours</span></div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div>
+          <h2>Projets actifs</h2>
+          <div class="projs">
+            <button class="proj" style="--c: var(--pink)" data-open>
+              <div class="top"><span class="client">Fleurs de Lou</span><span class="title">Site vitrine</span><span class="status" style="--s: var(--violet)">En recette</span><span class="due risk">mise en ligne dans 5 j</span></div>
+              <div class="phases"><i style="--p:100%"></i><i style="--p:80%"></i><i style="--p:100%"></i><i style="--p:100%"></i><i style="--p:40%"></i><i style="--p:15%"></i><i style="--p:0%"></i></div>
+              <div class="foot"><span>Recette · 31 / 44 tâches</span><span>270 / 900 €</span></div>
+            </button>
+            <button class="proj" style="--c: var(--coral)">
+              <div class="top"><span class="client">Le Camion Gourmand</span><span class="title">Site + emplacements</span><span class="status" style="--s: var(--accent)">En cours</span><span class="due">25 oct.</span></div>
+              <div class="phases"><i style="--p:100%"></i><i style="--p:100%"></i><i style="--p:50%"></i><i style="--p:10%"></i><i style="--p:0%"></i><i style="--p:0%"></i><i style="--p:0%"></i></div>
+              <div class="foot"><span>Maquette · 16 / 46 tâches</span><span>360 / 1 200 €</span></div>
+            </button>
+            <button class="proj" style="--c: var(--sky)">
+              <div class="top"><span class="client">Mèche Rebelle</span><span class="title">Site vitrine</span><span class="status" style="--s: var(--green)">Signé</span><span class="due">15 nov.</span></div>
+              <div class="phases"><i style="--p:75%"></i><i style="--p:20%"></i><i style="--p:0%"></i><i style="--p:0%"></i><i style="--p:0%"></i><i style="--p:0%"></i><i style="--p:0%"></i></div>
+              <div class="foot"><span>Découverte · 5 / 42 tâches</span><span>0 / 750 €</span></div>
+            </button>
+          </div>
+        </div>
+
+        <div class="panel money">
+          <h2>Argent</h2>
+          <div class="row"><span>Encaissé en 2026</span><span>1 890 €</span></div>
+          <div class="row"><span>Reste à encaisser</span><span>2 460 €</span></div>
+          <div class="row late"><span>⚠ Acompte Mèche Rebelle, attendu le 28/09</span><span>225 €</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PIPELINE -->
+  <section id="view-pipe" hidden>
+    <div class="pipe">
+      <div class="lane" style="--s: var(--gray)"><h3>Piste <span>1</span></h3>
+        <div class="mini" style="--c: var(--teal)"><b>Boulangerie Ferrand</b><small>Site vitrine · rappeler ven.</small></div>
+      </div>
+      <div class="lane" style="--s: var(--gold)"><h3>Devis envoyé <span>1</span></h3>
+        <div class="mini" style="--c: var(--violet)"><b>Atelier Bois Clair</b><small>Site + boutique · 1 800 €</small><span class="wt">⏳ réponse au devis</span></div>
+      </div>
+      <div class="lane" style="--s: var(--green)"><h3>Signé <span>1</span></h3>
+        <div class="mini" style="--c: var(--sky)"><b>Mèche Rebelle</b><small>Site vitrine · 15 nov.</small><span class="wt">⏳ validation des tarifs</span></div>
+      </div>
+      <div class="lane" style="--s: var(--accent)"><h3>En cours <span>1</span></h3>
+        <div class="mini" style="--c: var(--coral)"><b>Le Camion Gourmand</b><small>Site + emplacements · 25 oct.</small></div>
+      </div>
+      <div class="lane" style="--s: var(--violet)"><h3>En recette <span>1</span></h3>
+        <div class="mini" style="--c: var(--pink)"><b>Fleurs de Lou</b><small>Site vitrine · 6 oct.</small><span class="wt">⏳ photos des bouquets</span></div>
+      </div>
+      <div class="lane" style="--s: var(--teal)"><h3>En ligne · maintenance <span>1</span></h3>
+        <div class="mini" style="--c: var(--gold)"><b>Pizzeria Nonna</b><small>Maintenance · 30 €/mois</small></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FICHE PROJET -->
+  <section id="view-sheet" hidden>
+    <button class="back" type="button" data-view-link="dash">← Tableau de bord</button>
+    <div class="sheet-head">
+      <div class="logo">💐</div>
+      <div>
+        <h2 class="title">Fleurs de Lou — Site vitrine</h2>
+        <div class="sub">Fleuriste · Lou Martin · 06 12 34 56 78 · <span class="status" style="--s: var(--violet)">En recette</span></div>
+      </div>
+      <div class="right"><b>70 %</b>31 / 44 tâches · mise en ligne le 6 oct.</div>
+    </div>
+    <div class="waitbar">⏳ <span>En attente du client : <b>les photos des bouquets</b>, depuis 9 jours</span></div>
+
+    <nav class="subtabs" role="tablist">
+      <button class="subtab" role="tab" aria-selected="true" data-sub="tasks">Tâches</button>
+      <button class="subtab" role="tab" aria-selected="false" data-sub="needs">Besoins</button>
+      <button class="subtab" role="tab" aria-selected="false" data-sub="design">Design &amp; documents</button>
+      <button class="subtab" role="tab" aria-selected="false" data-sub="money">Argent</button>
+      <button class="subtab" role="tab" aria-selected="false" data-sub="journal">Journal</button>
+    </nav>
+
+    <div data-subview="tasks">
+      <details class="phase"><summary><span class="pn">1. Découverte</span><span class="pc">5 / 5</span><span class="bar" style="--p:100%"><i></i></span><span class="pd">✓</span></summary></details>
+      <details class="phase"><summary><span class="pn">2. Contenus</span><span class="pc">4 / 5</span><span class="bar" style="--p:80%"><i></i></span><span class="pd">—</span></summary>
+        <div class="body">
+          <div class="task done"><button class="check"></button><span class="t">Logo en SVG</span></div>
+          <div class="task done"><button class="check"></button><span class="t">Textes de présentation</span></div>
+          <div class="task done"><button class="check"></button><span class="t">Horaires et accès</span></div>
+          <div class="task done"><button class="check"></button><span class="t">Accès à la fiche Google</span></div>
+          <div class="task"><button class="check"></button><span class="t">Photos des bouquets<span class="wtag">⏳ attend le client</span></span></div>
+        </div>
+      </details>
+      <details class="phase"><summary><span class="pn">3. Maquette</span><span class="pc">3 / 3</span><span class="bar" style="--p:100%"><i></i></span><span class="pd">✓</span></summary></details>
+      <details class="phase"><summary><span class="pn">4. Développement</span><span class="pc">12 / 12</span><span class="bar" style="--p:100%"><i></i></span><span class="pd">✓</span></summary></details>
+      <details class="phase" open><summary><span class="pn">5. Recette</span><span class="pc">2 / 5</span><span class="bar" style="--p:40%"><i></i></span><span class="pd">3 oct.</span></summary>
+        <div class="body">
+          <div class="task done"><button class="check"></button><span class="t">Envoyer le lien de préproduction</span></div>
+          <div class="task done"><button class="check"></button><span class="t">Relecture des textes par Lou</span></div>
+          <div class="task"><button class="check"></button><span class="t">Corriger le menu sur téléphone</span><span class="when late">hier</span></div>
+          <div class="task"><button class="check"></button><span class="t">Tester sur iPhone et Android</span></div>
+          <div class="task"><button class="check"></button><span class="t">Validation écrite du client</span></div>
+          <button class="addt">+ Ajouter une tâche</button>
+        </div>
+      </details>
+      <details class="phase"><summary><span class="pn">6. Mise en ligne</span><span class="pc">1 / 8</span><span class="bar" style="--p:12%"><i></i></span><span class="pd">6 oct.</span></summary>
+        <div class="body">
+          <div class="task done"><button class="check"></button><span class="t">Nom de domaine fleursdelou.fr</span></div>
+          <div class="task"><button class="check"></button><span class="t">Hébergement et HTTPS</span></div>
+          <div class="task"><button class="check"></button><span class="t">Mentions légales et confidentialité</span></div>
+          <div class="task"><button class="check"></button><span class="t">Search Console et plan du site</span></div>
+          <div class="task"><button class="check"></button><span class="t">Fiche Google : lien vers le site</span></div>
+          <div class="task"><button class="check"></button><span class="t">Favicon et image de partage</span></div>
+          <div class="task"><button class="check"></button><span class="t">Formulaire de contact testé</span></div>
+          <div class="task"><button class="check"></button><span class="t">Première sauvegarde</span></div>
+        </div>
+      </details>
+      <details class="phase"><summary><span class="pn">7. Après</span><span class="pc">0 / 4</span><span class="bar" style="--p:0%"><i></i></span><span class="pd">—</span></summary></details>
+    </div>
+
+    <div data-subview="needs" hidden>
+      <div class="needs">
+        <div class="q"><small>L'activité</small><p>Fleuriste de quartier, bouquets de saison, mariages et deuil. Clientèle locale, beaucoup de commandes par téléphone.</p></div>
+        <div class="q"><small>Le but du site</small><div class="pills"><span class="pill on">Être trouvée sur Google</span><span class="pill on">Montrer les créations</span><span class="pill">Réservation</span><span class="pill">Commande en ligne</span><span class="pill on">Rassurer avant une visite</span></div></div>
+        <div class="q"><small>Les pages</small><div class="pills"><span class="pill on">Accueil</span><span class="pill on">La boutique</span><span class="pill on">Mariages</span><span class="pill on">Galerie</span><span class="pill on">Horaires et accès</span><span class="pill on">Contact</span><span class="pill on">Mentions légales</span><span class="pill">Blog</span></div></div>
+        <div class="q"><small>Les contenus</small><p>Textes : Lou, déjà reçus. Photos : Lou doit envoyer 20 photos de bouquets.</p><p class="ask">⏳ à demander au client</p></div>
+        <div class="q"><small>Le technique</small><p>Pas de domaine existant. E-mail pro souhaité (contact@). Lou modifiera les horaires elle-même.</p></div>
+        <div class="q"><small>Le cadre</small><p>900 €. En ligne avant la Toussaint (forte période pour le deuil).</p></div>
+      </div>
+    </div>
+
+    <div data-subview="design" hidden>
+      <div class="two">
+        <div class="panel">
+          <h2>Couleurs</h2>
+          <div class="swatches">
+            <span class="sw"><i style="--h:#e7b7c3"></i>#E7B7C3</span>
+            <span class="sw"><i style="--h:#4e6b4a"></i>#4E6B4A</span>
+            <span class="sw"><i style="--h:#f8f3ec"></i>#F8F3EC</span>
+            <span class="sw"><i style="--h:#2b2522"></i>#2B2522</span>
+          </div>
+          <h2 style="margin-top:16px">Polices</h2>
+          <p style="margin:0">Titres : <b>Cormorant Garamond</b> · Texte : <b>Inter</b></p>
+          <h2 style="margin-top:16px">Ambiance</h2>
+          <p style="margin:0">Douce, champêtre, artisanale.</p>
+        </div>
+        <div class="panel">
+          <h2>Liens</h2>
+          <div class="links">
+            <div class="link"><span class="ic">🎨</span><span>Maquette<span class="u">figma.com/file/…</span></span></div>
+            <div class="link"><span class="ic">📁</span><span>Dossier partagé de Lou<span class="u">drive.google.com/…</span></span></div>
+            <div class="link"><span class="ic">🧪</span><span>Préproduction<span class="u">fleursdelou.pages.dev</span></span></div>
+            <div class="link"><span class="ic">🌐</span><span>Registraire — OVH<span class="u">identifiant : lou.martin@… · propriétaire : la cliente</span></span></div>
+          </div>
+          <p class="lock">🔒 Aucun mot de passe ici — « Bitwarden : Fleurs de Lou — OVH ».</p>
+          <h2 style="margin-top:16px">Images <span class="n">5 / 20</span></h2>
+          <div class="thumbs">
+            <i style="--g: linear-gradient(135deg, #e7b7c3, #f8f3ec)"></i>
+            <i style="--g: linear-gradient(135deg, #4e6b4a, #a7c49a)"></i>
+            <i style="--g: linear-gradient(135deg, #d98aa0, #f2d7c9)"></i>
+            <i style="--g: linear-gradient(135deg, #2b2522, #6b5a52)"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div data-subview="money" hidden>
+      <div class="panel">
+        <h2>Prix convenu <span class="n">900 €</span></h2>
+        <div class="gauge"><i></i></div>
+        <p style="margin:0 0 14px;font-size:13.5px;color:var(--text-dim)">270 € encaissés · 630 € restent à encaisser</p>
+        <div class="pay">
+          <span class="h">Paiement</span><span class="h">État</span><span class="h amt">Montant</span>
+          <span>Acompte 30 %</span><span class="ok">✓ reçu le 12/09 · virement · F-2026-004</span><span class="amt">270 €</span>
+          <span>Solde</span><span class="due">attendu le 6/10</span><span class="amt">630 €</span>
+        </div>
+        <p class="lock">→ Un paiement reçu peut être ajouté à Budget comme entrée (« Revenus freelance »).</p>
+      </div>
+    </div>
+
+    <div data-subview="journal" hidden>
+      <div class="panel journal">
+        <div class="e"><span class="d">30/09</span><span>Relancé Lou pour les photos par SMS.</span></div>
+        <div class="e"><span class="d">24/09</span><span>Maquette validée par Lou au téléphone, ajoute une page Mariages.</span></div>
+        <div class="e"><span class="d">12/09</span><span>Acompte reçu, projet démarré.</span></div>
+        <div class="e"><span class="d">05/09</span><span>Premier rendez-vous à la boutique, questionnaire rempli.</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  const views = ['dash', 'pipe', 'sheet'];
+  function show(view) {
+    for (const v of views) document.getElementById('view-' + v).hidden = v !== view;
+    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.view === view)));
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll('.tab[data-view]').forEach((t) => t.addEventListener('click', () => !t.disabled && show(t.dataset.view)));
+  document.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => show('sheet')));
+  document.querySelectorAll('[data-view-link]').forEach((b) => b.addEventListener('click', () => show(b.dataset.viewLink)));
+  document.querySelectorAll('.subtab').forEach((t) => t.addEventListener('click', () => {
+    document.querySelectorAll('.subtab').forEach((s) => s.setAttribute('aria-selected', String(s === t)));
+    document.querySelectorAll('[data-subview]').forEach((v) => { v.hidden = v.dataset.subview !== t.dataset.sub; });
+  }));
+  document.querySelectorAll('.check').forEach((c) => c.addEventListener('click', (e) => {
+    e.stopPropagation();
+    c.closest('.task').classList.toggle('done');
+  }));
+</script>
+</body>
+</html>
