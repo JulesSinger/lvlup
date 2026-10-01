@@ -210,6 +210,56 @@ export async function run({ browser, check, BASE }) {
   await page.locator('.fc-timegrid-event', { hasText: 'Sport' }).waitFor({ state: 'detached' });
   check('Supprimer (après confirmation) retire l’événement', (await page.locator('.fc-event', { hasText: 'Sport' }).count()) === 0);
 
+  // --- Les rappels (01/10/2026) -----------------------------------------------------------
+  {
+    const stored = (title) =>
+      page.evaluate((t) => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').calendarEvents.find((e) => e.title === t)?.reminders, title);
+    const selected = (id) => page.locator(`#${id}`).evaluate((el) => el.selectedOptions[0]?.textContent ?? '');
+    await page.getByRole('button', { name: 'Nouvel événement' }).click();
+    await page.waitForSelector('.calendrier-editor');
+    check('Un nouvel événement propose 15 minutes avant, le défaut', (await selected('calendrier-reminder-1')) === '15 min avant');
+    check('… et dit que c’est le défaut, et qu’il faut un compte pour qu’ils partent', ((await page.locator('.calendrier-reminders-hint').textContent()) ?? '').includes('Sans compte'));
+    await page.locator('#calendrier-title').fill('Kiné');
+    await page.locator('#calendrier-start-day').fill(weekDay(2));
+    await page.locator('#calendrier-end-day').fill(weekDay(2));
+    await page.locator('#calendrier-start-time').fill('10:00');
+    await page.locator('#calendrier-end-time').fill('11:00');
+    await page.locator('#calendrier-reminder-2').selectOption({ label: '1 jour avant' });
+    await page.locator('.calendrier-allday input').check();
+    check('En journée entière, « 15 min avant » n’a plus de sens : aucun rappel par défaut', (await selected('calendrier-reminder-1')) === 'Aucun rappel');
+    await page.locator('.calendrier-allday input').uncheck();
+    await page.locator('#calendrier-reminder-1').selectOption({ label: '30 min avant' });
+    await page.locator('#calendrier-reminder-2').selectOption({ label: '1 jour avant' });
+    check('Le second rappel ne propose pas celui déjà choisi', (await page.locator('#calendrier-reminder-2 option', { hasText: '30 min avant' }).count()) === 0);
+    await page.getByRole('button', { name: 'Enregistrer' }).click();
+    await page.waitForSelector('.calendrier-editor', { state: 'detached' });
+    check('Deux rappels choisis sont enregistrés', JSON.stringify(await stored('Kiné')) === '[30,1440]', JSON.stringify(await stored('Kiné')));
+    await page.locator('.fc-event', { hasText: 'Kiné' }).first().click();
+    await page.waitForSelector('.calendrier-editor');
+    check('… et relus à la réouverture', (await selected('calendrier-reminder-1')) === '30 min avant' && (await selected('calendrier-reminder-2')) === '1 jour avant');
+    await page.locator('#calendrier-reminder-1').selectOption({ label: 'Aucun rappel' });
+    check('« Aucun rappel » retire aussi le second', (await page.locator('#calendrier-reminder-2').count()) === 0);
+    await page.getByRole('button', { name: 'Enregistrer' }).click();
+    await page.waitForSelector('.calendrier-editor', { state: 'detached' });
+    check('« Aucun rappel » est un choix, enregistré comme tel', JSON.stringify(await stored('Kiné')) === '[]', JSON.stringify(await stored('Kiné')));
+    await page.locator('.fc-event', { hasText: 'Kiné' }).first().click();
+    await page.waitForSelector('.calendrier-editor');
+    page.once('dialog', (d) => d.accept());
+    await page.getByRole('button', { name: 'Supprimer' }).click();
+    await page.waitForSelector('.calendrier-editor', { state: 'detached' });
+
+    // En mode local, la section des réglages explique qu'il faut un compte, sans liste inutile.
+    await page.getByRole('button', { name: 'Réglages' }).click();
+    const settings = page.locator('.calendrier-settings');
+    await settings.waitFor();
+    check(
+      'Réglages : la section des rappels du calendrier dit qu’ils demandent un compte',
+      (await text(settings)).includes('Rappels du calendrier') && (await text(settings)).includes('demandent un compte') && (await settings.locator('select').count()) === 0,
+    );
+    await page.locator('.modal-foot').getByRole('button', { name: 'Fermer' }).click();
+    await settings.waitFor({ state: 'detached' });
+  }
+
   // --- Les séries (étape 4) ------------------------------------------------------------
   await page.getByRole('button', { name: 'Nouvel événement' }).click();
   await page.waitForSelector('.calendrier-editor');

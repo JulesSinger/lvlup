@@ -26,6 +26,8 @@ export interface Occurrence {
   color: CalendarEvent['color'];
   location: string;
   note: string;
+  /** `null` : ceux par défaut des réglages */
+  reminders: number[] | null;
   /** Fait partie d'une série */
   recurring: boolean;
   /** Une occurrence modifiée à part de sa série */
@@ -49,6 +51,8 @@ function occurrenceOf(event: CalendarEvent, day: string, override: EventOverride
     color: event.color,
     location: event.location,
     note: event.note,
+    // `?? null` : un événement relu d'une sauvegarde d'avant les rappels n'a pas le champ.
+    reminders: event.reminders ?? null,
     recurring: event.recurrence !== null,
     modified: override !== null,
   };

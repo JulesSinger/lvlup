@@ -194,6 +194,11 @@ d'envoyer, au passage du cron, ceux dont l'heure est venue — sans rien savoir 
 2. Redéployer la fonction : `supabase functions deploy send-reminders --no-verify-jwt`.
    Le **ping** doit répondre `version: 2026-09-28.1` ou plus récent.
 
+**Le calendrier (depuis le 01/10/2026)** s'y branche de la même façon : appliquer
+`supabase/2026-10-01-calendar-reminders.sql` (les rappels des événements et leurs réglages par
+défaut). Rien à redéployer. Les rappels se règlent dans la fenêtre d'un événement, et ceux par
+défaut dans Réglages → Rappels du calendrier.
+
 Couper le rappel quotidien de Zénith **ne désabonne plus l'appareil** : il continue de recevoir
 les rappels des autres modules. Pour retirer un appareil, « Retirer » dans la liste des
 appareils.
@@ -202,6 +207,7 @@ appareils.
 |---|---|
 | Rien à l'heure d'une tâche | La tâche n'a pas d'heure, ou « À l'heure des tâches » est coupé dans Réglages → Polaris, ou l'appareil n'est pas abonné (« Activer les notifications sur cet appareil »). |
 | Pas de résumé du matin | Il ne part que les jours où il y a quelque chose à faire. Les rappels sont recalculés quand Polaris est ouvert : au-delà de 7 jours sans l'ouvrir, plus rien n'est prévu. |
+| Rien avant un événement du calendrier | « Aucun rappel » choisi dans sa fenêtre, ou l'événement est à plus de 30 jours et le calendrier n'a pas été ouvert depuis (les rappels sont recalculés à son ouverture), ou l'appareil n'est pas abonné. |
 | Le cron répond `modules: { error: … }` | La table `reminders` manque : appliquer la migration. Le rappel de Zénith, lui, part quand même. |
 | Un rappel en retard n'arrive jamais | Voulu : plus d'une heure de retard (cron arrêté), il est abandonné plutôt qu'envoyé à contretemps. |
 | Un texte très long arrive raccourci (…) | Titre et texte vont jusqu'à 1000 caractères chacun ; au-delà de ce qu'une notification peut porter (~4 Ko, des centaines d'emojis par exemple), la fonction raccourcit plutôt que de voir l'envoi refusé. |

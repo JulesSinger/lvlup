@@ -33,8 +33,11 @@ export interface SeriesPlan {
   deleteEvent?: string;
 }
 
-const OVERRIDABLE = ['title', 'allDay', 'startDay', 'endDay', 'startTime', 'endTime', 'color', 'location', 'note'] as const;
-const PLAIN = ['title', 'color', 'location', 'note', 'allDay', 'startTime', 'endTime'] as const;
+const OVERRIDABLE = ['title', 'allDay', 'startDay', 'endDay', 'startTime', 'endTime', 'color', 'location', 'note', 'reminders'] as const;
+const PLAIN = ['title', 'color', 'location', 'note', 'allDay', 'startTime', 'endTime', 'reminders'] as const;
+
+/** Les rappels sont une liste : deux listes égales ne sont pas le même objet. */
+const same = (a: unknown, b: unknown) => (Array.isArray(a) || Array.isArray(b) ? JSON.stringify(a ?? null) === JSON.stringify(b ?? null) : a === b);
 
 /** Une règle sans ses champs vides, jours de la semaine triés : deux règles égales s'écrivent pareil. */
 function normalizeRule(rule: Recurrence | null | undefined): string {
@@ -68,7 +71,7 @@ function reshaped(event: CalendarEvent, from: string, before: OccurrenceValues, 
   const b = normalize(before);
   const a = normalize({ ...before, ...after });
   const changed: Partial<EventInput> = {};
-  for (const f of PLAIN) if (a[f] !== b[f]) (changed as Record<string, unknown>)[f] = a[f];
+  for (const f of PLAIN) if (!same(a[f], b[f])) (changed as Record<string, unknown>)[f] = a[f];
 
   const shift = daysBetween(b.startDay, a.startDay);
   const lengthBefore = daysBetween(b.startDay, b.endDay);
@@ -105,7 +108,7 @@ export function planEdit(
     const base = normalize(baseOccurrence(event, occurrenceDay));
     const next = normalize({ ...before, ...after, recurrence: undefined });
     const override: EventOverride = {};
-    for (const f of OVERRIDABLE) if (next[f] !== base[f]) (override as Record<string, unknown>)[f] = next[f];
+    for (const f of OVERRIDABLE) if (!same(next[f], base[f])) (override as Record<string, unknown>)[f] = next[f];
     checked({ ...next, recurrence: null });
     const existing = own.find((x) => x.occurrenceDay === occurrenceDay);
     if (Object.keys(override).length === 0) return { deleteExceptions: existing ? [existing.id] : [] };
@@ -140,6 +143,7 @@ export function planEdit(
     color: event.color,
     location: event.location,
     note: event.note,
+    reminders: event.reminders ?? null,
     timezone: event.timezone,
     ...changed,
     startDay,

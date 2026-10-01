@@ -20,6 +20,7 @@ const occurrence = (overrides: Partial<Occurrence> = {}): Occurrence => ({
   color: 'bleu',
   location: '',
   note: '',
+  reminders: null,
   recurring: false,
   modified: false,
   ...overrides,

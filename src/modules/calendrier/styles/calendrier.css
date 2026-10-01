@@ -607,3 +607,24 @@
   font-size: 11px;
   color: var(--text-faint);
 }
+
+/* Les rappels d'un événement, et ceux par défaut dans les réglages : deux
+   listes côte à côte, l'une sous l'autre sur un écran étroit. */
+.calendrier-reminders-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.calendrier-reminders-row select {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.calendrier-reminders-hint {
+  margin-top: -6px;
+}
+
+.calendrier-settings .calendrier-reminders {
+  margin-bottom: 10px;
+}

@@ -1,8 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
 import {
+  DEFAULT_CALENDAR_SETTINGS,
   deviceTimezone,
   type CalendarEvent,
+  type CalendarSettings,
   type EventColor,
   type EventException,
   type EventInput,
@@ -25,6 +27,7 @@ interface EventRow {
   color: EventColor;
   location: string;
   note: string;
+  reminders: number[] | null;
   created_at: string;
 }
 
@@ -53,6 +56,7 @@ const toEvent = (r: EventRow): CalendarEvent => ({
   color: r.color,
   location: r.location,
   note: r.note,
+  reminders: r.reminders ?? null,
   createdAt: r.created_at,
 });
 
@@ -79,6 +83,7 @@ function eventColumns(patch: Partial<EventInput>): Record<string, unknown> {
   if (patch.color !== undefined) row.color = patch.color;
   if (patch.location !== undefined) row.location = patch.location;
   if (patch.note !== undefined) row.note = patch.note;
+  if (patch.reminders !== undefined) row.reminders = patch.reminders;
   // Journée entière : pas d'heure, sinon la contrainte de la base refuse.
   if (patch.allDay === true) {
     row.start_time = null;
@@ -159,8 +164,33 @@ export class SupabaseCalendar implements CalendarStore {
     check((await this.client.from('calendar_exceptions').delete().eq('id', id)).error);
   }
 
+  async getSettings(): Promise<CalendarSettings> {
+    const { data, error } = await this.client.from('calendar_settings').select('timed_reminders, all_day_reminders').maybeSingle();
+    check(error);
+    if (!data) return { ...DEFAULT_CALENDAR_SETTINGS };
+    return { timedReminders: data.timed_reminders, allDayReminders: data.all_day_reminders };
+  }
+
+  async saveSettings(patch: Partial<CalendarSettings>) {
+    const userId = await this.requireUserId();
+    const next = { ...(await this.getSettings()), ...patch };
+    check(
+      (
+        await this.client.from('calendar_settings').upsert(
+          {
+            user_id: userId,
+            timed_reminders: next.timedReminders,
+            all_day_reminders: next.allDayReminders,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' },
+        )
+      ).error,
+    );
+  }
+
   async exportData(): Promise<CalendarBackup> {
-    return { events: await this.listEvents(), exceptions: await this.listExceptions() };
+    return { events: await this.listEvents(), exceptions: await this.listExceptions(), settings: await this.getSettings() };
   }
 
   /**
@@ -172,6 +202,9 @@ export class SupabaseCalendar implements CalendarStore {
     const userId = await this.requireUserId();
     check((await this.client.from('calendar_exceptions').delete().eq('user_id', userId)).error);
     check((await this.client.from('calendar_events').delete().eq('user_id', userId)).error);
+    // Une sauvegarde d'avant les rappels n'en a pas : on revient au défaut plutôt que de garder ceux d'avant.
+    check((await this.client.from('calendar_settings').delete().eq('user_id', userId)).error);
+    if (data.settings) await this.saveSettings(data.settings);
 
     const ids = new Map<string, string>();
     for (const event of data.events ?? []) {

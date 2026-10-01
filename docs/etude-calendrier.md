@@ -493,6 +493,42 @@ exceptions d'une occurrence (« sauf le 14 ») existaient déjà (étape 4).
 
 ---
 
+## 19. Les rappels (01/10/2026)
+
+Demande de Jules : « il n'y a pas de rappels / notifications possibles sur le calendrier ? ».
+Reportés au 27/09 (§12, question 5), ils sont devenus peu coûteux depuis que les rappels sont un
+mécanisme du socle (28/09, avec Polaris) : Éclipse **calcule** ses rappels et les **déclare**
+(`coreStore.scheduleReminders('calendrier', …)`), `send-reminders` les envoie au passage du cron
+de 5 minutes. Aucune fonction nouvelle, aucun cron de plus.
+
+**Décisions de Jules** : deux rappels au plus par événement, **15 minutes avant par défaut**.
+
+| Pièce | Où |
+|---|---|
+| Rappels d'un événement, en minutes avant le début (`reminders`, `null` = ceux par défaut, `[]` = aucun) | colonne `calendar_events.reminders`, migration `2026-10-01-calendar-reminders.sql` |
+| Rappels par défaut du compte (avec une heure : 15 min ; journée entière : aucun) | table `calendar_settings`, même migration ; section « Rappels du calendrier » des réglages |
+| Quoi, quand, avec quel texte | `lib/reminders.ts` (`plannedReminders`, `effectiveReminders`), pur et testé |
+| La déclaration au socle, après chaque chargement de l'écran et chaque réglage | `data/syncReminders.ts` |
+| Les deux listes, dans la fenêtre et les réglages | `components/ReminderPicker.tsx` |
+
+- **Avec une heure** : à l'heure, 5, 10, 15, 30 min, 1 h, 2 h ou 1 jour avant. **En journée
+  entière**, le début est minuit : « la veille à 18 h » (360) ou « le jour même à 8 h » (−480).
+  Les deux listes ne se recoupent pas, une valeur dit à quelle sorte elle convient.
+- **`null` plutôt qu'une valeur recopiée** : un événement d'avant les rappels, ou dont on n'a pas
+  touché les rappels, suit le défaut — changer le défaut le change partout.
+- **Une occurrence suit sa série**, sauf si on lui en a donné d'autres (« cet événement » :
+  `reminders` entre dans l'exception, comme le titre) ; une occurrence supprimée ne prévient pas.
+- **Un rendez-vous glissé dans la bande « Journée »** change de sorte sans passer par la fenêtre :
+  ses rappels « avec une heure » n'ont plus de sens, le calcul reprend alors le défaut de la
+  journée entière plutôt que de se taire (et la validation ne les refuse pas).
+- **Horizon de 30 jours** (7 pour Polaris : un rendez-vous se prend souvent des semaines avant).
+  Les rappels sont déclarés quand **le calendrier** est ouvert : un événement créé est couvert
+  aussitôt ; les occurrences d'une série au-delà de 30 jours le sont à une ouverture suivante.
+- Le texte : le titre, puis « Demain, 14 h – 14 h 30 · Cabinet Martin » ; toucher la
+  notification ouvre le calendrier (`/#/calendrier`).
+- Les **tâches** gardent leurs propres rappels (ceux de Polaris) : le calque n'en ajoute pas, pour
+  ne rien recevoir en double.
+
 ## Sources
 
 - Comparatifs 2026 : [Zapier, meilleures applis de calendrier](https://zapier.com/blog/best-calendar-apps/),

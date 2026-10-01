@@ -39,3 +39,13 @@ describe('validateEvent — les règles de la base, en français', () => {
     expect(validateEvent({ ...base, recurrence: { freq: 'daily', interval: 1, count: 0 } })).toMatch(/nombre de répétitions/);
   });
 });
+
+describe('validateEvent — les rappels', () => {
+  it('deux au plus, différents, pris dans la liste', () => {
+    expect(validateEvent({ ...base, reminders: [15, 1440] })).toBeNull();
+    expect(validateEvent({ ...base, reminders: [] })).toBeNull();
+    expect(validateEvent({ ...base, reminders: [5, 15, 30] })).toBe('2 rappels au plus.');
+    expect(validateEvent({ ...base, reminders: [15, 15] })).toBe('Les deux rappels sont identiques.');
+    expect(validateEvent({ ...base, reminders: [7] })).toBe('Choisis un rappel dans la liste.');
+  });
+});

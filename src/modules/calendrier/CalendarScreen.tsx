@@ -7,12 +7,13 @@ import { MarkDialog } from './components/MarkDialog';
 import { ScopeDialog } from './components/ScopeDialog';
 import { calendarStore } from './data';
 import { applyPlan } from './data/applyPlan';
+import { syncReminders } from './data/syncReminders';
 import { defaultSpan, markItem, toCalendarItem, type EventSpan } from './lib/calendarBridge';
 import { dayString, shiftDay } from '../../core/lib/day';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { expandEvents, type Occurrence } from './lib/recurrence';
 import { planDelete, planEdit, type OccurrenceValues, type Scope } from './lib/seriesEdit';
-import type { CalendarEvent, EventException, EventInput } from './lib/types';
+import { DEFAULT_CALENDAR_SETTINGS, type CalendarEvent, type CalendarSettings, type EventException, type EventInput } from './lib/types';
 
 /**
  * FullCalendar n'est chargé qu'ici, à l'ouverture d'Éclipse : un fichier à
@@ -54,8 +55,8 @@ type Editing = { eventId: string | null; occurrenceDay: string | null; inSeries:
 type PendingMove = { eventId: string; occurrenceDay: string; span: EventSpan; resolve: () => void; reject: (err: Error) => void };
 
 function valuesOf(o: Occurrence): OccurrenceValues {
-  const { title, allDay, startDay, endDay, startTime, endTime, color, location, note } = o;
-  return { title, allDay, startDay, endDay, startTime, endTime, color, location, note };
+  const { title, allDay, startDay, endDay, startTime, endTime, color, location, note, reminders } = o;
+  return { title, allDay, startDay, endDay, startTime, endTime, color, location, note, reminders };
 }
 
 /**
@@ -70,10 +71,11 @@ function valuesOf(o: Occurrence): OccurrenceValues {
  * déplacer ou supprimer une occurrence demande « cet événement, les
  * suivants ou tous », traduit en écritures par `lib/seriesEdit.ts`.
  */
-export function CalendarScreen({ error, onError, onOpenSettings, onSwitchModule, onOpenModule, reloadToken, services, label, emoji }: ModuleScreenProps) {
+export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchModule, onOpenModule, reloadToken, services, label, emoji }: ModuleScreenProps) {
   const narrow = typeof window !== 'undefined' && window.innerWidth < NARROW;
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [exceptions, setExceptions] = useState<EventException[]>([]);
+  const [settings, setSettings] = useState<CalendarSettings>(DEFAULT_CALENDAR_SETTINGS);
   const [range, setRange] = useState(() => {
     const today = dayString();
     return { from: shiftDay(today, -7), to: shiftDay(today, 7) };
@@ -163,10 +165,17 @@ export function CalendarScreen({ error, onError, onOpenSettings, onSwitchModule,
 
   const refresh = useCallback(async () => {
     try {
-      const [nextEvents, nextExceptions] = await Promise.all([calendarStore.listEvents(), calendarStore.listExceptions()]);
+      const [nextEvents, nextExceptions, nextSettings] = await Promise.all([
+        calendarStore.listEvents(),
+        calendarStore.listExceptions(),
+        calendarStore.getSettings(),
+      ]);
       setEvents(nextEvents);
       setExceptions(nextExceptions);
+      setSettings(nextSettings);
       onError('');
+      // Les rappels suivent les événements ; un échec ici ne doit rien bloquer.
+      syncReminders(nextEvents, nextExceptions).catch((err) => console.warn('Rappels du calendrier :', err));
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Chargement impossible.');
     }
@@ -194,7 +203,7 @@ export function CalendarScreen({ error, onError, onOpenSettings, onSwitchModule,
       eventId: null,
       occurrenceDay: null,
       inSeries: false,
-      values: { ...span, title: '', color: 'bleu', location: '', note: '', recurrence: null },
+      values: { ...span, title: '', color: 'bleu', location: '', note: '', recurrence: null, reminders: null },
       before: null,
     });
   }
@@ -380,6 +389,8 @@ export function CalendarScreen({ error, onError, onOpenSettings, onSwitchModule,
             eventId={editing.eventId}
             inSeries={editing.inSeries}
             initial={editing.values}
+            defaults={settings}
+            local={!user || user.isLocal}
             onCancel={() => setEditing(null)}
             onSave={save}
             onDelete={editing.eventId ? remove : undefined}

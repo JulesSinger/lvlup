@@ -17,14 +17,15 @@ const series: CalendarEvent = {
   color: 'vert',
   location: 'Salle',
   note: '',
+  reminders: null,
   createdAt: '',
 };
 
 /** Ce que la fenêtre affiche pour l'occurrence d'un jour. */
 function shown(day: string, exceptions: EventException[] = [], event = series): OccurrenceValues {
   const o = expandEvents([event], exceptions, day, day).find((x) => x.occurrenceDay === day)!;
-  const { title, allDay, startDay, endDay, startTime, endTime, color, location, note } = o;
-  return { title, allDay, startDay, endDay, startTime, endTime, color, location, note };
+  const { title, allDay, startDay, endDay, startTime, endTime, color, location, note, reminders } = o;
+  return { title, allDay, startDay, endDay, startTime, endTime, color, location, note, reminders };
 }
 
 const edited = (values: OccurrenceValues, changes: Partial<EventInput>, event = series): EventInput => ({
@@ -53,6 +54,19 @@ describe('planEdit — cet événement', () => {
       override: { startTime: '18:00', endTime: '19:00' },
     });
     expect(plan.update).toBeUndefined();
+  });
+
+  it('des rappels à part pour cette seule occurrence (01/10/2026)', () => {
+    const before = shown('2026-10-06');
+    const plan = planEdit(series, [], '2026-10-06', before, edited(before, { reminders: [60, 1440] }), 'this');
+    expect(plan.setException?.override).toEqual({ reminders: [60, 1440] });
+  });
+
+  it('les mêmes rappels, dans une nouvelle liste, ne sont pas un changement', () => {
+    const withReminders = { ...series, reminders: [15] };
+    const before = shown('2026-10-06', [], withReminders);
+    const plan = planEdit(withReminders, [], '2026-10-06', before, edited(before, { reminders: [15] }, withReminders), 'this');
+    expect(plan).toEqual({ deleteExceptions: [] });
   });
 
   it('remplace une exception précédente plutôt que de s’y ajouter', () => {
@@ -89,6 +103,12 @@ describe('planEdit — tous les événements', () => {
     const plan = planEdit(series, [earlier], '2026-10-06', before, edited(before, { title: 'Course à pied' }), 'all');
     expect(plan.update).toEqual({ id: 's', patch: { title: 'Course à pied' } });
     expect(plan.deleteExceptions).toEqual([]);
+  });
+
+  it('changer les rappels les change pour toute la série, rien d’autre', () => {
+    const before = shown('2026-10-06');
+    const plan = planEdit(series, [], '2026-10-06', before, edited(before, { reminders: [] }), 'all');
+    expect(plan.update).toEqual({ id: 's', patch: { reminders: [] } });
   });
 
   it('décaler une occurrence d’un jour décale toute la série, et oublie ses exceptions', () => {

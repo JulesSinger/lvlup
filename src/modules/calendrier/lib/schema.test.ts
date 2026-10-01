@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FREQUENCIES } from '../../../core/lib/recurrence';
-import { EVENT_COLORS, EXCEPTION_KINDS } from './types';
+import { ALL_DAY_REMINDERS, EVENT_COLORS, EXCEPTION_KINDS, MAX_REMINDERS, REMINDER_OFFSETS, TIMED_REMINDERS } from './types';
 
 /**
  * Le type TypeScript et la contrainte Postgres doivent dire la même chose —
@@ -43,5 +43,17 @@ describe('le type et la base disent la même chose (Éclipse)', () => {
 
   it('la nature d’une exception', () => {
     expect(allowedBy('calendar_exceptions_kind_check')).toEqual([...EXCEPTION_KINDS].sort());
+  });
+
+  it('les rappels possibles, et leur nombre (01/10/2026)', () => {
+    const sql = readFileSync(join(SQL_DIR, '2026-10-01-calendar-reminders.sql'), 'utf8');
+    const numbers = (list: string) => list.split(',').map((n) => Number(n.trim())).sort((a, b) => a - b);
+    const sorted = (xs: readonly number[]) => [...xs].sort((a, b) => a - b);
+    const event = /calendar_events_reminders_check\s+check\s*\(reminders is null or \(cardinality\(reminders\) <= (\d+) and reminders <@ array\[([^\]]*)\]/.exec(sql);
+    expect(event).not.toBeNull();
+    expect(Number(event![1])).toBe(MAX_REMINDERS);
+    expect(numbers(event![2])).toEqual(sorted(REMINDER_OFFSETS));
+    expect(numbers(/timed_reminders <@ array\[([^\]]*)\]/.exec(sql)![1])).toEqual(sorted(TIMED_REMINDERS));
+    expect(numbers(/all_day_reminders <@ array\[([^\]]*)\]/.exec(sql)![1])).toEqual(sorted(ALL_DAY_REMINDERS));
   });
 });

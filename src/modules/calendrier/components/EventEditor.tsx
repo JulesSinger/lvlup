@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { COLOR_LABELS, type EventSpan } from '../lib/calendarBridge';
 import { daysBetween, shiftDay, weekday } from '../../../core/lib/day';
 import { sameRule, type Scope } from '../lib/seriesEdit';
-import { EVENT_COLORS, type EventColor, type EventInput, type Recurrence } from '../lib/types';
+import { effectiveReminders } from '../lib/reminders';
+import { ALL_DAY_REMINDERS, EVENT_COLORS, TIMED_REMINDERS, type CalendarSettings, type EventColor, type EventInput, type Recurrence } from '../lib/types';
 import { validateEvent } from '../lib/validation';
 import { RecurrenceFields } from './RecurrenceFields';
+import { ReminderPicker } from './ReminderPicker';
 import { ScopeDialog } from './ScopeDialog';
 
 export interface EditorValues extends EventSpan {
@@ -13,6 +15,8 @@ export interface EditorValues extends EventSpan {
   location: string;
   note: string;
   recurrence: Recurrence | null;
+  /** `null` : ceux par défaut des réglages, tant qu'on n'y touche pas */
+  reminders: number[] | null;
 }
 
 interface Props {
@@ -21,6 +25,10 @@ interface Props {
   /** Une occurrence d'une série déjà enregistrée : enregistrer ou supprimer demande « laquelle ? » */
   inSeries: boolean;
   initial: EditorValues;
+  /** Les rappels par défaut, pour montrer ceux que l'événement prendra */
+  defaults: CalendarSettings;
+  /** Sans compte, aucun rappel ne part : la fenêtre le dit */
+  local: boolean;
   onCancel: () => void;
   /** Rejette en cas d'échec : la fenêtre reste ouverte et remplie. `scope` : seulement pour une série. */
   onSave: (input: EventInput, scope?: Scope) => Promise<void>;
@@ -36,7 +44,7 @@ interface Props {
  * occurrence d'une série, enregistrer ou supprimer demande d'abord si c'est
  * cet événement, les suivants ou tous (`ScopeDialog`).
  */
-export function EventEditor({ eventId, inSeries, initial, onCancel, onSave, onDelete }: Props) {
+export function EventEditor({ eventId, inSeries, initial, defaults, local, onCancel, onSave, onDelete }: Props) {
   const [v, setV] = useState<EditorValues>(initial);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -53,11 +61,16 @@ export function EventEditor({ eventId, inSeries, initial, onCancel, onSave, onDe
   const set = <K extends keyof EditorValues>(key: K, value: EditorValues[K]) => setV((prev) => ({ ...prev, [key]: value }));
 
   function toggleAllDay(allDay: boolean) {
-    setV((prev) =>
-      allDay
-        ? { ...prev, allDay, startTime: null, endTime: null }
-        : { ...prev, allDay, startTime: prev.startTime ?? '09:00', endTime: prev.endTime ?? '10:00' },
-    );
+    // Des rappels choisis pour l'autre sorte (« 15 min avant » n'a pas de sens
+    // en journée entière) : on revient au défaut de la nouvelle sorte.
+    const fits = (r: number[] | null) =>
+      r === null || r.every((x) => (allDay ? (ALL_DAY_REMINDERS as readonly number[]) : (TIMED_REMINDERS as readonly number[])).includes(x));
+    setV((prev) => {
+      const reminders = fits(prev.reminders) ? prev.reminders : null;
+      return allDay
+        ? { ...prev, allDay, startTime: null, endTime: null, reminders }
+        : { ...prev, allDay, startTime: prev.startTime ?? '09:00', endTime: prev.endTime ?? '10:00', reminders };
+    });
   }
 
   function changeStartDay(day: string) {
@@ -180,6 +193,21 @@ export function EventEditor({ eventId, inSeries, initial, onCancel, onSave, onDe
           </div>
 
           <RecurrenceFields value={v.recurrence} startDay={v.startDay} onChange={(rule) => set('recurrence', rule)} />
+
+          <ReminderPicker
+            label="Rappels"
+            idPrefix="calendrier-reminder"
+            options={v.allDay ? ALL_DAY_REMINDERS : TIMED_REMINDERS}
+            value={effectiveReminders(v.reminders, v.allDay, defaults)}
+            onChange={(reminders) => set('reminders', reminders)}
+          />
+          {(v.reminders === null || local) && (
+            <p className="field-hint calendrier-reminders-hint">
+              {local
+                ? 'Sans compte, les rappels ne partent pas.'
+                : 'Ceux par défaut, réglables dans les réglages d’Atlas.'}
+            </p>
+          )}
 
           <div className="field">
             <label>Couleur</label>

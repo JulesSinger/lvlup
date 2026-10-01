@@ -1,4 +1,4 @@
-import type { CalendarEvent, EventException, EventInput, EventOverride, ExceptionKind } from '../lib/types';
+import type { CalendarEvent, CalendarSettings, EventException, EventInput, EventOverride, ExceptionKind } from '../lib/types';
 
 /**
  * La part du module dans une sauvegarde. Le socle n'en connaît pas la
@@ -8,6 +8,8 @@ import type { CalendarEvent, EventException, EventInput, EventOverride, Exceptio
 export interface CalendarBackup {
   events: CalendarEvent[];
   exceptions: EventException[];
+  /** Absent des sauvegardes d'avant les rappels (01/10/2026) */
+  settings?: CalendarSettings;
 }
 
 /**
@@ -32,6 +34,10 @@ export interface CalendarStore {
    */
   setException(eventId: string, occurrenceDay: string, kind: ExceptionKind, override?: EventOverride): Promise<EventException>;
   deleteException(id: string): Promise<void>;
+
+  /** Les rappels par défaut ; ceux de `DEFAULT_CALENDAR_SETTINGS` tant que rien n'est enregistré. */
+  getSettings(): Promise<CalendarSettings>;
+  saveSettings(patch: Partial<CalendarSettings>): Promise<void>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
   exportData(): Promise<CalendarBackup>;

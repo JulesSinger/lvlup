@@ -1,6 +1,15 @@
 import { newId } from '../../../core/data/coreStore';
 import { readRaw, writeRaw } from '../../../core/data/localSnapshot';
-import { deviceTimezone, type CalendarEvent, type EventException, type EventInput, type EventOverride, type ExceptionKind } from '../lib/types';
+import {
+  DEFAULT_CALENDAR_SETTINGS,
+  deviceTimezone,
+  type CalendarEvent,
+  type CalendarSettings,
+  type EventException,
+  type EventInput,
+  type EventOverride,
+  type ExceptionKind,
+} from '../lib/types';
 import type { CalendarBackup, CalendarStore } from './calendarStore';
 
 interface Snapshot extends CalendarBackup {}
@@ -10,15 +19,23 @@ const arrayOf = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[
 /** Lecture des seules sections du module, sur le blob local partagé. */
 function read(): Snapshot {
   const raw = readRaw();
+  const settings = raw.calendarSettings && typeof raw.calendarSettings === 'object' ? (raw.calendarSettings as CalendarSettings) : undefined;
   return {
-    events: arrayOf<CalendarEvent>(raw.calendarEvents),
+    // Un événement enregistré avant les rappels n'a pas le champ : il suit le défaut.
+    events: arrayOf<CalendarEvent>(raw.calendarEvents).map((e) => ({ ...e, reminders: e.reminders ?? null })),
     exceptions: arrayOf<EventException>(raw.calendarExceptions),
+    settings,
   };
 }
 
 /** Écriture par fusion : les sections des autres modules sont préservées. */
 function write(s: Snapshot) {
-  writeRaw({ ...readRaw(), calendarEvents: s.events, calendarExceptions: s.exceptions });
+  writeRaw({
+    ...readRaw(),
+    calendarEvents: s.events,
+    calendarExceptions: s.exceptions,
+    ...(s.settings ? { calendarSettings: s.settings } : {}),
+  });
 }
 
 /** Éclipse stockée dans le navigateur, sans compte ni serveur. */
@@ -43,6 +60,7 @@ export class LocalCalendar implements CalendarStore {
       color: input.color ?? 'bleu',
       location: input.location ?? '',
       note: input.note ?? '',
+      reminders: input.reminders ?? null,
       createdAt: new Date().toISOString(),
     };
     s.events.push(event);
@@ -96,12 +114,25 @@ export class LocalCalendar implements CalendarStore {
     write(s);
   }
 
+  async getSettings(): Promise<CalendarSettings> {
+    return { ...DEFAULT_CALENDAR_SETTINGS, ...read().settings };
+  }
+
+  async saveSettings(patch: Partial<CalendarSettings>) {
+    const s = read();
+    write({ ...s, settings: { ...DEFAULT_CALENDAR_SETTINGS, ...s.settings, ...patch } });
+  }
+
   async exportData(): Promise<CalendarBackup> {
     const s = read();
-    return { events: s.events.slice(), exceptions: s.exceptions.slice() };
+    return { events: s.events.slice(), exceptions: s.exceptions.slice(), settings: await this.getSettings() };
   }
 
   async importData(data: CalendarBackup) {
-    write({ events: data.events ?? [], exceptions: data.exceptions ?? [] });
+    // Une sauvegarde d'avant les rappels n'en a pas : on garde le défaut plutôt que d'en inventer.
+    const raw = readRaw();
+    delete raw.calendarSettings;
+    writeRaw(raw);
+    write({ events: data.events ?? [], exceptions: data.exceptions ?? [], settings: data.settings });
   }
 }

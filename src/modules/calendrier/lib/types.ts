@@ -37,11 +37,40 @@ export interface CalendarEvent {
   color: EventColor;
   location: string;
   note: string;
+  /**
+   * Les rappels, en minutes avant le début (`REMINDER_OFFSETS`), deux au
+   * plus. `null` : ceux par défaut des réglages — c'est ce qui permet à un
+   * événement enregistré avant les rappels de suivre le défaut sans rien
+   * réécrire. `[]` : aucun rappel, choisi.
+   */
+  reminders: number[] | null;
   createdAt: string;
 }
 
 export type EventInput = Pick<CalendarEvent, 'title' | 'allDay' | 'startDay' | 'endDay' | 'startTime' | 'endTime'> &
-  Partial<Pick<CalendarEvent, 'timezone' | 'recurrence' | 'color' | 'location' | 'note'>>;
+  Partial<Pick<CalendarEvent, 'timezone' | 'recurrence' | 'color' | 'location' | 'note' | 'reminders'>>;
+
+/**
+ * Les rappels possibles, en minutes avant le début (01/10/2026). Avec une
+ * heure : de « à l'heure » à « 1 jour avant ». En journée entière, le début
+ * est minuit : « la veille à 18 h » vaut 360 minutes avant, « le jour même à
+ * 8 h », 480 minutes APRÈS (−480). Les deux listes ne se recoupent pas : une
+ * valeur dit d'elle-même à quelle sorte d'événement elle convient.
+ */
+export const TIMED_REMINDERS = [0, 5, 10, 15, 30, 60, 120, 1440] as const;
+export const ALL_DAY_REMINDERS = [-480, 360] as const;
+/** Pendant de `calendar_events_reminders_check`, comparé par `lib/schema.test.ts`. */
+export const REMINDER_OFFSETS = [...ALL_DAY_REMINDERS, ...TIMED_REMINDERS] as const;
+export const MAX_REMINDERS = 2;
+
+/** Les rappels par défaut, réglés une fois pour tout le compte. */
+export interface CalendarSettings {
+  timedReminders: number[];
+  allDayReminders: number[];
+}
+
+/** 15 minutes avant un rendez-vous (décision de Jules, 01/10/2026) ; rien en journée entière. */
+export const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = { timedReminders: [15], allDayReminders: [] };
 
 /** Nature d'une exception — pendant de `calendar_exceptions_kind_check`. */
 export const EXCEPTION_KINDS = ['skip', 'override'] as const;
@@ -49,7 +78,7 @@ export type ExceptionKind = (typeof EXCEPTION_KINDS)[number];
 
 /** Ce qu'une occurrence modifiée remplace ; le reste vient de la série. */
 export type EventOverride = Partial<
-  Pick<CalendarEvent, 'title' | 'allDay' | 'startDay' | 'endDay' | 'startTime' | 'endTime' | 'color' | 'location' | 'note'>
+  Pick<CalendarEvent, 'title' | 'allDay' | 'startDay' | 'endDay' | 'startTime' | 'endTime' | 'color' | 'location' | 'note' | 'reminders'>
 >;
 
 /**
