@@ -66,6 +66,10 @@ export default function CalendarView({ items, initialView, narrow, onRangeChange
       // créneaux sont assez serrés (calendrier.css) pour que 7 h – minuit tienne ;
       // la nuit reste au-dessus, en faisant défiler.
       scrollTime="07:00:00"
+      // Glisser, étirer ou sélectionner avance par quarts d'heure (demande de
+      // Jules, 01/10/2026), alors que la grille reste tracée par demi-heures :
+      // un trait tous les quarts d'heure la rendrait illisible une fois resserrée.
+      snapDuration="00:15:00"
       dayMaxEvents
       selectable
       selectMirror

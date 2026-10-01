@@ -76,10 +76,17 @@ describe('spanFromRange', () => {
 });
 
 describe('spanFromSelection', () => {
-  it('un simple toucher sur un créneau de 30 minutes devient un rendez-vous d’une heure', () => {
+  it('un simple toucher, un quart d’heure, devient un rendez-vous d’une heure', () => {
+    expect(spanFromSelection(at('2026-09-29', '14:15'), at('2026-09-29', '14:30'), false)).toMatchObject({
+      startTime: '14:15',
+      endTime: '15:15',
+    });
+  });
+
+  it('une demi-heure glissée reste une demi-heure', () => {
     expect(spanFromSelection(at('2026-09-29', '14:00'), at('2026-09-29', '14:30'), false)).toMatchObject({
       startTime: '14:00',
-      endTime: '15:00',
+      endTime: '14:30',
     });
   });
 

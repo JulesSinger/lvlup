@@ -169,9 +169,11 @@ export async function run({ browser, check, BASE }) {
   const slot17 = await page.locator('.fc-timegrid-slot-lane[data-time="17:00:00"]').boundingBox();
   if (column && slot16 && slot17) {
     const x = column.x + column.width / 2;
-    await page.mouse.move(x, slot16.y + slot16.height / 2);
+    // Un quart d'heure est une demi-ligne de la grille : on vise le milieu
+    // du premier quart de 16 h et du second de 17 h (16 h – 17 h 30).
+    await page.mouse.move(x, slot16.y + slot16.height / 4);
     await page.mouse.down();
-    await page.mouse.move(x, slot17.y + slot17.height / 2, { steps: 8 });
+    await page.mouse.move(x, slot17.y + (slot17.height * 3) / 4, { steps: 8 });
     await page.mouse.up();
   }
   await page.waitForSelector('.calendrier-editor', { timeout: 3000 }).catch(() => {});
@@ -429,7 +431,7 @@ export async function run({ browser, check, BASE }) {
     (await text(lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' }))).includes('15:30'),
   );
 
-  // Glisser une tâche à 16 h, puis l'étirer d'une heure : Tâches la reprévoit (28/09/2026).
+  // Glisser une tâche vers 16 h, puis l'étirer d'une heure : Tâches la reprévoit (28/09/2026).
   {
     const task = (id) => lp.evaluate((tid) => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === tid), id);
     const garageEvent = lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' });
@@ -443,9 +445,11 @@ export async function run({ browser, check, BASE }) {
       await lp.mouse.move(g.x + g.width / 2, lane16.y + 3, { steps: 12 });
       await lp.mouse.up();
     }
-    await lp.waitForFunction(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === 'p2')?.plannedTime === '16:00', null, { timeout: 4000 }).catch(() => {});
+    // Au quart d'heure près : FullCalendar compte le premier pas depuis l'endroit
+    // où l'on a saisi la tâche, et l'aperçu montre l'heure retenue pendant le glisser.
+    await lp.waitForFunction(() => /^16:(00|15)$/.test(JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === 'p2')?.plannedTime ?? ''), null, { timeout: 4000 }).catch(() => {});
     const moved = await task('p2');
-    check('Glisser une tâche dans la grille la reprévoit à 16 h, sa durée gardée', moved?.plannedTime === '16:00' && moved?.durationMinutes === 90, JSON.stringify(moved));
+    check('Glisser une tâche dans la grille la reprévoit vers 16 h, sa durée gardée', /^16:(00|15)$/.test(moved?.plannedTime ?? '') && moved?.durationMinutes === 90, JSON.stringify(moved));
     await lp.locator('.calendrier-mark-dialog').waitFor({ state: 'detached', timeout: 500 }).catch(() => {});
     check('… sans ouvrir sa fenêtre', (await lp.locator('.calendrier-mark-dialog').count()) === 0);
 
@@ -461,6 +465,30 @@ export async function run({ browser, check, BASE }) {
     }
     await lp.waitForFunction(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === 'p2')?.durationMinutes === 150, null, { timeout: 4000 }).catch(() => {});
     check('Étirer son bord du bas allonge sa durée (1 h 30 → 2 h 30)', (await task('p2'))?.durationMinutes === 150, JSON.stringify(await task('p2')));
+
+    // Le pas est d'un quart d'heure (01/10/2026) : on descend le bord pixel par
+    // pixel jusqu'au premier changement de l'aperçu, qui doit être d'un quart d'heure.
+    const stretched = lp.locator('.fc-timegrid-event.calendrier-layer', { hasText: 'Appeler le garage' });
+    await stretched.hover();
+    const resizer2 = await stretched.locator('.fc-event-resizer-end').boundingBox();
+    const before = await task('p2');
+    const [bh, bm] = (before?.plannedTime ?? '0:0').split(':').map(Number);
+    const endMin = bh * 60 + bm + (before?.durationMinutes ?? 0);
+    const endText = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+    if (resizer2) {
+      const x = resizer2.x + resizer2.width / 2;
+      const y = resizer2.y + resizer2.height / 2;
+      await lp.mouse.move(x, y);
+      await lp.mouse.down();
+      for (let dy = 1; dy <= slotH * 2; dy++) {
+        await lp.mouse.move(x, y + dy);
+        const mirror = (await lp.locator('.fc-event-mirror').allTextContents()).join('');
+        if (mirror && !mirror.includes(endText)) break;
+      }
+      await lp.mouse.up();
+    }
+    await lp.waitForFunction(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === 'p2')?.durationMinutes !== 150, null, { timeout: 4000 }).catch(() => {});
+    check('… par quarts d’heure : le premier pas ajoute 15 minutes', (await task('p2'))?.durationMinutes === 165, JSON.stringify(await task('p2')));
   }
 
   // Toucher la tâche ailleurs que sur son rond : sa fenêtre, sans la cocher.

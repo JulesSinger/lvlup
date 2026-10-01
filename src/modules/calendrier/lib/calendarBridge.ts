@@ -130,13 +130,13 @@ export function spanFromRange(start: Date, end: Date | null, allDay: boolean): E
 }
 
 /**
- * Une sélection d'un seul créneau (un simple toucher dans la grille
- * horaire, 30 minutes) devient un rendez-vous d'une heure : c'est la durée
- * qu'on attend en touchant « 14 h ». Une sélection plus longue, glissée, est
- * gardée telle quelle.
+ * Une sélection d'un seul pas (un simple toucher dans la grille horaire :
+ * un quart d'heure, le pas de `snapDuration`) devient un rendez-vous d'une
+ * heure : c'est la durée qu'on attend en touchant « 14 h ». Une sélection
+ * glissée, même d'une demi-heure, est gardée telle quelle.
  */
 export function spanFromSelection(start: Date, end: Date, allDay: boolean): EventSpan {
-  if (!allDay && end.getTime() - start.getTime() <= 30 * 60 * 1000) {
+  if (!allDay && end.getTime() - start.getTime() <= 15 * 60 * 1000) {
     return spanFromRange(start, new Date(start.getTime() + 60 * 60 * 1000), false);
   }
   return spanFromRange(start, end, allDay);
