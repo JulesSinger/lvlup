@@ -571,6 +571,62 @@ Supabase** avant la mise en ligne.
 
 ---
 
+## 14. Étape 2 : les règles, testées avant tout écran (05/10/2026)
+
+Six bibliothèques pures dans `src/modules/projets/lib/`, sans écran :
+
+| Fichier | Ce qu'il décide |
+|---|---|
+| `templates.ts` | les quatre modèles (vitrine, boutique en ligne, refonte, vide) et leur copie dans un projet (`instantiateTemplate`, ids injectés) |
+| `progress.ts` | l'état d'un chantier, les chantiers d'un projet rangés par état, l'avancement, les retards, « en danger » |
+| `dashboard.ts` | cette semaine, les retards, l'attente du client, les cartes des projets actifs |
+| `schedule.ts` | l'échéancier 30 / 70 proposé |
+| `status.ts` | statuts et métiers en français ; projets clos (terminés, perdus) et projets « au travail » (signés, en production) |
+| `validation.ts` | les règles de la base dites en français, avant l'envoi |
+
+**Les modèles, à relire par Jules.** Le site vitrine compte 8 chantiers et 45 tâches :
+Découverte (rendez-vous, questionnaire, devis, devis signé, acompte), Contenus (logo, photos,
+textes, horaires, carte ou tarifs, accès aux réseaux et à la fiche Google), Maquette,
+Développement (de la mise en place du projet à l'optimisation des images), Hébergement & domaine
+(domaine **au nom du client**, e-mail pro, HTTPS), Recette (préproduction, relecture, tests
+téléphone, validation écrite), Mise en ligne (mentions légales, confidentialité, Search Console,
+fiche Google, favicon, sauvegarde), Après (formation, solde, avis, relance à trois mois). La
+boutique ajoute un chantier **Boutique** (catalogue, paiement en ligne sur un compte au nom du
+client, livraison ou retrait, CGV, e-mails de commande, commande test) ; la refonte, un chantier
+**Reprise de l'existant** (audit, accès à l'ancien hébergement, sauvegarde, contenus à garder,
+anciennes adresses et leurs redirections). Le détail est dans `lib/templates.ts`, écrit pour
+être lu.
+
+Règles retenues :
+
+- **L'état d'un chantier** : *attend le client* dès qu'une tâche restante attend (c'est ce qui
+  bloque, il l'emporte) ; *fait* quand tout est coché ; *en cours* dès une tâche cochée **ou une
+  tâche restante prévue aujourd'hui ou avant** — on a commencé même sans rien finir ; sinon
+  *à faire* ; *sans tâche* ne compte pas. Ordre dans la fiche : en cours, attend, à faire, sans
+  tâche, fait.
+- **L'avancement** est la part de toutes les tâches du projet ; sans tâche, aucun pourcentage
+  (`null`) plutôt qu'un faux 0 %.
+- **En retard** : une tâche dont le jour prévu ou l'échéance est passé ; un chantier dont la date
+  est passée sans être fini ; un projet dont la mise en ligne est passée avec des tâches restantes.
+  Un retard se date au jour dépassé le plus ancien.
+- **En danger** (§4.5) : échéance dans 7 jours ou moins avec plus de la moitié des tâches
+  restantes, ou un chantier qui a dépassé sa date. Un projet déjà en retard n'est pas « en
+  danger » : il est en retard, une seule alerte suffit. La raison est rendue en toutes lettres.
+- **Cette semaine** : aujourd'hui et les six jours suivants, par le jour prévu sinon l'échéance ;
+  les retards ont leur propre section et n'y sont pas répétés.
+- **L'attente du client** : celle posée sur un projet, la plus longue d'abord (pour savoir qui
+  relancer), puis les tâches qui attendent. Au-delà de 7 jours (`NUDGE_DAYS`), elle se signalera.
+- **Les projets actifs** sont les signés et en production — les pistes et devis appartiennent au
+  pipeline, les livrés et en maintenance n'ont plus de chantiers en cours. Échéance la plus proche
+  d'abord, sans échéance à la fin.
+- **L'échéancier** : acompte arrondi au centime, le solde est ce qui reste — la somme fait
+  toujours le prix.
+
+1196 → **1224** tests unitaires (+28), vérifications de bout en bout inchangées : **885/885** en
+mode comptes (866 en local).
+
+---
+
 ## Sources
 
 - Réforme de la facturation électronique : calendrier publié par l'administration (impots.gouv.fr,
