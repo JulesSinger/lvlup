@@ -84,3 +84,6 @@
 
 /* --- Socle : passer d'un module à l'autre (2026-09-30) --------------- */
 @import './core/styles/switcher.css';
+
+/* --- Projets : les projets clients (étape 1) ------------------------ */
+@import './modules/projets/styles/projets.css';

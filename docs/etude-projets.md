@@ -411,7 +411,7 @@ Règle du 28/09/2026 : un module porte un **nom fonctionnel**. Propositions :
   *Calendar*, c'est donc possible).
 - **Atelier** 🛠️ — joli, moins immédiat.
 
-Nom technique : **`projets`**. Couleur proposée : un indigo, `#7f9cf5` — les teintes déjà prises
+Nom technique : **`projets`**. Couleur proposée : le bleu de la palette, `--blue` (`#6fa8f5`) — les teintes déjà prises
 sont l'or, le violet, le bleu ciel, le turquoise, le lilas, le citron vert, le rose et le corail.
 
 ---
@@ -518,6 +518,56 @@ Retenu : une table `projets_time` (projet, jour, minutes, chantier facultatif, n
 rapide « 2 h 30 sur Développement » depuis la fiche, et dans l'onglet Argent le **taux horaire
 réel** (encaissé, ou prix convenu, divisé par le temps noté). Pas de chronomètre dans la V1 : une
 durée tapée après coup suffit et ne s'oublie pas allumée. Rangé à l'étape 5, avec l'argent.
+
+### Les deux réponses suivantes (05/10/2026)
+
+- **Plusieurs modèles de projet.** Proposés pour l'étape 2, à relire par Jules quand leurs
+  listes seront écrites : **Site vitrine** (le modèle du §3.3, chantiers parallèles), **Boutique
+  en ligne** (le même, plus catalogue, paiement en ligne, livraison ou retrait, CGV),
+  **Refonte** (reprise de l'existant, redirections des anciennes adresses), et **Vide** (aucun
+  chantier). La maintenance reste un **statut**, pas un modèle : c'est un suivi après livraison,
+  pas un projet qui se découpe en chantiers.
+- **Échéancier 30 / 70** proposé à la création d'un projet qui a un prix : l'acompte de 30 % à
+  la signature, le solde à la livraison, les deux modifiables (étape 5).
+- Les **chantiers parallèles** de ci-dessus n'ont pas soulevé d'objection : ils sont retenus, et
+  la maquette les montre (cartes du tableau de bord, fiche groupée par état).
+
+---
+
+## 13. Étape 1 : le module existe (05/10/2026)
+
+- **Migration** `supabase/2026-10-05-projets-tables.sql` : `projets_clients`,
+  `projets_projects`, `projets_workstreams` (les chantiers), `projets_tasks`, `projets_notes`, RLS
+  complet (quatre politiques par table, écrites en toutes lettres). Les paiements, le temps passé,
+  les liens et les images auront leurs migrations à leur étape.
+- **Contrat** `data/projetsStore.ts` et ses deux implémentations, `LocalProjets` et
+  `SupabaseProjets`. Créations rejouables (id choisi par l'application, `upsert … ignoreDuplicates`
+  puis relecture), comme Tâches et Hauts faits.
+- **Module signet** (`ProjetsScreen`, avec `ModuleBrand`) et aperçu pour la page d'accueil.
+  Couleur : le bleu de la palette (`--blue`), seule teinte encore libre.
+
+Choix faits en l'écrivant :
+
+- **Une tâche ne peut être que dans un chantier de son propre projet** : la clé étrangère des
+  tâches porte sur le couple (chantier, projet), adossée à une unicité `(id, project_id)` sur les
+  chantiers. Le mode local refuse la même chose, pour ne pas permettre plus que la base.
+- **Un client qui a des projets ne se supprime pas** (`on delete restrict`), il s'archive ; les
+  deux implémentations le disent en clair avant que la base ne refuse.
+- **Le numéro du projet** est le plus grand du compte plus un, attribué à la création et gardé
+  par la sauvegarde ; une création rejouée garde le numéro de la première fois. Unique par compte
+  en base : deux créations simultanées ne peuvent pas prendre le même.
+- **Copier un modèle se fait en deux envois** (`addWorkstreams` : les chantiers, puis leurs
+  tâches), plutôt qu'une quarantaine. Pas de transaction : une coupure laisse au pire un projet
+  aux tâches incomplètes, qu'un second appel avec les mêmes ids complète sans doublon.
+- **Le questionnaire de besoins** est déjà une colonne (`needs`, un objet JSON) pour ne pas
+  demander de migration à l'étape 4.
+- **Ne plus rien attendre du client efface la date d'attente**, dans les deux implémentations
+  comme dans la contrainte de la base.
+
+Vérifications : 1170 → **1196** tests unitaires (+26 : `localProjets.test.ts` 12,
+`schema.test.ts` 4, `conventions.test.ts` +10 pour le nouveau module), **866/866** vérifications
+de bout en bout en local et **885/885** en mode comptes (+5). **Migration à appliquer sur
+Supabase** avant la mise en ligne.
 
 ---
 

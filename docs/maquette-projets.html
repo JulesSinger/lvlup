@@ -9,12 +9,12 @@
 <style>
 /* Maquette du module Projets d'Atlas (docs/etude-projets.md) : tableau de bord,
    pipeline, fiche projet. Données fictives, quatre commerçants.
-   Palette et polices du socle (core/styles/base.css), accent indigo proposé. */
+   Palette et polices du socle (core/styles/base.css), accent bleu (--blue). */
 :root {
   --bg: #0b0e14; --bg-2: #11151f; --surface: #161b27; --surface-2: #1c2232;
   --border: #262e40; --border-strong: #36405a;
   --text: #e8ecf4; --text-dim: #97a1b8; --text-faint: #6a748c;
-  --accent: #7f9cf5; --accent-hi: #a3b8ff;
+  --accent: #6fa8f5; --accent-hi: #9cc3ff;
   --gold: #f2c14e; --pink: #ee88b2; --sky: #6fb6ff; --green: #6fc783; --coral: #ff9f7a;
   --violet: #b49af2; --teal: #52d6c8; --red: #ff7b7b; --gray: #9aa3b6;
   --on-color: #0b0e14;
@@ -28,7 +28,7 @@
     --bg: #f6f4ef; --bg-2: #efece4; --surface: #ffffff; --surface-2: #f3f0e8;
     --border: #e2ddd0; --border-strong: #cfc8b6;
     --text: #1d2130; --text-dim: #545b6e; --text-faint: #858b9a;
-    --accent: #4a63c9; --accent-hi: #3a52b3;
+    --accent: #2f6bc4; --accent-hi: #2458a8;
     --gold: #b58212; --pink: #c24f82; --sky: #2f78c4; --green: #2f8c4a; --coral: #cf5a34;
     --violet: #7358c9; --teal: #178a7e; --red: #c43c3c; --gray: #6b7385;
     --on-color: #ffffff; --glow-1: #e6e8f2; --glow-2: #ece6f0;
@@ -127,6 +127,12 @@ h2 .n { color: var(--text-dim); letter-spacing: 0; text-transform: none; font-we
 .phases i::after {
   content: ""; position: absolute; inset: 0; width: var(--p); background: var(--c); border-radius: 3px;
 }
+.ws-line { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 8px; }
+.ws { font-size: 12px; border-radius: 999px; padding: 1px 9px; border: 1px solid var(--border-strong); color: var(--text-dim); }
+.ws-doing { color: var(--text); border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ws-wait { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
+.gauge-s { height: 5px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-bottom: 4px; }
+.gauge-s i { display: block; height: 100%; width: var(--p); background: var(--c); }
 .proj .foot { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-faint); }
 
 .money { display: grid; gap: 6px; font-size: 14px; }
@@ -135,7 +141,7 @@ h2 .n { color: var(--text-dim); letter-spacing: 0; text-transform: none; font-we
 .money .late { color: var(--coral); }
 
 /* Pipeline */
-.pipe { display: grid; grid-template-columns: repeat(6, minmax(150px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 8px; }
+.pipe { display: grid; grid-template-columns: repeat(7, minmax(140px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 8px; }
 .lane { background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px; min-height: 160px; }
 .lane h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--s); display: flex; justify-content: space-between; }
 .lane h3 span { color: var(--text-faint); font-weight: 500; }
@@ -179,7 +185,7 @@ h2 .n { color: var(--text-dim); letter-spacing: 0; text-transform: none; font-we
 .phase summary .bar i { display: block; height: 100%; width: var(--p); background: var(--accent); border-radius: 3px; }
 .phase summary .pd { font-size: 12px; color: var(--text-dim); min-width: 64px; text-align: right; }
 .phase .body { padding: 0 14px 8px; }
-.phase .addt { font: 13px var(--body); color: var(--text-faint); background: none; border: 0; padding: 6px 0 4px 28px; cursor: pointer; }
+.addt { font: 13px var(--body); color: var(--text-faint); background: none; border: 0; padding: 6px 0 4px 28px; cursor: pointer; }
 .wtag { font-size: 11.5px; color: var(--gold); margin-left: 6px; }
 
 .needs { display: grid; gap: 10px; }
@@ -229,7 +235,7 @@ h2 .n { color: var(--text-dim); letter-spacing: 0; text-transform: none; font-we
 </head>
 <body>
 <div class="wrap">
-  <p class="note">Maquette statique de <code>docs/etude-projets.md</code> — données fictives. Le nom (« Projets »), l'emoji et l'indigo sont des propositions (§9, §11).</p>
+  <p class="note">Maquette statique de <code>docs/etude-projets.md</code> — données fictives. Révisée le 05/10/2026 (§12) : le statut ne dit plus que la relation avec le client ; le travail avance en chantiers parallèles, dont l'état se calcule depuis leurs tâches.</p>
 
   <header class="head">
     <span class="emoji">💼</span>
@@ -276,19 +282,22 @@ h2 .n { color: var(--text-dim); letter-spacing: 0; text-transform: none; font-we
           <h2>Projets actifs</h2>
           <div class="projs">
             <button class="proj" style="--c: var(--pink)" data-open>
-              <div class="top"><span class="client">Fleurs de Lou</span><span class="title">Site vitrine</span><span class="status" style="--s: var(--violet)">En recette</span><span class="due risk">mise en ligne dans 5 j</span></div>
-              <div class="phases"><i style="--p:100%"></i><i style="--p:80%"></i><i style="--p:100%"></i><i style="--p:100%"></i><i style="--p:40%"></i><i style="--p:15%"></i><i style="--p:0%"></i></div>
-              <div class="foot"><span>Recette · 31 / 44 tâches</span><span>270 / 900 €</span></div>
+              <div class="top"><span class="client">Fleurs de Lou</span><span class="title">Site vitrine</span><span class="status" style="--s: var(--accent)">En production</span><span class="due risk">mise en ligne dans 5 j</span></div>
+              <div class="ws-line"><span class="ws ws-doing">Recette 2/5</span><span class="ws ws-doing">Mise en ligne 1/8</span><span class="ws ws-wait">⏳ Contenus</span></div>
+              <div class="gauge-s"><i style="--p:70%"></i></div>
+              <div class="foot"><span>31 / 44 tâches · 4 chantiers faits</span><span>270 / 900 €</span></div>
             </button>
             <button class="proj" style="--c: var(--coral)">
-              <div class="top"><span class="client">Le Camion Gourmand</span><span class="title">Site + emplacements</span><span class="status" style="--s: var(--accent)">En cours</span><span class="due">25 oct.</span></div>
-              <div class="phases"><i style="--p:100%"></i><i style="--p:100%"></i><i style="--p:50%"></i><i style="--p:10%"></i><i style="--p:0%"></i><i style="--p:0%"></i><i style="--p:0%"></i></div>
-              <div class="foot"><span>Maquette · 16 / 46 tâches</span><span>360 / 1 200 €</span></div>
+              <div class="top"><span class="client">Le Camion Gourmand</span><span class="title">Site + emplacements</span><span class="status" style="--s: var(--accent)">En production</span><span class="due">25 oct.</span></div>
+              <div class="ws-line"><span class="ws ws-doing">Maquette 3/6</span><span class="ws ws-doing">Développement 1/14</span><span class="ws ws-doing">Hébergement 2/4</span></div>
+              <div class="gauge-s"><i style="--p:35%"></i></div>
+              <div class="foot"><span>16 / 46 tâches · 2 chantiers faits</span><span>360 / 1 200 €</span></div>
             </button>
             <button class="proj" style="--c: var(--sky)">
               <div class="top"><span class="client">Mèche Rebelle</span><span class="title">Site vitrine</span><span class="status" style="--s: var(--green)">Signé</span><span class="due">15 nov.</span></div>
-              <div class="phases"><i style="--p:75%"></i><i style="--p:20%"></i><i style="--p:0%"></i><i style="--p:0%"></i><i style="--p:0%"></i><i style="--p:0%"></i><i style="--p:0%"></i></div>
-              <div class="foot"><span>Découverte · 5 / 42 tâches</span><span>0 / 750 €</span></div>
+              <div class="ws-line"><span class="ws ws-doing">Découverte 3/4</span><span class="ws ws-wait">⏳ Contenus</span></div>
+              <div class="gauge-s"><i style="--p:12%"></i></div>
+              <div class="foot"><span>5 / 42 tâches</span><span>0 / 750 €</span></div>
             </button>
           </div>
         </div>
@@ -315,13 +324,13 @@ h2 .n { color: var(--text-dim); letter-spacing: 0; text-transform: none; font-we
       <div class="lane" style="--s: var(--green)"><h3>Signé <span>1</span></h3>
         <div class="mini" style="--c: var(--sky)"><b>Mèche Rebelle</b><small>Site vitrine · 15 nov.</small><span class="wt">⏳ validation des tarifs</span></div>
       </div>
-      <div class="lane" style="--s: var(--accent)"><h3>En cours <span>1</span></h3>
+      <div class="lane" style="--s: var(--accent)"><h3>En production <span>2</span></h3>
         <div class="mini" style="--c: var(--coral)"><b>Le Camion Gourmand</b><small>Site + emplacements · 25 oct.</small></div>
-      </div>
-      <div class="lane" style="--s: var(--violet)"><h3>En recette <span>1</span></h3>
         <div class="mini" style="--c: var(--pink)"><b>Fleurs de Lou</b><small>Site vitrine · 6 oct.</small><span class="wt">⏳ photos des bouquets</span></div>
       </div>
-      <div class="lane" style="--s: var(--teal)"><h3>En ligne · maintenance <span>1</span></h3>
+      <div class="lane" style="--s: var(--violet)"><h3>Livré <span>0</span></h3>
+      </div>
+      <div class="lane" style="--s: var(--teal)"><h3>Maintenance <span>1</span></h3>
         <div class="mini" style="--c: var(--gold)"><b>Pizzeria Nonna</b><small>Maintenance · 30 €/mois</small></div>
       </div>
     </div>
@@ -334,14 +343,14 @@ h2 .n { color: var(--text-dim); letter-spacing: 0; text-transform: none; font-we
       <div class="logo">💐</div>
       <div>
         <h2 class="title">Fleurs de Lou — Site vitrine</h2>
-        <div class="sub">Fleuriste · Lou Martin · 06 12 34 56 78 · <span class="status" style="--s: var(--violet)">En recette</span></div>
+        <div class="sub">Fleuriste · Lou Martin · 06 12 34 56 78 · <span class="status" style="--s: var(--accent)">En production</span></div>
       </div>
       <div class="right"><b>70 %</b>31 / 44 tâches · mise en ligne le 6 oct.</div>
     </div>
     <div class="waitbar">⏳ <span>En attente du client : <b>les photos des bouquets</b>, depuis 9 jours</span></div>
 
     <nav class="subtabs" role="tablist">
-      <button class="subtab" role="tab" aria-selected="true" data-sub="tasks">Tâches</button>
+      <button class="subtab" role="tab" aria-selected="true" data-sub="tasks">Chantiers</button>
       <button class="subtab" role="tab" aria-selected="false" data-sub="needs">Besoins</button>
       <button class="subtab" role="tab" aria-selected="false" data-sub="design">Design &amp; documents</button>
       <button class="subtab" role="tab" aria-selected="false" data-sub="money">Argent</button>
@@ -349,19 +358,8 @@ h2 .n { color: var(--text-dim); letter-spacing: 0; text-transform: none; font-we
     </nav>
 
     <div data-subview="tasks">
-      <details class="phase"><summary><span class="pn">1. Découverte</span><span class="pc">5 / 5</span><span class="bar" style="--p:100%"><i></i></span><span class="pd">✓</span></summary></details>
-      <details class="phase"><summary><span class="pn">2. Contenus</span><span class="pc">4 / 5</span><span class="bar" style="--p:80%"><i></i></span><span class="pd">—</span></summary>
-        <div class="body">
-          <div class="task done"><button class="check"></button><span class="t">Logo en SVG</span></div>
-          <div class="task done"><button class="check"></button><span class="t">Textes de présentation</span></div>
-          <div class="task done"><button class="check"></button><span class="t">Horaires et accès</span></div>
-          <div class="task done"><button class="check"></button><span class="t">Accès à la fiche Google</span></div>
-          <div class="task"><button class="check"></button><span class="t">Photos des bouquets<span class="wtag">⏳ attend le client</span></span></div>
-        </div>
-      </details>
-      <details class="phase"><summary><span class="pn">3. Maquette</span><span class="pc">3 / 3</span><span class="bar" style="--p:100%"><i></i></span><span class="pd">✓</span></summary></details>
-      <details class="phase"><summary><span class="pn">4. Développement</span><span class="pc">12 / 12</span><span class="bar" style="--p:100%"><i></i></span><span class="pd">✓</span></summary></details>
-      <details class="phase" open><summary><span class="pn">5. Recette</span><span class="pc">2 / 5</span><span class="bar" style="--p:40%"><i></i></span><span class="pd">3 oct.</span></summary>
+      <h2>En cours <span class="n">2 chantiers</span></h2>
+      <details class="phase" open><summary><span class="pn">Recette</span><span class="pc">2 / 5</span><span class="bar" style="--p:40%"><i></i></span><span class="pd">3 oct.</span></summary>
         <div class="body">
           <div class="task done"><button class="check"></button><span class="t">Envoyer le lien de préproduction</span></div>
           <div class="task done"><button class="check"></button><span class="t">Relecture des textes par Lou</span></div>
@@ -371,19 +369,32 @@ h2 .n { color: var(--text-dim); letter-spacing: 0; text-transform: none; font-we
           <button class="addt">+ Ajouter une tâche</button>
         </div>
       </details>
-      <details class="phase"><summary><span class="pn">6. Mise en ligne</span><span class="pc">1 / 8</span><span class="bar" style="--p:12%"><i></i></span><span class="pd">6 oct.</span></summary>
+      <details class="phase" open><summary><span class="pn">Mise en ligne</span><span class="pc">1 / 8</span><span class="bar" style="--p:12%"><i></i></span><span class="pd">6 oct.</span></summary>
         <div class="body">
           <div class="task done"><button class="check"></button><span class="t">Nom de domaine fleursdelou.fr</span></div>
           <div class="task"><button class="check"></button><span class="t">Hébergement et HTTPS</span></div>
           <div class="task"><button class="check"></button><span class="t">Mentions légales et confidentialité</span></div>
           <div class="task"><button class="check"></button><span class="t">Search Console et plan du site</span></div>
           <div class="task"><button class="check"></button><span class="t">Fiche Google : lien vers le site</span></div>
-          <div class="task"><button class="check"></button><span class="t">Favicon et image de partage</span></div>
-          <div class="task"><button class="check"></button><span class="t">Formulaire de contact testé</span></div>
-          <div class="task"><button class="check"></button><span class="t">Première sauvegarde</span></div>
+          <button class="addt">+ Ajouter une tâche</button>
         </div>
       </details>
-      <details class="phase"><summary><span class="pn">7. Après</span><span class="pc">0 / 4</span><span class="bar" style="--p:0%"><i></i></span><span class="pd">—</span></summary></details>
+
+      <h2 style="margin-top:18px">Attend le client <span class="n">1</span></h2>
+      <details class="phase" open><summary><span class="pn">Contenus</span><span class="pc">4 / 5</span><span class="bar" style="--p:80%"><i></i></span><span class="pd">—</span></summary>
+        <div class="body">
+          <div class="task"><button class="check"></button><span class="t">Photos des bouquets<span class="wtag">⏳ attend le client</span></span></div>
+        </div>
+      </details>
+
+      <h2 style="margin-top:18px">À faire <span class="n">1</span></h2>
+      <details class="phase"><summary><span class="pn">Après</span><span class="pc">0 / 4</span><span class="bar" style="--p:0%"><i></i></span><span class="pd">—</span></summary></details>
+
+      <h2 style="margin-top:18px">Faits <span class="n">3</span></h2>
+      <details class="phase"><summary><span class="pn">Découverte</span><span class="pc">5 / 5</span><span class="bar" style="--p:100%"><i></i></span><span class="pd">✓</span></summary></details>
+      <details class="phase"><summary><span class="pn">Maquette</span><span class="pc">3 / 3</span><span class="bar" style="--p:100%"><i></i></span><span class="pd">✓</span></summary></details>
+      <details class="phase"><summary><span class="pn">Développement</span><span class="pc">12 / 12</span><span class="bar" style="--p:100%"><i></i></span><span class="pd">✓</span></summary></details>
+      <button class="addt" style="padding-left:0">+ Ajouter un chantier</button>
     </div>
 
     <div data-subview="needs" hidden>

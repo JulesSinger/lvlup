@@ -6,6 +6,7 @@ import { flashcardsModule } from './flashcards/module';
 import { hautsfaitsModule } from './hautsfaits/module';
 import { nutritionModule } from './nutrition/module';
 import { objectifsModule } from './objectifs/module';
+import { projetsModule } from './projets/module';
 import { tachesModule } from './taches/module';
 
 /**
@@ -24,4 +25,5 @@ export const MODULES: readonly AtlasModule[] = [
   calendrierModule,
   tachesModule,
   hautsfaitsModule,
+  projetsModule,
 ];
