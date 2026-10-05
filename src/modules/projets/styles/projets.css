@@ -1,29 +1,856 @@
-/* Projets — étape 1 : un signet, en attendant le tableau de bord. */
+/* Projets — étape 3 : la V1 (docs/etude-projets.md §4). */
 
-.projets-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  min-height: 60vh;
-  padding: 2rem;
+.projets-main {
+  max-width: 1180px;
+}
+
+@media (max-width: 760px) {
+  .projets-main {
+    width: 100%;
+  }
+}
+
+.projets-spacer {
+  flex: 1;
+}
+
+.projets-hint {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.projets-count {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
   text-align: center;
 }
 
-.projets-placeholder-emoji {
-  font-size: 2.5rem;
+/* --- Les vues --------------------------------------------------------- */
+
+.projets-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
 }
 
-.projets-placeholder-title {
+.projets-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.projets-nav-item:hover {
+  color: var(--text);
+}
+
+.projets-nav-item.on {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--blue) 60%, transparent);
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
+}
+
+.projets-view-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.projets-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.projets-section-title.late {
+  color: var(--coral);
+}
+
+.projets-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 16px;
+  text-align: center;
+}
+
+.projets-empty p {
   margin: 0;
-  font-size: 1.4rem;
 }
 
-.projets-placeholder-text {
+/* --- Tableau de bord ---------------------------------------------------- */
+
+.projets-dash {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.projets-dash-col {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.projets-panel {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.projets-panel-late {
+  border-color: color-mix(in srgb, var(--coral) 40%, var(--border));
+}
+
+.projets-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.projets-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--c);
+  border-radius: 14px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.projets-card:hover {
+  border-color: var(--border-strong);
+  border-left-color: var(--c);
+}
+
+.projets-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.projets-card-client {
+  font-weight: 600;
+}
+
+.projets-card-title {
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.projets-card-due {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
+.projets-card-due.risk,
+.projets-card-due.late {
+  color: var(--coral);
+  font-weight: 600;
+}
+
+.projets-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 10px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.projets-risk {
+  color: var(--coral);
+}
+
+.projets-gauge {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.projets-gauge i {
+  display: block;
+  height: 100%;
+  background: var(--c, var(--blue));
+}
+
+.projets-status {
+  padding: 1px 7px;
+  border: 1px solid color-mix(in srgb, var(--blue) 45%, transparent);
+  border-radius: 6px;
+  color: var(--blue);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.projets-status-signed {
+  border-color: color-mix(in srgb, var(--green) 45%, transparent);
+  color: var(--green);
+}
+
+.projets-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.projets-chip {
+  padding: 1px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+}
+
+button.projets-chip {
+  cursor: pointer;
+}
+
+.projets-chip-doing {
+  border-color: color-mix(in srgb, var(--blue) 55%, transparent);
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
+  color: var(--text);
+}
+
+.projets-chip-waiting {
+  border-color: color-mix(in srgb, var(--yellow) 45%, transparent);
+  color: var(--yellow);
+}
+
+.projets-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+  color: color-mix(in oklab, var(--c), var(--text) var(--ink-mix));
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.projets-waits {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.projets-wait {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.projets-waits li:first-child .projets-wait {
+  border-top: 0;
+}
+
+.projets-wait-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.projets-wait-days {
+  color: var(--text-dim);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.projets-wait-days.old {
+  color: var(--coral);
+}
+
+/* --- Tâches ------------------------------------------------------------- */
+
+.projets-tasks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.projets-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+
+.projets-task:first-child {
+  border-top: 0;
+}
+
+.projets-check-btn {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  padding: 0;
+  border: 2px solid var(--border-strong);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.projets-check-btn:hover {
+  border-color: var(--green);
+}
+
+.projets-task.done .projets-check-btn {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.projets-task-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.projets-task-title {
+  overflow-wrap: anywhere;
+}
+
+.projets-task.done .projets-task-title {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.projets-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.projets-waiting-tag {
+  color: var(--yellow);
+}
+
+.projets-when {
+  color: var(--text-dim);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.projets-when.late {
+  color: var(--coral);
+  font-weight: 600;
+}
+
+.projets-edit-btn {
+  flex: none;
+  padding: 2px 8px;
+  color: var(--text-faint);
+}
+
+.projets-link {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.projets-add-task {
+  width: 100%;
+  margin-top: 6px;
+  border-style: dashed;
+  font-size: 13.5px;
+}
+
+/* --- La fiche d'un projet -------------------------------------------- */
+
+.projets-back {
+  margin-bottom: 10px;
+}
+
+.projets-sheet-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 20px;
+  margin-bottom: 12px;
+}
+
+.projets-sheet-id {
+  flex: 1;
+  min-width: 0;
+}
+
+.projets-sheet-client {
   margin: 0;
   color: var(--text-dim);
-  font-size: 1rem;
+  font-size: 13.5px;
+}
+
+.projets-sheet-client a {
+  color: inherit;
+}
+
+.projets-sheet-title {
+  margin: 2px 0 8px;
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+
+.projets-sheet-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.projets-status-select {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.projets-price {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.projets-sheet-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
+.projets-sheet-progress b {
+  color: var(--text);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.projets-waitbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 4px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--yellow) 35%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--yellow) 10%, transparent);
+  font-size: 13.5px;
+}
+
+.projets-waitbar.old {
+  border-color: color-mix(in srgb, var(--coral) 45%, transparent);
+}
+
+.projets-waitbar-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.projets-waitbar b {
+  color: color-mix(in oklab, var(--yellow), var(--text) var(--ink-mix));
+}
+
+.projets-waitbar-edit input {
+  flex: 1;
+  min-width: 160px;
+}
+
+.projets-error-inline {
+  width: 100%;
+  color: var(--coral);
+  font-size: 12.5px;
+}
+
+.projets-wait-btn {
+  margin-bottom: 4px;
+}
+
+.projets-subtabs {
+  display: flex;
+  gap: 2px;
+  margin: 14px 0 16px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.projets-subtab {
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.projets-subtab.on {
+  border-bottom-color: var(--blue);
+  color: var(--text);
+}
+
+.projets-workstreams {
+  display: grid;
+  gap: 18px;
+}
+
+.projets-ws-group {
+  display: grid;
+  gap: 10px;
+}
+
+.projets-ws {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.projets-ws-waiting {
+  border-color: color-mix(in srgb, var(--yellow) 35%, var(--border));
+}
+
+.projets-ws-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 12px;
+}
+
+.projets-ws-toggle {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.projets-ws-chevron {
+  width: 12px;
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+.projets-ws-title {
+  font-weight: 600;
+}
+
+.projets-ws-count {
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+.projets-ws-bar {
+  display: block;
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.projets-ws-bar i {
+  display: block;
+  height: 100%;
+  background: var(--blue);
+}
+
+.projets-ws-done .projets-ws-bar i {
+  background: var(--green);
+}
+
+.projets-ws-body {
+  padding: 0 12px 10px;
+}
+
+.projets-add-ws {
+  justify-self: start;
+}
+
+/* --- Journal ------------------------------------------------------------ */
+
+.projets-journal {
+  display: grid;
+  gap: 12px;
+}
+
+.projets-journal-form {
+  display: grid;
+  grid-template-columns: 150px 1fr auto;
+  align-items: start;
+  gap: 8px;
+}
+
+.projets-notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.projets-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.projets-note:first-child {
+  border-top: 0;
+}
+
+.projets-note-day {
+  flex: none;
+  min-width: 62px;
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+.projets-note-text {
+  flex: 1;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* --- Infos, fenêtres ---------------------------------------------------- */
+
+.projets-infos {
+  max-width: 640px;
+}
+
+.projets-infos-actions,
+.projets-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.projets-field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0 12px;
+}
+
+.projets-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  cursor: pointer;
+}
+
+/* Le socle donne `width: 100%` à tout input : une case à cocher s'étirerait. */
+.projets-check input {
+  width: auto;
+}
+
+.projets-templates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.projets-template {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.projets-template span {
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
+.projets-template small {
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.projets-template.on {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 12%, var(--surface));
+}
+
+/* --- Tous les projets, clients ---------------------------------------- */
+
+.projets-by-status {
+  display: grid;
+  gap: 18px;
+}
+
+.projets-rows,
+.projets-clients {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.projets-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--c);
+  border-radius: 12px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.projets-row-main {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+}
+
+.projets-row-main span {
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.projets-row-progress {
+  min-width: 40px;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: right;
+}
+
+.projets-client {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.projets-client.archived {
+  opacity: 0.6;
+}
+
+.projets-client-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.projets-client-trade {
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+.projets-client-contact {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+
+.projets-client-contact a {
+  color: inherit;
+}
+
+@media (max-width: 760px) {
+  .projets-dash {
+    grid-template-columns: 1fr;
+  }
+  .projets-sheet-progress {
+    align-items: flex-start;
+  }
+  .projets-ws-bar {
+    display: none;
+  }
+  .projets-journal-form {
+    grid-template-columns: 1fr;
+  }
+  .topbar-add-label {
+    display: none;
+  }
 }
 
 /* --- Aperçu sur la page d'accueil publique (ProjetsLandingPreview) --- */

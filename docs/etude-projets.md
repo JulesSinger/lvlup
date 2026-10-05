@@ -627,6 +627,55 @@ mode comptes (866 en local).
 
 ---
 
+## 15. Étape 3 : la V1 (05/10/2026)
+
+L'écran du module (`ProjetsScreen`) et ses composants :
+
+- **Trois vues** en pastilles, la dernière retenue sur l'appareil (`projets.view.v1`) :
+  **Tableau de bord** (en retard, cette semaine, en attente du client, projets actifs avec
+  leurs chantiers en cours et le danger dit en clair), **Projets** (tous, rangés par statut de la
+  relation, les terminés et perdus repliés) et **Clients** (coordonnées, téléphone et e-mail qui
+  se touchent, projets du client).
+- **Nouveau projet** (`ProjectCreator`) : un client existant ou un nouveau sans quitter la
+  fenêtre, le modèle en quatre cartes (avec leur nombre de chantiers et de tâches), le titre qui
+  suit le modèle tant qu'on ne l'a pas écrit, le statut (« Piste » par défaut), la mise en ligne
+  prévue et le prix. Le modèle est recopié aussitôt (`instantiateTemplate` puis
+  `addWorkstreams`) et la fiche s'ouvre.
+- **La fiche** (`ProjectSheet`) : client, métier et téléphone, statut à changer sur place,
+  échéance, prix, avancement ; l'attente du client (`WaitingBar` : « J'attends quelque chose du
+  client » → ce qu'on attend → « C'est reçu », « à relancer » au-delà de 7 jours) ; trois
+  onglets — **Chantiers** groupés par état (`WorkstreamBlock`, ajout d'une tâche sur place),
+  **Journal** (`Journal`, notes datées) et **Infos** (`ProjectInfos` : titre, client, dates,
+  prix, note, numéro du projet, suppression).
+- **Fenêtres** : `ClientEditor`, `TaskEditor` (jours, attente du client, chantier, note),
+  `WorkstreamEditor` (nom, date, suppression avec ses tâches) ; une enveloppe commune (`Modal`)
+  qu'un clic à côté ne ferme pas, et Échap si.
+- `lib/money.ts` (montants à la française, en centimes) et `lib/format.ts` (dates courtes,
+  « demain », « jeu. 8 », « dans 5 j », « depuis 9 jours »), testées ; `lib/colors.ts` donne à
+  chaque projet une couleur de la palette tirée de son numéro.
+
+Choix faits en l'écrivant :
+
+- **Seuls les chantiers en cours, en attente ou sans tâche s'ouvrent** ; ceux à faire et finis
+  se replient. La première version les ouvrait tous sauf les finis : une fiche tout juste tirée
+  du modèle déroulait ses 45 tâches d'un coup (vu sur une capture).
+- **Cocher est immédiat à l'écran**, la relecture remet la vérité en cas d'échec. Les autres
+  écritures attendent le stockage puis relisent tout : quelques projets, quelques centaines de
+  tâches au plus.
+- **Rien de tapé ne se perd** : une tâche ajoutée sur place qui échoue garde son titre dans le
+  champ, avec le message ; les fenêtres gardent leur saisie et affichent l'erreur ; le statut et
+  l'attente, changés hors fenêtre, signalent l'échec dans le bandeau commun.
+- **Le texte d'une tâche se sélectionne** : le rond coche, le ✎ ouvre la fenêtre (leçon de
+  Tâches).
+- Le module n'a **pas de section de réglages** : le bouton ⚙ ouvre la fenêtre commune
+  (sauvegarde, compte).
+
+1224 → **1230** tests unitaires (+6 : montants et dates), vérifications de bout en bout : les 5
+du signet remplacées par **49** sur le vrai parcours, dont le rendu téléphone — **910/910** en
+local et **929/929** en mode comptes.
+
+---
+
 ## Sources
 
 - Réforme de la facturation électronique : calendrier publié par l'administration (impots.gouv.fr,
