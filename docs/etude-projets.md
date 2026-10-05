@@ -454,6 +454,73 @@ sont l'or, le violet, le bleu ciel, le turquoise, le lilas, le citron vert, le r
 
 ---
 
+## 12. Décisions prises avec Jules (05/10/2026)
+
+| Question | Décision |
+|---|---|
+| Nom (§9) | **Projets** 💼, nom technique `projets` |
+| Statuts (§3.2) | le pipeline plaît, mais **le travail avance sur plusieurs fronts en même temps** (développement, contenus, hébergement…) : un seul statut ne peut pas le dire. Revu ci-dessous |
+| Questionnaire (§3.4) | **fixe** pour l'instant, écrit dans le code |
+| Temps passé (§3.10) | **oui**, on le note |
+| Modèle de projet, échéancier | réexpliqués à Jules (ci-dessous), réponse attendue |
+
+### Deux axes au lieu d'un : le statut et les chantiers
+
+La remarque de Jules montre que la liste du §3.2 mélangeait deux choses : **où en est la
+relation avec le client** (piste, devis, signé, livré) et **où en est le travail** (en cours, en
+recette). La première est bien une suite d'étapes, une à la fois ; la seconde ne l'est pas.
+
+- **Le statut ne parle plus que de la relation** : *Piste → Devis envoyé → Signé → En production →
+  Livré → Maintenance*, plus *Terminé* et *Perdu*. « En cours » et « En recette » disparaissent,
+  remplacés par un seul **En production**.
+- **Les phases deviennent des chantiers**, menés **en parallèle**, sans ordre imposé :
+  Découverte, Contenus, Maquette, Développement, Hébergement & domaine, Recette, Mise en ligne,
+  Après. Chacun a son état, **calculé depuis ses tâches** et jamais choisi à la main : *à faire*
+  (rien de coché), *en cours*, *attend le client* (une de ses tâches attend), *fait* (tout est
+  coché).
+- **La carte d'un projet** dit donc : « En production — en cours : Développement, Contenus,
+  Hébergement ; attend le client : Contenus (photos) ». C'est la réponse à « je fais plusieurs
+  choses en même temps ».
+- Dans la fiche, les chantiers en cours s'affichent **en premier**, ceux qui sont faits se
+  replient en bas.
+
+Conséquences sur le modèle de données (§7) : `projets_phases` devient `projets_workstreams`
+(chantiers), sans état stocké ; la colonne `position` ne sert plus qu'à l'ordre d'affichage du
+modèle. La liste des statuts (CHECK, `as const`) devient
+`lead, quoted, signed, production, delivered, maintenance, done, lost`. L'avancement du projet
+(§4.5) reste la part de toutes ses tâches cochées.
+
+### Le modèle de projet, réexpliqué
+
+Un **modèle**, c'est la **liste de chantiers et de tâches toute prête** qu'Atlas recopie dans
+chaque nouveau projet. Créer « Fleurs de Lou — site vitrine » donne d'office une quarantaine de
+tâches (« acheter le nom de domaine », « mentions légales », « fiche Google à jour »…) qu'on n'a
+plus à se rappeler ni à retaper ; on retire ce qui ne sert pas pour ce client, on ajoute ce qui
+manque. Les sites pour commerçants se ressemblent : c'est ce qui rend « carré » sans effort.
+
+La question restante est de savoir s'il en faut **un seul** (site vitrine) ou **plusieurs**
+(vitrine, boutique en ligne, maintenance). Recommandé : un seul dans la V1, d'autres quand un
+vrai projet le demandera.
+
+### L'échéancier, réexpliqué
+
+C'est **le découpage du prix en paiements**. Pour un site à 900 €, l'usage chez les
+indépendants est de demander une partie **à la signature** (l'acompte, qui engage le client et
+couvre le début du travail) et le reste **à la livraison** (le solde). Exemple « 30 / 70 » :
+270 € à la signature, 630 € à la mise en ligne. Atlas proposerait ce découpage à la création du
+projet (modifiable), pour que les deux paiements attendus existent tout de suite et qu'un solde
+non reçu remonte dans le tableau de bord. La question : quel découpage proposer par défaut —
+30 / 70, 50 / 50, ou aucun (on saisit les paiements à la main) ?
+
+### Le temps passé
+
+Retenu : une table `projets_time` (projet, jour, minutes, chantier facultatif, note), une saisie
+rapide « 2 h 30 sur Développement » depuis la fiche, et dans l'onglet Argent le **taux horaire
+réel** (encaissé, ou prix convenu, divisé par le temps noté). Pas de chronomètre dans la V1 : une
+durée tapée après coup suffit et ne s'oublie pas allumée. Rangé à l'étape 5, avec l'argent.
+
+---
+
 ## Sources
 
 - Réforme de la facturation électronique : calendrier publié par l'administration (impots.gouv.fr,
