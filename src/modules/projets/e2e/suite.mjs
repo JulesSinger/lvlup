@@ -19,6 +19,9 @@
  * reçu (et vu dans Budget, de l'autre côté), un paiement qui dépasse le prix,
  * le temps passé et le taux horaire réel, l'argent au tableau de bord, le
  * livre des recettes et son export CSV.
+ *
+ * Étape 6 (§18) : la tâche du jour vue dans Calendar, et « Modifier dans
+ * Projets » qui ramène à sa fenêtre.
  */
 
 /** Rouvre Atlas sur la liste des modules (voir la suite de Hauts faits). */
@@ -244,8 +247,23 @@ export async function run({ browser, check, BASE }) {
   const budgetRow = page.locator('.budget-entry-row', { hasText: 'Fleurs de Lou — Acompte 30 %' });
   await budgetRow.first().waitFor({ timeout: 10000 }).catch(() => {});
   check('Budget a reçu l’acompte comme une entrée, à classer sans catégorie « Revenus freelance »', (await budgetRow.count()) === 1 && (await text(budgetRow.locator('.budget-row-amount'))).includes('270,00'));
-  await openModule(page);
-  await page.locator('.projets-card', { hasText: 'Fleurs de Lou' }).click();
+
+  // --- Le calque dans Calendar (étape 6) ---------------------------------------
+  await page.getByRole('button', { name: 'Tous les modules' }).click();
+  await page.waitForSelector('.hub-picker-card');
+  await page.locator('.hub-picker-card', { hasText: 'Calendar' }).click();
+  const layerTask = page.locator('.calendrier-layer', { hasText: 'Fleurs de Lou · Recevoir les photos' }).first();
+  await layerTask.waitFor({ timeout: 10000 }).catch(() => {});
+  check('Calendar montre la tâche de projet prévue aujourd’hui, avec son client', (await layerTask.count()) === 1);
+  check('Un calque « Projets » parmi les calques', (await page.locator('.calendrier-layer-chip', { hasText: 'Projets' }).count()) === 1);
+  await layerTask.locator('.calendrier-mark-title').click();
+  await page.locator('.calendrier-mark-dialog').waitFor();
+  await page.getByRole('button', { name: 'Modifier dans Projets' }).click();
+  const fromCalendar = page.getByRole('dialog', { name: 'Modifier la tâche' });
+  await fromCalendar.waitFor({ timeout: 10000 }).catch(() => {});
+  check('« Modifier dans Projets » ouvre la fiche du projet et la fenêtre de la tâche', (await page.locator('#projets-task-title').inputValue().catch(() => '')) === 'Recevoir les photos' && (await text(page.locator('.projets-sheet-title'))) === 'Site vitrine');
+  await page.keyboard.press('Escape');
+  await fromCalendar.waitFor({ state: 'detached' });
 
   // --- Le tableau de bord ----------------------------------------------------
   await page.getByRole('button', { name: '← Retour' }).click();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { newId } from '../../core/data/coreStore';
 import { dayString } from '../../core/lib/day';
@@ -17,6 +17,7 @@ import { TaskEditor } from './components/TaskEditor';
 import { WorkstreamEditor } from './components/WorkstreamEditor';
 import { projetsStore as store } from './data';
 import type { ProjetsBackup } from './data/projetsStore';
+import { syncReminders } from './data/syncReminders';
 import { projectProgress, projectWorkstreams } from './lib/progress';
 import { instantiateTemplate, templateById } from './lib/templates';
 import { BUDGET_CATEGORY, budgetRef, schedulePayments } from './lib/payments';
@@ -53,7 +54,7 @@ const nextPosition = (items: readonly { position: number }[]) => items.reduce((m
  * Toute la logique est dans les bibliothèques pures (`lib/`) : cet écran ne
  * fait qu'appeler le contrat de stockage et afficher.
  */
-export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji, services }: ModuleScreenProps) {
+export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji, services, intent }: ModuleScreenProps) {
   const expenses = services.expenses;
   const [data, setData] = useState<Required<ProjetsBackup>>(EMPTY);
   const [loaded, setLoaded] = useState(false);
@@ -84,6 +85,8 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
       ]);
       setData({ clients, projects, workstreams, tasks, notes, links, payments, time });
       onError('');
+      // Les rappels suivent chaque relecture ; un échec ne gêne jamais l'écran.
+      syncReminders().catch(() => {});
       if (expenses) {
         // Budget qui ne répond pas ne doit pas empêcher Projets de s'afficher.
         expenses.recorded(payments.filter((p) => p.receivedDay).map(budgetRef)).then(setInBudget, () => setInBudget(null));
@@ -98,6 +101,27 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
   useEffect(() => {
     void refresh();
   }, [refresh, reloadToken]);
+
+  /**
+   * Ouvert depuis Calendar sur un élément précis (`onOpenModule`) :
+   * « task:<id> » ouvre la fiche du projet et la fenêtre de la tâche,
+   * « project:<id> » la fiche du projet. Une seule fois par intention.
+   */
+  const intentDone = useRef<string | null>(null);
+  useEffect(() => {
+    if (!loaded || !intent || intentDone.current === intent) return;
+    intentDone.current = intent;
+    if (intent.startsWith('project:')) {
+      const id = intent.slice(8);
+      if (data.projects.some((p) => p.id === id)) setOpenId(id);
+    } else if (intent.startsWith('task:')) {
+      const task = data.tasks.find((t) => t.id === intent.slice(5));
+      if (task) {
+        setOpenId(task.projectId);
+        setTaskEditingId(task.id);
+      }
+    }
+  }, [loaded, intent, data]);
 
   function setView(v: View) {
     setViewState(v);

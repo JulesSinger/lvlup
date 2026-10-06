@@ -773,6 +773,38 @@ Jules.**
 
 ---
 
+## 18. Étape 6 : le calque dans Calendar et les rappels (06/10/2026)
+
+- **Le calque** (`lib/calendarMarks.ts`, `data/calendarSource.ts`, déclaré dans `module.ts`
+  par `provides.calendarSources`) : les tâches de projet datées (« Fleurs de Lou · Menu », ⚑ pour
+  une échéance seule), **cochables** depuis le calendrier ; la mise en ligne (🚀), la fin d'un
+  chantier, les paiements attendus (💶). Rien d'un projet terminé ou perdu.
+- **Glisser à un autre jour change la date chez Projets** : jour prévu d'une tâche, mise en
+  ligne, fin de chantier, paiement attendu. Tout se fait à la journée : posée sur une heure, la
+  marque est refusée et revient à sa place, avec le message.
+- **« Modifier dans Projets »** depuis une marque ouvre la fiche du projet, et la fenêtre de la
+  tâche pour une tâche (`intent` : `task:<id>`, `project:<id>`).
+- **Les rappels** (`lib/reminders.ts`, `data/syncReminders.ts`), déclarés au socle après chaque
+  relecture et chaque geste dans le calendrier, à 9 h, sur sept jours : la **mise en ligne dans
+  deux jours** s'il reste des tâches, un **paiement attendu** le jour même, une **relance** quand
+  une attente du client atteint une semaine. Le toucher ouvre Projets (`/#/projets`).
+
+Choix faits en l'écrivant :
+
+- **Pas de réglages pour les rappels** dans cette étape : trois rappels rares, qui ne partent
+  que vers un appareil où les notifications sont déjà activées (depuis Tâches ou Objectifs). Une
+  section de réglages viendra s'ils s'avèrent trop bavards.
+- Un paiement ne se marque pas « reçu » depuis le calendrier : il faut le jour, le mode et la
+  facture — c'est la fenêtre de Projets.
+- Aucune heure pour les dates d'un projet : une tâche de projet se fait dans la journée (§3.3).
+
+1267 → **1278** tests unitaires (+11), 86 → **89** vérifications de bout en bout pour le module
+(la tâche du jour vue dans Calendar, puis « Modifier dans Projets »), la suite de Calendar
+inchangée et verte (88/88) : **950/950** en local, **969/969** en mode comptes. **Envoi réel des
+rappels non vérifiable automatiquement** (compte et appareil) : à essayer.
+
+---
+
 ## Sources
 
 - Réforme de la facturation électronique : calendrier publié par l'administration (impots.gouv.fr,
