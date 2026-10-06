@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localInstant, plannedReminders } from './reminders';
+import { effectiveTaskReminders, localInstant, plannedReminders, reminderLabel } from './reminders';
 import type { TachesSettings, Task } from './types';
 
 let n = 0;
@@ -14,6 +14,7 @@ const task = (overrides: Partial<Task> = {}): Task => {
     plannedDay: null,
     plannedTime: null,
     durationMinutes: null,
+    reminders: null,
     dueDay: null,
     priority: 'normale',
     recurrence: null,
@@ -48,6 +49,31 @@ describe('plannedReminders — à l’heure d’une tâche', () => {
     ];
     expect(plannedReminders(tasks, tasksOnly, now)).toEqual([]);
     expect(plannedReminders([task({ plannedDay: '2026-09-29', plannedTime: '09:00' })], { ...tasksOnly, taskReminders: false }, now)).toEqual([]);
+  });
+});
+
+describe('plannedReminders — les rappels choisis par une tâche (06/10/2026)', () => {
+  it('deux rappels avant son heure ; « à l’heure » garde sa référence d’avant', () => {
+    const t = task({ title: 'Dentiste', plannedDay: '2026-09-29', plannedTime: '09:00', reminders: [0, 15] });
+    expect(plannedReminders([t], tasksOnly, now).map((r) => [r.ref, r.fireAt])).toEqual([
+      [`task:${t.id}:2026-09-29:15`, at('2026-09-29', '08:45')],
+      [`task:${t.id}:2026-09-29`, at('2026-09-29', '09:00')],
+    ]);
+  });
+
+  it('les siens l’emportent sur le réglage, coupé ou non ; `[]` : aucun', () => {
+    const chosen = task({ plannedDay: '2026-09-29', plannedTime: '09:00', reminders: [30] });
+    const none = task({ plannedDay: '2026-09-29', plannedTime: '09:00', reminders: [] });
+    const off = { ...tasksOnly, taskReminders: false };
+    expect(plannedReminders([chosen, none], off, now).map((r) => r.fireAt)).toEqual([at('2026-09-29', '08:30')]);
+    expect(plannedReminders([none], tasksOnly, now)).toEqual([]);
+  });
+
+  it('le défaut : « à l’heure » si le réglage est actif, rien sinon', () => {
+    expect(effectiveTaskReminders({ reminders: null }, tasksOnly)).toEqual([0]);
+    expect(effectiveTaskReminders({ reminders: null }, { taskReminders: false })).toEqual([]);
+    expect(effectiveTaskReminders({ reminders: [15, 15, 7] }, tasksOnly)).toEqual([15]);
+    expect([0, 10, 60, 1440].map(reminderLabel)).toEqual(['À l’heure', '10 min avant', '1 h avant', '1 jour avant']);
   });
 });
 

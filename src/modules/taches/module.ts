@@ -1,6 +1,7 @@
 import type { AtlasModule } from '../../core/lib/module';
 import { PolarisLandingPreview } from './components/PolarisLandingPreview';
 import { tachesStore } from './data';
+import { CalendarTaskEditor } from './components/CalendarTaskEditor';
 import { createCalendarSource } from './data/calendarSource';
 import { syncReminders } from './data/syncReminders';
 import { TachesScreen } from './TachesScreen';
@@ -24,7 +25,10 @@ export const tachesModule: AtlasModule = {
   // Les rappels (étape 5) : à l'heure des tâches, et le résumé du matin.
   SettingsSection: TachesSettingsSection,
   // Les tâches datées en calque dans Éclipse, cochables depuis le calendrier (étape 6) ;
-  // une coche y recalcule les rappels, comme dans Polaris.
-  provides: { calendarSources: [createCalendarSource(tachesStore, () => syncReminders())] },
+  // une coche y recalcule les rappels, comme dans Polaris. Depuis le 06/10/2026, la
+  // fenêtre d'une tâche s'ouvre aussi dans le calendrier, pour la modifier ou en créer une.
+  provides: {
+    calendarSources: [{ ...createCalendarSource(tachesStore, () => syncReminders()), Editor: CalendarTaskEditor, createLabel: 'Tâche' }],
+  },
   LandingPreview: PolarisLandingPreview,
 };

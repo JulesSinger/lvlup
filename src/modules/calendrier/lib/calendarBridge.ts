@@ -5,7 +5,7 @@
  * INCLUSES. Toutes les conversions passent ici, testées, et jamais par
  * l'UTC : une date affichée à 9 h est lue à 9 h, changement d'heure ou pas.
  */
-import type { CalendarMark, CalendarSource, MarkMove } from '../../../core/lib/services';
+import type { CalendarMark, CalendarSource, MarkMove, MarkSlot } from '../../../core/lib/services';
 import { dayString, shiftDay } from '../../../core/lib/day';
 import { occurrenceRange, type Occurrence } from './recurrence';
 import type { EventColor, EventInput } from './types';
@@ -159,3 +159,22 @@ export const COLOR_LABELS: Record<EventColor, string> = {
   violet: 'Violet',
   gris: 'Gris',
 };
+
+const minutesOf = (time: string) => {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+};
+
+/**
+ * Le créneau d'un événement en cours de création, pour basculer vers « Tâche »
+ * (06/10/2026) : son jour, son heure, sa durée et ce qui était déjà tapé. Une
+ * durée qui passe d'un jour à l'autre n'est pas reprise — une tâche n'a
+ * qu'un jour.
+ */
+export function slotFromValues(v: EventSpan & { title?: string }): MarkSlot {
+  const title = v.title?.trim();
+  const named = title ? { title } : {};
+  if (v.allDay || !v.startTime) return { day: v.startDay, time: null, ...named };
+  const length = v.endTime && v.endDay === v.startDay ? minutesOf(v.endTime) - minutesOf(v.startTime) : 0;
+  return { day: v.startDay, time: v.startTime, ...(length >= 5 ? { duration: length } : {}), ...named };
+}

@@ -1,3 +1,5 @@
+import type { ComponentType, ReactNode } from 'react';
+
 /**
  * Les services qu'un module rend aux autres — le seul moyen, pour un
  * module, d'agir chez un autre sans l'importer (`conventions.test.ts`
@@ -97,6 +99,32 @@ export interface MarkMove {
   duration?: number;
 }
 
+/** Un créneau du calendrier, pour y créer quelque chose : son jour, son heure (`null` : la journée), sa durée. */
+export interface MarkSlot {
+  day: string;
+  time: string | null;
+  /** Avec une heure, en minutes */
+  duration?: number;
+  /** Ce qui était déjà tapé dans la fenêtre de l'événement avant de basculer */
+  title?: string;
+}
+
+/**
+ * La fenêtre d'un module, prêtée au calendrier (06/10/2026) : modifier une
+ * marque sans quitter le calendrier, ou créer une chose du module sur un
+ * créneau. Le module la dessine et écrit avec ses propres règles ; le
+ * calendrier ne fait que l'ouvrir et relire le calque à la fermeture.
+ */
+export interface MarkEditorProps {
+  /** Ce qu'on modifie : le `link` d'une marque. Absent : on crée, sur `slot`. */
+  link?: string;
+  slot?: MarkSlot;
+  /** Placé en haut de la fenêtre (la bascule « Événement / Tâche » du calendrier) */
+  header?: ReactNode;
+  /** `changed` : quelque chose a été écrit, le calque est à relire. */
+  onClose: (changed: boolean) => void;
+}
+
 /**
  * Un calque du calendrier : ce qu'un module sait des jours, entre deux
  * dates. Le module qui le déclare le calcule depuis ses propres données, à
@@ -125,6 +153,14 @@ export interface CalendarSource {
    * chez lui, et la marque revient alors à sa place.
    */
   moveMark?(markId: string, to: MarkMove): Promise<void>;
+  /**
+   * La fenêtre du module, ouverte par-dessus le calendrier pour modifier une
+   * marque qui a un `link`, ou créer sur un créneau (depuis le 06/10/2026,
+   * les tâches). Sans elle, toucher une marque ouvre son simple résumé.
+   */
+  Editor?: ComponentType<MarkEditorProps>;
+  /** Le nom de ce qu'on crée depuis un créneau (« Tâche ») ; absent : rien ne se crée depuis le calendrier. */
+  createLabel?: string;
 }
 
 /** Tout ce que les modules peuvent se rendre les uns aux autres. */

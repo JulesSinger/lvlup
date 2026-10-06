@@ -827,3 +827,17 @@
 .taches-landing-detail.urgent {
   color: var(--red);
 }
+
+/* Les rappels d'une tâche (06/10/2026) : deux listes côte à côte, l'une
+   sous l'autre sur un écran étroit — comme ceux d'un événement du calendrier. */
+.taches-reminders-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.taches-editor .taches-reminders-row select {
+  flex: 1 1 180px;
+  min-width: 0;
+  width: auto;
+}

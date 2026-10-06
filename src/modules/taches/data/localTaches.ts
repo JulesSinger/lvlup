@@ -10,7 +10,8 @@ function read(): TachesBackup {
   const raw = readRaw();
   const settings = raw.tachesSettings && typeof raw.tachesSettings === 'object' ? (raw.tachesSettings as TachesSettings) : undefined;
   // Une tâche enregistrée avant la durée (28/09/2026) n'a pas le champ : `null`.
-  const tasks = arrayOf<Task>(raw.tachesTasks).map((t) => ({ ...t, durationMinutes: t.durationMinutes ?? null }));
+  // Ni ses rappels (06/10/2026) : `null`, celui par défaut.
+  const tasks = arrayOf<Task>(raw.tachesTasks).map((t) => ({ ...t, durationMinutes: t.durationMinutes ?? null, reminders: t.reminders ?? null }));
   return { lists: arrayOf<TaskList>(raw.tachesLists), tasks, settings };
 }
 
@@ -79,6 +80,7 @@ export class LocalTaches implements TachesStore {
       plannedDay: input.plannedDay ?? null,
       plannedTime: input.plannedTime ?? null,
       durationMinutes: input.durationMinutes ?? null,
+      reminders: input.reminders ?? null,
       dueDay: input.dueDay ?? null,
       priority: input.priority ?? 'normale',
       recurrence: input.recurrence ?? null,

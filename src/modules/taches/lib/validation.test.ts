@@ -34,6 +34,15 @@ describe('validateTask', () => {
   });
 });
 
+describe('validateTask — les rappels (06/10/2026)', () => {
+  it('deux au plus, pris dans la liste', () => {
+    expect(validateTask({ title: 'A', plannedDay: '2026-10-07', plannedTime: '09:00', reminders: [0, 15] })).toBeNull();
+    expect(validateTask({ title: 'A', reminders: [] })).toBeNull();
+    expect(validateTask({ title: 'A', reminders: [0, 5, 10] })).toMatch(/2 rappels/);
+    expect(validateTask({ title: 'A', reminders: [7] })).toMatch(/Rappel invalide/);
+  });
+});
+
 describe('validateTask — la durée', () => {
   it('seulement avec une heure, de 5 minutes à 24 heures', () => {
     expect(validateTask({ title: 'x', plannedDay: '2026-09-29', plannedTime: '15:00', durationMinutes: 90 })).toBeNull();

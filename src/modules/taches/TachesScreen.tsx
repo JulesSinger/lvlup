@@ -19,7 +19,8 @@ import { dayLabel, shortDate } from './lib/format';
 import type { QuickAdd } from './lib/quickAdd';
 import { moveItem, positionPatches } from './lib/order';
 import { completionPlan, undoCompletion, upcomingOccurrences } from './lib/repeat';
-import type { Task, TaskInput, TaskList, TaskPatch } from './lib/types';
+import { effectiveTaskReminders } from './lib/reminders';
+import { DEFAULT_TACHES_SETTINGS, type TachesSettings, type Task, type TaskInput, type TaskList, type TaskPatch } from './lib/types';
 import { validateTask } from './lib/validation';
 import { doneView, inboxView, listView, subtasksOf, todayView, upcomingView } from './lib/views';
 
@@ -72,6 +73,8 @@ const PLACEHOLDERS: Record<string, string> = {
 export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, intent, label, emoji }: ModuleScreenProps) {
   const [lists, setLists] = useState<TaskList[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  // Le rappel par défaut, montré dans la fenêtre d'une tâche qui n'a pas choisi les siens.
+  const [settings, setSettings] = useState<TachesSettings>(DEFAULT_TACHES_SETTINGS);
   const [loaded, setLoaded] = useState(false);
   const [view, setViewState] = useState<View>(savedView);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -96,7 +99,13 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
 
   const refresh = useCallback(async () => {
     try {
-      const [nextLists, nextTasks] = await Promise.all([tachesStore.listLists(), tachesStore.listTasks()]);
+      const [nextLists, nextTasks, nextSettings] = await Promise.all([
+        tachesStore.listLists(),
+        tachesStore.listTasks(),
+        // Des réglages illisibles ne doivent pas empêcher d'afficher les tâches.
+        tachesStore.getSettings().catch(() => DEFAULT_TACHES_SETTINGS),
+      ]);
+      setSettings(nextSettings);
       serverTasks.current = nextTasks;
       // La file par-dessus le serveur : une relecture n'efface jamais ce qui n'est pas encore parti.
       const shown = applyPendingTasks(nextTasks, taskWriter.pending());
@@ -641,6 +650,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
             subtasks={subtasksOf(tasks, editing.id)}
             allTasks={tasks}
             lists={lists}
+            defaultReminders={effectiveTaskReminders({ reminders: null }, settings)}
             onCancel={() => setEditingId(null)}
             onSave={saveTask}
             onDelete={deleteTask}

@@ -555,15 +555,31 @@ export async function run({ browser, check, BASE }) {
     check('… par quarts d’heure : le premier pas ajoute 15 minutes', (await task('p2'))?.durationMinutes === 165, JSON.stringify(await task('p2')));
   }
 
-  // Toucher la tâche ailleurs que sur son rond : sa fenêtre, sans la cocher.
+  // Toucher la tâche ailleurs que sur son rond : la fenêtre de Tâches, dans le calendrier (06/10/2026).
   await book.locator('.calendrier-mark-title').click();
-  await lp.locator('.calendrier-mark-dialog').waitFor();
-  const dialog = await text(lp.locator('.calendrier-mark-dialog'));
-  check('Toucher une tâche ouvre sa fenêtre : titre, source, à faire', dialog.includes('Rendre le livre') && dialog.includes('Tâches') && dialog.includes('À faire'), dialog);
+  await lp.locator('.taches-editor').waitFor();
+  check('Toucher une tâche ouvre la fenêtre de Tâches, sans quitter le calendrier', (await lp.locator('#taches-title').inputValue()) === 'Rendre le livre' && (await lp.locator('.calendrier-main').count()) === 1);
   check('… sans la cocher', await lp.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === 'p1')?.completedAt === null));
   check('… ni ouvrir la fenêtre d’un événement', (await lp.locator('.calendrier-editor').count()) === 0);
+  check('Une tâche sans heure ne propose pas de rappel (le résumé du matin la couvre)', (await lp.locator('#taches-reminder-1').count()) === 0);
   await lp.keyboard.press('Escape');
-  await lp.locator('.calendrier-mark-dialog').waitFor({ state: 'detached' });
+  await lp.locator('.taches-editor').waitFor({ state: 'detached' });
+  const garageMark = lp.locator('.calendrier-layer', { hasText: 'Appeler le garage' }).first();
+  await garageMark.locator('.calendrier-mark-title').click();
+  await lp.locator('.taches-editor').waitFor();
+  check('Une tâche à une heure propose ses rappels, « à l’heure » par défaut', (await lp.locator('#taches-reminder-1').evaluate((el) => el.selectedOptions[0]?.textContent)) === 'À l’heure');
+  await lp.locator('#taches-reminder-1').selectOption({ label: '15 min avant' });
+  await lp.locator('.taches-editor').getByRole('button', { name: 'Enregistrer' }).click();
+  await lp.locator('.taches-editor').waitFor({ state: 'detached' });
+  check(
+    'Le rappel choisi est enregistré dans la tâche',
+    JSON.stringify(await lp.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.id === 'p2')?.reminders)) === '[15]',
+  );
+  await garageMark.locator('.calendrier-mark-title').click();
+  await lp.locator('.taches-editor').waitFor();
+  check('… et relu à la réouverture', (await lp.locator('#taches-reminder-1').evaluate((el) => el.selectedOptions[0]?.textContent)) === '15 min avant');
+  await lp.keyboard.press('Escape');
+  await lp.locator('.taches-editor').waitFor({ state: 'detached' });
 
   // Le rond, lui, coche.
   await book.getByRole('checkbox', { name: 'Cocher « Rendre le livre »' }).click();
@@ -593,19 +609,36 @@ export async function run({ browser, check, BASE }) {
   await forecast.waitFor();
   check('La semaine suivante montre la prochaine fois d’une tâche répétée, sans rond à cocher', (await forecast.getByRole('checkbox').count()) === 0);
   await forecast.click();
-  await lp.locator('.calendrier-mark-dialog').waitFor();
-  check('Sa fenêtre dit que c’est un aperçu, et propose de la modifier dans Tâches', (await text(lp.locator('.calendrier-mark-dialog'))).includes('Aperçu') && (await lp.getByRole('button', { name: 'Modifier dans Tâches' }).count()) === 1);
+  await lp.locator('.taches-editor').waitFor();
+  check('Toucher une prochaine fois ouvre la fenêtre de sa tâche', (await lp.locator('#taches-title').inputValue()) === 'Faire les courses');
   await lp.keyboard.press('Escape');
-  await lp.locator('.calendrier-mark-dialog').waitFor({ state: 'detached' });
+  await lp.locator('.taches-editor').waitFor({ state: 'detached' });
   await lp.locator('.fc-today-button').click();
 
-  // « Modifier dans Tâches » : Tâches s'ouvre sur la fenêtre de cette tâche.
-  await lp.getByRole('button', { name: 'Tâches' }).first().waitFor();
-  const garage = lp.locator('.calendrier-layer', { hasText: 'Appeler le garage' }).first();
-  await garage.locator('.calendrier-mark-title').click();
-  await lp.getByRole('button', { name: 'Modifier dans Tâches' }).click();
+  // Créer une tâche depuis le calendrier : la bascule « Événement / Tâche » (06/10/2026).
+  await lp.getByRole('button', { name: 'Nouvel événement' }).click();
+  await lp.waitForSelector('.calendrier-editor');
+  check('La fenêtre de création propose « Événement » ou « Tâche »', (await lp.locator('.calendrier-kinds [role="radio"]').allTextContents()).join('|') === 'Événement|Tâche');
+  await lp.locator('#calendrier-title').fill('Poster le colis');
+  await lp.locator('.calendrier-kinds').getByRole('radio', { name: 'Tâche' }).click();
   await lp.locator('.taches-editor').waitFor();
-  check('« Modifier dans Tâches » ouvre Tâches sur la fenêtre de la tâche', (await lp.locator('#taches-title').inputValue()) === 'Appeler le garage');
+  check(
+    '« Tâche » ouvre la fenêtre de Tâches, avec le titre déjà tapé et l’heure du créneau',
+    (await lp.locator('#taches-title').inputValue()) === 'Poster le colis' && (await lp.locator('#taches-time').inputValue()) !== '' && (await lp.locator('.calendrier-editor').count()) === 0,
+  );
+  check('… une tâche nouvelle : ni « Supprimer » ni sous-tâches', (await lp.locator('.taches-editor').getByRole('button', { name: 'Supprimer', exact: true }).count()) === 0 && (await lp.locator('#taches-new-subtask').count()) === 0);
+  await lp.locator('.calendrier-kinds').getByRole('radio', { name: 'Événement' }).click();
+  await lp.waitForSelector('.calendrier-editor');
+  check('Revenir à « Événement » rouvre sa fenêtre, titre gardé', (await lp.locator('#calendrier-title').inputValue()) === 'Poster le colis' && (await lp.locator('.taches-editor').count()) === 0);
+  await lp.locator('.calendrier-kinds').getByRole('radio', { name: 'Tâche' }).click();
+  await lp.locator('.taches-editor').waitFor();
+  await lp.locator('.taches-editor').getByRole('button', { name: 'Enregistrer' }).click();
+  await lp.locator('.taches-editor').waitFor({ state: 'detached' });
+  const posted = await lp.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.title === 'Poster le colis'));
+  check('La tâche est créée dans Tâches, à son jour et son heure', !!posted?.plannedDay && !!posted?.plannedTime, JSON.stringify(posted));
+  check('… pas comme un événement', await lp.evaluate(() => !(JSON.parse(localStorage.getItem('palier.v1') ?? '{}').calendarEvents ?? []).some((e) => e.title === 'Poster le colis')));
+  await lp.locator('.calendrier-layer', { hasText: 'Poster le colis' }).first().waitFor();
+  check('… et apparaît aussitôt dans le calendrier', (await lp.locator('.calendrier-layer', { hasText: 'Poster le colis' }).count()) > 0);
   check('Aucune erreur JavaScript avec les calques', layerErrors.length === 0, layerErrors.join(' | '));
   await layered.close();
 

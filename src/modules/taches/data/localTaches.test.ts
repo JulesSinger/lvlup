@@ -140,3 +140,17 @@ describe('LocalTaches — la durée', () => {
     expect((await new LocalTaches().listTasks())[0].durationMinutes).toBeNull();
   });
 });
+
+describe('LocalTaches — les rappels d’une tâche (06/10/2026)', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('se gardent, se changent ; une tâche d’avant se lit avec le défaut (`null`)', async () => {
+    const store = new LocalTaches();
+    const t = await store.createTask({ title: 'Dentiste', plannedDay: '2026-10-07', plannedTime: '09:00', reminders: [15] });
+    expect(t.reminders).toEqual([15]);
+    await store.updateTask(t.id, { reminders: [] });
+    expect((await store.listTasks())[0].reminders).toEqual([]);
+    localStorage.setItem('palier.v1', JSON.stringify({ tachesTasks: [{ id: 'old', title: 'Ancienne', plannedDay: null, plannedTime: null }] }));
+    expect((await new LocalTaches().listTasks())[0].reminders).toBeNull();
+  });
+});

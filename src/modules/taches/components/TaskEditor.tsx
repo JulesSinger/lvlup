@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { durationLabel } from '../lib/format';
 import { PRIORITIES, type Priority, type Recurrence, type RepeatFrom, type Task, type TaskList, type TaskPatch } from '../lib/types';
 import { validateTask } from '../lib/validation';
+import { ReminderPicker } from './ReminderPicker';
 import { RepeatFields } from './RepeatFields';
 
 interface Props {
@@ -10,6 +11,15 @@ interface Props {
   subtasks: readonly Task[];
   allTasks: readonly Task[];
   lists: readonly TaskList[];
+  /** Les rappels d'une tâche qui n'en a pas choisi : « à l'heure », ou aucun si le réglage est coupé. */
+  defaultReminders: readonly number[];
+  /**
+   * Une tâche pas encore enregistrée (créée depuis le calendrier, 06/10/2026) :
+   * ni « Supprimer » ni sous-tâches — elles s'ajoutent une fois la tâche créée.
+   */
+  isNew?: boolean;
+  /** Placé en haut de la fenêtre : la bascule « Événement / Tâche » du calendrier. */
+  header?: ReactNode;
   onCancel: () => void;
   /** Rejette en cas d'échec : la fenêtre reste ouverte et remplie. */
   onSave: (patch: TaskPatch) => Promise<void>;
@@ -32,13 +42,15 @@ const PRIORITY_LABELS: Record<Priority, string> = { normale: 'Normale', importan
  * aujourd'hui s'il n'y en a pas encore.
  */
 export function TaskEditor(props: Props) {
-  const { task, today, subtasks, allTasks, lists, onCancel, onSave, onDelete, onAddSubtask, onToggleSubtask, onDeleteSubtask } = props;
+  const { task, today, subtasks, allTasks, lists, defaultReminders, isNew = false, header, onCancel, onSave, onDelete, onAddSubtask, onToggleSubtask, onDeleteSubtask } = props;
   const [title, setTitle] = useState(task.title);
   const [note, setNote] = useState(task.note);
   const [listId, setListId] = useState(task.listId);
   const [plannedDay, setPlannedDay] = useState(task.plannedDay ?? '');
   const [plannedTime, setPlannedTime] = useState(task.plannedTime ?? '');
   const [duration, setDuration] = useState<number | null>(task.durationMinutes);
+  // `null` tant qu'on n'y touche pas : la tâche suit alors le réglage par défaut.
+  const [reminders, setReminders] = useState<number[] | null>(task.reminders);
   const [dueDay, setDueDay] = useState(task.dueDay ?? '');
   const [showDue, setShowDue] = useState(!!task.dueDay);
   const [priority, setPriority] = useState<Priority>(task.priority);
@@ -76,6 +88,7 @@ export function TaskEditor(props: Props) {
       plannedDay: plannedDay || null,
       plannedTime: plannedDay && plannedTime ? plannedTime : null,
       durationMinutes: plannedDay && plannedTime ? duration : null,
+      reminders,
       dueDay: showDue && dueDay ? dueDay : null,
       priority,
       recurrence: isSubtask ? null : recurrence,
@@ -99,18 +112,19 @@ export function TaskEditor(props: Props) {
 
   return (
     <div className="overlay" onClick={onCancel}>
-      <div className="modal taches-editor" role="dialog" aria-modal="true" aria-label="Modifier la tâche" onClick={(e) => e.stopPropagation()}>
+      <div className="modal taches-editor" role="dialog" aria-modal="true" aria-label={isNew ? 'Nouvelle tâche' : 'Modifier la tâche'} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <span className="modal-title">{isSubtask ? 'Sous-tâche' : 'Tâche'}</span>
+          <span className="modal-title">{isNew ? 'Nouvelle tâche' : isSubtask ? 'Sous-tâche' : 'Tâche'}</span>
           <button className="btn btn-ghost btn-sm" onClick={onCancel} aria-label="Fermer">
             ✕
           </button>
         </div>
 
         <div className="modal-body">
+          {header}
           <div className="field">
             <label htmlFor="taches-title">Titre</label>
-            <input id="taches-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+            <input id="taches-title" type="text" autoFocus={isNew} value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
           </div>
 
           {!isSubtask && (
@@ -139,6 +153,10 @@ export function TaskEditor(props: Props) {
                       ))}
                   </select>
                 </div>
+              )}
+
+              {plannedDay && plannedTime && (
+                <ReminderPicker value={reminders ?? [...defaultReminders]} onChange={setReminders} />
               )}
 
               <RepeatFields
@@ -208,7 +226,7 @@ export function TaskEditor(props: Props) {
           </div>
 
 
-          {!isSubtask && (
+          {!isSubtask && !isNew && (
             <div className="field">
               <label htmlFor="taches-new-subtask">Sous-tâches</label>
               {subtasks.length > 0 && (
@@ -253,16 +271,18 @@ export function TaskEditor(props: Props) {
         </div>
 
         <div className="modal-foot taches-editor-foot">
-          <button
-            className="btn btn-ghost btn-sm btn-danger"
-            onClick={() => {
-              const extra = subtasks.length > 0 ? ` et ses ${subtasks.length} sous-tâche${subtasks.length > 1 ? 's' : ''}` : '';
-              if (window.confirm(`Supprimer « ${task.title} »${extra} ?`)) void run(onDelete);
-            }}
-            disabled={saving}
-          >
-            Supprimer
-          </button>
+          {!isNew && (
+            <button
+              className="btn btn-ghost btn-sm btn-danger"
+              onClick={() => {
+                const extra = subtasks.length > 0 ? ` et ses ${subtasks.length} sous-tâche${subtasks.length > 1 ? 's' : ''}` : '';
+                if (window.confirm(`Supprimer « ${task.title} »${extra} ?`)) void run(onDelete);
+              }}
+              disabled={saving}
+            >
+              Supprimer
+            </button>
+          )}
           <span className="taches-editor-spacer" />
           <button className="btn" onClick={onCancel}>
             Annuler

@@ -1,14 +1,15 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
-import type { CalendarMark, MarkMove } from '../../core/lib/services';
+import type { CalendarMark, MarkMove, MarkSlot } from '../../core/lib/services';
 import type { ViewName } from './components/CalendarView';
 import { EventEditor, type EditorValues } from './components/EventEditor';
+import { KindSwitch, type Kind } from './components/KindSwitch';
 import { MarkDialog } from './components/MarkDialog';
 import { ScopeDialog } from './components/ScopeDialog';
 import { calendarStore } from './data';
 import { applyPlan } from './data/applyPlan';
 import { syncReminders } from './data/syncReminders';
-import { defaultSpan, markItem, toCalendarItem, type EventSpan } from './lib/calendarBridge';
+import { defaultSpan, markItem, slotFromValues, toCalendarItem, type EventSpan } from './lib/calendarBridge';
 import { dayString, shiftDay } from '../../core/lib/day';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { expandEvents, type Occurrence } from './lib/recurrence';
@@ -48,6 +49,13 @@ function savedLayers(): Record<string, boolean> {
     return {};
   }
 }
+
+/**
+ * La fenêtre d'un autre module ouverte par-dessus le calendrier (06/10/2026) :
+ * pour modifier une marque (`link`), ou créer sur un créneau (`slot`) — avec,
+ * pour revenir à « Événement », le créneau d'où l'on est parti.
+ */
+type Lent = { sourceId: string; link?: string; slot?: MarkSlot; span?: EventSpan };
 
 type Editing = { eventId: string | null; occurrenceDay: string | null; inSeries: boolean; values: EditorValues; before: OccurrenceValues | null };
 
@@ -92,6 +100,12 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
   const [marksVersion, setMarksVersion] = useState(0);
   /** La marque dont la fenêtre est ouverte (toucher une marque ailleurs que sur son rond). */
   const [openedMark, setOpenedMark] = useState<{ sourceId: string; markId: string } | null>(null);
+  const [lent, setLent] = useState<Lent | null>(null);
+  /** Ce qu'on peut créer sur un créneau : un événement, et ce que les calques proposent (« Tâche »). */
+  const kinds = useMemo<Kind[]>(
+    () => [{ id: 'event', label: 'Événement' }, ...sources.filter((s) => s.Editor && s.createLabel).map((s) => ({ id: s.id, label: s.createLabel! }))],
+    [sources],
+  );
   const isVisible = useCallback((id: string, byDefault: boolean) => layerChoice[id] ?? byDefault, [layerChoice]);
 
   useEffect(() => {
@@ -198,12 +212,12 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
     [occurrences, sources, marks, isVisible],
   );
 
-  function openNew(span: EventSpan) {
+  function openNew(span: EventSpan, title = '') {
     setEditing({
       eventId: null,
       occurrenceDay: null,
       inSeries: false,
-      values: { ...span, title: '', color: 'bleu', location: '', note: '', recurrence: null, reminders: null },
+      values: { ...span, title, color: 'bleu', location: '', note: '', recurrence: null, reminders: null },
       before: null,
     });
   }
@@ -215,6 +229,29 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
     // La fenêtre montre l'occurrence touchée (exception comprise), avec la règle de sa série.
     const before = valuesOf(occurrence);
     setEditing({ eventId, occurrenceDay, inSeries: event.recurrence !== null, values: { ...before, recurrence: event.recurrence }, before });
+  }
+
+  /**
+   * Toucher une marque : la fenêtre de son module si elle en prête une (une
+   * tâche, 06/10/2026), sinon son résumé (`MarkDialog`).
+   */
+  function openMark(sourceId: string, markId: string) {
+    const source = sources.find((s) => s.id === sourceId);
+    const mark = marks[sourceId]?.find((m) => m.id === markId);
+    if (source?.Editor && mark?.link) setLent({ sourceId, link: mark.link });
+    else setOpenedMark({ sourceId, markId });
+  }
+
+  /** « Tâche » choisi dans la fenêtre d'un nouvel événement : la fenêtre du module reprend le créneau. */
+  function switchKind(id: string, values: EditorValues) {
+    setEditing(null);
+    const { allDay, startDay, endDay, startTime, endTime } = values;
+    setLent({ sourceId: id, slot: slotFromValues(values), span: { allDay, startDay, endDay, startTime, endTime } });
+  }
+
+  function closeLent(changed: boolean) {
+    setLent(null);
+    if (changed) setMarksVersion((v) => v + 1);
   }
 
   async function save(input: EventInput, scope: Scope = 'all') {
@@ -349,7 +386,7 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
               onSelect={openNew}
               onOpen={openExisting}
               onToggleMark={(sourceId, markId) => void toggleMark(sourceId, markId)}
-              onOpenMark={(sourceId, markId) => setOpenedMark({ sourceId, markId })}
+              onOpenMark={openMark}
               onMoveMark={moveMark}
               onMove={move}
             />
@@ -368,6 +405,36 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
                 onClose={() => setOpenedMark(null)}
                 onToggle={() => void toggleMark(source.id, mark.id)}
                 onOpenInModule={mark.link ? () => onOpenModule(source.id, mark.link) : undefined}
+              />
+            );
+          })()}
+
+        {lent &&
+          (() => {
+            const source = sources.find((s) => s.id === lent.sourceId);
+            if (!source?.Editor) return null;
+            const Editor = source.Editor;
+            const span = lent.span;
+            return (
+              <Editor
+                key={`${lent.sourceId}:${lent.link ?? 'new'}`}
+                link={lent.link}
+                slot={lent.slot}
+                header={
+                  !lent.link && span && kinds.length > 1 ? (
+                    <KindSwitch
+                      kinds={kinds}
+                      current={lent.sourceId}
+                      onChange={(id) => {
+                        if (id === 'event') {
+                          setLent(null);
+                          openNew(span, lent.slot?.title);
+                        } else setLent({ ...lent, sourceId: id });
+                      }}
+                    />
+                  ) : undefined
+                }
+                onClose={closeLent}
               />
             );
           })()}
@@ -394,6 +461,8 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
             onCancel={() => setEditing(null)}
             onSave={save}
             onDelete={editing.eventId ? remove : undefined}
+            kinds={kinds}
+            onSwitchKind={switchKind}
           />
         )}
       </main>

@@ -6,6 +6,7 @@ import { effectiveReminders } from '../lib/reminders';
 import { ALL_DAY_REMINDERS, EVENT_COLORS, TIMED_REMINDERS, type CalendarSettings, type EventColor, type EventInput, type Recurrence } from '../lib/types';
 import { validateEvent } from '../lib/validation';
 import { RecurrenceFields } from './RecurrenceFields';
+import { KindSwitch, type Kind } from './KindSwitch';
 import { ReminderPicker } from './ReminderPicker';
 import { ScopeDialog } from './ScopeDialog';
 
@@ -33,6 +34,13 @@ interface Props {
   /** Rejette en cas d'échec : la fenêtre reste ouverte et remplie. `scope` : seulement pour une série. */
   onSave: (input: EventInput, scope?: Scope) => Promise<void>;
   onDelete?: (scope?: Scope) => Promise<void>;
+  /**
+   * À la création, ce qu'on peut créer d'autre sur le créneau (« Tâche »,
+   * 06/10/2026) : la bascule s'affiche, et `onSwitchKind` reçoit ce qui est
+   * déjà rempli pour que l'autre fenêtre reparte du même créneau.
+   */
+  kinds?: readonly Kind[];
+  onSwitchKind?: (id: string, values: EditorValues) => void;
 }
 
 /**
@@ -44,7 +52,7 @@ interface Props {
  * occurrence d'une série, enregistrer ou supprimer demande d'abord si c'est
  * cet événement, les suivants ou tous (`ScopeDialog`).
  */
-export function EventEditor({ eventId, inSeries, initial, defaults, local, onCancel, onSave, onDelete }: Props) {
+export function EventEditor({ eventId, inSeries, initial, defaults, local, onCancel, onSave, onDelete, kinds = [], onSwitchKind }: Props) {
   const [v, setV] = useState<EditorValues>(initial);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -145,6 +153,9 @@ export function EventEditor({ eventId, inSeries, initial, defaults, local, onCan
         </div>
 
         <div className="modal-body">
+          {eventId === null && kinds.length > 1 && onSwitchKind && (
+            <KindSwitch kinds={kinds} current="event" onChange={(id) => onSwitchKind(id, v)} />
+          )}
           <div className="field">
             <label htmlFor="calendrier-title">Titre</label>
             <input

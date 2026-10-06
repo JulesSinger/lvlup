@@ -76,6 +76,7 @@ export function taskFromInput(id: string, input: QueuedInput, at: number): Task 
     plannedDay: input.plannedDay ?? null,
     plannedTime: input.plannedDay ? (input.plannedTime ?? null) : null,
     durationMinutes: input.plannedDay && input.plannedTime ? (input.durationMinutes ?? null) : null,
+    reminders: input.reminders ?? null,
     dueDay: input.dueDay ?? null,
     priority: input.priority ?? 'normale',
     recurrence: input.recurrence ?? null,

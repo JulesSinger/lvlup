@@ -73,6 +73,13 @@ export interface Task {
    * 30 minutes sans elle.
    */
   durationMinutes: number | null;
+  /**
+   * Les rappels de la tâche, en minutes avant son heure (`TASK_REMINDERS`),
+   * deux au plus (depuis le 06/10/2026). `null` : celui par défaut des
+   * réglages (« à l'heure », si le réglage est actif) ; `[]` : aucun, choisi.
+   * Sans heure, ils ne servent pas : le résumé du matin couvre la tâche.
+   */
+  reminders: number[] | null;
   /** L'échéance, facultative : le jour où elle doit être faite */
   dueDay: string | null;
   priority: Priority;
@@ -87,12 +94,23 @@ export interface Task {
 
 export type TaskInput = Pick<Task, 'title'> &
   Partial<
-    Pick<Task, 'listId' | 'parentId' | 'note' | 'plannedDay' | 'plannedTime' | 'durationMinutes' | 'dueDay' | 'priority' | 'recurrence' | 'repeatFrom' | 'position'>
+    Pick<Task, 'listId' | 'parentId' | 'note' | 'plannedDay' | 'plannedTime' | 'durationMinutes' | 'reminders' | 'dueDay' | 'priority' | 'recurrence' | 'repeatFrom' | 'position'>
   >;
+
+/**
+ * Les rappels possibles d'une tâche, en minutes avant son heure — les mêmes
+ * que ceux d'un événement du calendrier (décision de Jules, 06/10/2026).
+ * Pendant de `taches_tasks_reminders_check`, comparé par `lib/schema.test.ts`.
+ */
+export const TASK_REMINDERS = [0, 5, 10, 15, 30, 60, 120, 1440] as const;
+export const MAX_TASK_REMINDERS = 2;
 
 /** Les réglages des rappels de Polaris (étape 5), les mêmes sur tous les appareils. */
 export interface TachesSettings {
-  /** Une notification à l'heure d'une tâche qui en a une */
+  /**
+   * Le rappel par défaut, à l'heure d'une tâche qui en a une ; une tâche qui
+   * a choisi ses rappels (`Task.reminders`) les garde, réglage coupé ou non.
+   */
   taskReminders: boolean;
   /** Le résumé du matin */
   morningEnabled: boolean;

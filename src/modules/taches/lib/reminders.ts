@@ -4,7 +4,9 @@
  * viennent et le déclare au socle (`coreStore.scheduleReminders`), qui
  * l'envoie à l'heure : le serveur ne sait rien des tâches.
  *
- *  · **à l'heure d'une tâche** qui en a une : « Appeler le garage — prévue à 9 h » ;
+ *  · **à l'heure d'une tâche** qui en a une : « Appeler le garage — prévue à 9 h »,
+ *    ou aux rappels qu'elle a choisis (« 15 min avant », deux au plus, depuis
+ *    le 06/10/2026) ;
  *  · **le résumé du matin**, seulement s'il y a quelque chose à faire ce
  *    jour-là : « ☀️ 4 tâches aujourd'hui, dont 1 urgente ». Un rappel
  *    inutile est la meilleure façon de se faire couper le son.
@@ -16,7 +18,7 @@
 import type { ReminderInput } from '../../../core/data/coreStore';
 import { dayString, shiftDay } from '../../../core/lib/day';
 import { dueLabel, timeLabel } from './format';
-import type { TachesSettings, Task } from './types';
+import { TASK_REMINDERS, type TachesSettings, type Task } from './types';
 import { todayView } from './views';
 
 /** Jusqu'où les rappels sont posés à l'avance. */
@@ -37,19 +39,35 @@ const clip = (text: string, max: number) => (text.length <= max ? text : `${text
 /** Titre et texte d'un rappel : 1000 caractères au plus chacun (table `reminders`). */
 export const REMINDER_TEXT_MAX = 1000;
 
+/** Les rappels d'une tâche : les siens, sinon « à l'heure » si le réglage par défaut est actif. */
+export function effectiveTaskReminders(task: Pick<Task, 'reminders'>, settings: Pick<TachesSettings, 'taskReminders'>): number[] {
+  if (task.reminders === null || task.reminders === undefined) return settings.taskReminders ? [0] : [];
+  return [...new Set(task.reminders.filter((r) => (TASK_REMINDERS as readonly number[]).includes(r)))];
+}
+
+/** « 15 min avant », « 1 h avant », « 1 jour avant », « À l'heure » */
+export function reminderLabel(offset: number): string {
+  if (offset === 0) return 'À l’heure';
+  if (offset === 1440) return '1 jour avant';
+  if (offset % 60 === 0) return `${offset / 60} h avant`;
+  return `${offset} min avant`;
+}
+
 export function plannedReminders(tasks: readonly Task[], settings: TachesSettings, now: Date, horizonDays = REMINDER_HORIZON_DAYS): ReminderInput[] {
   const today = dayString(now);
   const last = shiftDay(today, horizonDays - 1);
   const reminders: ReminderInput[] = [];
 
-  if (settings.taskReminders) {
-    for (const task of tasks) {
-      if (task.completedAt || task.parentId || !task.plannedDay || !task.plannedTime) continue;
-      if (task.plannedDay > last) continue;
-      const at = localInstant(task.plannedDay, task.plannedTime);
+  for (const task of tasks) {
+    if (task.completedAt || task.parentId || !task.plannedDay || !task.plannedTime) continue;
+    if (task.plannedDay > last) continue;
+    const start = localInstant(task.plannedDay, task.plannedTime);
+    for (const offset of effectiveTaskReminders(task, settings)) {
+      const at = new Date(start.getTime() - offset * 60_000);
       if (at <= now) continue;
       reminders.push({
-        ref: `task:${task.id}:${task.plannedDay}`,
+        // « À l'heure » garde la référence d'avant le 06/10/2026 : un rappel déjà parti n'est pas reposé.
+        ref: offset === 0 ? `task:${task.id}:${task.plannedDay}` : `task:${task.id}:${task.plannedDay}:${offset}`,
         fireAt: at.toISOString(),
         title: clip(task.title, REMINDER_TEXT_MAX),
         body: `Prévue à ${timeLabel(task.plannedTime)}${task.dueDay ? ` · ${dueLabel(task.dueDay, task.plannedDay)}` : ''}`,
