@@ -11,22 +11,25 @@ import {
   type ProjectDesign,
   type ProjectLink,
   type ProjectNeeds,
+  type Payment,
   type ProjectNote,
   type ProjectPatch,
   type ProjectStatus,
   type ProjectTask,
+  type TimeEntry,
   type Workstream,
 } from '../lib/types';
 import { daysBetween } from '../../../core/lib/day';
 import { DesignPanel } from './DesignPanel';
 import { Journal } from './Journal';
 import { LinksPanel } from './LinksPanel';
+import { MoneyPanel } from './MoneyPanel';
 import { NeedsForm } from './NeedsForm';
 import { ProjectInfos } from './ProjectInfos';
 import { WaitingBar } from './WaitingBar';
 import { WorkstreamBlock } from './WorkstreamBlock';
 
-type Tab = 'workstreams' | 'needs' | 'design' | 'links' | 'journal' | 'infos';
+type Tab = 'workstreams' | 'needs' | 'design' | 'links' | 'money' | 'journal' | 'infos';
 
 interface Props {
   project: Project;
@@ -35,6 +38,10 @@ interface Props {
   views: readonly WorkstreamView[];
   notes: readonly ProjectNote[];
   links: readonly ProjectLink[];
+  payments: readonly Payment[];
+  time: readonly TimeEntry[];
+  /** Les références déjà dans Budget ; `null` quand Budget n'est pas là. */
+  inBudget: ReadonlySet<string> | null;
   progress: Progress;
   today: string;
   onBack: () => void;
@@ -54,6 +61,12 @@ interface Props {
   onSaveDesign: (design: ProjectDesign) => Promise<void>;
   /** `null` : un nouveau lien */
   onEditLink: (link: ProjectLink | null) => void;
+  onSchedule: () => Promise<void>;
+  onEditPayment: (payment: Payment | null) => void;
+  onReceivePayment: (payment: Payment) => void;
+  onSendToBudget: (payment: Payment) => Promise<void>;
+  onAddTime: (input: { day: string; minutes: number; workstreamId: string | null; note: string }) => Promise<void>;
+  onDeleteTime: (entry: TimeEntry) => Promise<void>;
 }
 
 /**
@@ -130,6 +143,7 @@ export function ProjectSheet(props: Props) {
             ['needs', `Besoins ${needs.answered}/${needs.total}`],
             ['design', 'Design'],
             ['links', `Liens${props.links.length ? ` (${props.links.length})` : ''}`],
+            ['money', 'Argent'],
             ['journal', `Journal${props.notes.length ? ` (${props.notes.length})` : ''}`],
             ['infos', 'Infos'],
           ] as const
@@ -172,6 +186,23 @@ export function ProjectSheet(props: Props) {
       {tab === 'design' && <DesignPanel saved={project.design} onSave={props.onSaveDesign} />}
 
       {tab === 'links' && <LinksPanel links={props.links} onAdd={() => props.onEditLink(null)} onEdit={props.onEditLink} />}
+
+      {tab === 'money' && (
+        <MoneyPanel
+          project={project}
+          payments={props.payments}
+          time={props.time}
+          workstreams={views.map((v) => v.workstream).sort((a, b) => a.position - b.position)}
+          today={today}
+          inBudget={props.inBudget}
+          onSchedule={props.onSchedule}
+          onEditPayment={props.onEditPayment}
+          onReceivePayment={props.onReceivePayment}
+          onSendToBudget={props.onSendToBudget}
+          onAddTime={props.onAddTime}
+          onDeleteTime={props.onDeleteTime}
+        />
+      )}
 
       {tab === 'journal' && <Journal notes={props.notes} today={today} onAdd={props.onAddNote} onDelete={props.onDeleteNote} />}
 

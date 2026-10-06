@@ -46,6 +46,19 @@ describe('le service de dépenses d’Astra', () => {
     });
   });
 
+  it('une entrée est positive : un paiement reçu d’un client de Projets', async () => {
+    const revenus = await store.createCategory({ name: 'Revenus freelance', emoji: '💼', color: '#6fa8f5', kind: 'revenu' });
+    await createExpenseService(store).record({
+      ref: 'projets:paiement:1',
+      day: '2026-10-06',
+      label: 'Fleurs de Lou — Acompte 30 %',
+      amountCents: 27_000,
+      categoryName: 'revenus freelance',
+      direction: 'income',
+    });
+    expect((await store.listEntries())[0]).toMatchObject({ amountCents: 27_000, categoryId: revenus.id, importKey: 'projets:paiement:1' });
+  });
+
   it('sans catégorie de ce nom, la dépense est « à classer »', async () => {
     await createExpenseService(store).record(request);
     expect((await store.listEntries())[0].categoryId).toBeNull();

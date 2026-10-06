@@ -2,6 +2,9 @@ import type {
   Client,
   ClientInput,
   ClientPatch,
+  Payment,
+  PaymentInput,
+  PaymentPatch,
   Project,
   ProjectInput,
   ProjectLink,
@@ -14,6 +17,8 @@ import type {
   ProjectTaskDraft,
   ProjectTaskInput,
   ProjectTaskPatch,
+  TimeEntry,
+  TimeEntryInput,
   Workstream,
   WorkstreamDraft,
   WorkstreamInput,
@@ -32,6 +37,9 @@ export interface ProjetsBackup {
   notes: ProjectNote[];
   /** Depuis l'étape 4 ; absent d'une sauvegarde plus ancienne. */
   links?: ProjectLink[];
+  /** Depuis l'étape 5. */
+  payments?: Payment[];
+  time?: TimeEntry[];
 }
 
 /**
@@ -87,6 +95,19 @@ export interface ProjetsStore {
   createLink(input: ProjectLinkInput, id?: string): Promise<ProjectLink>;
   updateLink(id: string, patch: ProjectLinkPatch): Promise<void>;
   deleteLink(id: string): Promise<void>;
+
+  /** Les paiements attendus et reçus (§3.8). */
+  listPayments(): Promise<Payment[]>;
+  /** Attribue le numéro du paiement (le suivant du compte). */
+  createPayment(input: PaymentInput, id?: string): Promise<Payment>;
+  /** Retirer la date de réception retire aussi le mode de règlement. */
+  updatePayment(id: string, patch: PaymentPatch): Promise<void>;
+  deletePayment(id: string): Promise<void>;
+
+  /** Le temps passé (§3.10). */
+  listTime(): Promise<TimeEntry[]>;
+  createTime(input: TimeEntryInput, id?: string): Promise<TimeEntry>;
+  deleteTime(id: string): Promise<void>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
   exportData(): Promise<ProjetsBackup>;

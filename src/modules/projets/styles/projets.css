@@ -1164,6 +1164,264 @@ button.projets-chip {
   color: inherit;
 }
 
+/* --- Argent, temps passé, recettes -------------------------------------- */
+
+.projets-money {
+  display: grid;
+  gap: 16px;
+  max-width: 780px;
+}
+
+.projets-money-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 20px;
+  margin-bottom: 10px;
+}
+
+.projets-money-label {
+  display: block;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.projets-money-price {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.projets-money-figures {
+  display: flex;
+  gap: 16px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.projets-money-figures b {
+  color: var(--text);
+}
+
+.projets-money-gauge {
+  display: block;
+  height: 8px;
+  margin-bottom: 12px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.projets-money-gauge i {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}
+
+.projets-money-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+
+.projets-payments {
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.projets-payment {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+}
+
+.projets-payment:first-child {
+  border-top: 0;
+}
+
+.projets-payment-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.projets-payment-state {
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+.projets-payment.received .projets-payment-state {
+  color: color-mix(in oklab, var(--green), var(--text) var(--ink-mix));
+}
+
+.projets-payment.late .projets-payment-state {
+  color: var(--coral);
+  font-weight: 600;
+}
+
+.projets-payment-budget {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.projets-payment-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.projets-receive-what {
+  margin: 0 0 12px;
+}
+
+.projets-rate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0 0 10px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.projets-rate b {
+  color: var(--text);
+}
+
+.projets-time-form {
+  display: grid;
+  grid-template-columns: 150px 90px 170px 1fr auto;
+  gap: 8px;
+}
+
+.projets-time-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.projets-time-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.projets-time-entry:first-child {
+  border-top: 0;
+}
+
+.projets-time-what {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.projets-money-overview {
+  display: grid;
+  gap: 6px;
+}
+
+.projets-money-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+}
+
+.projets-money-row b {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.projets-money-row.late {
+  color: var(--coral);
+  cursor: pointer;
+}
+
+.projets-receipts {
+  display: grid;
+  gap: 12px;
+}
+
+.projets-receipts-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.projets-receipts-head .projets-nav {
+  margin: 0;
+}
+
+.projets-receipts-total {
+  margin: 0;
+  font-size: 15px;
+}
+
+.projets-receipts-total span {
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.projets-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.projets-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.projets-table th,
+.projets-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.projets-table th {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.projets-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.projets-table .num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.projets-table-sub {
+  color: var(--text-faint);
+}
+
 @media (max-width: 760px) {
   .projets-pipeline {
     grid-template-columns: 1fr;
@@ -1184,8 +1442,12 @@ button.projets-chip {
   .projets-ws-bar {
     display: none;
   }
-  .projets-journal-form {
+  .projets-journal-form,
+  .projets-time-form {
     grid-template-columns: 1fr;
+  }
+  .projets-payment {
+    flex-wrap: wrap;
   }
   .topbar-add-label {
     display: none;

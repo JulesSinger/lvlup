@@ -4,7 +4,9 @@ import type { BudgetStore } from './budgetStore';
 /**
  * Le service « dépenses » qu'Astra rend aux autres modules
  * (`core/lib/services.ts`) — né pour Comète : chaque course terminée devient
- * une dépense du budget (docs/etude-courses.md §18).
+ * une dépense du budget (docs/etude-courses.md §18). Depuis le 2026-10-06, il
+ * enregistre aussi une entrée (`direction: 'income'`) : un paiement reçu d'un
+ * client de Projets (docs/etude-projets.md §6).
  *
  * La référence du demandeur (« comete:course:12 ») est rangée dans
  * `import_key`, la colonne qui rend déjà l'import bancaire rejouable sans
@@ -39,8 +41,9 @@ export function createExpenseService(store: BudgetStore): ExpenseService {
       await store.createEntry({
         day: request.day,
         label: request.label,
-        // Une dépense est négative dans Astra (docs/etude-astra.md §2).
-        amountCents: -Math.abs(Math.round(request.amountCents)),
+        // Une dépense est négative dans Astra (docs/etude-astra.md §2), une
+        // entrée positive — un paiement reçu d'un client de Projets.
+        amountCents: (request.direction === 'income' ? 1 : -1) * Math.abs(Math.round(request.amountCents)),
         // Catégorie inconnue : « à classer », jamais une catégorie devinée.
         categoryId: category?.id ?? null,
         source: 'manuelle',

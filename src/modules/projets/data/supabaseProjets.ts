@@ -5,6 +5,10 @@ import type {
   ClientInput,
   ClientPatch,
   ClientTrade,
+  Payment,
+  PaymentInput,
+  PaymentMethod,
+  PaymentPatch,
   Project,
   ProjectInput,
   ProjectDesign,
@@ -21,6 +25,8 @@ import type {
   ProjectTaskDraft,
   ProjectTaskInput,
   ProjectTaskPatch,
+  TimeEntry,
+  TimeEntryInput,
   Workstream,
   WorkstreamDraft,
   WorkstreamInput,
@@ -177,6 +183,69 @@ function linkColumns(p: ProjectLinkPatch & Partial<ProjectLinkInput>): Record<st
   if (p.position !== undefined) row.position = p.position;
   return row;
 }
+
+interface PaymentRow {
+  id: string;
+  project_id: string;
+  number: number;
+  label: string;
+  amount_cents: number;
+  expected_day: string | null;
+  received_day: string | null;
+  method: PaymentMethod | null;
+  invoice_ref: string;
+  position: number;
+  created_at: string;
+}
+
+const toPayment = (r: PaymentRow): Payment => ({
+  id: r.id,
+  projectId: r.project_id,
+  number: r.number,
+  label: r.label,
+  amountCents: r.amount_cents,
+  expectedDay: r.expected_day,
+  receivedDay: r.received_day,
+  method: r.method,
+  invoiceRef: r.invoice_ref,
+  position: r.position,
+  createdAt: r.created_at,
+});
+
+function paymentColumns(p: PaymentPatch & Partial<PaymentInput>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (p.projectId !== undefined) row.project_id = p.projectId;
+  if (p.label !== undefined) row.label = p.label;
+  if (p.amountCents !== undefined) row.amount_cents = p.amountCents;
+  if (p.expectedDay !== undefined) row.expected_day = p.expectedDay;
+  if (p.receivedDay !== undefined) row.received_day = p.receivedDay;
+  if (p.method !== undefined) row.method = p.method;
+  if (p.invoiceRef !== undefined) row.invoice_ref = p.invoiceRef;
+  if (p.position !== undefined) row.position = p.position;
+  // Plus de réception : plus de mode de règlement — sinon la base refuse.
+  if (p.receivedDay === null) row.method = null;
+  return row;
+}
+
+interface TimeRow {
+  id: string;
+  project_id: string;
+  workstream_id: string | null;
+  day: string;
+  minutes: number;
+  note: string;
+  created_at: string;
+}
+
+const toTime = (r: TimeRow): TimeEntry => ({
+  id: r.id,
+  projectId: r.project_id,
+  workstreamId: r.workstream_id,
+  day: r.day,
+  minutes: r.minutes,
+  note: r.note,
+  createdAt: r.created_at,
+});
 
 const toNote = (r: NoteRow): ProjectNote => ({ id: r.id, projectId: r.project_id, day: r.day, text: r.text, createdAt: r.created_at });
 
@@ -405,22 +474,71 @@ export class SupabaseProjets implements ProjetsStore {
     check((await this.client.from('projets_links').delete().eq('id', id)).error);
   }
 
+  async listPayments(): Promise<Payment[]> {
+    return (unwrap(await this.client.from('projets_payments').select('*').order('position')) as PaymentRow[]).map(toPayment);
+  }
+
+  async createPayment(input: PaymentInput, id?: string): Promise<Payment> {
+    const userId = await this.requireUserId();
+    if (id) {
+      const { data, error } = await this.client.from('projets_payments').select('*').eq('id', id).maybeSingle();
+      check(error);
+      if (data) return toPayment(data as PaymentRow); // rejoué : le numéro reste celui de la première fois
+    }
+    // Même règle que les projets : le suivant du compte, l'unicité en base refuse un doublon.
+    const { data: last, error } = await this.client.from('projets_payments').select('number').order('number', { ascending: false }).limit(1);
+    check(error);
+    const number = ((last as { number: number }[] | null)?.[0]?.number ?? 0) + 1;
+    return toPayment(await this.insert<PaymentRow>('projets_payments', { user_id: userId, number, ...paymentColumns(input) }, id));
+  }
+
+  async updatePayment(id: string, patch: PaymentPatch) {
+    check((await this.client.from('projets_payments').update(paymentColumns(patch)).eq('id', id)).error);
+  }
+
+  async deletePayment(id: string) {
+    check((await this.client.from('projets_payments').delete().eq('id', id)).error);
+  }
+
+  async listTime(): Promise<TimeEntry[]> {
+    return (unwrap(await this.client.from('projets_time').select('*').order('day')) as TimeRow[]).map(toTime);
+  }
+
+  async createTime(input: TimeEntryInput, id?: string): Promise<TimeEntry> {
+    const userId = await this.requireUserId();
+    const row = {
+      user_id: userId,
+      project_id: input.projectId,
+      workstream_id: input.workstreamId ?? null,
+      day: input.day,
+      minutes: input.minutes,
+      note: input.note ?? '',
+    };
+    return toTime(await this.insert<TimeRow>('projets_time', row, id));
+  }
+
+  async deleteTime(id: string) {
+    check((await this.client.from('projets_time').delete().eq('id', id)).error);
+  }
+
   async exportData(): Promise<ProjetsBackup> {
-    const [clients, projects, workstreams, tasks, notes, links] = await Promise.all([
+    const [clients, projects, workstreams, tasks, notes, links, payments, time] = await Promise.all([
       this.listClients(),
       this.listProjects(),
       this.listWorkstreams(),
       this.listTasks(),
       this.listNotes(),
       this.listLinks(),
+      this.listPayments(),
+      this.listTime(),
     ]);
-    return { clients, projects, workstreams, tasks, notes, links };
+    return { clients, projects, workstreams, tasks, notes, links, payments, time };
   }
 
   /**
    * Remplace tout, comme une restauration de sauvegarde. Les identifiants
    * et les numéros sont gardés. Les projets partent avant les clients
-   * (`restrict`), emportant chantiers, tâches, journal et liens ; on réécrit
+   * (`restrict`), emportant chantiers, tâches, journal, liens, paiements et temps ; on réécrit
    * ensuite dans l'ordre des clés étrangères.
    */
   async importData(data: ProjetsBackup) {
@@ -461,6 +579,25 @@ export class SupabaseProjets implements ProjetsStore {
     if (links.length > 0) {
       const rows = links.map((l) => ({ id: l.id, user_id: userId, ...linkColumns(l) }));
       check((await this.client.from('projets_links').insert(rows)).error);
+    }
+    const payments = data.payments ?? [];
+    if (payments.length > 0) {
+      const rows = payments.map((p) => ({ id: p.id, user_id: userId, number: p.number, created_at: p.createdAt, ...paymentColumns(p) }));
+      check((await this.client.from('projets_payments').insert(rows)).error);
+    }
+    const time = data.time ?? [];
+    if (time.length > 0) {
+      const rows = time.map((t) => ({
+        id: t.id,
+        user_id: userId,
+        project_id: t.projectId,
+        workstream_id: t.workstreamId,
+        day: t.day,
+        minutes: t.minutes,
+        note: t.note,
+        created_at: t.createdAt,
+      }));
+      check((await this.client.from('projets_time').insert(rows)).error);
     }
   }
 }

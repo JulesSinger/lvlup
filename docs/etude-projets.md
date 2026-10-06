@@ -722,6 +722,57 @@ comptes. **Migration à appliquer par Jules.**
 
 ---
 
+## 17. Étape 5 : l'argent et le temps passé (06/10/2026)
+
+- **Migration** `supabase/2026-10-06-projets-payments-time.sql` : `projets_payments` (numéro
+  unique par compte, nom, montant, attendu le, reçu le, mode de règlement, référence de facture ;
+  un mode exige une réception) et `projets_time` (jour, minutes, chantier facultatif en
+  `on delete set null`, note), RLS complet.
+- **Au socle** (`core/lib/services.ts`) : `ExpenseRequest.direction` (`'expense'` par défaut,
+  `'income'`). Budget applique le signe (`budget/data/expenseService.ts`, testé) ; Courses n'a
+  rien changé. Le service garde son nom.
+- `lib/payments.ts` (encaissé, reste, écart avec le prix, retards, échéancier en paiements,
+  l'argent tous projets confondus), `lib/time.ts` (« 2h30 », « 1,5 h », « 45 » → minutes ; taux
+  horaire réel), `lib/receipts.ts` (livre des recettes d'une année, CSV pour un tableur
+  français) — testées.
+- **L'onglet Argent** (`MoneyPanel`) : prix, encaissé, reste, jauge ; les paiements, « Reçu »
+  (`PaymentReceiver` : jour, mode, facture, « Ajouter à Budget » coché d'office), modifier,
+  « Pas encore reçu », supprimer (`PaymentEditor`) ; le temps passé et le taux horaire réel, sur
+  le prix convenu et sur l'encaissé.
+- **Le tableau de bord** gagne un panneau Argent : encaissé ce mois-ci et cette année, reste à
+  encaisser sur les projets ouverts, paiements en retard.
+- **Recettes** (`ReceiptsView`) : une quatrième vue, les encaissements d'une année dans l'ordre,
+  le total, l'export CSV.
+
+Choix faits en l'écrivant :
+
+- **L'échéancier 30 / 70 est posé d'office** à la création d'un projet qui a un prix : l'acompte
+  attendu au début du projet (ou le jour même), le solde à la mise en ligne prévue. Sans prix,
+  l'onglet propose de le poser plus tard.
+- **Le paiement d'abord, Budget ensuite.** Un échec de Budget laisse le paiement noté, avec
+  « Ajouter à Budget » pour réessayer, jamais l'inverse. Dans l'autre sens — « Pas encore reçu »,
+  supprimer un paiement, supprimer un projet — **Budget d'abord**, pour ne jamais laisser une
+  entrée orpheline (même règle que Courses).
+- **La référence vers Budget est `projets:paiement:<numéro>`**, pas l'identifiant, qu'une
+  restauration change. Rejouer l'envoi ne double rien.
+- **Catégorie demandée : « Revenus freelance »**, trouvée par son nom ; inconnue de Budget, l'entrée
+  y est « à classer ». Elle n'est pas créée d'office : c'est à Jules de la créer dans Budget s'il
+  la veut.
+- **Le prix n'est pas recalculé** depuis les paiements : un écart se dit en clair (« il en
+  manque 300 € », « ils dépassent le prix de 150 € »), sans rien corriger en silence.
+- **Le reste à encaisser ne passe jamais sous zéro** ; sans prix fixé, il se compte sur les
+  paiements prévus.
+- **Le livre des recettes est une aide**, présentée comme telle à l'écran : pas une comptabilité
+  certifiée. Le CSV porte un en-tête UTF-8 (sans lui, Excel abîme les accents), le
+  point-virgule, la virgule décimale et les dates JJ/MM/AAAA.
+
+1249 → **1267** tests unitaires (+18, dont un pour Budget), 70 → **86** vérifications de bout en
+bout pour le module (dont l'entrée vue de l'autre côté, dans Budget, et le contenu du CSV
+téléchargé), **947/947** en local et **966/966** en mode comptes. **Migration à appliquer par
+Jules.**
+
+---
+
 ## Sources
 
 - Réforme de la facturation électronique : calendrier publié par l'administration (impots.gouv.fr,

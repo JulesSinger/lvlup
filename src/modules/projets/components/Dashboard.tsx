@@ -1,13 +1,16 @@
 import { activeProjectCards, lateItems, NUDGE_DAYS, waitingItems, weekTasks, type DashboardData } from '../lib/dashboard';
 import { projectColor } from '../lib/colors';
-import { dayLabel, sinceLabel } from '../lib/format';
-import type { Client, ProjectTask, Workstream } from '../lib/types';
+import { dayLabel, shortDate, sinceLabel } from '../lib/format';
+import { formatEuros } from '../lib/money';
+import { moneyOverview } from '../lib/payments';
+import type { Client, Payment, ProjectTask, Workstream } from '../lib/types';
 import { ProjectCard } from './ProjectCard';
 import { TaskLine } from './TaskLine';
 
 interface Props {
   data: DashboardData;
   clients: readonly Client[];
+  payments: readonly Payment[];
   today: string;
   onOpenProject: (projectId: string) => void;
   onToggleTask: (task: ProjectTask) => void;
@@ -16,13 +19,14 @@ interface Props {
 }
 
 /** Le tableau de bord (§4.1) : sur quoi je travaille, qu'est-ce qui brûle, qu'est-ce que j'attends. */
-export function Dashboard({ data, clients, today, onOpenProject, onToggleTask, onOpenTask, onNewProject }: Props) {
+export function Dashboard({ data, clients, payments, today, onOpenProject, onToggleTask, onOpenTask, onNewProject }: Props) {
   const clientName = (id: string) => clients.find((c) => c.id === id)?.name ?? 'Client inconnu';
   const wsTitle = new Map<string, Workstream>(data.workstreams.map((w) => [w.id, w]));
   const week = weekTasks(data, today);
   const late = lateItems(data, today);
   const waiting = waitingItems(data, today);
   const cards = activeProjectCards(data, today);
+  const money = moneyOverview(data.projects, payments, today);
 
   if (data.projects.length === 0) {
     return (
@@ -149,6 +153,30 @@ export function Dashboard({ data, clients, today, onOpenProject, onToggleTask, o
               ))}
             </div>
           )}
+        </section>
+
+        <section className="projets-panel projets-money-overview" aria-label="Argent">
+          <h2 className="projets-section-title">Argent</h2>
+          <div className="projets-money-row">
+            <span>Encaissé ce mois-ci</span>
+            <b>{formatEuros(money.receivedThisMonthCents)}</b>
+          </div>
+          <div className="projets-money-row">
+            <span>Encaissé en {today.slice(0, 4)}</span>
+            <b>{formatEuros(money.receivedThisYearCents)}</b>
+          </div>
+          <div className="projets-money-row">
+            <span>Reste à encaisser</span>
+            <b>{formatEuros(money.outstandingCents)}</b>
+          </div>
+          {money.late.map(({ payment, project }) => (
+            <button key={payment.id} type="button" className="projets-money-row late" onClick={() => onOpenProject(project.id)}>
+              <span>
+                ⚠ {payment.label} · {clientName(project.clientId)}, attendu le {shortDate(payment.expectedDay!, today)}
+              </span>
+              <b>{formatEuros(payment.amountCents)}</b>
+            </button>
+          ))}
         </section>
       </div>
     </div>

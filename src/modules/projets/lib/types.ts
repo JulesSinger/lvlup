@@ -227,3 +227,66 @@ export interface ProjectNoteInput {
 /** Un chantier ou une tâche à créer d'un bloc, identifiant compris (copie d'un modèle). */
 export type WorkstreamDraft = WorkstreamInput & { id: string };
 export type ProjectTaskDraft = ProjectTaskInput & { id: string };
+
+/** Comment un paiement a été reçu — une colonne du livre des recettes (§3.8). */
+export const PAYMENT_METHODS = ['virement', 'carte', 'cheque', 'especes', 'autre'] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+export const PAYMENT_LABEL_MAX = 80;
+
+/**
+ * Un paiement attendu d'un client : l'acompte, le solde, une échéance. Il
+ * devient reçu quand `receivedDay` est posé, avec son mode et la référence de
+ * la facture. Le prix du projet est ce qui a été convenu ; les paiements,
+ * ce qui est attendu et reçu.
+ */
+export interface Payment {
+  id: string;
+  projectId: string;
+  /**
+   * Numéro unique par compte : la référence stable vers Budget
+   * (« projets:paiement:<numéro> »), qu'une restauration ne change pas.
+   */
+  number: number;
+  label: string;
+  amountCents: number;
+  expectedDay: string | null;
+  receivedDay: string | null;
+  method: PaymentMethod | null;
+  invoiceRef: string;
+  position: number;
+  createdAt: string;
+}
+
+export interface PaymentInput {
+  projectId: string;
+  label: string;
+  amountCents: number;
+  expectedDay?: string | null;
+  position?: number;
+}
+
+export type PaymentPatch = Partial<Pick<Payment, 'label' | 'amountCents' | 'expectedDay' | 'receivedDay' | 'method' | 'invoiceRef' | 'position'>>;
+
+/** Du temps passé sur un projet, noté après coup (§3.10, décision de Jules du 05/10/2026). */
+export interface TimeEntry {
+  id: string;
+  projectId: string;
+  /** Le chantier, facultatif ; supprimé, l'entrée reste et perd seulement son chantier. */
+  workstreamId: string | null;
+  day: string;
+  minutes: number;
+  note: string;
+  createdAt: string;
+}
+
+export interface TimeEntryInput {
+  projectId: string;
+  workstreamId?: string | null;
+  day: string;
+  minutes: number;
+  note?: string;
+}
+
+/** Une journée de travail au plus par entrée : au-delà, c'est une faute de frappe. */
+export const TIME_ENTRY_MAX_MINUTES = 1440;

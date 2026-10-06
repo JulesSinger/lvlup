@@ -14,6 +14,11 @@
  * rechargement, questions à demander qui remontent au tableau de bord), la
  * fiche design, les liens et les accès (mot de passe refusé), le pipeline en
  * colonnes.
+ *
+ * Étape 5 (§17) : l'argent — l'échéancier 30 / 70 posé d'office, un paiement
+ * reçu (et vu dans Budget, de l'autre côté), un paiement qui dépasse le prix,
+ * le temps passé et le taux horaire réel, l'argent au tableau de bord, le
+ * livre des recettes et son export CSV.
  */
 
 /** Rouvre Atlas sur la liste des modules (voir la suite de Hauts faits). */
@@ -192,6 +197,56 @@ export async function run({ browser, check, BASE }) {
   await page.getByRole('tab', { name: 'Design' }).click();
   check('La fiche design est relue telle qu’enregistrée', (await page.locator('.projets-swatch-code').count()) === 2 && (await page.locator('#projets-design-title-font').inputValue()) === 'Cormorant Garamond');
 
+  // --- L'argent ----------------------------------------------------------------
+  await page.getByRole('tab', { name: 'Argent' }).click();
+  const money = page.locator('.projets-money');
+  const payRows = money.locator('.projets-payment');
+  check('Un prix fixé : l’échéancier 30 / 70 est posé d’office', (await payRows.count()) === 2 && (await text(payRows.nth(0))).includes('Acompte 30 %') && (await text(payRows.nth(0))).includes('270 €') && (await text(payRows.nth(1))).includes('630 €'));
+  check('Rien d’encaissé, tout reste', (await text(money.locator('.projets-money-figures'))).includes('Encaissé 0 €') && (await text(money.locator('.projets-money-figures'))).includes('Reste 900 €'));
+  await payRows.nth(0).getByRole('button', { name: 'Reçu' }).click();
+  const receiveDialog = page.getByRole('dialog', { name: 'Paiement reçu' });
+  check('L’envoi à Budget est coché d’office', await receiveDialog.getByLabel(/Ajouter à Budget/).isChecked());
+  await page.fill('#projets-receive-invoice', 'F-2026-001');
+  await receiveDialog.getByRole('button', { name: 'C’est reçu' }).click();
+  await receiveDialog.waitFor({ state: 'detached' });
+  await page.waitForSelector('.projets-payment.received');
+  check('Le paiement reçu dit quand, comment, sur quelle facture', (await text(payRows.nth(0))).includes('Reçu le') && (await text(payRows.nth(0))).includes('Virement · F-2026-001'));
+  await page.waitForFunction(() => document.querySelector('.projets-payment.received')?.textContent?.includes('dans Budget'));
+  check('Et qu’il est dans Budget', (await text(payRows.nth(0))).includes('✓ dans Budget'));
+  check('Encaissé et reste suivent', (await text(money.locator('.projets-money-figures'))).includes('Encaissé 270 €') && (await text(money.locator('.projets-money-figures'))).includes('Reste 630 €'));
+
+  await page.getByRole('button', { name: '+ Ajouter un paiement' }).click();
+  await page.fill('#projets-pay-label', 'Option logo');
+  await page.fill('#projets-pay-amount', '150');
+  await page.getByRole('dialog', { name: 'Nouveau paiement' }).getByRole('button', { name: 'Ajouter' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.projets-payment').length === 3);
+  check('Un paiement en plus du prix se signale', (await text(money)).includes('dépassent le prix de 150 €'));
+  await page.getByRole('button', { name: 'Modifier le paiement Option logo' }).click();
+  await page.getByRole('dialog', { name: 'Modifier le paiement' }).getByRole('button', { name: 'Supprimer' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.projets-payment').length === 2);
+  check('Un paiement se supprime', !(await text(money)).includes('Option logo'));
+
+  await page.getByLabel('Durée').fill('beaucoup');
+  await page.getByRole('button', { name: 'Noter' }).click();
+  check('Une durée illisible est refusée en clair', (await text(money.locator('.notice.error'))).includes('2h30'));
+  await page.getByLabel('Durée').fill('2h30');
+  await page.getByLabel('Chantier', { exact: true }).selectOption({ label: 'Développement' });
+  await page.getByRole('button', { name: 'Noter' }).click();
+  await page.waitForSelector('.projets-time-entry');
+  check('Le temps passé se note, avec son chantier', (await text(page.locator('.projets-time-entry'))).includes('2 h 30') && (await text(page.locator('.projets-time-entry'))).includes('Développement'));
+  check('Le taux horaire réel, sur le prix et sur l’encaissé', (await text(page.locator('.projets-rate'))).includes('360 € / h') && (await text(page.locator('.projets-rate'))).includes('108 € / h'));
+
+  // De l'autre côté : Budget a reçu l'entrée (seule incursion dans un autre module, l'objet même du lien).
+  await page.getByRole('button', { name: 'Tous les modules' }).click();
+  await page.waitForSelector('.hub-picker-card');
+  await page.getByRole('button', { name: /Budget/ }).first().click();
+  await page.waitForSelector('.budget-tab');
+  const budgetRow = page.locator('.budget-entry-row', { hasText: 'Fleurs de Lou — Acompte 30 %' });
+  await budgetRow.first().waitFor({ timeout: 10000 }).catch(() => {});
+  check('Budget a reçu l’acompte comme une entrée, à classer sans catégorie « Revenus freelance »', (await budgetRow.count()) === 1 && (await text(budgetRow.locator('.budget-row-amount'))).includes('270,00'));
+  await openModule(page);
+  await page.locator('.projets-card', { hasText: 'Fleurs de Lou' }).click();
+
   // --- Le tableau de bord ----------------------------------------------------
   await page.getByRole('button', { name: '← Retour' }).click();
   await page.waitForSelector('.projets-card');
@@ -199,6 +254,8 @@ export async function run({ browser, check, BASE }) {
   check('Cette semaine montre la tâche prévue aujourd’hui, avec son client', (await text(week)).includes('Recevoir les photos') && (await text(week)).includes('Fleurs de Lou'));
   const waiting = page.locator('section[aria-label="En attente du client"]');
   check('L’attente du projet et la tâche qui attend remontent', (await text(waiting)).includes('la validation des tarifs') && (await text(waiting)).includes('Recevoir les photos'));
+  const moneyPanel = page.locator('section[aria-label="Argent"]');
+  check('L’argent du tableau de bord : encaissé ce mois-ci et reste', (await text(moneyPanel)).includes('Encaissé ce mois-ci270 €') && (await text(moneyPanel)).includes('Reste à encaisser630 €'));
   check('Les questions de besoins à poser remontent aussi', (await text(waiting)).includes('1 question à lui poser') && (await text(waiting)).includes('Qui fournit les photos'));
   const projectCard = page.locator('.projets-card', { hasText: 'Fleurs de Lou' });
   check('La carte du projet dit son statut et ses chantiers en cours', (await text(projectCard)).includes('En production') && (await text(projectCard)).includes('Découverte 1/6'));
@@ -227,6 +284,21 @@ export async function run({ browser, check, BASE }) {
   await page.getByRole('button', { name: 'Tableau de bord' }).click();
   await page.waitForSelector('.projets-card');
   check('Une piste n’est pas un projet actif du tableau de bord', (await page.locator('.projets-card').count()) === 1);
+
+  // --- Le livre des recettes ---------------------------------------------------
+  await page.getByRole('button', { name: 'Recettes' }).click();
+  await page.waitForSelector('.projets-receipts');
+  check('Le livre des recettes liste l’encaissement de l’année', (await page.locator('.projets-table tbody tr').count()) === 1 && (await text(page.locator('.projets-table tbody tr'))).includes('Fleurs de Lou'));
+  check('Avec le total de l’année', (await text(page.locator('.projets-receipts-total'))).includes('270 €'));
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Exporter en CSV' }).click()]);
+  const csv = await new Promise((resolve) => {
+    download.createReadStream().then((stream) => {
+      let body = '';
+      stream.on('data', (chunk) => (body += chunk));
+      stream.on('end', () => resolve(body));
+    });
+  });
+  check('L’export CSV a l’en-tête et la ligne, à la française', csv.includes('Date;Client;Projet;Objet;Montant (€);Mode de règlement;Facture') && csv.includes(';Fleurs de Lou;Site vitrine;Acompte 30 %;270,00;Virement;F-2026-001'));
 
   // --- Les clients ------------------------------------------------------------
   await page.getByRole('button', { name: /^Clients/ }).click();

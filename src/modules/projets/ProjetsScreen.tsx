@@ -7,6 +7,9 @@ import { ClientEditor } from './components/ClientEditor';
 import { ClientsView } from './components/ClientsView';
 import { Dashboard } from './components/Dashboard';
 import { LinkEditor } from './components/LinkEditor';
+import { PaymentEditor } from './components/PaymentEditor';
+import { PaymentReceiver, type Receipt } from './components/PaymentReceiver';
+import { ReceiptsView } from './components/ReceiptsView';
 import { ProjectCreator, type NewProject } from './components/ProjectCreator';
 import { ProjectSheet } from './components/ProjectSheet';
 import { ProjectsView } from './components/ProjectsView';
@@ -16,9 +19,10 @@ import { projetsStore as store } from './data';
 import type { ProjetsBackup } from './data/projetsStore';
 import { projectProgress, projectWorkstreams } from './lib/progress';
 import { instantiateTemplate, templateById } from './lib/templates';
-import type { Client, ClientInput, ProjectLink, ProjectPatch, ProjectTask, Workstream } from './lib/types';
+import { BUDGET_CATEGORY, budgetRef, schedulePayments } from './lib/payments';
+import type { Client, ClientInput, Payment, Project, ProjectLink, ProjectPatch, ProjectTask, Workstream } from './lib/types';
 
-type View = 'dash' | 'projects' | 'clients';
+type View = 'dash' | 'projects' | 'clients' | 'receipts';
 
 /** La dernière vue ouverte, retenue sur cet appareil — un confort, pas une donnée. */
 const VIEW_KEY = 'projets.view.v1';
@@ -26,14 +30,14 @@ const VIEW_KEY = 'projets.view.v1';
 function savedView(): View {
   try {
     const v = localStorage.getItem(VIEW_KEY);
-    if (v === 'dash' || v === 'projects' || v === 'clients') return v;
+    if (v === 'dash' || v === 'projects' || v === 'clients' || v === 'receipts') return v;
   } catch {
     // Stockage refusé : le tableau de bord suffit.
   }
   return 'dash';
 }
 
-const EMPTY: Required<ProjetsBackup> = { clients: [], projects: [], workstreams: [], tasks: [], notes: [], links: [] };
+const EMPTY: Required<ProjetsBackup> = { clients: [], projects: [], workstreams: [], tasks: [], notes: [], links: [], payments: [], time: [] };
 
 const nextPosition = (items: readonly { position: number }[]) => items.reduce((max, i) => Math.max(max, i.position + 1), 0);
 
@@ -43,12 +47,14 @@ const nextPosition = (items: readonly { position: number }[]) => items.reduce((m
  * d'après un modèle ; la fiche d'un projet avec ses chantiers, son journal et
  * ses infos ; le statut de la relation et l'attente du client. Étape 4 : le
  * questionnaire de besoins, la fiche design, les liens et les accès, et les
- * projets en colonnes (pipeline).
+ * projets en colonnes (pipeline). Étape 5 : l'argent — paiements, échéancier
+ * 30 / 70, encaissements envoyés à Budget, temps passé, livre des recettes.
  *
  * Toute la logique est dans les bibliothèques pures (`lib/`) : cet écran ne
  * fait qu'appeler le contrat de stockage et afficher.
  */
-export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji }: ModuleScreenProps) {
+export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji, services }: ModuleScreenProps) {
+  const expenses = services.expenses;
   const [data, setData] = useState<Required<ProjetsBackup>>(EMPTY);
   const [loaded, setLoaded] = useState(false);
   const [view, setViewState] = useState<View>(savedView);
@@ -56,28 +62,38 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
   const [creating, setCreating] = useState(false);
   const [clientEditing, setClientEditing] = useState<Client | 'new' | null>(null);
   const [taskEditingId, setTaskEditingId] = useState<string | null>(null);
+  const [paymentEditing, setPaymentEditing] = useState<{ projectId: string; payment: Payment | null } | null>(null);
+  const [receivingId, setReceivingId] = useState<string | null>(null);
+  /** Les paiements déjà dans Budget ; `null` quand Budget n'est pas là (ou ne répond pas). */
+  const [inBudget, setInBudget] = useState<ReadonlySet<string> | null>(null);
   const [linkEditing, setLinkEditing] = useState<{ projectId: string; link: ProjectLink | null } | null>(null);
   const [wsEditing, setWsEditing] = useState<{ projectId: string; workstream: Workstream | null } | null>(null);
   const today = dayString();
 
   const refresh = useCallback(async () => {
     try {
-      const [clients, projects, workstreams, tasks, notes, links] = await Promise.all([
+      const [clients, projects, workstreams, tasks, notes, links, payments, time] = await Promise.all([
         store.listClients(),
         store.listProjects(),
         store.listWorkstreams(),
         store.listTasks(),
         store.listNotes(),
         store.listLinks(),
+        store.listPayments(),
+        store.listTime(),
       ]);
-      setData({ clients, projects, workstreams, tasks, notes, links });
+      setData({ clients, projects, workstreams, tasks, notes, links, payments, time });
       onError('');
+      if (expenses) {
+        // Budget qui ne répond pas ne doit pas empêcher Projets de s'afficher.
+        expenses.recorded(payments.filter((p) => p.receivedDay).map(budgetRef)).then(setInBudget, () => setInBudget(null));
+      }
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Chargement impossible.');
     } finally {
       setLoaded(true);
     }
-  }, [onError]);
+  }, [onError, expenses]);
 
   useEffect(() => {
     void refresh();
@@ -128,9 +144,51 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
       const copy = instantiateTemplate(template, projectId, newId);
       await store.addWorkstreams(copy.workstreams, copy.tasks);
     }
+    // Un prix fixé : l'échéancier 30 / 70 est proposé d'office, modifiable ensuite.
+    const created = (await store.listProjects()).find((p) => p.id === projectId);
+    if (created) for (const input of schedulePayments(created, today)) await store.createPayment(input, newId());
     await refresh();
     setCreating(false);
     setOpenId(projectId);
+  }
+
+  const clientOf = (project: Project) => data.clients.find((c) => c.id === project.clientId)?.name ?? 'Client';
+
+  /** Envoie un paiement reçu à Budget, comme une entrée. Rejouable : la référence l'empêche d'entrer deux fois. */
+  async function sendToBudget(payment: Payment, project: Project) {
+    if (!expenses || !payment.receivedDay) return;
+    await expenses.record({
+      ref: budgetRef(payment),
+      day: payment.receivedDay,
+      label: `${clientOf(project)} — ${payment.label}`,
+      amountCents: payment.amountCents,
+      categoryName: BUDGET_CATEGORY,
+      direction: 'income',
+      note: `Projets, projet n° ${project.number} « ${project.title} »${payment.invoiceRef ? `, facture ${payment.invoiceRef}` : ''}`,
+    });
+  }
+
+  /**
+   * Le paiement d'abord, Budget ensuite : un échec de Budget laisse le
+   * paiement noté (et « Ajouter à Budget » pour réessayer), jamais l'inverse.
+   */
+  async function receive(payment: Payment, receipt: Receipt) {
+    const project = data.projects.find((p) => p.id === payment.projectId);
+    await store.updatePayment(payment.id, { receivedDay: receipt.receivedDay, method: receipt.method, invoiceRef: receipt.invoiceRef });
+    setReceivingId(null);
+    if (receipt.sendToBudget && project) {
+      try {
+        await sendToBudget({ ...payment, receivedDay: receipt.receivedDay, invoiceRef: receipt.invoiceRef }, project);
+      } catch (err) {
+        onError(`Le paiement est noté, mais pas ajouté à Budget : ${err instanceof Error ? err.message : 'erreur inconnue'}.`);
+      }
+    }
+    await refresh();
+  }
+
+  /** Retirer de Budget AVANT de toucher au paiement : jamais d'entrée orpheline dans Budget. */
+  async function forgetInBudget(payment: Payment) {
+    if (expenses && payment.receivedDay) await expenses.remove(budgetRef(payment));
   }
 
   async function saveClient(input: ClientInput) {
@@ -157,12 +215,17 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
           views={views}
           notes={data.notes.filter((n) => n.projectId === open.id)}
           links={data.links.filter((l) => l.projectId === open.id)}
+          payments={data.payments}
+          time={data.time}
+          inBudget={expenses ? inBudget : null}
           progress={projectProgress(open.id, data.tasks)}
           today={today}
           onBack={() => setOpenId(null)}
           onPatch={(patch: ProjectPatch) => write(() => store.updateProject(open.id, patch))}
           onQuickPatch={(patch: ProjectPatch) => writeOrReport(() => store.updateProject(open.id, patch))}
           onDelete={async () => {
+            // Ses encaissements quittent Budget d'abord : jamais d'entrée orpheline.
+            for (const p of data.payments.filter((p) => p.projectId === open.id)) await forgetInBudget(p);
             await store.deleteProject(open.id);
             setOpenId(null);
             await refresh();
@@ -183,9 +246,22 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
           onSaveNeeds={(needs) => write(() => store.updateProject(open.id, { needs }))}
           onSaveDesign={(design) => write(() => store.updateProject(open.id, { design }))}
           onEditLink={(link) => setLinkEditing({ projectId: open.id, link })}
+          onSchedule={async () => {
+            for (const input of schedulePayments(open, today)) await store.createPayment(input, newId());
+            await refresh();
+          }}
+          onEditPayment={(payment) => setPaymentEditing({ projectId: open.id, payment })}
+          onReceivePayment={(payment) => setReceivingId(payment.id)}
+          onSendToBudget={async (payment) => {
+            await sendToBudget(payment, open);
+            await refresh();
+          }}
+          onAddTime={(input) => write(() => store.createTime({ ...input, projectId: open.id }, newId()))}
+          onDeleteTime={(entry) => write(() => store.deleteTime(entry.id))}
         />
       );
     }
+    if (view === 'receipts') return <ReceiptsView payments={data.payments} projects={data.projects} clients={data.clients} today={today} />;
     if (view === 'projects') return <ProjectsView projects={data.projects} tasks={data.tasks} clients={data.clients} today={today} onOpen={setOpenId} />;
     if (view === 'clients') {
       return (
@@ -203,6 +279,7 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
       <Dashboard
         data={data}
         clients={data.clients}
+        payments={data.payments}
         today={today}
         onOpenProject={setOpenId}
         onToggleTask={toggleTask}
@@ -246,6 +323,7 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
               ['dash', 'Tableau de bord', 0],
               ['projects', 'Projets', counts.projects],
               ['clients', 'Clients', counts.clients],
+              ['receipts', 'Recettes', 0],
             ] as const
           ).map(([id, text, n]) => (
             <button
@@ -303,6 +381,52 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
               await write(() => store.deleteTask(editingTask.id));
               setTaskEditingId(null);
             }}
+          />
+        )}
+
+        {paymentEditing && (
+          <PaymentEditor
+            payment={paymentEditing.payment}
+            onClose={() => setPaymentEditing(null)}
+            onSave={async (draft) => {
+              const current = paymentEditing.payment;
+              if (current) await write(() => store.updatePayment(current.id, draft));
+              else {
+                const siblings = data.payments.filter((p) => p.projectId === paymentEditing.projectId);
+                await write(() => store.createPayment({ ...draft, projectId: paymentEditing.projectId, position: nextPosition(siblings) }, newId()));
+              }
+              setPaymentEditing(null);
+            }}
+            onUnreceive={
+              paymentEditing.payment?.receivedDay
+                ? async () => {
+                    const current = paymentEditing.payment!;
+                    await forgetInBudget(current);
+                    await write(() => store.updatePayment(current.id, { receivedDay: null }));
+                    setPaymentEditing(null);
+                  }
+                : undefined
+            }
+            onDelete={
+              paymentEditing.payment
+                ? async () => {
+                    const current = paymentEditing.payment!;
+                    await forgetInBudget(current);
+                    await write(() => store.deletePayment(current.id));
+                    setPaymentEditing(null);
+                  }
+                : undefined
+            }
+          />
+        )}
+
+        {receivingId && data.payments.some((p) => p.id === receivingId) && (
+          <PaymentReceiver
+            payment={data.payments.find((p) => p.id === receivingId)!}
+            today={today}
+            canSendToBudget={expenses !== undefined}
+            onClose={() => setReceivingId(null)}
+            onReceive={(receipt) => receive(data.payments.find((p) => p.id === receivingId)!, receipt)}
           />
         )}
 

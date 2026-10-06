@@ -7,6 +7,9 @@ import {
   LINK_KINDS,
   LINK_LABEL_MAX,
   NOTE_TEXT_MAX,
+  PAYMENT_LABEL_MAX,
+  PAYMENT_METHODS,
+  TIME_ENTRY_MAX_MINUTES,
   PROJECT_STATUSES,
   PROJECT_TITLE_MAX,
   TASK_TITLE_MAX,
@@ -59,6 +62,17 @@ describe('le type et la base disent la même chose (Projets)', () => {
     expect(table).toContain('login');
     expect(table).not.toMatch(/password|mot_de_passe|secret/i);
     for (const verb of ['select', 'insert', 'update', 'delete']) expect(sql).toContain(`create policy "projets_links_${verb}_own"`);
+  });
+
+  it('les paiements et le temps passé', () => {
+    expect(allowedBy('projets_payments_method_check')).toEqual([...PAYMENT_METHODS].sort());
+    expect(lastDefinition('projets_payments_label_check')).toContain(`between 1 and ${PAYMENT_LABEL_MAX}`);
+    expect(lastDefinition('projets_time_minutes_check')).toContain(`between 1 and ${TIME_ENTRY_MAX_MINUTES}`);
+    const sql = readFileSync(join(SQL_DIR, '2026-10-06-projets-payments-time.sql'), 'utf8');
+    for (const table of ['projets_payments', 'projets_time']) {
+      expect(sql).toContain(`alter table public.${table} enable row level security`);
+      for (const verb of ['select', 'insert', 'update', 'delete']) expect(sql).toContain(`create policy "${table}_${verb}_own"`);
+    }
   });
 
   it('les longueurs maximales', () => {

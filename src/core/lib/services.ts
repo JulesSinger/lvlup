@@ -12,7 +12,7 @@
  * s'en sert doit toujours supporter son absence (module retiré du registre).
  */
 
-/** Une dépense qu'un module demande d'enregistrer au budget. */
+/** Une dépense (ou une entrée) qu'un module demande d'enregistrer au budget. */
 export interface ExpenseRequest {
   /**
    * Référence stable, choisie par le module demandeur et préfixée par son
@@ -24,8 +24,14 @@ export interface ExpenseRequest {
   /** Jour de la dépense (AAAA-MM-JJ) */
   day: string;
   label: string;
-  /** Montant dépensé, en centimes, positif */
+  /** Montant, en centimes, toujours positif : c'est `direction` qui dit le sens. */
   amountCents: number;
+  /**
+   * Une sortie d'argent (par défaut) ou une ENTRÉE — un paiement reçu d'un
+   * client de Projets (depuis le 2026-10-06). Le service garde son nom :
+   * Courses n'a rien à changer.
+   */
+  direction?: 'expense' | 'income';
   /** Catégorie souhaitée, par son nom ; « à classer » si le budget ne la connaît pas */
   categoryName: string;
   note?: string;

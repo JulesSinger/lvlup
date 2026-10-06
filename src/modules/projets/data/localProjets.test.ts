@@ -154,6 +154,30 @@ describe('LocalProjets', () => {
     expect((await store.listProjects())[0].design).toEqual({ colors: ['#e7b7c3'], mood: 'champêtre' });
   });
 
+  it('les paiements : numérotés, reçus puis « dé-reçus » sans garder leur mode', async () => {
+    const { project } = await decor();
+    const deposit = await store.createPayment({ projectId: project.id, label: 'Acompte 30 %', amountCents: 27_000, expectedDay: '2026-10-06' }, 'pay-1');
+    const rest = await store.createPayment({ projectId: project.id, label: 'Solde', amountCents: 63_000 });
+    expect([deposit.number, rest.number]).toEqual([1, 2]);
+    expect(deposit).toMatchObject({ receivedDay: null, method: null, invoiceRef: '' });
+    expect(await store.createPayment({ projectId: project.id, label: 'X', amountCents: 1 }, 'pay-1')).toEqual(deposit);
+    await store.updatePayment(deposit.id, { receivedDay: '2026-10-06', method: 'virement', invoiceRef: 'F-1' });
+    expect((await store.listPayments())[0]).toMatchObject({ receivedDay: '2026-10-06', method: 'virement' });
+    await store.updatePayment(deposit.id, { receivedDay: null });
+    expect((await store.listPayments())[0]).toMatchObject({ receivedDay: null, method: null, invoiceRef: 'F-1' });
+  });
+
+  it('le temps passé garde ses entrées quand leur chantier disparaît, et part avec le projet', async () => {
+    const { project, ws } = await decor();
+    await store.createTime({ projectId: project.id, workstreamId: ws.id, day: '2026-10-06', minutes: 150 }, 't-1');
+    await store.deleteWorkstream(ws.id);
+    expect((await store.listTime())[0]).toMatchObject({ minutes: 150, workstreamId: null, note: '' });
+    await store.createPayment({ projectId: project.id, label: 'Solde', amountCents: 1 });
+    await store.deleteProject(project.id);
+    expect(await store.listTime()).toEqual([]);
+    expect(await store.listPayments()).toEqual([]);
+  });
+
   it('préserve les sections des autres modules dans le blob local', async () => {
     localStorage.setItem('palier.v1', JSON.stringify({ tachesTasks: [{ id: 't' }] }));
     await decor();
@@ -165,6 +189,8 @@ describe('LocalProjets', () => {
     await store.createTask({ projectId: project.id, workstreamId: ws.id, title: 'Logo' }, 't-logo');
     await store.createNote({ projectId: project.id, day: '2026-10-05', text: 'Appel' }, 'n-1');
     await store.createLink({ projectId: project.id, kind: 'maquette', label: 'Figma' }, 'l-1');
+    await store.createPayment({ projectId: project.id, label: 'Acompte', amountCents: 100 }, 'pay-1');
+    await store.createTime({ projectId: project.id, day: '2026-10-06', minutes: 30 }, 'time-1');
     const backup = await store.exportData();
     memory.clear();
     await store.importData(backup);

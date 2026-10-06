@@ -4,6 +4,9 @@ import type {
   Client,
   ClientInput,
   ClientPatch,
+  Payment,
+  PaymentInput,
+  PaymentPatch,
   Project,
   ProjectInput,
   ProjectLink,
@@ -16,6 +19,8 @@ import type {
   ProjectTaskDraft,
   ProjectTaskInput,
   ProjectTaskPatch,
+  TimeEntry,
+  TimeEntryInput,
   Workstream,
   WorkstreamDraft,
   WorkstreamInput,
@@ -38,6 +43,8 @@ function read(): Snapshot {
     tasks: arrayOf<ProjectTask>(raw.projetsTasks),
     notes: arrayOf<ProjectNote>(raw.projetsNotes),
     links: arrayOf<ProjectLink>(raw.projetsLinks),
+    payments: arrayOf<Payment>(raw.projetsPayments),
+    time: arrayOf<TimeEntry>(raw.projetsTime),
   };
 }
 
@@ -51,6 +58,8 @@ function write(s: Snapshot) {
     projetsTasks: s.tasks,
     projetsNotes: s.notes,
     projetsLinks: s.links,
+    projetsPayments: s.payments,
+    projetsTime: s.time,
   });
 }
 
@@ -175,6 +184,8 @@ export class LocalProjets implements ProjetsStore {
     s.tasks = s.tasks.filter((t) => t.projectId !== id);
     s.notes = s.notes.filter((n) => n.projectId !== id);
     s.links = s.links.filter((l) => l.projectId !== id);
+    s.payments = s.payments.filter((p) => p.projectId !== id);
+    s.time = s.time.filter((t) => t.projectId !== id);
     write(s);
   }
 
@@ -203,6 +214,8 @@ export class LocalProjets implements ProjetsStore {
     const s = read();
     s.workstreams = s.workstreams.filter((w) => w.id !== id);
     s.tasks = s.tasks.filter((t) => t.workstreamId !== id);
+    // Le temps passé reste, sans chantier (`on delete set null`).
+    s.time = s.time.map((t) => (t.workstreamId === id ? { ...t, workstreamId: null } : t));
     write(s);
   }
 
@@ -314,6 +327,76 @@ export class LocalProjets implements ProjetsStore {
     write(s);
   }
 
+  async listPayments(): Promise<Payment[]> {
+    return read().payments.slice();
+  }
+
+  async createPayment(input: PaymentInput, id: string = newId()): Promise<Payment> {
+    const s = read();
+    const existing = s.payments.find((p) => p.id === id);
+    if (existing) return existing;
+    requireProject(s, input.projectId);
+    const payment: Payment = {
+      id,
+      projectId: input.projectId,
+      number: s.payments.reduce((max, p) => Math.max(max, p.number), 0) + 1,
+      label: input.label,
+      amountCents: input.amountCents,
+      expectedDay: input.expectedDay ?? null,
+      receivedDay: null,
+      method: null,
+      invoiceRef: '',
+      position: input.position ?? 0,
+      createdAt: new Date().toISOString(),
+    };
+    s.payments.push(payment);
+    write(s);
+    return payment;
+  }
+
+  async updatePayment(id: string, patch: PaymentPatch) {
+    const s = read();
+    // Plus de réception : plus de mode de règlement — comme la contrainte côté base.
+    const unreceived = patch.receivedDay === null ? { method: null } : {};
+    s.payments = s.payments.map((p) => (p.id === id ? { ...p, ...patch, ...unreceived } : p));
+    write(s);
+  }
+
+  async deletePayment(id: string) {
+    const s = read();
+    s.payments = s.payments.filter((p) => p.id !== id);
+    write(s);
+  }
+
+  async listTime(): Promise<TimeEntry[]> {
+    return read().time.slice();
+  }
+
+  async createTime(input: TimeEntryInput, id: string = newId()): Promise<TimeEntry> {
+    const s = read();
+    const existing = s.time.find((t) => t.id === id);
+    if (existing) return existing;
+    requireProject(s, input.projectId);
+    const entry: TimeEntry = {
+      id,
+      projectId: input.projectId,
+      workstreamId: input.workstreamId ?? null,
+      day: input.day,
+      minutes: input.minutes,
+      note: input.note ?? '',
+      createdAt: new Date().toISOString(),
+    };
+    s.time.push(entry);
+    write(s);
+    return entry;
+  }
+
+  async deleteTime(id: string) {
+    const s = read();
+    s.time = s.time.filter((t) => t.id !== id);
+    write(s);
+  }
+
   async exportData(): Promise<ProjetsBackup> {
     return read();
   }
@@ -326,6 +409,8 @@ export class LocalProjets implements ProjetsStore {
       tasks: data.tasks ?? [],
       notes: data.notes ?? [],
       links: data.links ?? [],
+      payments: data.payments ?? [],
+      time: data.time ?? [],
     });
   }
 }
