@@ -6,6 +6,7 @@ import type { ModuleScreenProps } from '../../core/lib/module';
 import { ClientEditor } from './components/ClientEditor';
 import { ClientsView } from './components/ClientsView';
 import { Dashboard } from './components/Dashboard';
+import { LinkEditor } from './components/LinkEditor';
 import { ProjectCreator, type NewProject } from './components/ProjectCreator';
 import { ProjectSheet } from './components/ProjectSheet';
 import { ProjectsView } from './components/ProjectsView';
@@ -15,7 +16,7 @@ import { projetsStore as store } from './data';
 import type { ProjetsBackup } from './data/projetsStore';
 import { projectProgress, projectWorkstreams } from './lib/progress';
 import { instantiateTemplate, templateById } from './lib/templates';
-import type { Client, ClientInput, ProjectPatch, ProjectTask, Workstream } from './lib/types';
+import type { Client, ClientInput, ProjectLink, ProjectPatch, ProjectTask, Workstream } from './lib/types';
 
 type View = 'dash' | 'projects' | 'clients';
 
@@ -32,7 +33,7 @@ function savedView(): View {
   return 'dash';
 }
 
-const EMPTY: ProjetsBackup = { clients: [], projects: [], workstreams: [], tasks: [], notes: [] };
+const EMPTY: Required<ProjetsBackup> = { clients: [], projects: [], workstreams: [], tasks: [], notes: [], links: [] };
 
 const nextPosition = (items: readonly { position: number }[]) => items.reduce((max, i) => Math.max(max, i.position + 1), 0);
 
@@ -40,32 +41,36 @@ const nextPosition = (items: readonly { position: number }[]) => items.reduce((m
  * Écran racine de Projets — la V1 (étape 3, docs/etude-projets.md §10) : le
  * tableau de bord, tous les projets par statut, les clients ; créer un projet
  * d'après un modèle ; la fiche d'un projet avec ses chantiers, son journal et
- * ses infos ; le statut de la relation et l'attente du client.
+ * ses infos ; le statut de la relation et l'attente du client. Étape 4 : le
+ * questionnaire de besoins, la fiche design, les liens et les accès, et les
+ * projets en colonnes (pipeline).
  *
  * Toute la logique est dans les bibliothèques pures (`lib/`) : cet écran ne
  * fait qu'appeler le contrat de stockage et afficher.
  */
 export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji }: ModuleScreenProps) {
-  const [data, setData] = useState<ProjetsBackup>(EMPTY);
+  const [data, setData] = useState<Required<ProjetsBackup>>(EMPTY);
   const [loaded, setLoaded] = useState(false);
   const [view, setViewState] = useState<View>(savedView);
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [clientEditing, setClientEditing] = useState<Client | 'new' | null>(null);
   const [taskEditingId, setTaskEditingId] = useState<string | null>(null);
+  const [linkEditing, setLinkEditing] = useState<{ projectId: string; link: ProjectLink | null } | null>(null);
   const [wsEditing, setWsEditing] = useState<{ projectId: string; workstream: Workstream | null } | null>(null);
   const today = dayString();
 
   const refresh = useCallback(async () => {
     try {
-      const [clients, projects, workstreams, tasks, notes] = await Promise.all([
+      const [clients, projects, workstreams, tasks, notes, links] = await Promise.all([
         store.listClients(),
         store.listProjects(),
         store.listWorkstreams(),
         store.listTasks(),
         store.listNotes(),
+        store.listLinks(),
       ]);
-      setData({ clients, projects, workstreams, tasks, notes });
+      setData({ clients, projects, workstreams, tasks, notes, links });
       onError('');
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Chargement impossible.');
@@ -151,6 +156,7 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
           clients={data.clients}
           views={views}
           notes={data.notes.filter((n) => n.projectId === open.id)}
+          links={data.links.filter((l) => l.projectId === open.id)}
           progress={projectProgress(open.id, data.tasks)}
           today={today}
           onBack={() => setOpenId(null)}
@@ -174,6 +180,9 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
           onEditWorkstream={(workstream) => setWsEditing({ projectId: open.id, workstream })}
           onAddNote={(day, text) => write(() => store.createNote({ projectId: open.id, day, text }, newId()))}
           onDeleteNote={(note) => write(() => store.deleteNote(note.id))}
+          onSaveNeeds={(needs) => write(() => store.updateProject(open.id, { needs }))}
+          onSaveDesign={(design) => write(() => store.updateProject(open.id, { design }))}
+          onEditLink={(link) => setLinkEditing({ projectId: open.id, link })}
         />
       );
     }
@@ -294,6 +303,30 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
               await write(() => store.deleteTask(editingTask.id));
               setTaskEditingId(null);
             }}
+          />
+        )}
+
+        {linkEditing && (
+          <LinkEditor
+            link={linkEditing.link}
+            onClose={() => setLinkEditing(null)}
+            onSave={async (input) => {
+              const current = linkEditing.link;
+              if (current) await write(() => store.updateLink(current.id, input));
+              else {
+                const siblings = data.links.filter((l) => l.projectId === linkEditing.projectId);
+                await write(() => store.createLink({ ...input, projectId: linkEditing.projectId, position: nextPosition(siblings) }, newId()));
+              }
+              setLinkEditing(null);
+            }}
+            onDelete={
+              linkEditing.link
+                ? async () => {
+                    await write(() => store.deleteLink(linkEditing.link!.id));
+                    setLinkEditing(null);
+                  }
+                : undefined
+            }
           />
         )}
 

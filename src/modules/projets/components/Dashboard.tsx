@@ -108,11 +108,18 @@ export function Dashboard({ data, clients, today, onOpenProject, onToggleTask, o
             </h2>
             <ul className="projets-waits">
               {waiting.map((item) => (
-                <li key={item.kind === 'project' ? `p-${item.project.id}` : `t-${item.task.id}`}>
+                <li key={item.kind === 'task' ? `t-${item.task.id}` : `${item.kind}-${item.project.id}`}>
                   <button type="button" className="projets-wait" onClick={() => onOpenProject(item.project.id)}>
                     <span aria-hidden="true">⏳</span>
                     <span className="projets-wait-main">
-                      <b>{item.kind === 'project' ? item.what : item.task.title}</b>
+                      <b>
+                        {item.kind === 'project'
+                          ? item.what
+                          : item.kind === 'task'
+                            ? item.task.title
+                            : `${item.questions.length} question${item.questions.length > 1 ? 's' : ''} à lui poser`}
+                      </b>
+                      {item.kind === 'needs' && <span className="projets-wait-detail">{item.questions.join(' · ')}</span>}
                       <span className="projets-tag" style={{ ['--c' as string]: projectColor(item.project.number) }}>
                         {clientName(item.project.clientId)}
                       </span>

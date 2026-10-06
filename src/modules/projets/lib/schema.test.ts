@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import {
   CLIENT_NAME_MAX,
   CLIENT_TRADES,
+  LINK_KINDS,
+  LINK_LABEL_MAX,
   NOTE_TEXT_MAX,
   PROJECT_STATUSES,
   PROJECT_TITLE_MAX,
@@ -44,6 +46,19 @@ describe('le type et la base disent la même chose (Projets)', () => {
 
   it('les métiers d’un client', () => {
     expect(allowedBy('projets_clients_trade_check')).toEqual([...CLIENT_TRADES].sort());
+  });
+
+  it('les sortes de liens', () => {
+    expect(allowedBy('projets_links_kind_check')).toEqual([...LINK_KINDS].sort());
+    expect(lastDefinition('projets_links_label_check')).toContain(`between 1 and ${LINK_LABEL_MAX}`);
+  });
+
+  it('les liens n’ont pas de colonne pour un mot de passe, et ont leurs quatre politiques', () => {
+    const sql = readFileSync(join(SQL_DIR, '2026-10-06-projets-design-links.sql'), 'utf8');
+    const table = /create table if not exists public\.projets_links \(([\s\S]*?)\n\);/.exec(sql)?.[1] ?? '';
+    expect(table).toContain('login');
+    expect(table).not.toMatch(/password|mot_de_passe|secret/i);
+    for (const verb of ['select', 'insert', 'update', 'delete']) expect(sql).toContain(`create policy "projets_links_${verb}_own"`);
   });
 
   it('les longueurs maximales', () => {

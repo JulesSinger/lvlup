@@ -44,6 +44,7 @@ describe('LocalProjets', () => {
       dueDay: null,
       priceCents: null,
       needs: {},
+      design: {},
       template: 'vitrine',
     });
   });
@@ -132,6 +133,27 @@ describe('LocalProjets', () => {
     expect(await store.listNotes()).toEqual([]);
   });
 
+  it('les liens : créer, modifier, et ils partent avec leur projet', async () => {
+    const { project } = await decor();
+    const link = await store.createLink({ projectId: project.id, kind: 'hebergement', label: 'OVH', login: 'lou@fleurs.fr' }, 'l-1');
+    expect(link).toMatchObject({ url: '', note: '', position: 0 });
+    expect(await store.createLink({ projectId: project.id, kind: 'autre', label: 'X' }, 'l-1')).toEqual(link);
+    await store.updateLink(link.id, { url: 'ovh.com/manager' });
+    expect((await store.listLinks())[0].url).toBe('ovh.com/manager');
+    await store.deleteProject(project.id);
+    expect(await store.listLinks()).toEqual([]);
+  });
+
+  it('un projet écrit avant l’étape 4 se lit avec une fiche design vide', async () => {
+    const { project } = await decor();
+    const raw = JSON.parse(localStorage.getItem('palier.v1') ?? '{}');
+    delete raw.projetsProjects[0].design;
+    localStorage.setItem('palier.v1', JSON.stringify(raw));
+    expect((await store.listProjects())[0]).toMatchObject({ id: project.id, design: {} });
+    await store.updateProject(project.id, { design: { colors: ['#e7b7c3'], mood: 'champêtre' } });
+    expect((await store.listProjects())[0].design).toEqual({ colors: ['#e7b7c3'], mood: 'champêtre' });
+  });
+
   it('préserve les sections des autres modules dans le blob local', async () => {
     localStorage.setItem('palier.v1', JSON.stringify({ tachesTasks: [{ id: 't' }] }));
     await decor();
@@ -142,6 +164,7 @@ describe('LocalProjets', () => {
     const { project, ws } = await decor();
     await store.createTask({ projectId: project.id, workstreamId: ws.id, title: 'Logo' }, 't-logo');
     await store.createNote({ projectId: project.id, day: '2026-10-05', text: 'Appel' }, 'n-1');
+    await store.createLink({ projectId: project.id, kind: 'maquette', label: 'Figma' }, 'l-1');
     const backup = await store.exportData();
     memory.clear();
     await store.importData(backup);

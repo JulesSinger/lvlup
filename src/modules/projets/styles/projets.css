@@ -746,14 +746,115 @@ button.projets-chip {
   background: color-mix(in srgb, var(--blue) 12%, var(--surface));
 }
 
-/* --- Tous les projets, clients ---------------------------------------- */
+/* --- Le pipeline, les clients ---------------------------------------- */
 
-.projets-by-status {
+.projets-pipeline-wrap {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
-.projets-rows,
+.projets-pipeline {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(170px, 1fr));
+  gap: 10px;
+  padding-bottom: 6px;
+  overflow-x: auto;
+}
+
+.projets-lane {
+  min-height: 180px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-2);
+}
+
+.projets-lane-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 8px;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.projets-lane-lead .projets-lane-title {
+  color: var(--gray);
+}
+
+.projets-lane-quoted .projets-lane-title {
+  color: color-mix(in oklab, var(--yellow), var(--text) var(--ink-mix));
+}
+
+.projets-lane-signed .projets-lane-title {
+  color: color-mix(in oklab, var(--green), var(--text) var(--ink-mix));
+}
+
+.projets-lane-production .projets-lane-title {
+  color: color-mix(in oklab, var(--blue), var(--text) var(--ink-mix));
+}
+
+.projets-lane-delivered .projets-lane-title {
+  color: color-mix(in oklab, var(--violet), var(--text) var(--ink-mix));
+}
+
+.projets-lane-maintenance .projets-lane-title {
+  color: color-mix(in oklab, var(--teal), var(--text) var(--ink-mix));
+}
+
+.projets-lane-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.projets-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--c);
+  border-radius: 10px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.projets-mini:hover {
+  border-color: var(--border-strong);
+  border-left-color: var(--c);
+}
+
+.projets-mini-title {
+  color: var(--text-dim);
+}
+
+.projets-mini-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.projets-mini-wait {
+  color: color-mix(in oklab, var(--yellow), var(--text) var(--ink-mix));
+  font-size: 11.5px;
+}
+
+.projets-closed-list {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  margin-top: 8px;
+}
+
 .projets-clients {
   display: grid;
   gap: 8px;
@@ -762,42 +863,270 @@ button.projets-chip {
   list-style: none;
 }
 
-.projets-row {
+/* --- Besoins ------------------------------------------------------------ */
+
+.projets-needs {
+  display: grid;
+  gap: 18px;
+  max-width: 780px;
+}
+
+.projets-needs-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 12px;
-  width: 100%;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border: 1px solid var(--border);
-  border-left: 4px solid var(--c);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.projets-needs-dirty {
+  color: color-mix(in oklab, var(--yellow), var(--text) var(--ink-mix));
+}
+
+.projets-needs-section {
+  display: grid;
+  gap: 10px;
+}
+
+.projets-question {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
-  color: inherit;
+}
+
+.projets-question.asked {
+  border-color: color-mix(in srgb, var(--yellow) 40%, var(--border));
+}
+
+.projets-question-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.projets-question-head label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.projets-ask {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-faint);
   font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.projets-ask.on {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--yellow) 55%, transparent);
+  background: color-mix(in srgb, var(--yellow) 12%, transparent);
+  color: color-mix(in oklab, var(--yellow), var(--text) var(--ink-mix));
+}
+
+.projets-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.projets-choice {
+  padding: 3px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.projets-choice.on {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 14%, transparent);
+  color: var(--text);
+}
+
+.projets-wait-detail {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+/* --- Design -------------------------------------------------------------- */
+
+.projets-design {
+  display: grid;
+  gap: 14px;
+  max-width: 720px;
+}
+
+.projets-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.projets-swatch {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.projets-swatch-color {
+  width: 60px;
+  height: 60px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.projets-swatch-color.ink-dark {
+  color: var(--black);
+}
+
+.projets-swatch-color.ink-light {
+  color: var(--white);
+}
+
+.projets-swatch-code {
+  color: var(--text-dim);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.projets-swatch-remove {
+  padding: 0 6px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.projets-color-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 360px;
+}
+
+/* Le socle donne `width: 100%` à tout input : le sélecteur de couleur reste carré. */
+.projets-color-add input[type='color'] {
+  flex: none;
+  width: 42px;
+  height: 38px;
+  padding: 2px;
+}
+
+.projets-refs {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13.5px;
+}
+
+.projets-refs a {
+  color: var(--blue);
+}
+
+/* --- Liens --------------------------------------------------------------- */
+
+.projets-links {
+  display: grid;
+  gap: 12px;
+  max-width: 780px;
+}
+
+.projets-link-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.projets-link-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.projets-link-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.projets-link-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.projets-link-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  font-weight: 500;
+}
+
+.projets-link-label a {
+  color: var(--text);
+}
+
+.projets-link-kind,
+.projets-link-url,
+.projets-link-note {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.projets-link-login {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
   text-align: left;
   cursor: pointer;
 }
 
-.projets-row-main {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
-  min-width: 0;
-}
-
-.projets-row-main span {
-  color: var(--text-dim);
-  font-size: 13.5px;
-}
-
-.projets-row-progress {
-  min-width: 40px;
-  color: var(--text-dim);
-  font-size: 13px;
-  text-align: right;
+.projets-link-login span {
+  margin-left: 6px;
+  color: var(--text-faint);
+  font-size: 11px;
 }
 
 .projets-client {
@@ -836,6 +1165,16 @@ button.projets-chip {
 }
 
 @media (max-width: 760px) {
+  .projets-pipeline {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+  .projets-lane {
+    min-height: 0;
+  }
+  .projets-lane.empty .projets-lane-title {
+    margin: 0;
+  }
   .projets-dash {
     grid-template-columns: 1fr;
   }

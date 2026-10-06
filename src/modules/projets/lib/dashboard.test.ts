@@ -18,6 +18,7 @@ function project(id: string, number: number, over: Partial<Project> = {}): Proje
     dueDay: null,
     priceCents: null,
     needs: {},
+    design: {},
     note: '',
     createdAt: '',
     updatedAt: '',
@@ -112,7 +113,7 @@ describe('en attente du client', () => {
       tasks: [task('meche', { waitingClient: true, title: 'Logo' }), task('lou', { waitingClient: true, completedAt: '2026-10-01T00:00:00Z' })],
     };
     const items = waitingItems(data, TODAY);
-    expect(items.map((i) => (i.kind === 'project' ? [i.project.id, i.what, i.days] : [i.project.id, i.task.title]))).toEqual([
+    expect(items.map((i) => (i.kind === 'project' ? [i.project.id, i.what, i.days] : i.kind === 'task' ? [i.project.id, i.task.title] : []))).toEqual([
       ['lou', 'les photos', 9],
       ['meche', 'les tarifs', 2],
       ['meche', 'Logo'],
@@ -145,5 +146,22 @@ describe('les projets actifs', () => {
     expect(card.workstreams.map((w) => w.state)).toEqual(['doing']);
     expect(card.late).toBe(false);
     expect(card.risk).toBe('Mise en ligne dans 4 j, 2 tâches sur 3 restent');
+  });
+});
+
+describe('les questions de besoins à poser au client', () => {
+  it('une ligne par projet, sans les questions déjà répondues ni les projets clos', () => {
+    const data = {
+      projects: [
+        project('lou', 1, { needs: { answers: { domain: 'Aucun' }, ask: ['photos', 'domain', 'logo'] } }),
+        project('clos', 2, { status: 'lost', needs: { ask: ['photos'] } }),
+        project('rien', 3, { needs: { ask: ['domain'], answers: { domain: 'OVH' } } }),
+      ],
+      workstreams: [],
+      tasks: [],
+    };
+    const items = waitingItems(data, TODAY);
+    expect(items).toHaveLength(1);
+    expect(items[0].kind === 'needs' && items[0].questions).toEqual(['Qui fournit les photos, et pour quand', 'Un logo existe-t-il ?']);
   });
 });

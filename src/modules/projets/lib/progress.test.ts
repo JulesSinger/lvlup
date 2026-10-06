@@ -36,6 +36,7 @@ function project(over: Partial<Project> = {}): Project {
     dueDay: null,
     priceCents: null,
     needs: {},
+    design: {},
     note: '',
     createdAt: '',
     updatedAt: '',

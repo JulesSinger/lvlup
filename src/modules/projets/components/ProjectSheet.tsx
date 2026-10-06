@@ -3,14 +3,30 @@ import { dueLabel, shortDate } from '../lib/format';
 import { formatEuros } from '../lib/money';
 import { WORKSTREAM_STATE_LABELS, WORKSTREAM_STATE_ORDER, type Progress, type WorkstreamView } from '../lib/progress';
 import { STATUS_LABELS, TRADE_LABELS } from '../lib/status';
-import { PROJECT_STATUSES, type Client, type Project, type ProjectNote, type ProjectPatch, type ProjectStatus, type ProjectTask, type Workstream } from '../lib/types';
+import { needsProgress } from '../lib/needs';
+import {
+  PROJECT_STATUSES,
+  type Client,
+  type Project,
+  type ProjectDesign,
+  type ProjectLink,
+  type ProjectNeeds,
+  type ProjectNote,
+  type ProjectPatch,
+  type ProjectStatus,
+  type ProjectTask,
+  type Workstream,
+} from '../lib/types';
 import { daysBetween } from '../../../core/lib/day';
+import { DesignPanel } from './DesignPanel';
 import { Journal } from './Journal';
+import { LinksPanel } from './LinksPanel';
+import { NeedsForm } from './NeedsForm';
 import { ProjectInfos } from './ProjectInfos';
 import { WaitingBar } from './WaitingBar';
 import { WorkstreamBlock } from './WorkstreamBlock';
 
-type Tab = 'workstreams' | 'journal' | 'infos';
+type Tab = 'workstreams' | 'needs' | 'design' | 'links' | 'journal' | 'infos';
 
 interface Props {
   project: Project;
@@ -18,6 +34,7 @@ interface Props {
   clients: readonly Client[];
   views: readonly WorkstreamView[];
   notes: readonly ProjectNote[];
+  links: readonly ProjectLink[];
   progress: Progress;
   today: string;
   onBack: () => void;
@@ -33,17 +50,23 @@ interface Props {
   onEditWorkstream: (workstream: Workstream | null) => void;
   onAddNote: (day: string, text: string) => Promise<void>;
   onDeleteNote: (note: ProjectNote) => Promise<void>;
+  onSaveNeeds: (needs: ProjectNeeds) => Promise<void>;
+  onSaveDesign: (design: ProjectDesign) => Promise<void>;
+  /** `null` : un nouveau lien */
+  onEditLink: (link: ProjectLink | null) => void;
 }
 
 /**
  * La fiche d'un projet : le client, le statut de la relation, l'attente du
- * client, l'avancement ; puis les chantiers rangés par état, le journal et
- * les infos du projet.
+ * client, l'avancement ; puis les chantiers rangés par état, le
+ * questionnaire de besoins, la fiche design, les liens et les accès, le
+ * journal et les infos du projet.
  */
 export function ProjectSheet(props: Props) {
   const { project, client, views, progress, today } = props;
   const [tab, setTab] = useState<Tab>('workstreams');
   const daysLeft = project.dueDay ? daysBetween(today, project.dueDay) : null;
+  const needs = needsProgress(project.needs);
 
   const groups = WORKSTREAM_STATE_ORDER.map((state) => ({ state, items: views.filter((v) => v.state === state) })).filter((g) => g.items.length > 0);
 
@@ -104,6 +127,9 @@ export function ProjectSheet(props: Props) {
         {(
           [
             ['workstreams', 'Chantiers'],
+            ['needs', `Besoins ${needs.answered}/${needs.total}`],
+            ['design', 'Design'],
+            ['links', `Liens${props.links.length ? ` (${props.links.length})` : ''}`],
             ['journal', `Journal${props.notes.length ? ` (${props.notes.length})` : ''}`],
             ['infos', 'Infos'],
           ] as const
@@ -140,6 +166,12 @@ export function ProjectSheet(props: Props) {
           </button>
         </div>
       )}
+
+      {tab === 'needs' && <NeedsForm projectId={project.id} saved={project.needs} onSave={props.onSaveNeeds} />}
+
+      {tab === 'design' && <DesignPanel saved={project.design} onSave={props.onSaveDesign} />}
+
+      {tab === 'links' && <LinksPanel links={props.links} onAdd={() => props.onEditLink(null)} onEdit={props.onEditLink} />}
 
       {tab === 'journal' && <Journal notes={props.notes} today={today} onAdd={props.onAddNote} onDelete={props.onDeleteNote} />}
 

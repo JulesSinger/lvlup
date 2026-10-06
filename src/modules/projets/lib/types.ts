@@ -51,8 +51,63 @@ export interface ClientInput {
 
 export type ClientPatch = Partial<ClientInput & { archived: boolean }>;
 
-/** Les réponses du questionnaire de besoins, une clé stable par question (§3.4). */
-export type ProjectNeeds = Record<string, string>;
+/**
+ * Le questionnaire de besoins rempli (§3.4) : les réponses, une clé stable
+ * par question (texte, ou liste pour un choix multiple), et les questions
+ * marquées « à demander au client ». En JSON : une question retirée du
+ * questionnaire garde sa réponse, sans migration.
+ */
+export interface ProjectNeeds {
+  answers?: Record<string, string | string[]>;
+  ask?: string[];
+}
+
+/** La fiche design (§3.5) : de quoi développer sans rouvrir la maquette. */
+export interface ProjectDesign {
+  /** Codes hexadécimaux, « #e7b7c3 ». */
+  colors?: string[];
+  titleFont?: string;
+  bodyFont?: string;
+  /** L'ambiance en quelques mots. */
+  mood?: string;
+  /** Sites de référence, un par ligne. */
+  references?: string;
+}
+
+/** Les sortes de liens d'un projet (§3.6) ; les accès (registraire, hébergeur, back-office) en font partie. */
+export const LINK_KINDS = ['maquette', 'dossier', 'preprod', 'site', 'domaine', 'hebergement', 'backoffice', 'compte', 'devis', 'autre'] as const;
+export type LinkKind = (typeof LINK_KINDS)[number];
+
+export const LINK_LABEL_MAX = 120;
+export const LINK_URL_MAX = 2000;
+
+/**
+ * Un lien ou un accès. On garde OÙ (l'adresse) et À QUEL COMPTE
+ * (l'identifiant), jamais le mot de passe (§3.7) : Atlas n'est pas chiffré
+ * de bout en bout, et la sauvegarde JSON l'emporterait.
+ */
+export interface ProjectLink {
+  id: string;
+  projectId: string;
+  kind: LinkKind;
+  label: string;
+  url: string;
+  login: string;
+  note: string;
+  position: number;
+}
+
+export interface ProjectLinkInput {
+  projectId: string;
+  kind: LinkKind;
+  label: string;
+  url?: string;
+  login?: string;
+  note?: string;
+  position?: number;
+}
+
+export type ProjectLinkPatch = Partial<Omit<ProjectLinkInput, 'projectId'>>;
 
 export interface Project {
   id: string;
@@ -76,6 +131,7 @@ export interface Project {
   /** Le prix convenu, en centimes entiers ; `null` tant qu'il n'est pas fixé. */
   priceCents: number | null;
   needs: ProjectNeeds;
+  design: ProjectDesign;
   note: string;
   createdAt: string;
   updatedAt: string;
@@ -98,6 +154,7 @@ export type ProjectPatch = Partial<
     waitingFor: string | null;
     waitingSince: string | null;
     needs: ProjectNeeds;
+    design: ProjectDesign;
   }
 >;
 

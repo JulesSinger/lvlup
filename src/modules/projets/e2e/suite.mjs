@@ -9,6 +9,11 @@
  * un second projet en piste, les projets par statut, les clients, les infos
  * et la suppression, le tout retrouvé après un rechargement — plus le rendu
  * téléphone.
+ *
+ * Étape 4 (§16) : le questionnaire de besoins (brouillon gardé à travers un
+ * rechargement, questions à demander qui remontent au tableau de bord), la
+ * fiche design, les liens et les accès (mot de passe refusé), le pipeline en
+ * colonnes.
  */
 
 /** Rouvre Atlas sur la liste des modules (voir la suite de Hauts faits). */
@@ -130,6 +135,63 @@ export async function run({ browser, check, BASE }) {
   check('Une note datée entre au journal', (await text(page.locator('.projets-note-text'))) === 'Appel : elle veut une page Mariages');
   check('L’onglet compte ses notes', (await text(page.getByRole('tab', { name: /Journal/ }))) === 'Journal (1)');
 
+  // --- Les besoins : un brouillon qui survit au rechargement ------------------
+  await page.getByRole('tab', { name: /Besoins/ }).click();
+  check('L’onglet Besoins dit combien de réponses', (await text(page.getByRole('tab', { name: /Besoins/ }))).startsWith('Besoins 0/'));
+  await page.fill('#projets-need-activity', 'Fleuriste de quartier, mariages et deuil');
+  await page.getByRole('group', { name: 'À quoi doit servir le site' }).getByRole('button', { name: 'Être trouvé sur Google' }).click();
+  await page.getByRole('button', { name: 'À demander au client : Qui fournit les photos, et pour quand' }).click();
+  check('Ce qui n’est pas enregistré se signale', (await text(page.locator('.projets-needs-bar'))).includes('Modifications non enregistrées'));
+  await openModule(page);
+  await page.locator('.projets-card', { hasText: 'Fleurs de Lou' }).click();
+  await page.getByRole('tab', { name: /Besoins/ }).click();
+  check('Après un rechargement, le brouillon est repris', (await page.locator('#projets-need-activity').inputValue()) === 'Fleuriste de quartier, mariages et deuil');
+  check('Et dit qu’il vient de l’appareil', (await text(page.locator('.projets-needs-bar'))).includes('brouillon repris'));
+  await page.locator('.projets-needs-bar').getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForFunction(() => !document.querySelector('.projets-needs-dirty'));
+  check('Enregistré, le questionnaire compte ses réponses', (await text(page.getByRole('tab', { name: /Besoins/ }))).startsWith('Besoins 2/'));
+  check('Le choix coché reste coché', (await page.getByRole('button', { name: 'Être trouvé sur Google' }).getAttribute('aria-pressed')) === 'true');
+
+  // --- La fiche design ------------------------------------------------------
+  await page.getByRole('tab', { name: 'Design' }).click();
+  await page.getByLabel('Code de la couleur').fill('rose');
+  await page.locator('.projets-color-add').getByRole('button', { name: 'Ajouter' }).click();
+  check('Un code couleur illisible est refusé en clair', (await text(page.locator('.projets-design .notice.error'))).includes('#e7b7c3'));
+  await page.getByLabel('Code de la couleur').fill('E7B7C3');
+  await page.getByLabel('Code de la couleur').press('Enter');
+  await page.getByLabel('Code de la couleur').fill('#4e6b4a');
+  await page.getByLabel('Code de la couleur').press('Enter');
+  check('Les couleurs se rangent en pastilles, codes normalisés', (await page.locator('.projets-swatch-code').allTextContents()).join() === '#e7b7c3,#4e6b4a');
+  await page.fill('#projets-design-title-font', 'Cormorant Garamond');
+  await page.fill('#projets-design-refs', 'fleurs-exemple.fr');
+  check('Une référence devient un lien', (await page.locator('.projets-refs a').getAttribute('href')) === 'https://fleurs-exemple.fr');
+  await page.locator('.projets-design').getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.projets-design .notice.success, .projets-design .notice.error');
+  check('La fiche design s’enregistre', (await page.locator('.projets-design .notice.success').count()) === 1);
+
+  // --- Les liens et les accès -------------------------------------------------
+  await page.getByRole('tab', { name: /Liens/ }).click();
+  check('Sans lien, l’onglet dit quoi y mettre', (await text(page.locator('.projets-links'))).includes('Aucun lien'));
+  await page.getByRole('button', { name: '+ Ajouter un lien' }).click();
+  const linkDialog = page.getByRole('dialog', { name: 'Nouveau lien' });
+  await page.selectOption('#projets-link-kind', 'hebergement');
+  check('Le nom suit la sorte tant qu’on ne l’a pas écrit', (await page.locator('#projets-link-label').inputValue()) === 'Hébergement');
+  await page.fill('#projets-link-label', 'OVH');
+  await page.fill('#projets-link-url', 'ovh.com/manager');
+  await page.fill('#projets-link-login', 'lou@fleursdelou.fr');
+  await page.fill('#projets-link-note', 'mdp : Tulipe2026');
+  await linkDialog.getByRole('button', { name: 'Ajouter' }).click();
+  check('Un mot de passe noté est refusé', (await text(linkDialog.locator('.notice.error'))).includes('coffre-fort'));
+  await page.fill('#projets-link-note', 'Mot de passe dans Bitwarden');
+  await linkDialog.getByRole('button', { name: 'Ajouter' }).click();
+  await linkDialog.waitFor({ state: 'detached' });
+  const ovh = page.locator('.projets-link-row', { hasText: 'OVH' });
+  check('Le lien s’ouvre en https, dans un nouvel onglet', (await ovh.locator('a').getAttribute('href')) === 'https://ovh.com/manager' && (await ovh.locator('a').getAttribute('target')) === '_blank');
+  check('L’identifiant est là, prêt à copier', (await text(ovh)).includes('lou@fleursdelou.fr'));
+  check('L’onglet compte ses liens', (await text(page.getByRole('tab', { name: /Liens/ }))) === 'Liens (1)');
+  await page.getByRole('tab', { name: 'Design' }).click();
+  check('La fiche design est relue telle qu’enregistrée', (await page.locator('.projets-swatch-code').count()) === 2 && (await page.locator('#projets-design-title-font').inputValue()) === 'Cormorant Garamond');
+
   // --- Le tableau de bord ----------------------------------------------------
   await page.getByRole('button', { name: '← Retour' }).click();
   await page.waitForSelector('.projets-card');
@@ -137,6 +199,7 @@ export async function run({ browser, check, BASE }) {
   check('Cette semaine montre la tâche prévue aujourd’hui, avec son client', (await text(week)).includes('Recevoir les photos') && (await text(week)).includes('Fleurs de Lou'));
   const waiting = page.locator('section[aria-label="En attente du client"]');
   check('L’attente du projet et la tâche qui attend remontent', (await text(waiting)).includes('la validation des tarifs') && (await text(waiting)).includes('Recevoir les photos'));
+  check('Les questions de besoins à poser remontent aussi', (await text(waiting)).includes('1 question à lui poser') && (await text(waiting)).includes('Qui fournit les photos'));
   const projectCard = page.locator('.projets-card', { hasText: 'Fleurs de Lou' });
   check('La carte du projet dit son statut et ses chantiers en cours', (await text(projectCard)).includes('En production') && (await text(projectCard)).includes('Découverte 1/6'));
   check('Échéance proche et presque tout à faire : le projet est en danger', (await text(projectCard.locator('.projets-risk'))).includes('Mise en ligne dans 5 j'));
@@ -158,8 +221,9 @@ export async function run({ browser, check, BASE }) {
   check('Le statut par défaut est « Piste »', (await page.locator('.projets-status-select').inputValue()) === 'lead');
 
   await page.getByRole('button', { name: /^Projets/ }).click();
-  const groups = await page.locator('.projets-status-group .projets-section-title').allTextContents();
-  check('Tous les projets, rangés par statut de la relation', groups.length === 2 && groups[0].startsWith('Piste') && groups[1].startsWith('En production'));
+  const lanes = await page.locator('.projets-lane-title').allTextContents();
+  check('Le pipeline : une colonne par statut, vides comprises', lanes.length === 6 && lanes[0].startsWith('Piste') && lanes[5].startsWith('Maintenance'));
+  check('Chaque projet dans la colonne de son statut', (await text(page.getByRole('region', { name: 'Piste' }))).includes('Le Camion Gourmand') && (await text(page.getByRole('region', { name: 'En production' }))).includes('Fleurs de Lou'));
   await page.getByRole('button', { name: 'Tableau de bord' }).click();
   await page.waitForSelector('.projets-card');
   check('Une piste n’est pas un projet actif du tableau de bord', (await page.locator('.projets-card').count()) === 1);
@@ -186,7 +250,7 @@ export async function run({ browser, check, BASE }) {
   await page.getByRole('button', { name: 'Supprimer le projet' }).click();
   await page.waitForFunction(() => !document.querySelector('.projets-sheet'));
   await page.getByRole('button', { name: /^Projets/ }).click();
-  check('Le projet supprimé a disparu', (await page.locator('.projets-row').count()) === 1);
+  check('Le projet supprimé a disparu', (await page.locator('.projets-mini').count()) === 1);
 
   // --- Rechargement -----------------------------------------------------------
   await openModule(page);
@@ -229,5 +293,14 @@ export async function run({ browser, check, BASE }) {
   check('Sur téléphone, la fiche tient dans la largeur', await noOverflow());
   await mobile.getByRole('tab', { name: 'Journal' }).click();
   check('Sur téléphone, le journal tient dans la largeur', await noOverflow());
+  let tabsFit = true;
+  for (const tab of [/Besoins/, 'Design', /Liens/]) {
+    await mobile.getByRole('tab', { name: tab }).click();
+    await mobile.waitForTimeout(100);
+    tabsFit = tabsFit && (await noOverflow());
+  }
+  check('Sur téléphone, besoins, design et liens tiennent dans la largeur', tabsFit);
+  await mobile.getByRole('button', { name: /^Projets/ }).click();
+  check('Sur téléphone, le pipeline s’empile et tient dans la largeur', (await noOverflow()) && (await mobile.locator('.projets-lane').count()) === 6);
   await phone.close();
 }

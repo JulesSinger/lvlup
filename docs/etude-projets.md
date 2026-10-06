@@ -676,6 +676,52 @@ local et **929/929** en mode comptes.
 
 ---
 
+## 16. Étape 4 : besoins, design, liens et pipeline (06/10/2026)
+
+- **Migration** `supabase/2026-10-06-projets-design-links.sql` : la colonne `design` des projets
+  (un objet JSON, comme `needs`) et la table `projets_links` (sorte, nom, adresse, identifiant,
+  note ; RLS complet). **Aucune colonne pour un mot de passe**, et un test le vérifie
+  (`schema.test.ts`).
+- **Le questionnaire de besoins** (`lib/needs.ts`, `NeedsForm`) : 20 questions en 8 sections
+  (l'activité, le but du site, les pages, les fonctions, les contenus, l'identité, le technique,
+  le cadre), en texte libre ou en choix multiples. Chaque question peut être marquée **« à
+  demander au client »** : tant qu'elle n'a pas de réponse, elle remonte dans « En attente du
+  client » du tableau de bord (une ligne par projet, « 2 questions à lui poser »).
+- **Le brouillon sur l'appareil** (`data/needsDraft.ts`, clé `projets.needs-draft.v1:<projet>`) :
+  chaque frappe y est gardée, une page rechargée le reprend (« brouillon repris sur cet
+  appareil »), « Enregistrer » l'efface. C'est la réponse au rendez-vous dans une boutique sans
+  réseau (§5), sans file hors ligne.
+- **La fiche design** (`lib/design.ts`, `DesignPanel`) : jusqu'à 8 couleurs (code lu sous
+  toutes ses formes, `E7B7C3` → `#e7b7c3`), toucher une pastille copie son code, le texte de la
+  pastille choisi pour rester lisible (luminance WCAG) ; polices, ambiance, sites de référence
+  devenus des liens.
+- **Les liens et les accès** (`lib/links.ts`, `LinksPanel`, `LinkEditor`) : dix sortes
+  (maquette, dossier, préproduction, site, nom de domaine, hébergement, back-office, autre compte,
+  devis, autre), rangées dans cet ordre ; l'identifiant se copie d'un toucher.
+- **Le pipeline** (`ProjectsView`) : une colonne par statut, vides comprises ; empilées sur
+  téléphone ; les terminés et perdus repliés dessous.
+
+Choix faits en l'écrivant :
+
+- **Un mot de passe noté est refusé**, dans le nom, l'identifiant ou la note : « mdp : … »,
+  « mot de passe = … », « password: … ». Il faut les deux-points ou le signe égal : « mot de
+  passe dans Bitwarden » est précisément ce qu'on veut lire. Un garde-fou contre le réflexe, pas
+  une détection infaillible (§3.7).
+- **Une adresse ne s'ouvre qu'en http(s) ou mailto** ; sans protocole, elle devient
+  `https://…`. Un `javascript:` glissé dans une sauvegarde ne fait rien au clic.
+- **Le questionnaire et la fiche design se relisent quoi que contienne la base**
+  (`normalizeNeeds`, `normalizeDesign`) : une valeur écrite à la main ou par une version future
+  ne casse pas l'écran. Une réponse vidée disparaît, pour qu'une question effacée ne compte plus.
+- **Une question répondue n'est plus « à demander »**, même si la marque est restée : on n'a pas
+  à penser à la retirer.
+- Le logo et les captures de maquette attendent l'étape 7 (les images) ; un lien suffit d'ici là.
+
+1230 → **1249** tests unitaires (+19), 49 → **70** vérifications de bout en bout pour le module
+(dont un rechargement au milieu du questionnaire), **931/931** en local et **950/950** en mode
+comptes. **Migration à appliquer par Jules.**
+
+---
+
 ## Sources
 
 - Réforme de la facturation électronique : calendrier publié par l'administration (impots.gouv.fr,

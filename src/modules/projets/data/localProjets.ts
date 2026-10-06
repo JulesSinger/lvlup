@@ -6,6 +6,9 @@ import type {
   ClientPatch,
   Project,
   ProjectInput,
+  ProjectLink,
+  ProjectLinkInput,
+  ProjectLinkPatch,
   ProjectNote,
   ProjectNoteInput,
   ProjectPatch,
@@ -22,17 +25,19 @@ import type { ProjetsBackup, ProjetsStore } from './projetsStore';
 
 const arrayOf = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
 
-type Snapshot = ProjetsBackup;
+type Snapshot = Required<ProjetsBackup>;
 
 /** Lecture des seules sections du module, sur le blob local partagé. */
 function read(): Snapshot {
   const raw = readRaw();
   return {
     clients: arrayOf<Client>(raw.projetsClients),
-    projects: arrayOf<Project>(raw.projetsProjects),
+    // Un projet écrit avant l'étape 4 n'a pas de fiche design.
+    projects: arrayOf<Project>(raw.projetsProjects).map((p) => ({ ...p, needs: p.needs ?? {}, design: p.design ?? {} })),
     workstreams: arrayOf<Workstream>(raw.projetsWorkstreams),
     tasks: arrayOf<ProjectTask>(raw.projetsTasks),
     notes: arrayOf<ProjectNote>(raw.projetsNotes),
+    links: arrayOf<ProjectLink>(raw.projetsLinks),
   };
 }
 
@@ -45,6 +50,7 @@ function write(s: Snapshot) {
     projetsWorkstreams: s.workstreams,
     projetsTasks: s.tasks,
     projetsNotes: s.notes,
+    projetsLinks: s.links,
   });
 }
 
@@ -143,6 +149,7 @@ export class LocalProjets implements ProjetsStore {
       dueDay: input.dueDay ?? null,
       priceCents: input.priceCents ?? null,
       needs: {},
+      design: {},
       note: input.note ?? '',
       createdAt: now,
       updatedAt: now,
@@ -167,6 +174,7 @@ export class LocalProjets implements ProjetsStore {
     s.workstreams = s.workstreams.filter((w) => w.projectId !== id);
     s.tasks = s.tasks.filter((t) => t.projectId !== id);
     s.notes = s.notes.filter((n) => n.projectId !== id);
+    s.links = s.links.filter((l) => l.projectId !== id);
     write(s);
   }
 
@@ -270,6 +278,42 @@ export class LocalProjets implements ProjetsStore {
     write(s);
   }
 
+  async listLinks(): Promise<ProjectLink[]> {
+    return read().links.slice();
+  }
+
+  async createLink(input: ProjectLinkInput, id: string = newId()): Promise<ProjectLink> {
+    const s = read();
+    const existing = s.links.find((l) => l.id === id);
+    if (existing) return existing;
+    requireProject(s, input.projectId);
+    const link: ProjectLink = {
+      id,
+      projectId: input.projectId,
+      kind: input.kind,
+      label: input.label,
+      url: input.url ?? '',
+      login: input.login ?? '',
+      note: input.note ?? '',
+      position: input.position ?? 0,
+    };
+    s.links.push(link);
+    write(s);
+    return link;
+  }
+
+  async updateLink(id: string, patch: ProjectLinkPatch) {
+    const s = read();
+    s.links = s.links.map((l) => (l.id === id ? { ...l, ...patch } : l));
+    write(s);
+  }
+
+  async deleteLink(id: string) {
+    const s = read();
+    s.links = s.links.filter((l) => l.id !== id);
+    write(s);
+  }
+
   async exportData(): Promise<ProjetsBackup> {
     return read();
   }
@@ -281,6 +325,7 @@ export class LocalProjets implements ProjetsStore {
       workstreams: data.workstreams ?? [],
       tasks: data.tasks ?? [],
       notes: data.notes ?? [],
+      links: data.links ?? [],
     });
   }
 }

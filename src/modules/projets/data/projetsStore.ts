@@ -4,6 +4,9 @@ import type {
   ClientPatch,
   Project,
   ProjectInput,
+  ProjectLink,
+  ProjectLinkInput,
+  ProjectLinkPatch,
   ProjectNote,
   ProjectNoteInput,
   ProjectPatch,
@@ -27,6 +30,8 @@ export interface ProjetsBackup {
   workstreams: Workstream[];
   tasks: ProjectTask[];
   notes: ProjectNote[];
+  /** Depuis l'étape 4 ; absent d'une sauvegarde plus ancienne. */
+  links?: ProjectLink[];
 }
 
 /**
@@ -76,6 +81,12 @@ export interface ProjetsStore {
   createNote(input: ProjectNoteInput, id?: string): Promise<ProjectNote>;
   updateNote(id: string, text: string): Promise<void>;
   deleteNote(id: string): Promise<void>;
+
+  /** Les liens et les accès d'un projet — jamais de mot de passe (§3.7). */
+  listLinks(): Promise<ProjectLink[]>;
+  createLink(input: ProjectLinkInput, id?: string): Promise<ProjectLink>;
+  updateLink(id: string, patch: ProjectLinkPatch): Promise<void>;
+  deleteLink(id: string): Promise<void>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
   exportData(): Promise<ProjetsBackup>;

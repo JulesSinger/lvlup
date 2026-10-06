@@ -7,6 +7,11 @@ import type {
   ClientTrade,
   Project,
   ProjectInput,
+  ProjectDesign,
+  ProjectLink,
+  ProjectLinkInput,
+  ProjectLinkPatch,
+  LinkKind,
   ProjectNeeds,
   ProjectNote,
   ProjectNoteInput,
@@ -49,6 +54,7 @@ interface ProjectRow {
   due_day: string | null;
   price_cents: number | null;
   needs: ProjectNeeds | null;
+  design: ProjectDesign | null;
   note: string;
   created_at: string;
   updated_at: string;
@@ -110,6 +116,7 @@ const toProject = (r: ProjectRow): Project => ({
   dueDay: r.due_day,
   priceCents: r.price_cents,
   needs: r.needs ?? {},
+  design: r.design ?? {},
   note: r.note,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
@@ -136,6 +143,40 @@ const toTask = (r: TaskRow): ProjectTask => ({
   completedAt: r.completed_at,
   createdAt: r.created_at,
 });
+
+interface LinkRow {
+  id: string;
+  project_id: string;
+  kind: LinkKind;
+  label: string;
+  url: string;
+  login: string;
+  note: string;
+  position: number;
+}
+
+const toLink = (r: LinkRow): ProjectLink => ({
+  id: r.id,
+  projectId: r.project_id,
+  kind: r.kind,
+  label: r.label,
+  url: r.url,
+  login: r.login,
+  note: r.note,
+  position: r.position,
+});
+
+function linkColumns(p: ProjectLinkPatch & Partial<ProjectLinkInput>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (p.projectId !== undefined) row.project_id = p.projectId;
+  if (p.kind !== undefined) row.kind = p.kind;
+  if (p.label !== undefined) row.label = p.label;
+  if (p.url !== undefined) row.url = p.url;
+  if (p.login !== undefined) row.login = p.login;
+  if (p.note !== undefined) row.note = p.note;
+  if (p.position !== undefined) row.position = p.position;
+  return row;
+}
 
 const toNote = (r: NoteRow): ProjectNote => ({ id: r.id, projectId: r.project_id, day: r.day, text: r.text, createdAt: r.created_at });
 
@@ -165,6 +206,7 @@ function projectColumns(p: ProjectPatch): Record<string, unknown> {
   if (p.dueDay !== undefined) row.due_day = p.dueDay;
   if (p.priceCents !== undefined) row.price_cents = p.priceCents;
   if (p.needs !== undefined) row.needs = p.needs;
+  if (p.design !== undefined) row.design = p.design;
   if (p.note !== undefined) row.note = p.note;
   // Plus rien n'est attendu : plus de date d'attente — sinon la base refuse.
   if (p.waitingFor === null) row.waiting_since = null;
@@ -346,21 +388,39 @@ export class SupabaseProjets implements ProjetsStore {
     check((await this.client.from('projets_notes').delete().eq('id', id)).error);
   }
 
+  async listLinks(): Promise<ProjectLink[]> {
+    return (unwrap(await this.client.from('projets_links').select('*').order('position')) as LinkRow[]).map(toLink);
+  }
+
+  async createLink(input: ProjectLinkInput, id?: string): Promise<ProjectLink> {
+    const userId = await this.requireUserId();
+    return toLink(await this.insert<LinkRow>('projets_links', { user_id: userId, ...linkColumns(input) }, id));
+  }
+
+  async updateLink(id: string, patch: ProjectLinkPatch) {
+    check((await this.client.from('projets_links').update(linkColumns(patch)).eq('id', id)).error);
+  }
+
+  async deleteLink(id: string) {
+    check((await this.client.from('projets_links').delete().eq('id', id)).error);
+  }
+
   async exportData(): Promise<ProjetsBackup> {
-    const [clients, projects, workstreams, tasks, notes] = await Promise.all([
+    const [clients, projects, workstreams, tasks, notes, links] = await Promise.all([
       this.listClients(),
       this.listProjects(),
       this.listWorkstreams(),
       this.listTasks(),
       this.listNotes(),
+      this.listLinks(),
     ]);
-    return { clients, projects, workstreams, tasks, notes };
+    return { clients, projects, workstreams, tasks, notes, links };
   }
 
   /**
    * Remplace tout, comme une restauration de sauvegarde. Les identifiants
    * et les numéros sont gardés. Les projets partent avant les clients
-   * (`restrict`), emportant chantiers, tâches et journal ; on réécrit
+   * (`restrict`), emportant chantiers, tâches, journal et liens ; on réécrit
    * ensuite dans l'ordre des clés étrangères.
    */
   async importData(data: ProjetsBackup) {
@@ -396,6 +456,11 @@ export class SupabaseProjets implements ProjetsStore {
     if (notes.length > 0) {
       const rows = notes.map((n) => ({ id: n.id, user_id: userId, project_id: n.projectId, day: n.day, text: n.text, created_at: n.createdAt }));
       check((await this.client.from('projets_notes').insert(rows)).error);
+    }
+    const links = data.links ?? [];
+    if (links.length > 0) {
+      const rows = links.map((l) => ({ id: l.id, user_id: userId, ...linkColumns(l) }));
+      check((await this.client.from('projets_links').insert(rows)).error);
     }
   }
 }

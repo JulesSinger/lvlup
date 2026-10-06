@@ -17,6 +17,7 @@ import {
   type Progress,
   type WorkstreamView,
 } from './progress';
+import { askedQuestions } from './needs';
 import { isClosed, isInWork } from './status';
 import type { Project, ProjectTask, Workstream } from './types';
 
@@ -85,12 +86,14 @@ export function lateItems(data: DashboardData, today: string): LateItem[] {
 
 export type WaitingItem =
   | { kind: 'project'; project: Project; what: string; since: string | null; days: number | null }
-  | { kind: 'task'; project: Project; task: ProjectTask };
+  | { kind: 'task'; project: Project; task: ProjectTask }
+  | { kind: 'needs'; project: Project; questions: string[] };
 
 /**
  * Ce qu'on attend du client : l'attente posée sur un projet (avec depuis
  * quand, pour savoir quand relancer), puis les tâches marquées « attend le
- * client ». Les attentes les plus longues d'abord.
+ * client », puis les questions du questionnaire de besoins encore à lui
+ * poser (une ligne par projet). Les attentes les plus longues d'abord.
  */
 export function waitingItems(data: DashboardData, today: string): WaitingItem[] {
   const projects = open(data.projects);
@@ -109,7 +112,11 @@ export function waitingItems(data: DashboardData, today: string): WaitingItem[] 
     .filter((t) => t.waitingClient && t.completedAt === null && index.has(t.projectId))
     .map((task) => ({ kind: 'task' as const, project: index.get(task.projectId)!, task }))
     .sort((a, b) => a.project.number - b.project.number || a.task.position - b.task.position);
-  return [...fromProjects, ...fromTasks];
+  const fromNeeds: WaitingItem[] = projects
+    .map((project) => ({ kind: 'needs' as const, project, questions: askedQuestions(project.needs).map((q) => q.label) }))
+    .filter((item) => item.questions.length > 0)
+    .sort((a, b) => a.project.number - b.project.number);
+  return [...fromProjects, ...fromTasks, ...fromNeeds];
 }
 
 /** Au-delà, une attente mérite une relance : elle se signale. */
