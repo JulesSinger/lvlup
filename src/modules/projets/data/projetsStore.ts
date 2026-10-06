@@ -1,3 +1,4 @@
+import type { ImageSize, PreparedImage } from '../../../core/lib/images';
 import type {
   Client,
   ClientInput,
@@ -6,6 +7,8 @@ import type {
   PaymentInput,
   PaymentPatch,
   Project,
+  ProjectImage,
+  ProjectImageKind,
   ProjectInput,
   ProjectLink,
   ProjectLinkInput,
@@ -40,6 +43,12 @@ export interface ProjetsBackup {
   /** Depuis l'étape 5. */
   payments?: Payment[];
   time?: TimeEntry[];
+  /**
+   * Depuis l'étape 7 : la liste des images, PAS leur contenu (comme Hauts
+   * faits) — restaurée sur le même compte ou le même appareil, chaque ligne
+   * retrouve son fichier, resté dans le stockage.
+   */
+  images?: ProjectImage[];
 }
 
 /**
@@ -63,7 +72,7 @@ export interface ProjetsStore {
   /** Attribue le numéro du projet (le suivant du compte). */
   createProject(input: ProjectInput, id?: string): Promise<Project>;
   updateProject(id: string, patch: ProjectPatch): Promise<void>;
-  /** Emporte ses chantiers, ses tâches et son journal. */
+  /** Emporte ses chantiers, ses tâches, son journal… et ses images, fichiers compris. */
   deleteProject(id: string): Promise<void>;
 
   listWorkstreams(): Promise<Workstream[]>;
@@ -108,6 +117,19 @@ export interface ProjetsStore {
   listTime(): Promise<TimeEntry[]>;
   createTime(input: TimeEntryInput, id?: string): Promise<TimeEntry>;
   deleteTime(id: string): Promise<void>;
+
+  /** Les images (§3.6). */
+  listImages(): Promise<ProjectImage[]>;
+  /**
+   * Range les fichiers PUIS écrit la ligne : une coupure entre les deux
+   * laisse au pire un fichier sans ligne, jamais une ligne vers une image
+   * absente. Rejouable avec le même `id`.
+   */
+  addImage(projectId: string, kind: ProjectImageKind, image: PreparedImage, position: number, id?: string): Promise<ProjectImage>;
+  imageBlob(image: ProjectImage, size: ImageSize): Promise<Blob>;
+  setImageKind(id: string, kind: ProjectImageKind): Promise<void>;
+  /** Retire la ligne, puis les fichiers. */
+  removeImage(image: ProjectImage): Promise<void>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
   exportData(): Promise<ProjetsBackup>;

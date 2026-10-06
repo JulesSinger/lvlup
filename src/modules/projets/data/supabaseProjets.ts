@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
+import type { ImageSize, PreparedImage } from '../../../core/lib/images';
 import type {
   Client,
   ClientInput,
@@ -12,6 +13,8 @@ import type {
   Project,
   ProjectInput,
   ProjectDesign,
+  ProjectImage,
+  ProjectImageKind,
   ProjectLink,
   ProjectLinkInput,
   ProjectLinkPatch,
@@ -32,7 +35,11 @@ import type {
   WorkstreamInput,
   WorkstreamPatch,
 } from '../lib/types';
+import { imageCache } from './deviceImages';
 import type { ProjetsBackup, ProjetsStore } from './projetsStore';
+
+/** Le bucket privé des images (migration du 2026-10-06). */
+const BUCKET = 'projets';
 
 interface ClientRow {
   id: string;
@@ -247,6 +254,32 @@ const toTime = (r: TimeRow): TimeEntry => ({
   createdAt: r.created_at,
 });
 
+interface ImageRow {
+  id: string;
+  project_id: string;
+  kind: ProjectImageKind;
+  path: string;
+  thumb_path: string;
+  width: number;
+  height: number;
+  bytes: number;
+  position: number;
+  created_at: string;
+}
+
+const toImage = (r: ImageRow): ProjectImage => ({
+  id: r.id,
+  projectId: r.project_id,
+  kind: r.kind,
+  path: r.path,
+  thumbPath: r.thumb_path,
+  width: r.width,
+  height: r.height,
+  bytes: r.bytes,
+  position: r.position,
+  createdAt: r.created_at,
+});
+
 const toNote = (r: NoteRow): ProjectNote => ({ id: r.id, projectId: r.project_id, day: r.day, text: r.text, createdAt: r.created_at });
 
 /** Colonnes d'un client, pour les seuls champs présents. */
@@ -389,7 +422,21 @@ export class SupabaseProjets implements ProjetsStore {
   }
 
   async deleteProject(id: string) {
+    const images = (unwrap(await this.client.from('projets_images').select('*').eq('project_id', id)) as ImageRow[]).map(toImage);
+    // La ligne d'abord (tout le reste part par cascade), les fichiers ensuite.
     check((await this.client.from('projets_projects').delete().eq('id', id)).error);
+    await this.removeFiles(images.flatMap((i) => [i.path, i.thumbPath]));
+  }
+
+  /**
+   * Un fichier qu'on n'arrive pas à supprimer n'est que de la place perdue :
+   * la ligne est déjà partie, on ne bloque pas l'utilisateur pour ça.
+   */
+  private async removeFiles(paths: string[]) {
+    if (paths.length === 0) return;
+    await imageCache.forgetCached(paths);
+    const { error } = await this.client.storage.from(BUCKET).remove(paths);
+    if (error) console.warn('Projets : fichiers restés dans le stockage', paths, error.message);
   }
 
   async listWorkstreams(): Promise<Workstream[]> {
@@ -521,6 +568,61 @@ export class SupabaseProjets implements ProjetsStore {
     check((await this.client.from('projets_time').delete().eq('id', id)).error);
   }
 
+  async listImages(): Promise<ProjectImage[]> {
+    return (unwrap(await this.client.from('projets_images').select('*').order('position')) as ImageRow[]).map(toImage);
+  }
+
+  async addImage(projectId: string, kind: ProjectImageKind, image: PreparedImage, position: number, id: string = crypto.randomUUID()): Promise<ProjectImage> {
+    const userId = await this.requireUserId();
+    // Le premier segment du chemin est le compte : c'est ce que vérifient les politiques du bucket.
+    const path = `${userId}/${projectId}/${id}.jpg`;
+    const thumbPath = `${userId}/${projectId}/${id}-thumb.jpg`;
+    const bucket = this.client.storage.from(BUCKET);
+    for (const [target, blob] of [
+      [path, image.full],
+      [thumbPath, image.thumb],
+    ] as const) {
+      // `upsert` : un envoi rejoué après une coupure réécrit le même fichier plutôt que d'échouer.
+      const { error } = await bucket.upload(target, blob, { contentType: 'image/jpeg', upsert: true, cacheControl: '31536000' });
+      if (error) throw new Error(`L’image n’a pas pu être envoyée : ${error.message}`);
+    }
+    const { error } = await this.client.from('projets_images').upsert(
+      {
+        id,
+        user_id: userId,
+        project_id: projectId,
+        kind,
+        path,
+        thumb_path: thumbPath,
+        width: image.width,
+        height: image.height,
+        bytes: image.full.size + image.thumb.size,
+        position,
+      },
+      { onConflict: 'id', ignoreDuplicates: true },
+    );
+    check(error);
+    return toImage(unwrap(await this.client.from('projets_images').select('*').eq('id', id).single()) as ImageRow);
+  }
+
+  async imageBlob(image: ProjectImage, size: ImageSize): Promise<Blob> {
+    const path = size === 'full' ? image.path : image.thumbPath;
+    return imageCache.cachedBlob(path, async () => {
+      const { data, error } = await this.client.storage.from(BUCKET).download(path);
+      if (error || !data) throw new Error('Cette image n’a pas pu être chargée.');
+      return data;
+    });
+  }
+
+  async setImageKind(id: string, kind: ProjectImageKind) {
+    check((await this.client.from('projets_images').update({ kind }).eq('id', id)).error);
+  }
+
+  async removeImage(image: ProjectImage) {
+    check((await this.client.from('projets_images').delete().eq('id', image.id)).error);
+    await this.removeFiles([image.path, image.thumbPath]);
+  }
+
   async exportData(): Promise<ProjetsBackup> {
     const [clients, projects, workstreams, tasks, notes, links, payments, time] = await Promise.all([
       this.listClients(),
@@ -532,7 +634,10 @@ export class SupabaseProjets implements ProjetsStore {
       this.listPayments(),
       this.listTime(),
     ]);
-    return { clients, projects, workstreams, tasks, notes, links, payments, time };
+    // Les images à part : une table manquante (migration de l'étape 7 pas encore appliquée) ne
+    // doit pas empêcher de sauvegarder tout le reste.
+    const images = await this.listImages().catch(() => []);
+    return { clients, projects, workstreams, tasks, notes, links, payments, time, images };
   }
 
   /**
@@ -598,6 +703,24 @@ export class SupabaseProjets implements ProjetsStore {
         created_at: t.createdAt,
       }));
       check((await this.client.from('projets_time').insert(rows)).error);
+    }
+    // Les lignes seulement : les fichiers, eux, ne sont jamais effacés par une restauration.
+    const images = data.images ?? [];
+    if (images.length > 0) {
+      const rows = images.map((i) => ({
+        id: i.id,
+        user_id: userId,
+        project_id: i.projectId,
+        kind: i.kind,
+        path: i.path,
+        thumb_path: i.thumbPath,
+        width: i.width,
+        height: i.height,
+        bytes: i.bytes,
+        position: i.position,
+        created_at: i.createdAt,
+      }));
+      check((await this.client.from('projets_images').insert(rows)).error);
     }
   }
 }

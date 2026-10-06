@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { DESIGN_COLORS_MAX, inkOn, normalizeDesign, normalizeHex, referenceLines } from '../lib/design';
 import { displayUrl, safeHref } from '../lib/links';
 import type { ProjectDesign } from '../lib/types';
@@ -7,13 +7,15 @@ import { useSaving } from './useSaving';
 interface Props {
   saved: ProjectDesign;
   onSave: (design: ProjectDesign) => Promise<void>;
+  /** Le logo et les images (étape 7), posés en tête de la fiche design. */
+  images?: ReactNode;
 }
 
 /**
  * La fiche design (§3.5) : de quoi développer sans rouvrir la maquette.
  * Toucher une couleur copie son code.
  */
-export function DesignPanel({ saved, onSave }: Props) {
+export function DesignPanel({ saved, onSave, images }: Props) {
   const [design, setDesign] = useState(() => normalizeDesign(saved));
   const [newColor, setNewColor] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
@@ -43,6 +45,7 @@ export function DesignPanel({ saved, onSave }: Props) {
 
   return (
     <div className="projets-design">
+      {images}
       <section aria-label="Couleurs">
         <h2 className="projets-section-title">Couleurs</h2>
         <div className="projets-swatches">
@@ -126,7 +129,6 @@ export function DesignPanel({ saved, onSave }: Props) {
           Enregistrer
         </button>
       </div>
-      <p className="projets-hint">Le logo et les captures de la maquette viendront avec les images (étape 7) ; d’ici là, un lien suffit.</p>
     </div>
   );
 }

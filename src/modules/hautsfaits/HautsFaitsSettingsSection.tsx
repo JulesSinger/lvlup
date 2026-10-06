@@ -3,7 +3,7 @@ import { dayString } from '../../core/lib/day';
 import type { ModuleSettingsProps } from '../../core/lib/module';
 import { hautsFaitsStore } from './data';
 import { settingsChanged } from './data/settingsSignal';
-import { formatBytes } from './lib/photos';
+import { formatBytes } from '../../core/lib/images';
 import { DEFAULT_HAUTSFAITS_SETTINGS, type HautsFaitsSettings } from './lib/types';
 
 /**

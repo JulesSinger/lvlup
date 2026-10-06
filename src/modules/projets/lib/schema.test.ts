@@ -9,6 +9,7 @@ import {
   NOTE_TEXT_MAX,
   PAYMENT_LABEL_MAX,
   PAYMENT_METHODS,
+  PROJECT_IMAGE_KINDS,
   TIME_ENTRY_MAX_MINUTES,
   PROJECT_STATUSES,
   PROJECT_TITLE_MAX,
@@ -73,6 +74,17 @@ describe('le type et la base disent la même chose (Projets)', () => {
       expect(sql).toContain(`alter table public.${table} enable row level security`);
       for (const verb of ['select', 'insert', 'update', 'delete']) expect(sql).toContain(`create policy "${table}_${verb}_own"`);
     }
+  });
+
+  it('les images : leurs sortes, leurs politiques, et un bucket privé limité à chaque compte', () => {
+    expect(allowedBy('projets_images_kind_check')).toEqual([...PROJECT_IMAGE_KINDS].sort());
+    const sql = readFileSync(join(SQL_DIR, '2026-10-06-projets-images.sql'), 'utf8');
+    for (const verb of ['select', 'insert', 'update', 'delete']) {
+      expect(sql).toContain(`create policy "projets_images_${verb}_own"`);
+      expect(sql).toContain(`create policy "projets_objects_${verb}_own"`);
+    }
+    expect(sql).toContain("values ('projets', 'projets', false,");
+    expect(sql).toContain("(storage.foldername(name))[1] = auth.uid()::text");
   });
 
   it('les longueurs maximales', () => {

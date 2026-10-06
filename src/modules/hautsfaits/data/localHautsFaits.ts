@@ -10,7 +10,8 @@ import {
   type PhotoSize,
   type PreparedPhoto,
 } from '../lib/types';
-import { IndexedDbBlobStore, MemoryBlobStore, type BlobStore } from './blobStore';
+import type { BlobStore } from '../../../core/data/images/blobStore';
+import { deviceBlobs } from './blobStore';
 import type { HautsFaitsBackup, HautsFaitsStore } from './hautsFaitsStore';
 
 const arrayOf = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
@@ -52,7 +53,7 @@ export class LocalHautsFaits implements HautsFaitsStore {
   private blobs: BlobStore;
 
   constructor(blobs?: BlobStore) {
-    this.blobs = blobs ?? (typeof indexedDB === 'undefined' ? new MemoryBlobStore() : new IndexedDbBlobStore());
+    this.blobs = blobs ?? deviceBlobs();
   }
 
   async listFeats(): Promise<Feat[]> {

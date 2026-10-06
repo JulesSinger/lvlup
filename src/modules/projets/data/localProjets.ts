@@ -1,4 +1,6 @@
 import { newId } from '../../../core/data/coreStore';
+import type { BlobStore } from '../../../core/data/images/blobStore';
+import type { ImageSize, PreparedImage } from '../../../core/lib/images';
 import { readRaw, writeRaw } from '../../../core/data/localSnapshot';
 import type {
   Client,
@@ -8,6 +10,8 @@ import type {
   PaymentInput,
   PaymentPatch,
   Project,
+  ProjectImage,
+  ProjectImageKind,
   ProjectInput,
   ProjectLink,
   ProjectLinkInput,
@@ -26,6 +30,7 @@ import type {
   WorkstreamInput,
   WorkstreamPatch,
 } from '../lib/types';
+import { deviceBlobs } from './deviceImages';
 import type { ProjetsBackup, ProjetsStore } from './projetsStore';
 
 const arrayOf = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
@@ -45,6 +50,7 @@ function read(): Snapshot {
     links: arrayOf<ProjectLink>(raw.projetsLinks),
     payments: arrayOf<Payment>(raw.projetsPayments),
     time: arrayOf<TimeEntry>(raw.projetsTime),
+    images: arrayOf<ProjectImage>(raw.projetsImages),
   };
 }
 
@@ -60,6 +66,7 @@ function write(s: Snapshot) {
     projetsLinks: s.links,
     projetsPayments: s.payments,
     projetsTime: s.time,
+    projetsImages: s.images,
   });
 }
 
@@ -93,8 +100,14 @@ function newTask(input: ProjectTaskInput, id: string): ProjectTask {
   };
 }
 
-/** Projets stockés dans le navigateur, sans compte ni serveur. */
+/** Projets stockés dans le navigateur, sans compte ni serveur ; les images dans IndexedDB. */
 export class LocalProjets implements ProjetsStore {
+  private blobs: BlobStore;
+
+  constructor(blobs?: BlobStore) {
+    this.blobs = blobs ?? deviceBlobs();
+  }
+
   async listClients(): Promise<Client[]> {
     return read().clients.slice();
   }
@@ -186,7 +199,11 @@ export class LocalProjets implements ProjetsStore {
     s.links = s.links.filter((l) => l.projectId !== id);
     s.payments = s.payments.filter((p) => p.projectId !== id);
     s.time = s.time.filter((t) => t.projectId !== id);
+    const gone = s.images.filter((i) => i.projectId === id);
+    s.images = s.images.filter((i) => i.projectId !== id);
     write(s);
+    // Comme côté serveur : les lignes d'abord, les fichiers ensuite.
+    await this.blobs.delete(gone.flatMap((i) => [i.path, i.thumbPath]));
   }
 
   async listWorkstreams(): Promise<Workstream[]> {
@@ -397,6 +414,55 @@ export class LocalProjets implements ProjetsStore {
     write(s);
   }
 
+  async listImages(): Promise<ProjectImage[]> {
+    return read().images.slice();
+  }
+
+  async addImage(projectId: string, kind: ProjectImageKind, image: PreparedImage, position: number, id: string = newId()): Promise<ProjectImage> {
+    const existing = read().images.find((i) => i.id === id);
+    if (existing) return existing;
+    requireProject(read(), projectId);
+    const path = `local/${projectId}/${id}.jpg`;
+    const thumbPath = `local/${projectId}/${id}-thumb.jpg`;
+    await this.blobs.put(path, image.full);
+    await this.blobs.put(thumbPath, image.thumb);
+    const row: ProjectImage = {
+      id,
+      projectId,
+      kind,
+      path,
+      thumbPath,
+      width: image.width,
+      height: image.height,
+      bytes: image.full.size + image.thumb.size,
+      position,
+      createdAt: new Date().toISOString(),
+    };
+    const s = read();
+    s.images.push(row);
+    write(s);
+    return row;
+  }
+
+  async imageBlob(image: ProjectImage, size: ImageSize): Promise<Blob> {
+    const blob = await this.blobs.get(size === 'full' ? image.path : image.thumbPath);
+    if (!blob) throw new Error('Cette image n’est plus sur cet appareil.');
+    return blob;
+  }
+
+  async setImageKind(id: string, kind: ProjectImageKind) {
+    const s = read();
+    s.images = s.images.map((i) => (i.id === id ? { ...i, kind } : i));
+    write(s);
+  }
+
+  async removeImage(image: ProjectImage) {
+    const s = read();
+    s.images = s.images.filter((i) => i.id !== image.id);
+    write(s);
+    await this.blobs.delete([image.path, image.thumbPath]);
+  }
+
   async exportData(): Promise<ProjetsBackup> {
     return read();
   }
@@ -411,6 +477,7 @@ export class LocalProjets implements ProjetsStore {
       links: data.links ?? [],
       payments: data.payments ?? [],
       time: data.time ?? [],
+      images: data.images ?? [],
     });
   }
 }

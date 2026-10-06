@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { MemoryBlobStore } from '../../../core/data/images/blobStore';
 import { LocalProjets } from './localProjets';
 
 /**
@@ -176,6 +177,23 @@ describe('LocalProjets', () => {
     await store.deleteProject(project.id);
     expect(await store.listTime()).toEqual([]);
     expect(await store.listPayments()).toEqual([]);
+  });
+
+  it('les images : fichiers rangés puis ligne, et ils partent avec leur projet', async () => {
+    const blobs = new MemoryBlobStore();
+    const withImages = new LocalProjets(blobs);
+    const { project } = await decor();
+    const prepared = { full: new Blob(['grande']), thumb: new Blob(['mini']), width: 2048, height: 1536, takenAt: null };
+    const logo = await withImages.addImage(project.id, 'logo', prepared, 0, 'img-1');
+    expect(logo).toMatchObject({ kind: 'logo', width: 2048, bytes: 10, path: 'local/p-1/img-1.jpg' });
+    expect(await withImages.addImage(project.id, 'photo', prepared, 1, 'img-1')).toEqual(logo);
+    expect(blobs.size).toBe(2);
+    expect(await (await withImages.imageBlob(logo, 'thumb')).text()).toBe('mini');
+    await withImages.setImageKind(logo.id, 'maquette');
+    expect((await withImages.listImages())[0].kind).toBe('maquette');
+    await withImages.deleteProject(project.id);
+    expect(await withImages.listImages()).toEqual([]);
+    expect(blobs.size).toBe(0);
   });
 
   it('préserve les sections des autres modules dans le blob local', async () => {

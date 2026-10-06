@@ -805,6 +805,58 @@ rappels non vérifiable automatiquement** (compte et appareil) : à essayer.
 
 ---
 
+## 19. Étape 7 : les images — découpage terminé (06/10/2026)
+
+**L'envoi d'images remonte au socle**, comme le recommandait §7 : Projets est le deuxième module
+à en ranger, après Hauts faits. Déplacés sans changer de comportement :
+
+| Socle | Venu de Hauts faits | Ce que le module garde |
+|---|---|---|
+| `core/lib/exif.ts` | `lib/exif.ts` | — |
+| `core/lib/images.ts` (`fitWithin`, `formatBytes`, `PreparedImage`) | `lib/photos.ts` | `photosByFeat`, `coverPositions` |
+| `core/data/images/blobStore.ts` (IndexedDB, nom de base en paramètre) | `data/blobStore.ts` | le **nom** de sa base (`atlas-hautsfaits`) |
+| `core/data/images/imageCache.ts` (Cache API, nom en paramètre) | `data/photoCache.ts` | le **nom** de son cache (`hautsfaits-photos-v1`) |
+| `core/data/images/prepareImage.ts` (tailles en paramètre) | `data/preparePhoto.ts` | ses tailles (2 048 et 720 px) |
+
+La vérification du déplacement est ce qui ne change pas : la suite de Hauts faits passe à
+l'identique (50/50), ses tests aussi (déplacés avec ce qu'ils testent). Les noms de stockage
+restent chez chaque module, parce que ce sont des identifiants (CLAUDE.md §4).
+
+Pour Projets :
+
+- **Migration** `supabase/2026-10-06-projets-images.sql` : `projets_images` (sorte : logo, photo,
+  maquette) et le bucket privé `projets`, dossier par compte — même motif que Hauts faits.
+- **Contrat** : `listImages`, `addImage` (les fichiers PUIS la ligne, rejouable),
+  `imageBlob`, `setImageKind`, `removeImage` (la ligne PUIS les fichiers) ; supprimer un projet
+  emporte ses fichiers. En local : IndexedDB `atlas-projets` ; avec un compte, cache
+  `projets-images-v1`. La sauvegarde garde la liste, pas le contenu (comme Hauts faits).
+- **À l'écran** (`ImagesPanel`, `ProjectImg`) : en tête de l'onglet Design, le logo et les
+  images, réduites dans le navigateur (2 048 px et 720 px, métadonnées et GPS retirés) ; une sorte
+  par image, modifiable ; l'image en grand ; **le logo dans l'en-tête de la fiche** ;
+  `lib/images.ts` (ordre, logo, plafond).
+
+Choix faits en l'écrivant :
+
+- **Vingt images au plus par projet** (§11, accepté) : une sélection trop grande garde les
+  premières et dit combien ont été écartées, plutôt que de tout refuser.
+- **Une image illisible n'empêche pas les autres** : chaque fichier est réduit et envoyé seul, les
+  échecs sont dits ensemble à la fin.
+- **Les images se chargent à part des projets** : une table absente (migration pas appliquée)
+  affiche un message dans la section, le reste de Projets fonctionne.
+- Le logo est la première image de sorte « logo » : aucune colonne de plus à tenir à jour.
+
+1278 → **1283** tests unitaires (+5 ; les tests EXIF et de tailles ont suivi le code au socle),
+89 → **97** vérifications de bout en bout pour le module (de vrais JPEG, un fichier qui n'en est
+pas un), Hauts faits inchangé : **958/958** en local et **977/977** en mode comptes.
+**Migration à appliquer par Jules.** Chemin Supabase (envoi réel vers le bucket) non couvert par
+la suite : à essayer avec un compte et sur l'iPhone.
+
+**Le découpage de l'étude est terminé (7/7).** Restent possibles plus tard (§10) : un éditeur de
+modèles, glisser un projet d'une colonne à l'autre du pipeline, un récap imprimable, la file hors
+ligne, une section de réglages des rappels.
+
+---
+
 ## Sources
 
 - Réforme de la facturation électronique : calendrier publié par l'administration (impots.gouv.fr,

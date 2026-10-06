@@ -22,6 +22,10 @@
  *
  * Étape 6 (§18) : la tâche du jour vue dans Calendar, et « Modifier dans
  * Projets » qui ramène à sa fenêtre.
+ *
+ * Étape 7 (§19) : de vrais JPEG fabriqués dans le navigateur — le logo dans
+ * l'en-tête, des photos réduites, une sorte changée, l'image en grand, un
+ * fichier qui n'est pas une image, une image retirée.
  */
 
 /** Rouvre Atlas sur la liste des modules (voir la suite de Hauts faits). */
@@ -45,6 +49,28 @@ async function openModule(page) {
   await page.locator('.hub-picker-card', { hasText: 'Projets' }).click();
   await page.waitForSelector('.projets-main');
 }
+
+/** Un vrai JPEG, dessiné dans le navigateur (même motif que la suite de Hauts faits). */
+async function jpeg(page, hue, { width = 1600, height = 1200 } = {}) {
+  const base64 = await page.evaluate(
+    ([hue, width, height]) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = `hsl(${hue}, 60%, 55%)`;
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = `hsl(${hue + 180}, 70%, 75%)`;
+      ctx.beginPath();
+      ctx.arc(width / 2, height / 2, height / 4, 0, Math.PI * 2);
+      ctx.fill();
+      return canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+    },
+    [hue, width, height],
+  );
+  return Buffer.from(base64, 'base64');
+}
+const file = (name, buffer, mimeType = 'image/jpeg') => ({ name, mimeType, buffer });
 
 const ws = (page, title) => page.locator(`section[aria-label="Chantier ${title}"]`);
 const groupOf = (page, label) => page.locator('.projets-ws-group', { has: page.locator('.projets-section-title', { hasText: label }) });
@@ -199,6 +225,30 @@ export async function run({ browser, check, BASE }) {
   check('L’onglet compte ses liens', (await text(page.getByRole('tab', { name: /Liens/ }))) === 'Liens (1)');
   await page.getByRole('tab', { name: 'Design' }).click();
   check('La fiche design est relue telle qu’enregistrée', (await page.locator('.projets-swatch-code').count()) === 2 && (await page.locator('#projets-design-title-font').inputValue()) === 'Cormorant Garamond');
+
+  // --- Les images (étape 7) -------------------------------------------------------
+  const imageInput = page.getByLabel('Choisir des images');
+  check('Sans logo, on ajoute d’abord un logo', (await page.getByLabel('Sorte des images à ajouter').inputValue()) === 'logo');
+  await imageInput.setInputFiles([file('logo.jpg', await jpeg(page, 330, { width: 3000, height: 3000 }))]);
+  await page.waitForSelector('.projets-sheet-logo img');
+  check('Le logo s’affiche dans l’en-tête de la fiche', (await page.locator('.projets-sheet-logo img').count()) === 1);
+  check('Réduit dans le navigateur : la miniature fait 720 px au plus', await page.locator('.projets-sheet-logo img').evaluate((img) => img.naturalWidth > 0 && img.naturalWidth <= 720));
+  await page.getByLabel('Sorte des images à ajouter').selectOption('photo');
+  await imageInput.setInputFiles([file('vitrine.jpg', await jpeg(page, 120)), file('notes.txt', Buffer.from('pas une image'), 'text/plain')]);
+  await page.waitForFunction(() => document.querySelectorAll('.projets-image-cell').length === 2);
+  check('Un fichier qui n’est pas une image est écarté, en clair, sans bloquer les autres', (await text(page.locator('.projets-images'))).includes('n’est pas une image'));
+  check('Le logo d’abord, puis les photos', (await page.locator('.projets-image-cell select').evaluateAll((els) => els.map((e) => e.value))).join() === 'logo,photo');
+  await page.locator('.projets-image-cell').nth(1).getByLabel('Sorte d’image').selectOption('maquette');
+  await page.waitForFunction(() => [...document.querySelectorAll('.projets-image-cell select')].map((e) => e.value).join() === 'logo,maquette').catch(() => {});
+  check('La sorte d’une image se change', (await page.locator('.projets-image-cell select').evaluateAll((els) => els.map((e) => e.value))).join() === 'logo,maquette');
+  await page.getByRole('button', { name: 'Agrandir : Maquette' }).click();
+  await page.waitForSelector('.projets-viewer img');
+  check('L’image s’ouvre en grand, 2 048 px au plus', await page.locator('.projets-viewer img').evaluate((img) => img.naturalWidth > 720 && img.naturalWidth <= 2048));
+  await page.keyboard.press('Escape');
+  await page.locator('.projets-viewer').waitFor({ state: 'detached' });
+  await page.locator('.projets-image-cell').nth(1).getByRole('button', { name: 'Retirer l’image' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.projets-image-cell').length === 1);
+  check('Une image se retire', (await page.locator('.projets-image-cell').count()) === 1);
 
   // --- L'argent ----------------------------------------------------------------
   await page.getByRole('tab', { name: 'Argent' }).click();

@@ -5,6 +5,7 @@
  * répète dans ses contraintes CHECK : `schema.test.ts` compare les deux
  * (CLAUDE.md §5).
  */
+import type { PreparedImage } from '../../../core/lib/images';
 
 /**
  * Catégories fixes pour le moment (décision de Jules, 29/09/2026) : une
@@ -97,13 +98,7 @@ export interface FeatPhoto {
   createdAt: string;
 }
 
-/** Une photo réduite dans le navigateur, prête à être envoyée. */
-export interface PreparedPhoto {
-  full: Blob;
-  thumb: Blob;
-  width: number;
-  height: number;
-  takenAt: string | null;
-}
+/** Une photo réduite dans le navigateur, prête à être envoyée — la forme commune du socle. */
+export type PreparedPhoto = PreparedImage;
 
 export type PhotoSize = 'thumb' | 'full';

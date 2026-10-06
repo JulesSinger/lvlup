@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { MemoryBlobStore } from './blobStore';
+import { MemoryBlobStore } from '../../../core/data/images/blobStore';
 import { LocalHautsFaits } from './localHautsFaits';
 
 /**

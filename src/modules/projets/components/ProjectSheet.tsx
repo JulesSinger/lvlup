@@ -9,6 +9,8 @@ import {
   type Client,
   type Project,
   type ProjectDesign,
+  type ProjectImage,
+  type ProjectImageKind,
   type ProjectLink,
   type ProjectNeeds,
   type Payment,
@@ -20,7 +22,10 @@ import {
   type Workstream,
 } from '../lib/types';
 import { daysBetween } from '../../../core/lib/day';
+import { imagesOf, logoOf } from '../lib/images';
 import { DesignPanel } from './DesignPanel';
+import { ImagesPanel } from './ImagesPanel';
+import { ProjectImg } from './ProjectImg';
 import { Journal } from './Journal';
 import { LinksPanel } from './LinksPanel';
 import { MoneyPanel } from './MoneyPanel';
@@ -40,6 +45,8 @@ interface Props {
   links: readonly ProjectLink[];
   payments: readonly Payment[];
   time: readonly TimeEntry[];
+  images: readonly ProjectImage[];
+  imagesError: string;
   /** Les références déjà dans Budget ; `null` quand Budget n'est pas là. */
   inBudget: ReadonlySet<string> | null;
   progress: Progress;
@@ -67,6 +74,10 @@ interface Props {
   onSendToBudget: (payment: Payment) => Promise<void>;
   onAddTime: (input: { day: string; minutes: number; workstreamId: string | null; note: string }) => Promise<void>;
   onDeleteTime: (entry: TimeEntry) => Promise<void>;
+  /** Rend un message à montrer (images écartées, refusées…), ou `null`. */
+  onAddImages: (kind: ProjectImageKind, files: File[]) => Promise<string | null>;
+  onSetImageKind: (image: ProjectImage, kind: ProjectImageKind) => Promise<void>;
+  onRemoveImage: (image: ProjectImage) => Promise<void>;
 }
 
 /**
@@ -80,6 +91,7 @@ export function ProjectSheet(props: Props) {
   const [tab, setTab] = useState<Tab>('workstreams');
   const daysLeft = project.dueDay ? daysBetween(today, project.dueDay) : null;
   const needs = needsProgress(project.needs);
+  const logo = logoOf(props.images, project.id);
 
   const groups = WORKSTREAM_STATE_ORDER.map((state) => ({ state, items: views.filter((v) => v.state === state) })).filter((g) => g.items.length > 0);
 
@@ -89,6 +101,11 @@ export function ProjectSheet(props: Props) {
         ← Retour
       </button>
       <div className="projets-sheet-head">
+        {logo && (
+          <span className="projets-sheet-logo">
+            <ProjectImg image={logo} size="thumb" alt={`Logo de ${client?.name ?? 'ce client'}`} />
+          </span>
+        )}
         <div className="projets-sheet-id">
           <p className="projets-sheet-client">
             {client?.name ?? 'Client inconnu'}
@@ -183,7 +200,21 @@ export function ProjectSheet(props: Props) {
 
       {tab === 'needs' && <NeedsForm projectId={project.id} saved={project.needs} onSave={props.onSaveNeeds} />}
 
-      {tab === 'design' && <DesignPanel saved={project.design} onSave={props.onSaveDesign} />}
+      {tab === 'design' && (
+        <DesignPanel
+          saved={project.design}
+          onSave={props.onSaveDesign}
+          images={
+            <ImagesPanel
+              images={imagesOf(props.images, project.id)}
+              loadError={props.imagesError}
+              onAdd={props.onAddImages}
+              onSetKind={props.onSetImageKind}
+              onRemove={props.onRemoveImage}
+            />
+          }
+        />
+      )}
 
       {tab === 'links' && <LinksPanel links={props.links} onAdd={() => props.onEditLink(null)} onEdit={props.onEditLink} />}
 

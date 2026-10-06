@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { newId } from '../../core/data/coreStore';
+import { prepareImage } from '../../core/data/images/prepareImage';
 import { dayString } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { ClientEditor } from './components/ClientEditor';
@@ -12,6 +13,7 @@ import { PaymentReceiver, type Receipt } from './components/PaymentReceiver';
 import { ReceiptsView } from './components/ReceiptsView';
 import { ProjectCreator, type NewProject } from './components/ProjectCreator';
 import { ProjectSheet } from './components/ProjectSheet';
+import { forgetImage } from './components/ProjectImg';
 import { ProjectsView } from './components/ProjectsView';
 import { TaskEditor } from './components/TaskEditor';
 import { WorkstreamEditor } from './components/WorkstreamEditor';
@@ -20,8 +22,21 @@ import type { ProjetsBackup } from './data/projetsStore';
 import { syncReminders } from './data/syncReminders';
 import { projectProgress, projectWorkstreams } from './lib/progress';
 import { instantiateTemplate, templateById } from './lib/templates';
+import { imageRoom, nextImagePosition } from './lib/images';
 import { BUDGET_CATEGORY, budgetRef, schedulePayments } from './lib/payments';
-import type { Client, ClientInput, Payment, Project, ProjectLink, ProjectPatch, ProjectTask, Workstream } from './lib/types';
+import {
+  PROJECT_IMAGE_FULL_SIZE,
+  PROJECT_IMAGE_THUMB_SIZE,
+  type Client,
+  type ClientInput,
+  type Payment,
+  type Project,
+  type ProjectImage,
+  type ProjectLink,
+  type ProjectPatch,
+  type ProjectTask,
+  type Workstream,
+} from './lib/types';
 
 type View = 'dash' | 'projects' | 'clients' | 'receipts';
 
@@ -38,7 +53,9 @@ function savedView(): View {
   return 'dash';
 }
 
-const EMPTY: Required<ProjetsBackup> = { clients: [], projects: [], workstreams: [], tasks: [], notes: [], links: [], payments: [], time: [] };
+/** Les images se chargent à part (voir `refreshImages`). */
+type ScreenData = Required<Omit<ProjetsBackup, 'images'>>;
+const EMPTY: ScreenData = { clients: [], projects: [], workstreams: [], tasks: [], notes: [], links: [], payments: [], time: [] };
 
 const nextPosition = (items: readonly { position: number }[]) => items.reduce((max, i) => Math.max(max, i.position + 1), 0);
 
@@ -50,13 +67,17 @@ const nextPosition = (items: readonly { position: number }[]) => items.reduce((m
  * questionnaire de besoins, la fiche design, les liens et les accès, et les
  * projets en colonnes (pipeline). Étape 5 : l'argent — paiements, échéancier
  * 30 / 70, encaissements envoyés à Budget, temps passé, livre des recettes.
+ * Étape 6 : ouvert depuis Calendar sur une tâche ou un projet ; les rappels.
+ * Étape 7 : le logo et les images du projet.
  *
  * Toute la logique est dans les bibliothèques pures (`lib/`) : cet écran ne
  * fait qu'appeler le contrat de stockage et afficher.
  */
 export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji, services, intent }: ModuleScreenProps) {
   const expenses = services.expenses;
-  const [data, setData] = useState<Required<ProjetsBackup>>(EMPTY);
+  const [data, setData] = useState<ScreenData>(EMPTY);
+  const [images, setImages] = useState<ProjectImage[]>([]);
+  const [imagesError, setImagesError] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [view, setViewState] = useState<View>(savedView);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -98,9 +119,45 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
     }
   }, [onError, expenses]);
 
+  /**
+   * Les images à part, comme les photos de Hauts faits : une table d'images
+   * absente (migration de l'étape 7 pas encore appliquée) ne doit pas
+   * empêcher les projets de s'afficher.
+   */
+  const refreshImages = useCallback(async () => {
+    try {
+      setImages(await store.listImages());
+      setImagesError('');
+    } catch (err) {
+      setImagesError(`Les images n’ont pas pu être chargées : ${err instanceof Error ? err.message : 'erreur inconnue'}.`);
+    }
+  }, []);
+
   useEffect(() => {
     void refresh();
-  }, [refresh, reloadToken]);
+    void refreshImages();
+  }, [refresh, refreshImages, reloadToken]);
+
+  /**
+   * Réduire puis ranger des images, une à une : une image illisible n'empêche
+   * pas les autres. Rend ce qu'il faut dire (écartées, refusées), ou `null`.
+   */
+  async function addImages(projectId: string, kind: ProjectImage['kind'], files: File[]): Promise<string | null> {
+    const { accepted, refused } = imageRoom(images, projectId, files.length);
+    const problems: string[] = [];
+    let position = nextImagePosition(images, projectId);
+    for (const file of files.slice(0, accepted)) {
+      try {
+        const prepared = await prepareImage(file, { full: PROJECT_IMAGE_FULL_SIZE, thumb: PROJECT_IMAGE_THUMB_SIZE });
+        await store.addImage(projectId, kind, prepared, position++, newId());
+      } catch (err) {
+        problems.push(err instanceof Error ? err.message : `« ${file.name} » n’a pas pu être ajoutée.`);
+      }
+    }
+    await refreshImages();
+    if (refused > 0) problems.push(`${refused} image${refused > 1 ? 's' : ''} écartée${refused > 1 ? 's' : ''} : 20 au plus par projet.`);
+    return problems.length > 0 ? problems.join(' ') : null;
+  }
 
   /**
    * Ouvert depuis Calendar sur un élément précis (`onOpenModule`) :
@@ -241,6 +298,18 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
           links={data.links.filter((l) => l.projectId === open.id)}
           payments={data.payments}
           time={data.time}
+          images={images}
+          imagesError={imagesError}
+          onAddImages={(kind, files) => addImages(open.id, kind, files)}
+          onSetImageKind={async (image, kind) => {
+            await store.setImageKind(image.id, kind);
+            await refreshImages();
+          }}
+          onRemoveImage={async (image) => {
+            await store.removeImage(image);
+            forgetImage(image);
+            await refreshImages();
+          }}
           inBudget={expenses ? inBudget : null}
           progress={projectProgress(open.id, data.tasks)}
           today={today}
@@ -250,7 +319,9 @@ export function ProjetsScreen({ error, onError, onOpenSettings, onSwitchModule, 
           onDelete={async () => {
             // Ses encaissements quittent Budget d'abord : jamais d'entrée orpheline.
             for (const p of data.payments.filter((p) => p.projectId === open.id)) await forgetInBudget(p);
+            for (const image of images.filter((i) => i.projectId === open.id)) forgetImage(image);
             await store.deleteProject(open.id);
+            void refreshImages();
             setOpenId(null);
             await refresh();
           }}

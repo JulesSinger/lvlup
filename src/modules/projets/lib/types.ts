@@ -290,3 +290,30 @@ export interface TimeEntryInput {
 
 /** Une journée de travail au plus par entrée : au-delà, c'est une faute de frappe. */
 export const TIME_ENTRY_MAX_MINUTES = 1440;
+
+/** Les sortes d'images d'un projet (§3.6). */
+export const PROJECT_IMAGE_KINDS = ['logo', 'photo', 'maquette'] as const;
+export type ProjectImageKind = (typeof PROJECT_IMAGE_KINDS)[number];
+
+/** Peu d'images par projet : le Go gratuit est partagé avec Hauts faits (§3.6, décision du 05/10/2026). */
+export const PROJECT_IMAGES_MAX = 20;
+export const PROJECT_IMAGE_FULL_SIZE = 2048;
+export const PROJECT_IMAGE_THUMB_SIZE = 720;
+
+/**
+ * Une image d'un projet : cette ligne dit où la trouver ; l'image elle-même
+ * vit à part (IndexedDB en local, le stockage de fichiers de Supabase avec un
+ * compte). Le logo du projet est sa première image de sorte « logo ».
+ */
+export interface ProjectImage {
+  id: string;
+  projectId: string;
+  kind: ProjectImageKind;
+  path: string;
+  thumbPath: string;
+  width: number;
+  height: number;
+  bytes: number;
+  position: number;
+  createdAt: string;
+}
