@@ -6,6 +6,7 @@ import { EnvelopesScreen } from './components/EnvelopesScreen';
 import { EvolutionScreen } from './components/EvolutionScreen';
 import { ImportScreen } from './components/ImportScreen';
 import { MonthScreen } from './components/MonthScreen';
+import { RecurringScreen } from './components/RecurringScreen';
 import { RulesSection } from './components/RulesSection';
 import { budgetStore } from './data';
 import { BUDGET_CATEGORY_KINDS, CATEGORY_KIND_LABELS } from './lib/types';
@@ -18,7 +19,7 @@ const GROUPS: { kind: BudgetCategoryKind; label: string }[] = BUDGET_CATEGORY_KI
   label: CATEGORY_KIND_LABELS[kind],
 }));
 
-type View = 'categories' | 'month' | 'import' | 'epargne' | 'evolution';
+type View = 'categories' | 'month' | 'import' | 'epargne' | 'evolution' | 'recurring';
 
 /**
  * Écran racine d'Astra. Depuis l'étape 4 (docs/etude-astra.md §7), « la V1
@@ -156,6 +157,12 @@ export function BudgetScreen({ error, onError, onOpenSettings, onSwitchModule, r
             Évolution
           </button>
           <button
+            className={`budget-tab${view === 'recurring' ? ' active' : ''}`}
+            onClick={() => setView('recurring')}
+          >
+            Abonnements
+          </button>
+          <button
             className={`budget-tab${view === 'epargne' ? ' active' : ''}`}
             onClick={() => setView('epargne')}
           >
@@ -188,6 +195,8 @@ export function BudgetScreen({ error, onError, onOpenSettings, onSwitchModule, r
           <MonthScreen categories={categories} onError={onError} reloadToken={reloadToken} />
         ) : view === 'evolution' ? (
           <EvolutionScreen categories={categories} onError={onError} reloadToken={reloadToken} />
+        ) : view === 'recurring' ? (
+          <RecurringScreen categories={categories} onError={onError} reloadToken={reloadToken} />
         ) : view === 'epargne' ? (
           <EnvelopesScreen categories={categories} onError={onError} reloadToken={reloadToken} />
         ) : loading ? (

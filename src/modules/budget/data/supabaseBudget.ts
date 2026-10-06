@@ -58,6 +58,8 @@ interface EnvelopeMoveRow {
   amount_cents: number;
   day: string;
   note: string | null;
+  /** Absente tant que la migration du 2026-10-07 n'est pas appliquée. */
+  entry_id?: string | null;
   created_at: string;
 }
 
@@ -108,6 +110,7 @@ function toEnvelopeMove(row: EnvelopeMoveRow): BudgetEnvelopeMove {
     amountCents: row.amount_cents,
     day: row.day,
     note: row.note ?? '',
+    entryId: row.entry_id ?? null,
     createdAt: row.created_at,
   };
 }
@@ -420,6 +423,9 @@ export class SupabaseBudget implements BudgetStore {
           amount_cents: Math.round(input.amountCents),
           day: input.day,
           note: input.note ?? '',
+          // Seulement quand il y a un lien : un mouvement posé à la main ne
+          // dépend pas de la migration du 2026-10-07.
+          ...(input.entryId ? { entry_id: input.entryId } : {}),
         })
         .select()
         .single(),
@@ -484,18 +490,29 @@ export class SupabaseBudget implements BudgetStore {
       categoryIdMap.set(category.id, row.id);
     }
 
-    for (const entry of data.entries ?? []) {
-      const { error } = await this.client.from('budget_entries').insert({
-        user_id: userId,
-        day: entry.day,
-        label: entry.label,
-        amount_cents: entry.amountCents,
-        category_id: entry.categoryId ? (categoryIdMap.get(entry.categoryId) ?? null) : null,
-        source: entry.source,
-        import_key: entry.importKey,
-        note: entry.note,
-      });
+    // Les écritures par paquets (une restauration de plusieurs années en comptait
+    // des milliers, une requête chacune) — sauf celles qu'un retrait d'enveloppe
+    // désigne : leur nouvel identifiant doit être connu pour garder le lien.
+    const linked = new Set((data.envelopeMoves ?? []).map((m) => m.entryId).filter((id): id is string => !!id));
+    const entryIdMap = new Map<string, string>();
+    const entryRow = (entry: BudgetEntry) => ({
+      user_id: userId,
+      day: entry.day,
+      label: entry.label,
+      amount_cents: entry.amountCents,
+      category_id: entry.categoryId ? (categoryIdMap.get(entry.categoryId) ?? null) : null,
+      source: entry.source,
+      import_key: entry.importKey,
+      note: entry.note,
+    });
+    const plain = (data.entries ?? []).filter((e) => !linked.has(e.id));
+    for (let i = 0; i < plain.length; i += 500) {
+      const { error } = await this.client.from('budget_entries').insert(plain.slice(i, i + 500).map(entryRow));
       if (error) throw new Error(error.message);
+    }
+    for (const entry of (data.entries ?? []).filter((e) => linked.has(e.id))) {
+      const row = unwrap(await this.client.from('budget_entries').insert(entryRow(entry)).select('id').single()) as { id: string };
+      entryIdMap.set(entry.id, row.id);
     }
 
     for (const rule of data.rules ?? []) {
@@ -537,6 +554,7 @@ export class SupabaseBudget implements BudgetStore {
         amount_cents: move.amountCents,
         day: move.day,
         note: move.note,
+        ...(move.entryId && entryIdMap.has(move.entryId) ? { entry_id: entryIdMap.get(move.entryId) } : {}),
       });
       if (error) throw new Error(error.message);
     }

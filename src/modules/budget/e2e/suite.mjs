@@ -1222,6 +1222,88 @@ export async function run({ browser, check, BASE }) {
     await fresh.close();
   }
 
+  // --- Abonnements, et payer une dépense avec une enveloppe (2026-10-07) -------
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const p = await fresh.newPage();
+    const errors3 = [];
+    p.on('pageerror', (e) => errors3.push(e.message));
+    p.on('dialog', (d) => void d.accept());
+    await enterBudget(p, BASE);
+    await p.waitForSelector('.empty h3');
+    await p.evaluate(() => {
+      const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const monthsAgo = (n, day = 12) => {
+        const d = new Date();
+        d.setDate(day);
+        d.setMonth(d.getMonth() - n);
+        return fmt(d);
+      };
+      let seq = 0;
+      const entry = (n, label, amountCents) => ({ id: `s${++seq}`, day: monthsAgo(n), label, amountCents, categoryId: null, source: 'import', importKey: `k${seq}`, note: '', createdAt: monthsAgo(n) });
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      snap.budgetCategories = [{ id: 'c-auto', name: 'Voiture', emoji: '🚗', color: '#6fb6ff', kind: 'variable', position: 0, parentId: null }];
+      snap.budgetEntries = [
+        ...[3, 2, 1].map((n) => entry(n, `CB NETFLIX ${n}`, -1399)),
+        ...[8, 7, 6].map((n) => entry(n, `DEEZER ${n}`, -999)),
+        ...[3, 2, 1].map((n, i) => entry(n, 'LIDL', -[3000, 8500, 4200][i])),
+      ];
+      snap.budgetEnvelopes = [{ id: 'env-auto', name: 'Entretien voiture', emoji: '🔧', color: '#6fb6ff', position: 0 }];
+      snap.budgetEnvelopeMoves = [{ id: 'm-in', envelopeId: 'env-auto', amountCents: 30000, day: monthsAgo(1), note: '', entryId: null, createdAt: monthsAgo(1) }];
+      snap.budgetRules = [];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await toHub(p);
+    await p.waitForSelector('.hub-picker-card');
+    await p.getByRole('button', { name: /Budget/ }).click();
+    await p.waitForSelector('.budget-search');
+
+    await p.getByRole('button', { name: 'Abonnements', exact: true }).click();
+    await p.waitForSelector('.budget-recurring');
+    const txt = async (loc) => ((await loc.textContent()) ?? '').replace(/\s/g, ' ');
+    const stillPaid = p.getByRole('region', { name: 'Encore payés' });
+    check('Un abonnement mensuel est repéré tout seul', (await txt(stillPaid)).includes('CB NETFLIX') && (await txt(stillPaid)).includes('chaque mois'));
+    check('Des courses au montant variable n’en sont pas', !(await txt(p.locator('.budget-recurring'))).includes('LIDL'));
+    check('Ce qu’ils coûtent par mois et par an', (await txt(p.locator('.budget-recurring .budget-month-summary'))).includes('13,99 €') && (await txt(p.locator('.budget-recurring .budget-month-summary'))).includes('167,88 €'));
+    check('Un abonnement qu’on ne voit plus passer est mis à part', (await txt(p.getByRole('region', { name: 'Plus vus depuis un moment' }))).includes('DEEZER'));
+
+    await p.getByRole('button', { name: 'Aperçu', exact: true }).click();
+    await p.waitForSelector('.budget-month-selector');
+    // Le mois en cours est vide : l'écran propose « Ajouter une écriture » plutôt que le « + » flottant.
+    await p.getByRole('button', { name: /^(Ajouter une écriture|Nouvelle écriture)$/ }).first().click();
+    await p.locator('#budget-entry-label').fill('Vidange');
+    await p.locator('#budget-entry-amount').fill('400');
+    await p.locator('#budget-entry-envelope').selectOption('env-auto');
+    await p.getByRole('button', { name: 'Enregistrer' }).click();
+    check('Une enveloppe ne paie pas plus que ce qu’elle contient', (await txt(p.locator('.budget-entry-editor .notice.error'))).includes('ne contient que 300,00 €'));
+    await p.locator('#budget-entry-amount').fill('80');
+    await p.getByRole('button', { name: 'Enregistrer' }).click();
+    await p.locator('.budget-entry-editor').waitFor({ state: 'detached' });
+    const vidange = p.locator('.budget-entry-row', { hasText: 'Vidange' });
+    check('La dépense dit quelle enveloppe l’a payée', (await txt(vidange)).includes('payée par l’enveloppe 🔧 Entretien voiture'));
+    const balance = async () => {
+      await p.getByRole('button', { name: 'Épargne', exact: true }).click();
+      await p.waitForSelector('.budget-envelope-row');
+      const value = (await p.locator('.budget-envelope-row .budget-row-amount').textContent())?.trim();
+      await p.getByRole('button', { name: 'Aperçu', exact: true }).click();
+      await p.waitForSelector('.budget-month-selector');
+      return value;
+    };
+    check('Le montant est retiré de l’enveloppe', (await balance()) === '220,00 €');
+    await vidange.getByRole('button', { name: 'Modifier' }).click();
+    check('La fenêtre se rouvre sur l’enveloppe qui paie', (await p.locator('#budget-entry-envelope').inputValue()) === 'env-auto');
+    await p.locator('#budget-entry-amount').fill('90');
+    await p.getByRole('button', { name: 'Enregistrer' }).click();
+    await p.locator('.budget-entry-editor').waitFor({ state: 'detached' });
+    check('Le retrait suit la dépense quand on la modifie, sans se compter deux fois', (await balance()) === '210,00 €');
+    await p.locator('.budget-entry-row', { hasText: 'Vidange' }).getByRole('button', { name: 'Supprimer' }).click();
+    await p.locator('.budget-entry-row', { hasText: 'Vidange' }).waitFor({ state: 'detached' });
+    check('Supprimer la dépense rend l’argent à l’enveloppe', (await balance()) === '300,00 €');
+
+    check('Aucune erreur JavaScript (abonnements, enveloppes)', errors3.length === 0, errors3.join(' | '));
+    await fresh.close();
+  }
+
   // --- Rendu mobile --------------------------------------------------------
   // Jamais vérifié jusqu'ici pour Budget, comme pour Flashcards (31/08/2026) : les
   // quatre onglets, le bouton flottant et l'éditeur d'écriture (pastilles +
@@ -1286,6 +1368,10 @@ export async function run({ browser, check, BASE }) {
     await mp.getByRole('button', { name: 'Importer', exact: true }).click();
     await mp.waitForTimeout(300);
     check('Onglet Importer sans débordement horizontal sur téléphone', await noOverflow());
+
+    await mp.getByRole('button', { name: 'Abonnements', exact: true }).click();
+    await mp.waitForSelector('.budget-recurring');
+    check('Onglet Abonnements sans débordement horizontal sur téléphone', await noOverflow());
 
     check('Aucune erreur JavaScript (mobile)', mobileErrors.length === 0, mobileErrors.join(' | '));
     await phone.close();

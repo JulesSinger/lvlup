@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { centsToInputValue, parsePositiveAmountToCents } from '../lib/amount';
 import { matchRule } from '../lib/boursobankImport';
 import { suggestedPattern, validateRulePattern } from '../lib/classify';
-import type { BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetRule } from '../lib/types';
+import { availableForEntry, linkedMove, withdrawalProblem } from '../lib/envelopes';
+import type { BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetEnvelope, BudgetEnvelopeMove, BudgetRule } from '../lib/types';
 import { CategorySelect } from './CategorySelect';
 
 function today(): string {
@@ -22,7 +23,10 @@ interface Props {
    * `rememberPattern` : une règle à créer avec cette écriture, pour que les
    * prochains relevés rangent tout seuls le même libellé.
    */
-  onSave: (input: BudgetEntryInput, rememberPattern?: string) => Promise<void>;
+  onSave: (input: BudgetEntryInput, rememberPattern?: string, envelopeId?: string | null) => Promise<void>;
+  /** Les enveloppes : une dépense peut être payée par l'une d'elles (§6 bis). */
+  envelopes?: BudgetEnvelope[];
+  moves?: BudgetEnvelopeMove[];
 }
 
 /**
@@ -37,7 +41,7 @@ interface Props {
  * existantes dès que le libellé matche l'une d'elles, et les catégories les
  * plus utilisées sont proposées en pastilles avant même d'ouvrir le menu.
  */
-export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onCancel, onSave }: Props) {
+export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onCancel, onSave, envelopes = [], moves = [] }: Props) {
   const isEdit = entry !== null;
   const [day, setDay] = useState(entry?.day ?? today());
   const [label, setLabel] = useState(entry?.label ?? '');
@@ -48,6 +52,8 @@ export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onC
   const [categoryTouched, setCategoryTouched] = useState(isEdit);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const existingLink = entry ? linkedMove(moves, entry.id) : null;
+  const [envelopeId, setEnvelopeId] = useState(existingLink?.envelopeId ?? '');
   /** Retenir le choix pour les prochains relevés : proposé quand on range une écriture « à classer ». */
   const [remember, setRemember] = useState(false);
   const pattern = suggestedPattern(label.trim());
@@ -91,6 +97,13 @@ export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onC
       setError('Le montant doit être un nombre supérieur à zéro (ex. 12,50).');
       return;
     }
+    if (isExpense && envelopeId) {
+      const tooMuch = withdrawalProblem(positive, availableForEntry(envelopeId, moves, entry?.id ?? null));
+      if (tooMuch) {
+        setError(tooMuch);
+        return;
+      }
+    }
     setSaving(true);
     setError('');
     try {
@@ -104,6 +117,8 @@ export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onC
           source: entry?.source ?? 'manuelle',
         },
         canRemember && remember ? pattern : undefined,
+        // Une entrée d'argent n'est jamais payée par une enveloppe ; sans enveloppe du tout, rien à dire.
+        envelopes.length > 0 || existingLink ? (isExpense && envelopeId ? envelopeId : null) : undefined,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Enregistrement impossible.');
@@ -220,6 +235,21 @@ export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onC
               }}
             />
           </div>
+
+          {isExpense && envelopes.length > 0 && (
+            <div className="field">
+              <label htmlFor="budget-entry-envelope">Payée avec une enveloppe</label>
+              <select id="budget-entry-envelope" value={envelopeId} onChange={(e) => setEnvelopeId(e.target.value)}>
+                <option value="">Aucune</option>
+                {envelopes.map((env) => (
+                  <option key={env.id} value={env.id}>
+                    {env.emoji} {env.name} — {centsToInputValue(availableForEntry(env.id, moves, entry?.id ?? null))} €
+                  </option>
+                ))}
+              </select>
+              <span className="field-hint">Le montant est retiré de l’enveloppe ; le total épargné, lui, ne bouge pas.</span>
+            </div>
+          )}
 
           {canRemember && (
             <label className="budget-remember">

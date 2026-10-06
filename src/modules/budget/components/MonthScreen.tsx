@@ -5,7 +5,7 @@ import { currentMonthKey, monthKeyOf, monthLabel, shiftMonthKey } from '../lib/m
 import { computeMonthlyBreakdown, deltaMap, formatMonthDelta, monthDelta, subcategoryBreakdown } from '../lib/monthlyBreakdown';
 import { centsToInputValue, formatCents } from '../lib/amount';
 import { searchEntries, summarize } from '../lib/search';
-import type { BudgetCategory, BudgetEntry, BudgetRule } from '../lib/types';
+import type { BudgetCategory, BudgetEntry, BudgetEnvelope, BudgetEnvelopeMove, BudgetRule } from '../lib/types';
 import { ClassifyDialog } from './ClassifyDialog';
 import { EntriesView } from './EntriesView';
 import { PieChart } from './PieChart';
@@ -34,6 +34,8 @@ export function MonthScreen({
   const [monthKey, setMonthKey] = useState(currentMonthKey);
   const [entries, setEntries] = useState<BudgetEntry[]>([]);
   const [rules, setRules] = useState<BudgetRule[]>([]);
+  const [envelopes, setEnvelopes] = useState<BudgetEnvelope[]>([]);
+  const [moves, setMoves] = useState<BudgetEnvelopeMove[]>([]);
   const [loading, setLoading] = useState(true);
   /** `undefined` = pas de filtre ; une valeur (dont `null` pour « à classer ») = filtré sur cette part. */
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null | undefined>(undefined);
@@ -43,9 +45,16 @@ export function MonthScreen({
 
   const refresh = useCallback(async () => {
     try {
-      const [nextEntries, nextRules] = await Promise.all([budgetStore.listEntries(), budgetStore.listRules()]);
+      const [nextEntries, nextRules, nextEnvelopes, nextMoves] = await Promise.all([
+        budgetStore.listEntries(),
+        budgetStore.listRules(),
+        budgetStore.listEnvelopes(),
+        budgetStore.listEnvelopeMoves(),
+      ]);
       setEntries(nextEntries);
       setRules(nextRules);
+      setEnvelopes(nextEnvelopes);
+      setMoves(nextMoves);
       onError('');
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Chargement impossible.');
@@ -178,6 +187,8 @@ export function MonthScreen({
             entries={results}
             categories={categories}
             rules={rules}
+            envelopes={envelopes}
+            moves={moves}
             frequentCategoryIds={mostUsedCategoryIds(entries)}
             onError={onError}
             onChanged={refresh}
@@ -298,6 +309,8 @@ export function MonthScreen({
           entries={visibleEntries}
           categories={categories}
           rules={rules}
+          envelopes={envelopes}
+          moves={moves}
           frequentCategoryIds={mostUsedCategoryIds(entries)}
           onError={onError}
           onChanged={refresh}

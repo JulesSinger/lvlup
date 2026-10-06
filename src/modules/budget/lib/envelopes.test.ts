@@ -4,6 +4,9 @@ import {
   computeEnvelopesOverview,
   computeSavingsTimeline,
   computeSavingsTotalCents,
+  availableForEntry,
+  linkedMove,
+  linkPlan,
   withdrawalProblem,
 } from './envelopes';
 import type { BudgetCategory, BudgetEntry, BudgetEnvelope, BudgetEnvelopeMove } from './types';
@@ -47,6 +50,7 @@ function move(patch: Partial<BudgetEnvelopeMove>): BudgetEnvelopeMove {
     amountCents: 1000,
     day: '2026-07-04',
     note: '',
+    entryId: null,
     createdAt: '2026-07-04T00:00:00.000Z',
     ...patch,
   };
@@ -184,5 +188,35 @@ describe('retirer d’une enveloppe', () => {
     expect(withdrawalProblem(500, 1_250)).toBeNull();
     expect(withdrawalProblem(2_000, 1_250)).toMatch(/12,50 €/);
     expect(withdrawalProblem(100, 0)).toMatch(/vide/);
+  });
+});
+
+describe('payer une dépense avec une enveloppe', () => {
+  const entry = { id: 'e1', amountCents: -8_000, day: '2026-10-05', label: 'Vidange' };
+  const moves = [
+    move({ id: 'in', amountCents: 30_000 }),
+    move({ id: 'paid', amountCents: -8_000, entryId: 'e1', day: '2026-10-05' }),
+  ];
+
+  it('le retrait d’une dépense, et ce qu’il reste pour elle sans le compter deux fois', () => {
+    expect(linkedMove(moves, 'e1')?.id).toBe('paid');
+    expect(linkedMove(moves, 'autre')).toBeNull();
+    expect(availableForEntry('env-1', moves, 'e1')).toBe(30_000);
+    expect(availableForEntry('env-1', moves, null)).toBe(22_000);
+  });
+
+  it('rien de changé : rien à écrire ; un autre montant ou une autre enveloppe : le retrait est remplacé', () => {
+    expect(linkPlan(moves[1], 'env-1', entry)).toEqual({ remove: null, create: null });
+    expect(linkPlan(moves[1], 'env-1', { ...entry, amountCents: -9_000 })).toEqual({
+      remove: 'paid',
+      create: { envelopeId: 'env-1', amountCents: -9_000, day: '2026-10-05', note: 'Payé : Vidange', entryId: 'e1' },
+    });
+    expect(linkPlan(moves[1], 'env-2', entry).create?.envelopeId).toBe('env-2');
+  });
+
+  it('plus d’enveloppe : le retrait part ; une entrée d’argent n’est jamais payée par une enveloppe', () => {
+    expect(linkPlan(moves[1], null, entry)).toEqual({ remove: 'paid', create: null });
+    expect(linkPlan(null, 'env-1', { ...entry, amountCents: 5_000 })).toEqual({ remove: null, create: null });
+    expect(linkPlan(null, 'env-1', entry).create?.amountCents).toBe(-8_000);
   });
 });

@@ -32,9 +32,10 @@ function read(): Snapshot {
     entries: Array.isArray(raw.budgetEntries) ? (raw.budgetEntries as BudgetEntry[]) : [],
     rules: Array.isArray(raw.budgetRules) ? (raw.budgetRules as BudgetRule[]) : [],
     envelopes: Array.isArray(raw.budgetEnvelopes) ? (raw.budgetEnvelopes as BudgetEnvelope[]) : [],
-    envelopeMoves: Array.isArray(raw.budgetEnvelopeMoves)
-      ? (raw.budgetEnvelopeMoves as BudgetEnvelopeMove[])
-      : [],
+    // Un mouvement d'avant le lien avec les dépenses (2026-10-07) n'a pas d'`entryId`.
+    envelopeMoves: (Array.isArray(raw.budgetEnvelopeMoves) ? (raw.budgetEnvelopeMoves as BudgetEnvelopeMove[]) : []).map(
+      (m) => ({ ...m, entryId: m.entryId ?? null }),
+    ),
   };
 }
 
@@ -203,6 +204,8 @@ export class LocalBudget implements BudgetStore {
   async deleteEntry(id: string) {
     const snapshot = read();
     snapshot.entries = snapshot.entries.filter((e) => e.id !== id);
+    // Le retrait qui payait cette dépense part avec elle (`on delete cascade` côté base).
+    snapshot.envelopeMoves = snapshot.envelopeMoves.filter((m) => m.entryId !== id);
     write(snapshot);
   }
 
@@ -289,8 +292,13 @@ export class LocalBudget implements BudgetStore {
       amountCents: Math.round(input.amountCents),
       day: input.day,
       note: input.note ?? '',
+      entryId: input.entryId ?? null,
       createdAt: new Date().toISOString(),
     };
+    // Comme l'index unique côté base : une dépense est payée par une enveloppe au plus.
+    if (move.entryId && snapshot.envelopeMoves.some((m) => m.entryId === move.entryId)) {
+      throw new Error('Cette dépense est déjà payée par une enveloppe.');
+    }
     snapshot.envelopeMoves.push(move);
     write(snapshot);
     return move;

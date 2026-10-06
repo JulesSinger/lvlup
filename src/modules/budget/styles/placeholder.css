@@ -1217,3 +1217,30 @@
 .budget-classify-group .budget-remember {
   margin: 0;
 }
+
+/* --- Abonnements (2026-10-07) --------------------------------------------- */
+
+.budget-recurring {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.budget-recurring-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.budget-recurring-rise {
+  color: var(--coral);
+  font-size: 12px;
+}
+
+.budget-recurring-monthly {
+  color: var(--text-faint);
+  font-size: 12px;
+}

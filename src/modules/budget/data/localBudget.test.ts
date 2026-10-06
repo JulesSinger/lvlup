@@ -42,6 +42,17 @@ describe('LocalBudget', () => {
     expect([byId.get(a.id), byId.get(b.id), byId.get(c.id)]).toEqual(['abonnements', 'abonnements', null]);
   });
 
+  it('un retrait d’enveloppe peut payer une dépense : il part avec elle, et une seule fois', async () => {
+    const env = await store.createEnvelope({ name: 'Voiture', emoji: '🚗', color: '#000000' });
+    await store.createEnvelopeMove({ envelopeId: env.id, amountCents: 30000, day: '2026-10-01' });
+    const vidange = await store.createEntry({ day: '2026-10-05', label: 'Vidange', amountCents: -8000 });
+    const paid = await store.createEnvelopeMove({ envelopeId: env.id, amountCents: -8000, day: '2026-10-05', entryId: vidange.id });
+    expect(paid.entryId).toBe(vidange.id);
+    await expect(store.createEnvelopeMove({ envelopeId: env.id, amountCents: -1, day: '2026-10-05', entryId: vidange.id })).rejects.toThrow(/déjà payée/);
+    await store.deleteEntry(vidange.id);
+    expect((await store.listEnvelopeMoves()).map((m) => m.amountCents)).toEqual([30000]);
+  });
+
   it('crée une catégorie avec ses valeurs par défaut', async () => {
     const category = await store.createCategory({ name: 'Courses' });
     expect(category.kind).toBe('variable');

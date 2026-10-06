@@ -72,6 +72,7 @@ export function EnvelopeHistory({
                 <li key={move.id} className="budget-row budget-envelope-history-row">
                   <span className="budget-row-day">{move.day}</span>
                   <span className="budget-row-name">
+                    {move.entryId && <span title="Lié à une dépense : il la suit">🧾 </span>}
                     {move.note || (move.amountCents < 0 ? 'Retrait' : 'Affectation')}
                   </span>
                   <span

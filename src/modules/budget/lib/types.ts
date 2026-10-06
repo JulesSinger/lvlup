@@ -163,6 +163,12 @@ export interface BudgetEnvelopeMove {
   day: string;
   /** Libre — ex. « vidange + pneus, payée depuis le compte courant ». */
   note: string;
+  /**
+   * La dépense que ce retrait paie (depuis le 2026-10-07, §6 bis) : il la
+   * suit — supprimer la dépense supprime le retrait. `null` : un mouvement
+   * posé à la main.
+   */
+  entryId: string | null;
   createdAt: string;
 }
 
@@ -171,4 +177,5 @@ export interface BudgetEnvelopeMoveInput {
   amountCents: number;
   day: string;
   note?: string;
+  entryId?: string | null;
 }

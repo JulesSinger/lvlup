@@ -1,5 +1,5 @@
 import { centsToInputValue } from './amount';
-import type { BudgetCategory, BudgetEntry, BudgetEnvelope, BudgetEnvelopeMove } from './types';
+import type { BudgetCategory, BudgetEntry, BudgetEnvelope, BudgetEnvelopeMove, BudgetEnvelopeMoveInput } from './types';
 
 /**
  * Le total mis de côté (docs/etude-astra-epargne.md §3) : la somme, signe
@@ -108,4 +108,50 @@ export function withdrawalProblem(amountCents: number, balanceCents: number): st
   return balanceCents <= 0
     ? 'Cette enveloppe est vide : il n’y a rien à retirer.'
     : `Cette enveloppe ne contient que ${euros} € : tu ne peux pas en retirer plus.`;
+}
+
+/** Le retrait qui paie une dépense, s'il y en a un. */
+export function linkedMove(moves: readonly BudgetEnvelopeMove[], entryId: string): BudgetEnvelopeMove | null {
+  return moves.find((m) => m.entryId === entryId) ?? null;
+}
+
+/**
+ * Ce qu'une enveloppe peut payer pour une dépense : son solde, sans compter
+ * le retrait que cette même dépense y a déjà fait (le modifier ne doit pas
+ * se compter deux fois).
+ */
+export function availableForEntry(envelopeId: string, moves: readonly BudgetEnvelopeMove[], entryId: string | null): number {
+  return computeEnvelopeBalanceCents(
+    envelopeId,
+    moves.filter((m) => entryId === null || m.entryId !== entryId),
+  );
+}
+
+export interface LinkPlan {
+  /** Le retrait à retirer d'abord, s'il y a lieu. */
+  remove: string | null;
+  /** Le retrait à créer ensuite, s'il y a lieu. */
+  create: BudgetEnvelopeMoveInput | null;
+}
+
+/**
+ * Payer une dépense avec une enveloppe (docs/etude-astra-epargne.md §6 bis) :
+ * le retrait suit la dépense — son montant, son jour. Changer d'enveloppe,
+ * de montant ou de jour remplace le retrait ; n'en choisir aucune le retire ;
+ * rien de changé, rien à écrire. Une entrée d'argent n'est jamais payée par
+ * une enveloppe.
+ */
+export function linkPlan(
+  existing: BudgetEnvelopeMove | null,
+  envelopeId: string | null,
+  entry: { id: string; amountCents: number; day: string; label: string },
+): LinkPlan {
+  const wanted =
+    envelopeId && entry.amountCents < 0
+      ? { envelopeId, amountCents: entry.amountCents, day: entry.day, note: `Payé : ${entry.label}`, entryId: entry.id }
+      : null;
+  if (existing && wanted && existing.envelopeId === wanted.envelopeId && existing.amountCents === wanted.amountCents && existing.day === wanted.day) {
+    return { remove: null, create: null };
+  }
+  return { remove: existing?.id ?? null, create: wanted };
 }

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { budgetStore } from '../data';
 import { formatCents } from '../lib/amount';
-import type { BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetRule } from '../lib/types';
+import { linkedMove, linkPlan } from '../lib/envelopes';
+import type { BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetEnvelope, BudgetEnvelopeMove, BudgetRule } from '../lib/types';
 import { EntryEditor } from './EntryEditor';
 
 function categoryFor(categories: BudgetCategory[], id: string | null): BudgetCategory | null {
@@ -21,6 +22,8 @@ export function EntriesView({
   entries,
   categories,
   rules,
+  envelopes = [],
+  moves = [],
   frequentCategoryIds,
   onError,
   onChanged,
@@ -30,6 +33,9 @@ export function EntriesView({
   entries: BudgetEntry[];
   categories: BudgetCategory[];
   rules: BudgetRule[];
+  /** Les enveloppes et leurs mouvements : une dépense peut être payée par une enveloppe. */
+  envelopes?: BudgetEnvelope[];
+  moves?: BudgetEnvelopeMove[];
   frequentCategoryIds: string[];
   onError: (message: string) => void;
   onChanged: () => Promise<void>;
@@ -63,16 +69,25 @@ export function EntriesView({
     return () => window.removeEventListener('keydown', onKey);
   }, [editing]);
 
-  async function saveEntry(input: BudgetEntryInput, rememberPattern?: string) {
+  async function saveEntry(input: BudgetEntryInput, rememberPattern?: string, envelopeId?: string | null) {
+    let saved: { id: string; amountCents: number; day: string; label: string };
     if (editing !== null && editing !== 'new') {
       await budgetStore.updateEntry(editing.id, input);
+      saved = { id: editing.id, amountCents: input.amountCents, day: input.day, label: input.label };
     } else {
-      await budgetStore.createEntry(input);
+      saved = await budgetStore.createEntry(input);
     }
     // La règle après l'écriture : l'écriture compte plus que la règle, qui
     // n'est qu'un confort pour les relevés suivants.
     if (rememberPattern && input.categoryId) {
       await budgetStore.createRule({ pattern: rememberPattern, categoryId: input.categoryId, priority: 10 });
+    }
+    // Le retrait d'enveloppe suit la dépense (§6 bis) : l'ancien d'abord retiré,
+    // le nouveau ensuite — jamais deux retraits pour une même dépense.
+    if (envelopeId !== undefined) {
+      const plan = linkPlan(linkedMove(moves, saved.id), envelopeId, saved);
+      if (plan.remove) await budgetStore.deleteEnvelopeMove(plan.remove);
+      if (plan.create) await budgetStore.createEnvelopeMove(plan.create);
     }
     setEditing(null);
     await onChanged();
@@ -117,6 +132,11 @@ export function EntriesView({
                     {entry.label}
                     <span className="budget-row-category">
                       {category ? category.name : 'À classer'}
+                      {(() => {
+                        const paid = linkedMove(moves, entry.id);
+                        const envelope = paid && envelopes.find((e) => e.id === paid.envelopeId);
+                        return envelope ? ` · payée par l’enveloppe ${envelope.emoji} ${envelope.name}` : null;
+                      })()}
                     </span>
                   </span>
                   <span
@@ -155,6 +175,8 @@ export function EntriesView({
           entry={editing === 'new' ? null : editing}
           categories={categories}
           rules={rules}
+          envelopes={envelopes}
+          moves={moves}
           frequentCategoryIds={frequentCategoryIds}
           onCancel={() => setEditing(null)}
           onSave={saveEntry}
