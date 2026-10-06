@@ -112,16 +112,16 @@ describe('LocalCalendar', () => {
     expect((await store.listEvents())[0].reminders).toBeNull();
   });
 
-  it('les réglages des rappels : 15 minutes par défaut, enregistrés, sauvegardés', async () => {
-    expect(await store.getSettings()).toEqual({ timedReminders: [15], allDayReminders: [] });
+  it('les réglages des rappels : aucun par défaut, enregistrés, sauvegardés', async () => {
+    expect(await store.getSettings()).toEqual({ timedReminders: [], allDayReminders: [] });
     await store.saveSettings({ allDayReminders: [360] });
-    expect(await store.getSettings()).toEqual({ timedReminders: [15], allDayReminders: [360] });
+    expect(await store.getSettings()).toEqual({ timedReminders: [], allDayReminders: [360] });
     const backup = await store.exportData();
-    expect(backup.settings).toEqual({ timedReminders: [15], allDayReminders: [360] });
+    expect(backup.settings).toEqual({ timedReminders: [], allDayReminders: [360] });
 
     // Une sauvegarde d'avant les rappels : on revient au défaut.
     await store.importData({ events: [], exceptions: [] });
-    expect(await store.getSettings()).toEqual({ timedReminders: [15], allDayReminders: [] });
+    expect(await store.getSettings()).toEqual({ timedReminders: [], allDayReminders: [] });
   });
 
   it('préserve les sections des autres modules dans le blob local partagé', async () => {

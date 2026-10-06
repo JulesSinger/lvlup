@@ -69,8 +69,13 @@ export interface CalendarSettings {
   allDayReminders: number[];
 }
 
-/** 15 minutes avant un rendez-vous (décision de Jules, 01/10/2026) ; rien en journée entière. */
-export const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = { timedReminders: [15], allDayReminders: [] };
+/**
+ * Aucun rappel par défaut (décision de Jules, 06/10/2026) : les tâches
+ * préviennent déjà à leur heure, et la plupart des événements n'ont pas
+ * besoin de sonner. Un rappel se choisit dans la fenêtre de l'événement, ou
+ * un défaut dans les réglages. (Du 01/10 au 06/10 : 15 minutes avant.)
+ */
+export const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = { timedReminders: [], allDayReminders: [] };
 
 /** Nature d'une exception — pendant de `calendar_exceptions_kind_check`. */
 export const EXCEPTION_KINDS = ['skip', 'override'] as const;

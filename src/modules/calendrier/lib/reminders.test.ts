@@ -28,7 +28,9 @@ const local = (iso: string) => {
   const d = new Date(iso);
   return `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
-const plan = (events: CalendarEvent[], exceptions: EventException[] = [], settings = DEFAULT_CALENDAR_SETTINGS) =>
+/** Les tests du calcul gardent un défaut de 15 minutes, pour avoir quelque chose à planifier. */
+const WITH_DEFAULT = { timedReminders: [15], allDayReminders: [] };
+const plan = (events: CalendarEvent[], exceptions: EventException[] = [], settings = WITH_DEFAULT) =>
   plannedReminders(events, exceptions, settings, now);
 
 describe('plannedReminders', () => {
@@ -97,11 +99,14 @@ describe('plannedReminders', () => {
 describe('effectiveReminders', () => {
   it('un rappel « avec une heure » sur une journée entière (glissée dans la bande) reprend le défaut de sa sorte', () => {
     expect(effectiveReminders([15], true, { timedReminders: [15], allDayReminders: [360] })).toEqual([360]);
-    expect(effectiveReminders([360], false, DEFAULT_CALENDAR_SETTINGS)).toEqual([15]);
+    expect(effectiveReminders([360], false, WITH_DEFAULT)).toEqual([15]);
   });
 
   it('garde ce qui convient, sans doublon', () => {
-    expect(effectiveReminders([15, 15], false, DEFAULT_CALENDAR_SETTINGS)).toEqual([15]);
+    expect(effectiveReminders([15, 15], false, WITH_DEFAULT)).toEqual([15]);
+    // Aucun rappel par défaut (06/10/2026) : un événement qui n'en a pas choisi ne prévient pas.
+    expect(effectiveReminders(null, false, DEFAULT_CALENDAR_SETTINGS)).toEqual([]);
+    expect(effectiveReminders(null, true, DEFAULT_CALENDAR_SETTINGS)).toEqual([]);
   });
 });
 
