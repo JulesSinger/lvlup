@@ -534,6 +534,14 @@ export async function run({ browser, check, BASE }) {
   // bancaire réel exigé).
   await page.getByRole('button', { name: 'Mouvement' }).click();
   await page.getByRole('button', { name: '− Retirer' }).click();
+  check('Retirer montre ce que contient l’enveloppe', ((await page.locator('.field-hint', { hasText: 'Dans l’enveloppe' }).textContent()) ?? '').includes('300,00 €'));
+  await page.locator('#budget-envelope-move-amount').fill('350');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  check(
+    'Retirer plus que le solde est refusé, en clair',
+    ((await page.locator('.modal .notice.error').textContent()) ?? '').includes('ne contient que 300,00 €') &&
+      (await page.locator('.budget-envelope-row .budget-row-amount').textContent())?.trim() === '300,00 €',
+  );
   await page.locator('#budget-envelope-move-amount').fill('100');
   await page.locator('#budget-envelope-move-note').fill('Vidange, payée depuis le compte courant');
   await page.getByRole('button', { name: 'Enregistrer' }).click();

@@ -4,6 +4,7 @@ import {
   computeEnvelopesOverview,
   computeSavingsTimeline,
   computeSavingsTotalCents,
+  withdrawalProblem,
 } from './envelopes';
 import type { BudgetCategory, BudgetEntry, BudgetEnvelope, BudgetEnvelopeMove } from './types';
 
@@ -173,5 +174,15 @@ describe('computeSavingsTimeline', () => {
 
   it('sans écriture, la courbe est vide', () => {
     expect(computeSavingsTimeline([], [])).toEqual([]);
+  });
+});
+
+describe('retirer d’une enveloppe', () => {
+  it('jusqu’à son solde, pas au-delà', () => {
+    expect(withdrawalProblem(8_000, 8_000)).toBeNull();
+    expect(withdrawalProblem(8_001, 8_000)).toBe('Cette enveloppe ne contient que 80,00 € : tu ne peux pas en retirer plus.');
+    expect(withdrawalProblem(500, 1_250)).toBeNull();
+    expect(withdrawalProblem(2_000, 1_250)).toMatch(/12,50 €/);
+    expect(withdrawalProblem(100, 0)).toMatch(/vide/);
   });
 });

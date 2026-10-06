@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
+import { fetchAll, getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
 import { hasChildren, isValidParent } from '../lib/categoryHierarchy';
 import type {
   BudgetCategory,
@@ -211,9 +211,11 @@ export class SupabaseBudget implements BudgetStore {
   }
 
   async listEntries(): Promise<BudgetEntry[]> {
-    const rows = unwrap(
-      await this.client.from('budget_entries').select('*').order('day', { ascending: false }),
-    ) as EntryRow[];
+    // Par paquets : un an d'import bancaire dépasse les 1 000 lignes qu'une
+    // requête rend au plus. Tri stable (l'identifiant départage un même jour).
+    const rows = await fetchAll<EntryRow>((from, to) =>
+      this.client.from('budget_entries').select('*').order('day', { ascending: false }).order('id').range(from, to),
+    );
     return rows.map(toEntry);
   }
 
@@ -238,6 +240,56 @@ export class SupabaseBudget implements BudgetStore {
     return toEntry(row);
   }
 
+  async importEntries(inputs: BudgetEntryInput[]) {
+    const userId = await this.requireUserId();
+    // Les clés déjà en base, demandées par petits paquets (elles voyagent dans l'adresse).
+    const keys = [...new Set(inputs.map((i) => i.importKey).filter((k): k is string => !!k))];
+    const known = new Set<string>();
+    for (let i = 0; i < keys.length; i += 150) {
+      const rows = unwrap(
+        await this.client.from('budget_entries').select('import_key').in('import_key', keys.slice(i, i + 150)),
+      ) as { import_key: string }[];
+      for (const r of rows) known.add(r.import_key);
+    }
+    const seen = new Set<string>();
+    const fresh = inputs.filter((i) => {
+      if (!i.importKey) return true;
+      if (known.has(i.importKey) || seen.has(i.importKey)) return false;
+      seen.add(i.importKey);
+      return true;
+    });
+    let skipped = inputs.length - fresh.length;
+    let written = 0;
+    const toRow = (input: BudgetEntryInput) => ({
+      user_id: userId,
+      day: input.day,
+      label: input.label,
+      amount_cents: Math.round(input.amountCents),
+      category_id: input.categoryId ?? null,
+      source: input.source ?? 'manuelle',
+      import_key: input.importKey ?? null,
+      note: input.note ?? '',
+    });
+    for (let i = 0; i < fresh.length; i += 500) {
+      const chunk = fresh.slice(i, i + 500);
+      const { error } = await this.client.from('budget_entries').insert(chunk.map(toRow));
+      if (!error) {
+        written += chunk.length;
+        continue;
+      }
+      if (!/unique|duplicate|import_key/i.test(error.message)) throw new Error(error.message);
+      // Une ligne entrée entre-temps (un autre appareil, un import concurrent) fait
+      // refuser tout le paquet : on le reprend ligne par ligne, le doublon seul est sauté.
+      for (const input of chunk) {
+        const single = await this.client.from('budget_entries').insert(toRow(input));
+        if (!single.error) written++;
+        else if (/unique|duplicate|import_key/i.test(single.error.message)) skipped++;
+        else throw new Error(single.error.message);
+      }
+    }
+    return { written, skipped };
+  }
+
   async updateEntry(id: string, patch: Partial<BudgetEntryInput>) {
     const row: Record<string, unknown> = {};
     if (patch.day !== undefined) row.day = patch.day;
@@ -257,9 +309,9 @@ export class SupabaseBudget implements BudgetStore {
   }
 
   async listRules(): Promise<BudgetRule[]> {
-    const rows = unwrap(
-      await this.client.from('budget_rules').select('*').order('priority', { ascending: false }),
-    ) as RuleRow[];
+    const rows = await fetchAll<RuleRow>((from, to) =>
+      this.client.from('budget_rules').select('*').order('priority', { ascending: false }).order('id').range(from, to),
+    );
     return rows.map(toRule);
   }
 
@@ -343,9 +395,9 @@ export class SupabaseBudget implements BudgetStore {
   }
 
   async listEnvelopeMoves(): Promise<BudgetEnvelopeMove[]> {
-    const rows = unwrap(
-      await this.client.from('budget_envelope_moves').select('*').order('day', { ascending: false }),
-    ) as EnvelopeMoveRow[];
+    const rows = await fetchAll<EnvelopeMoveRow>((from, to) =>
+      this.client.from('budget_envelope_moves').select('*').order('day', { ascending: false }).order('id').range(from, to),
+    );
     return rows.map(toEnvelopeMove);
   }
 

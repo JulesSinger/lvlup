@@ -150,6 +150,35 @@ export class LocalBudget implements BudgetStore {
     return entry;
   }
 
+  async importEntries(inputs: BudgetEntryInput[]) {
+    const snapshot = read();
+    // Même garantie que l'index unique (user_id, import_key) côté base.
+    const known = new Set(snapshot.entries.map((e) => e.importKey).filter((k): k is string => k !== null));
+    let written = 0;
+    let skipped = 0;
+    for (const input of inputs) {
+      if (input.importKey && known.has(input.importKey)) {
+        skipped++;
+        continue;
+      }
+      if (input.importKey) known.add(input.importKey);
+      snapshot.entries.push({
+        id: newId(),
+        day: input.day,
+        label: input.label,
+        amountCents: Math.round(input.amountCents),
+        categoryId: input.categoryId ?? null,
+        source: input.source ?? 'manuelle',
+        importKey: input.importKey ?? null,
+        note: input.note ?? '',
+        createdAt: new Date().toISOString(),
+      });
+      written++;
+    }
+    write(snapshot);
+    return { written, skipped };
+  }
+
   async updateEntry(id: string, patch: Partial<BudgetEntryInput>) {
     const snapshot = read();
     const entry = snapshot.entries.find((e) => e.id === id);

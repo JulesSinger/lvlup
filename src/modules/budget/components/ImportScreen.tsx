@@ -64,39 +64,28 @@ export function ImportScreen({ categories, onError }: { categories: BudgetCatego
   async function validate() {
     if (!preview) return;
     setSaving(true);
-    let written = 0;
-    let skipped = 0;
-    let rulesCreated = 0;
     try {
+      const { written, skipped } = await budgetStore.importEntries(
+        preview.nouvelles.map(({ row }) => ({
+          day: row.day,
+          label: row.displayLabel,
+          amountCents: row.amountCents,
+          categoryId: categoryChoice[row.importKey] || null,
+          source: 'import' as const,
+          importKey: row.importKey,
+        })),
+      );
+      // Les règles après les écritures, une par libellé : deux lignes au même libellé
+      // ne créent qu'une règle, et une règle déjà connue n'est pas recréée.
+      const existing = new Set((await budgetStore.listRules()).map((r) => r.pattern.trim().toLowerCase()));
+      let rulesCreated = 0;
       for (const { row } of preview.nouvelles) {
         const categoryId = categoryChoice[row.importKey] || null;
-        try {
-          await budgetStore.createEntry({
-            day: row.day,
-            label: row.displayLabel,
-            amountCents: row.amountCents,
-            categoryId,
-            source: 'import',
-            importKey: row.importKey,
-          });
-          written++;
-        } catch (err) {
-          // L'unicité (user_id, import_key) est le filet de sécurité final
-          // (docs/astra-import-boursobank.md §4) : si une ligne s'avère
-          // déjà connue malgré la vérification faite au dépôt du fichier
-          // (un import concurrent, par exemple), elle est comptée comme
-          // déjà importée plutôt que de faire échouer tout le lot.
-          const message = err instanceof Error ? err.message : '';
-          if (/unique|duplicate|import_key/i.test(message)) {
-            skipped++;
-          } else {
-            throw err;
-          }
-        }
-        if (createRule[row.importKey] && categoryId) {
-          await budgetStore.createRule({ pattern: row.rawLabel, categoryId, priority: 10 });
-          rulesCreated++;
-        }
+        const pattern = row.rawLabel.trim();
+        if (!createRule[row.importKey] || !categoryId || existing.has(pattern.toLowerCase())) continue;
+        await budgetStore.createRule({ pattern, categoryId, priority: 10 });
+        existing.add(pattern.toLowerCase());
+        rulesCreated++;
       }
       setResult({ written, skipped, rulesCreated });
       setPreview(null);

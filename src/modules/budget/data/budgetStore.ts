@@ -33,6 +33,13 @@ export interface BudgetStore {
 
   listEntries(): Promise<BudgetEntry[]>;
   createEntry(input: BudgetEntryInput): Promise<BudgetEntry>;
+  /**
+   * L'import d'un relevé, d'un bloc : les lignes dont l'`importKey` est déjà
+   * connue sont sautées (comptées dans `skipped`), les autres écrites par
+   * paquets plutôt qu'une requête par ligne. Rejouable : réimporter après une
+   * coupure complète sans doublon.
+   */
+  importEntries(inputs: BudgetEntryInput[]): Promise<{ written: number; skipped: number }>;
   updateEntry(id: string, patch: Partial<BudgetEntryInput>): Promise<void>;
   deleteEntry(id: string): Promise<void>;
 

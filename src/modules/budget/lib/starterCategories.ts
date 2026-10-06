@@ -30,6 +30,8 @@ export const STARTER_CATEGORIES: BudgetCategoryInput[] = [
 
   // --- Revenus -------------------------------------------------------------
   { name: 'Salaire', emoji: '💼', color: '#4cae5c', kind: 'revenu' },
+  // Les encaissements de Projets y arrivent tout seuls (`ExpenseRequest.direction: 'income'`, 2026-10-06).
+  { name: 'Revenus freelance', emoji: '🧾', color: '#6fa8f5', kind: 'revenu' },
   { name: 'Aides (APL)', emoji: '🏛️', color: '#6fbf7f', kind: 'revenu' },
   { name: 'Remboursements', emoji: '💳', color: '#8fd1a0', kind: 'revenu' },
 

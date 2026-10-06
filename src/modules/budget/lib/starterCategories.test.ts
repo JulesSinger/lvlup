@@ -21,6 +21,10 @@ describe('STARTER_CATEGORIES', () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
+  it('« Revenus freelance » existe, nom exact que Projets demande pour ses encaissements', () => {
+    expect(STARTER_CATEGORIES.find((c) => c.name === 'Revenus freelance')?.kind).toBe('revenu');
+  });
+
   it("chaque nature déclarée est acceptée par le type (donc par la base, voir schema.test.ts)", () => {
     for (const category of STARTER_CATEGORIES) {
       expect(BUDGET_CATEGORY_KINDS).toContain(category.kind);

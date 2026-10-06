@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { parsePositiveAmountToCents } from '../lib/amount';
+import { centsToInputValue, parsePositiveAmountToCents } from '../lib/amount';
+import { withdrawalProblem } from '../lib/envelopes';
 import type { BudgetEnvelope, BudgetEnvelopeMoveInput } from '../lib/types';
 
 function today(): string {
@@ -9,6 +10,8 @@ function today(): string {
 
 interface Props {
   envelope: BudgetEnvelope;
+  /** Son solde : un retrait ne peut pas le dépasser. */
+  balanceCents: number;
   onCancel: () => void;
   onSave: (input: BudgetEnvelopeMoveInput) => Promise<void>;
 }
@@ -23,7 +26,7 @@ interface Props {
  * dépense réelle (§6 bis) — libre, jamais obligatoire : rien n'oblige à
  * documenter une simple réaffectation vers le non-affecté.
  */
-export function EnvelopeMoveForm({ envelope, onCancel, onSave }: Props) {
+export function EnvelopeMoveForm({ envelope, balanceCents, onCancel, onSave }: Props) {
   const [isWithdrawal, setIsWithdrawal] = useState(false);
   const [amountText, setAmountText] = useState('');
   const [day, setDay] = useState(today());
@@ -43,6 +46,11 @@ export function EnvelopeMoveForm({ envelope, onCancel, onSave }: Props) {
     const positive = parsePositiveAmountToCents(amountText);
     if (positive === null || positive === 0) {
       setError('Le montant doit être un nombre supérieur à zéro (ex. 50).');
+      return;
+    }
+    const tooMuch = isWithdrawal ? withdrawalProblem(positive, balanceCents) : null;
+    if (tooMuch) {
+      setError(tooMuch);
       return;
     }
     setSaving(true);
@@ -111,6 +119,7 @@ export function EnvelopeMoveForm({ envelope, onCancel, onSave }: Props) {
                 placeholder="50"
                 autoFocus
               />
+              {isWithdrawal && <span className="field-hint">Dans l’enveloppe : {centsToInputValue(Math.max(0, balanceCents))} €</span>}
             </div>
             <div className="field">
               <label htmlFor="budget-envelope-move-day">Jour</label>

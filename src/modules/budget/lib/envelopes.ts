@@ -1,3 +1,4 @@
+import { centsToInputValue } from './amount';
 import type { BudgetCategory, BudgetEntry, BudgetEnvelope, BudgetEnvelopeMove } from './types';
 
 /**
@@ -93,4 +94,18 @@ export function computeSavingsTimeline(entries: BudgetEntry[], categories: Budge
       running += changeCents;
       return { day, changeCents, totalCents: running };
     });
+}
+
+/**
+ * Un retrait ne peut pas dépasser le solde de l'enveloppe : il la ferait
+ * passer sous zéro, ce qui ne veut rien dire (on ne réserve pas une somme
+ * négative). Rend le message à afficher, ou `null`. Une affectation, elle,
+ * n'a pas de plafond ici : le non-affecté négatif a déjà son alerte.
+ */
+export function withdrawalProblem(amountCents: number, balanceCents: number): string | null {
+  if (amountCents <= balanceCents) return null;
+  const euros = centsToInputValue(balanceCents);
+  return balanceCents <= 0
+    ? 'Cette enveloppe est vide : il n’y a rien à retirer.'
+    : `Cette enveloppe ne contient que ${euros} € : tu ne peux pas en retirer plus.`;
 }

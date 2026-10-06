@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { budgetStore } from '../data';
 import { centsToInputValue, formatCents } from '../lib/amount';
-import { computeEnvelopesOverview, computeSavingsTimeline } from '../lib/envelopes';
+import { computeEnvelopeBalanceCents, computeEnvelopesOverview, computeSavingsTimeline } from '../lib/envelopes';
 import type { BudgetCategory, BudgetEntry, BudgetEnvelope, BudgetEnvelopeMove } from '../lib/types';
 import { EnvelopeEditor } from './EnvelopeEditor';
 import { EnvelopeHistory } from './EnvelopeHistory';
@@ -187,7 +187,7 @@ export function EnvelopesScreen({
       )}
 
       {moving !== null && (
-        <EnvelopeMoveForm envelope={moving} onCancel={() => setMoving(null)} onSave={saveMove} />
+        <EnvelopeMoveForm envelope={moving} balanceCents={computeEnvelopeBalanceCents(moving.id, moves)} onCancel={() => setMoving(null)} onSave={saveMove} />
       )}
 
       {viewingHistory !== null && (

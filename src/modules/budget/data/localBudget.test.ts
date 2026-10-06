@@ -26,6 +26,13 @@ describe('LocalBudget', () => {
     store = new LocalBudget();
   });
 
+  it('importe un relevé d’un bloc, sans jamais doubler une ligne déjà connue', async () => {
+    const line = (key: string, amountCents: number) => ({ day: '2026-10-01', label: key, amountCents, source: 'import' as const, importKey: key });
+    expect(await store.importEntries([line('a', -1000), line('b', -2000), line('a', -1000)])).toEqual({ written: 2, skipped: 1 });
+    expect(await store.importEntries([line('b', -2000), line('c', -3000)])).toEqual({ written: 1, skipped: 1 });
+    expect((await store.listEntries()).map((e) => e.importKey).sort()).toEqual(['a', 'b', 'c']);
+  });
+
   it('crée une catégorie avec ses valeurs par défaut', async () => {
     const category = await store.createCategory({ name: 'Courses' });
     expect(category.kind).toBe('variable');
