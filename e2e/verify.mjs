@@ -17,8 +17,18 @@
  *    sur des ports à part : rien à lancer avant, rien qui reste derrière ;
  *  · le mode comptes est vérifié au même passage (le socle le porte).
  *
- * `npm run verify -- --all` : tout, comme avant de pousser. `--base=<ref>` :
- * comparer à autre chose qu'`origin/main`.
+ * Trois niveaux (décision de Jules, 06/10/2026 : « est-ce qu'on a vraiment
+ * besoin de tout faire à chaque fois ? ») :
+ *
+ *  · `npm run verify` — **rapide**, à chaque commit : types, lint, tests
+ *    unitaires liés aux fichiers modifiés. Pas de navigateur. ~20-30 s ;
+ *  · `npm run verify -- --e2e` — la même chose, plus les suites e2e que le
+ *    changement peut casser, pour un changement risqué à l'écran (un geste,
+ *    un enchaînement de fenêtres). ~1 min pour un module ;
+ *  · `npm run verify -- --all` — tout, mode comptes compris, une fois avant
+ *    de pousser. ~6 min.
+ *
+ * `--base=<ref>` : comparer à autre chose qu'`origin/main`.
  */
 import { execFileSync, spawn } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -28,6 +38,7 @@ import { affectedSuites, serviceGraph } from './affected.mjs';
 const ROOT = new URL('..', import.meta.url).pathname;
 const args = process.argv.slice(2);
 const ALL = args.includes('--all');
+const E2E = ALL || args.includes('--e2e');
 const git = (...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8' }).trim();
 
 // --- Ce qui a changé ------------------------------------------------------------------------
@@ -66,7 +77,11 @@ for (const m of readdirSync(modulesDir).filter((n) => !n.startsWith('_') && stat
 const servicesTs = readFileSync(join(ROOT, 'src/core/lib/services.ts'), 'utf8');
 const serviceNames = [...(/interface AtlasServices \{([\s\S]*?)\n\}/.exec(servicesTs)?.[1] ?? '').matchAll(/^\s*(\w+)\??:/gm)].map((m) => m[1]);
 const graph = serviceGraph(code, serviceNames);
-const plan = ALL ? { all: true, suites: ['socle', ...graph.modules], reason: '--all' } : affectedSuites(changed, graph);
+const plan = ALL
+  ? { all: true, suites: ['socle', ...graph.modules], reason: '--all' }
+  : E2E
+    ? affectedSuites(changed, graph)
+    : { all: false, suites: [], reason: 'mode rapide ; --e2e pour les suites liées, --all avant de pousser' };
 
 console.log(`Comparé à ${base === 'HEAD' ? 'HEAD' : base.slice(0, 8)} : ${changed.length} fichier(s) modifié(s).`);
 console.log(plan.suites.length ? `Suites e2e : ${plan.all ? 'toutes' : plan.suites.join(', ')} (${plan.reason}).` : `Aucune suite e2e (${plan.reason}).`);
@@ -110,7 +125,7 @@ const checks = [
 ];
 
 async function e2e() {
-  if (plan.suites.length === 0) return { name: 'e2e', ok: true, out: '', ms: 0, skipped: true };
+  if (plan.suites.length === 0) return { name: 'e2e', ok: true, out: '', ms: 0, skipped: true, why: E2E ? 'rien à relancer' : 'mode rapide' };
   const t0 = Date.now();
   const builds = await Promise.all([
     run('build', 'npx', ['vite', 'build', '--outDir', 'dist-verify'], LOCAL),
@@ -142,7 +157,7 @@ for (const r of results) {
   }
 }
 console.log('');
-for (const r of results) console.log(`${r.ok ? 'OK  ' : 'FAIL'} ${r.name}${r.skipped ? ' (rien à relancer)' : ` — ${seconds(r.ms)}`}`);
+for (const r of results) console.log(`${r.ok ? 'OK  ' : 'FAIL'} ${r.name}${r.skipped ? ` (${r.why})` : ` — ${seconds(r.ms)}`}`);
 const ok = results.every((r) => r.ok);
 console.log(`\n${ok ? 'Tout passe' : 'Des vérifications échouent'}, en ${seconds(Date.now() - started)}.${ALL ? '' : ' Avant de pousser : npm run verify -- --all'}`);
 process.exit(ok ? 0 : 1);
