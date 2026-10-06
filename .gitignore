@@ -4,6 +4,8 @@ node_modules/
 # Build
 dist/
 dist-auth/
+dist-verify/
+dist-verify-auth/
 
 # Captures d'écran générées par `npm run check` (src/modules/objectifs/e2e/suite.mjs)
 screens/

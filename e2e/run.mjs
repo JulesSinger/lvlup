@@ -19,7 +19,7 @@
  * modules). `Promise.allSettled` plutôt que `Promise.all` : une suite qui
  * plante ne doit pas empêcher de savoir si les trois autres passent.
  */
-import { readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const BASE = process.env.BASE ?? 'http://localhost:4173';
@@ -59,22 +59,49 @@ async function discoverModuleSuites() {
   return suites;
 }
 
-const browser = await chromium.launch({
-  executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-});
+/** Le navigateur : `CHROME_PATH` s'il est donné, sinon Chrome sur le Mac, sinon celui de la VM Linux du nuage. */
+const executablePath = [
+  process.env.CHROME_PATH,
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+].find((path) => path && existsSync(path));
+const browser = await chromium.launch({ executablePath });
 
 const core = await import('./core.mjs');
-const jobs = [{ name: 'socle', mod: core }, ...(await discoverModuleSuites())];
+const all = [{ name: 'socle', mod: core }, ...(await discoverModuleSuites())];
+/**
+ * Seulement certaines suites : `node e2e/run.mjs taches calendrier` (ou
+ * `ONLY=taches,calendrier`). Sans nom, toutes. Un nom inconnu arrête tout
+ * plutôt que de passer en silence sur une suite qui n'existe pas.
+ */
+const wanted = [...process.argv.slice(2), ...(process.env.ONLY ?? '').split(',')].map((s) => s.trim()).filter(Boolean);
+const unknown = wanted.filter((name) => !all.some((job) => job.name === name));
+if (unknown.length > 0) {
+  console.error(`Suite inconnue : ${unknown.join(', ')}. Suites : ${all.map((job) => job.name).join(', ')}.`);
+  process.exit(2);
+}
+const jobs = wanted.length > 0 ? all.filter((job) => wanted.includes(job.name)) : all;
 const checkers = jobs.map(() => makeChecker());
 
+// La durée de chaque suite, affichée : savoir laquelle coûte avant de chercher à gagner du temps.
+const startedAt = Date.now();
+const durations = jobs.map(() => 0);
 const outcomes = await Promise.allSettled(
-  jobs.map((job, i) => job.mod.run({ browser, check: checkers[i].check, BASE })),
+  jobs.map(async (job, i) => {
+    const t0 = Date.now();
+    try {
+      return await job.mod.run({ browser, check: checkers[i].check, BASE });
+    } finally {
+      durations[i] = Date.now() - t0;
+    }
+  }),
 );
+const seconds = (ms) => `${Math.round(ms / 1000)} s`;
 
 await browser.close();
 
 for (let i = 0; i < jobs.length; i++) {
-  console.log(`\n--- ${jobs[i].name} ---`);
+  console.log(`\n--- ${jobs[i].name} (${seconds(durations[i])}) ---`);
   for (const line of checkers[i].lines) console.log(line);
   if (outcomes[i].status === 'rejected') {
     console.log(`ERREUR — la suite "${jobs[i].name}" s'est arrêtée en cours : ${outcomes[i].reason}`);
@@ -84,5 +111,5 @@ for (let i = 0; i < jobs.length; i++) {
 const results = checkers.flatMap((c) => c.results);
 const failed = results.filter((r) => !r.ok);
 const crashed = outcomes.some((o) => o.status === 'rejected');
-console.log(`\n${results.length - failed.length}/${results.length} vérifications passées`);
+console.log(`\n${results.length - failed.length}/${results.length} vérifications passées, en ${seconds(Date.now() - startedAt)}`);
 process.exit(failed.length === 0 && !crashed ? 0 : 1);
