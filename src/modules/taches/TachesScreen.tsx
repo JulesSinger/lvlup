@@ -56,7 +56,7 @@ type Toast = { text: string; undo?: () => Promise<void> };
 const PLACEHOLDERS: Record<string, string> = {
   today: 'Appeler le garage 9h, Impôts avant le 30 !…',
   upcoming: 'Dentiste jeudi 14h, Anniversaire de Léa le 15 mars…',
-  inbox: 'Une idée, une chose à faire — tu la rangeras plus tard',
+  inbox: 'Une chose à faire — sans liste, elle reste ici',
   list: 'Ajouter à cette liste — « demain », « !! », « #liste » fonctionnent',
 };
 
@@ -262,7 +262,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
           ? `à faire avant le ${shortDate(created.dueDay, today)}`
           : created.listId
             ? `dans ${listName(created.listId)}`
-            : 'dans la boîte de réception';
+            : 'dans À faire';
       showToast({ text: `« ${created.title} » ajoutée, ${where}.` });
     }
   }
@@ -535,8 +535,8 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
     if (items.length === 0) {
       return (
         <div className="taches-empty">
-          <p>La boîte de réception est vide.</p>
-          <p className="taches-hint">Ce que tu ajoutes sans liste arrive ici, pour le ranger plus tard.</p>
+          <p>Rien à faire.</p>
+          <p className="taches-hint">Ce que tu ajoutes sans liste arrive ici.</p>
         </div>
       );
     }
@@ -544,7 +544,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
   }
 
   const title =
-    view === 'today' ? 'Aujourd’hui' : view === 'upcoming' ? 'À venir' : view === 'inbox' ? 'Boîte de réception' : view === 'done' ? 'Terminées' : (currentList?.name ?? '');
+    view === 'today' ? 'Aujourd’hui' : view === 'upcoming' ? 'À venir' : view === 'inbox' ? 'À faire' : view === 'done' ? 'Terminées' : (currentList?.name ?? '');
 
   return (
     <div className="layout">
@@ -580,7 +580,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
             [
               ['today', 'Aujourd’hui', counts.today],
               ['upcoming', 'À venir', 0],
-              ['inbox', 'Boîte de réception', counts.inbox],
+              ['inbox', 'À faire', counts.inbox],
               ['done', 'Terminées', 0],
             ] as const
           ).map(([id, label, n]) => (

@@ -38,7 +38,7 @@ describe('taskMarks — le calque de Polaris', () => {
   it('sans jour prévu, à son échéance, marquée comme telle ; faite, cochée', () => {
     const t = task({ id: 'b', title: 'Impôts', dueDay: '2026-09-30', completedAt: '2026-09-28T10:00:00Z' });
     expect(taskMarks([t], [], '2026-09-28', '2026-10-04', '2026-09-28')).toEqual([
-      { id: 'task:b', day: '2026-09-30', title: '⚑ Impôts', detail: 'Boîte de réception · à faire aujourd’hui', checkable: true, done: true, movable: false, link: 'task:b' },
+      { id: 'task:b', day: '2026-09-30', title: '⚑ Impôts', detail: 'à faire aujourd’hui', checkable: true, done: true, movable: false, link: 'task:b' },
     ]);
   });
 
@@ -61,7 +61,7 @@ describe('taskMarks — le calque de Polaris', () => {
       ['forecast:w:2026-10-07', '2026-10-07', false, true],
       ['forecast:w:2026-10-14', '2026-10-14', false, true],
     ]);
-    expect(marks[1]).toMatchObject({ time: '18:00', link: 'task:w', detail: 'Prochaine fois · Boîte de réception · répétée' });
+    expect(marks[1]).toMatchObject({ time: '18:00', link: 'task:w', detail: 'Prochaine fois · répétée' });
   });
 
   it('la semaine suivante : les prochaines fois, même si l’occurrence en cours n’y est pas', () => {

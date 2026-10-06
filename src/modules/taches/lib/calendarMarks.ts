@@ -19,7 +19,8 @@ export function taskMarks(tasks: readonly Task[], lists: readonly TaskList[], fr
     const day = task.plannedDay ?? task.dueDay;
     if (!day) continue;
     const detail = [
-      task.listId ? listName.get(task.listId) : 'Boîte de réception',
+      // Sans liste, rien : « À faire · à faire aujourd'hui » se répéterait (06/10/2026).
+      task.listId ? listName.get(task.listId) : '',
       PRIORITY[task.priority],
       task.dueDay ? dueLabel(task.dueDay, day) : '',
       task.recurrence ? 'répétée' : '',

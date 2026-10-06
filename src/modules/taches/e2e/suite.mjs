@@ -120,10 +120,10 @@ export async function run({ browser, check, BASE }) {
   await row(page, 'Cartouches').waitFor();
   check('« #maison » range dans la liste, et la ligne le dit', (await text(row(page, 'Cartouches'))).includes('# Maison'));
 
-  await page.getByRole('button', { name: /^Boîte de réception/ }).click();
+  await page.getByRole('button', { name: /^À faire/ }).click();
   await add(page, 'Idée de cadeau');
   await row(page, 'Idée de cadeau').waitFor();
-  check('La boîte de réception garde ce qui n’a pas de liste, daté ou non', (await row(page, 'Idée de cadeau').isVisible()) && (await row(page, 'Réunion de lundi').isVisible()) && (await row(page, 'Ampoule').count()) === 0);
+  check('« À faire » garde ce qui n’a pas de liste, daté ou non', (await row(page, 'Idée de cadeau').isVisible()) && (await row(page, 'Réunion de lundi').isVisible()) && (await row(page, 'Ampoule').count()) === 0);
 
   // --- Cocher, et défaire ------------------------------------------------------------------------
   await page.getByRole('button', { name: /^Aujourd’hui/ }).click();
@@ -185,8 +185,8 @@ export async function run({ browser, check, BASE }) {
   await page.locator('.taches-list-editor').getByRole('button', { name: 'Supprimer' }).click();
   await page.waitForSelector('.taches-list-editor', { state: 'detached' });
   check(
-    'Supprimer une liste renvoie ses tâches à la boîte de réception',
-    (await text(page.locator('.taches-title'))).includes('Boîte de réception') && (await row(page, 'Ampoule du salon').isVisible()) && (await page.getByRole('button', { name: /^Maison/ }).count()) === 0,
+    'Supprimer une liste renvoie ses tâches dans « À faire »',
+    (await text(page.locator('.taches-title'))).includes('À faire') && (await row(page, 'Ampoule du salon').isVisible()) && (await page.getByRole('button', { name: /^Maison/ }).count()) === 0,
   );
   // Les rappels (étape 5) : en mode local, la section explique qu'il faut un compte, sans interrupteur inutile.
   await page.getByRole('button', { name: 'Réglages' }).click();
@@ -308,6 +308,17 @@ export async function run({ browser, check, BASE }) {
   await p4.locator('.taches-title, h1').first().click();
   await inline.waitFor({ state: 'detached' });
   check('Quitter une ligne vide la referme, sans tâche vide', (await titles(p4)).length === 5);
+  // Toucher de nouveau sous la liste, ligne ouverte : elle se referme, et ne se rouvre pas (signalé par Jules).
+  const belowThird = await below.boundingBox();
+  await p4.mouse.click(belowThird.x + belowThird.width / 2, belowThird.y + belowThird.height - 10);
+  await inline.waitFor();
+  await p4.mouse.click(belowThird.x + belowThird.width / 2, belowThird.y + belowThird.height - 10);
+  await inline.waitFor({ state: 'detached', timeout: 2000 }).catch(() => {});
+  check('Toucher encore sous la liste referme la ligne vide (elle ne se rouvre pas)', (await inline.count()) === 0 && (await titles(p4)).length === 5);
+  await p4.mouse.click(belowThird.x + belowThird.width / 2, belowThird.y + belowThird.height - 10);
+  await inline.waitFor();
+  check('… et un toucher de plus la rouvre', (await inline.count()) === 1);
+  await inline.press('Escape');
   check('Aucune erreur JavaScript à l’étape 4', errors4.length === 0, errors4.join(' | '));
   await ctx4.close();
 

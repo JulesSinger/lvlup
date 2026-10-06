@@ -22,6 +22,14 @@ export function InlineAdd({ today, lists, onAdd }: Props) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  /**
+   * La ligne était-elle ouverte au moment d'appuyer ? Toucher sous la liste
+   * fait d'abord perdre le curseur à la ligne (qui se referme), puis ce même
+   * toucher la rouvrait aussitôt : on ne pouvait pas l'annuler en touchant
+   * à côté (signalé par Jules, 06/10/2026). `mousedown` arrive avant la perte
+   * du curseur : c'est là qu'on regarde.
+   */
+  const wasOpen = useRef(false);
 
   async function submit(keepOpen: boolean) {
     const parsed = parseQuickAdd(text, today, lists, new Set());
@@ -47,7 +55,16 @@ export function InlineAdd({ today, lists, onAdd }: Props) {
   return (
     <div
       className="taches-inline-add"
+      onMouseDown={() => {
+        wasOpen.current = open;
+      }}
       onClick={() => {
+        if (wasOpen.current) {
+          // Toucher à côté d'une ligne ouverte la referme (ce qui était écrit est ajouté par la perte du curseur).
+          wasOpen.current = false;
+          setOpen(false);
+          return;
+        }
         setOpen(true);
         // Après le rendu de la ligne : le champ reçoit le curseur.
         requestAnimationFrame(() => input.current?.focus());

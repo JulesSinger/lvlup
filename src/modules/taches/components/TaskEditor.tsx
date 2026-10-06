@@ -207,7 +207,7 @@ export function TaskEditor(props: Props) {
               <div className="field">
                 <label htmlFor="taches-list">Liste</label>
                 <select id="taches-list" value={listId ?? ''} onChange={(e) => setListId(e.target.value || null)}>
-                  <option value="">Boîte de réception</option>
+                  <option value="">Aucune (À faire)</option>
                   {lists
                     .filter((l) => !l.archived || l.id === listId)
                     .map((l) => (
