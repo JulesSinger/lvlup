@@ -151,6 +151,19 @@ from cron.job_run_details order by start_time desc limit 5;
 `select status_code, content from net._http_response order by created desc limit 3;`
 (`{"mode":"cron", …}` attendu ; `401` = la clé `service_role` est fausse).
 
+**Le 06/10/2026, même piège une deuxième fois** : l'adresse avait été corrigée, mais la clé était
+restée un texte de remplacement (`Bearer COLLE_ICI…`, 16 caractères). Le cron était `succeeded`
+(l'appel part), la fonction répondait `401 Clé de service attendue` à chaque passage, et aucun
+rappel ne partait. `succeeded` dans `cron.job_run_details` ne suffit donc pas : il faut lire
+`net._http_response`. La vraie clé `service_role` fait plus de 200 caractères (Supabase →
+Project Settings → API Keys → onglet des clés « Legacy », `service_role`).
+
+**Et la bonne clé était encore refusée** : la fonction comparait le jeton reçu à la variable
+`SUPABASE_SERVICE_ROLE_KEY` qu'elle reçoit de Supabase, qui n'est plus forcément la clé
+« Legacy » depuis les nouvelles clés (`sb_secret_…`). Depuis la version `2026-10-06.1`, elle
+demande à Supabase si le jeton est une clé de service, quel que soit son format : une clé
+`service_role` Legacy comme une `sb_secret_…` conviennent dans le cron.
+
 ---
 
 ## Vérifier que ça marche

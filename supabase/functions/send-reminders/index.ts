@@ -34,7 +34,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { KEEP_SENT_DAYS, payloadFor, splitDue, type ModuleReminderRow } from './moduleReminders.ts';
 import { b64urlDecode, normalizeVapidSubject, sendWebPush } from './webpush.ts';
 
-const VERSION = '2026-09-28.1';
+const VERSION = '2026-10-06.1';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -111,6 +111,30 @@ function isDue(nowMinutes: number, targetMinutes: number): boolean {
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false },
 });
+
+/**
+ * Le jeton reçu est-il une clé de service du projet ?
+ *
+ * Comparer à `SUPABASE_SERVICE_ROLE_KEY` ne suffit plus : depuis les nouvelles
+ * clés de Supabase (`sb_secret_…`), la variable fournie à la fonction et la
+ * clé « Legacy » `service_role` (un JWT) sont deux clés valides mais
+ * différentes. Le 06/10/2026, le cron envoyait la bonne clé `service_role` et
+ * recevait 401 à chaque passage. On demande donc à Supabase lui-même : seule
+ * une clé de service peut lister les comptes, quel que soit son format.
+ */
+async function isServiceToken(token: string): Promise<boolean> {
+  if (!token) return false;
+  if (token === SERVICE_KEY) return true;
+  try {
+    const client = createClient(SUPABASE_URL, token, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { error } = await client.auth.admin.listUsers({ page: 1, perPage: 1 });
+    return !error;
+  } catch {
+    return false;
+  }
+}
 
 /** Envoie une notification, et nettoie l'abonnement s'il est mort. */
 async function push(sub: SubscriptionRow, payload: Record<string, unknown>) {
@@ -375,8 +399,8 @@ Deno.serve(async (request) => {
     }
 
     // ---------------------------------------------------------------- cron
-    if (token !== SERVICE_KEY) {
-      return json({ error: 'Clé de service attendue pour le mode planifié.' }, 401);
+    if (!(await isServiceToken(token))) {
+      return json({ error: 'Clé de service attendue pour le mode planifié.', version: VERSION }, 401);
     }
 
     const { data: profiles, error } = await admin
