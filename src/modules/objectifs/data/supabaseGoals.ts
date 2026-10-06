@@ -291,6 +291,14 @@ export class SupabaseGoals implements GoalsStore {
   }
 
 
+  async reorderGoals(patches: { id: string; position: number }[]) {
+    for (const { id, position } of patches) {
+      const { error } = await this.client.from('goals').update({ position }).eq('id', id);
+      if (error) throw new Error(error.message);
+    }
+  }
+
+
   async deleteGoal(id: string) {
     // Les paliers partent avec l'objectif grâce au ON DELETE CASCADE du schéma.
     const { error } = await this.client.from('goals').delete().eq('id', id);

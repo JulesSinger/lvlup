@@ -42,6 +42,11 @@ export interface GoalsStore {
     patch: Partial<GoalInput> & { archived?: boolean; trackAmount?: boolean | null },
   ): Promise<void>;
   deleteGoal(id: string): Promise<void>;
+  /**
+   * Range les objectifs dans l'ordre donné (glisser-déposer des tuiles) :
+   * `patches` ne porte que les positions qui changent (`core/lib/order.ts`).
+   */
+  reorderGoals(patches: { id: string; position: number }[]): Promise<void>;
 
   createTier(goalId: string, input: TierInput): Promise<Tier>;
   updateTier(id: string, patch: Partial<TierInput> & { completedAt?: string | null }): Promise<void>;

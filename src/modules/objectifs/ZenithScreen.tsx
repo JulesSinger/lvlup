@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent, PointerEvent } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
+import { moveItem, positionPatches } from '../../core/lib/order';
 import { playCheckinBlip, vibrate } from '../../core/lib/sound';
 import { adoptLegacyOnboarding, hasOnboarded, markOnboarded } from '../../core/lib/onboarding';
 import { ActionEditor } from './components/ActionEditor';
@@ -7,6 +9,7 @@ import { Ceremony, type Celebration } from './components/Ceremony';
 import { GoalCard } from './components/GoalCard';
 import { GoalEditor, type GoalSeed } from './components/GoalEditor';
 import { GoalPicker } from './components/GoalPicker';
+import { GoalTile, type TileHandle } from './components/GoalTile';
 import { Hub } from './components/Hub';
 import { Onboarding } from './components/Onboarding';
 import { Timeline } from './components/Timeline';
@@ -31,6 +34,7 @@ import { freezeOffer, goalProgress, ppForRank, profileRank, todayPP } from './li
 import { getRank, ladderInsert, ladderMove } from './lib/ranks';
 import type { GoalTemplate } from './lib/templates';
 import { MAX_FREEZES, computeStreak, dayString } from './lib/streak';
+import { goalIdFromHash, hashForGoal } from './lib/tile';
 import { FREEZE_COST, ONE_OFF_PP } from './lib/types';
 import type {
   Action,
@@ -86,7 +90,14 @@ export function ZenithScreen({
   const [picking, setPicking] = useState(false);
   /** Actions à créer avec le prochain objectif (venues d'un modèle). */
   const [seedActions, setSeedActions] = useState<ActionInput[] | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  /**
+   * L'objectif ouvert en fiche, à la place des tuiles (06/10/2026). Il est
+   * aussi dans l'adresse (`#/objectifs/<id>`) : le geste « retour » du
+   * téléphone ramène aux tuiles au lieu de quitter le module.
+   */
+  const [openGoalId, setOpenGoalId] = useState<string | null>(() => goalIdFromHash(window.location.hash));
+  /** Vrai quand c'est nous qui avons ajouté l'entrée d'historique de la fiche. */
+  const pushedGoal = useRef(false);
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
   /** Nombre de coches encore dans la file d'attente hors ligne. */
   const [pendingCount, setPendingCount] = useState(() => listPending().length);
@@ -204,8 +215,10 @@ export function ZenithScreen({
     setPicking(false);
     setSeedActions(null);
     setCelebrations([]);
-    setExpanded(new Set());
-    setView('accueil');
+    const fromHash = goalIdFromHash(window.location.hash);
+    setOpenGoalId(fromHash);
+    pushedGoal.current = false;
+    setView(fromHash ? 'objectifs' : 'accueil');
     setOnboardedId(adoptLegacyOnboarding(user.id) || hasOnboarded(user.id) ? user.id : null);
     setLoading(true);
     // `sync` plutôt que `refresh` : si une coche attend depuis la dernière
@@ -267,6 +280,9 @@ export function ZenithScreen({
   );
 
   const activeGoals = useMemo(() => goals.filter((g) => !g.archived), [goals]);
+  const tileIds = useMemo(() => activeGoals.map((g) => g.id), [activeGoals]);
+  const openedGoal = activeGoals.find((g) => g.id === openGoalId) ?? null;
+  const today = dayString();
   const archivedGoals = useMemo(() => goals.filter((g) => g.archived), [goals]);
 
   /**
@@ -599,8 +615,7 @@ export function ZenithScreen({
         }
         for (const a of seedActions) await goalsStore.createAction(created.id, a);
       }
-      setExpanded((set) => new Set(set).add(created.id));
-      setView('objectifs');
+      openGoal(created.id);
       // Planifier est déjà un accomplissement : on le célèbre, sans PP —
       // les points restent réservés à ce qu'on fait vraiment.
       if (tiers.length > 0) {
@@ -619,16 +634,133 @@ export function ZenithScreen({
     setSeedActions(null);
   }
 
-  function toggleExpand(id: string) {
-    setExpanded((set) => {
-      const next = new Set(set);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  // --- Les tuiles et la fiche -----------------------------------------------
+
+  function openGoal(id: string) {
+    setOpenGoalId(id);
+    setView('objectifs');
+    const hash = hashForGoal(id);
+    if (window.location.hash !== hash) {
+      window.history.pushState(null, '', hash);
+      pushedGoal.current = true;
+    }
+  }
+
+  /** Revenir aux tuiles : par l'historique si la fiche y a mis une entrée. */
+  function closeGoal() {
+    if (pushedGoal.current && goalIdFromHash(window.location.hash)) {
+      pushedGoal.current = false;
+      window.history.back();
+      return;
+    }
+    pushedGoal.current = false;
+    setOpenGoalId(null);
+    if (goalIdFromHash(window.location.hash)) window.history.replaceState(null, '', '#/objectifs');
+  }
+
+  // Retour et avant du navigateur : l'adresse dit si une fiche est ouverte.
+  useEffect(() => {
+    const onPop = () => {
+      const id = goalIdFromHash(window.location.hash);
+      setOpenGoalId(id);
+      if (id) setView('objectifs');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  /** Changer de vue depuis la navigation referme la fiche. */
+  function showView(next: View) {
+    if (openGoalId) closeGoal();
+    setView(next);
+  }
+
+  // Réordonner les tuiles. Le glisser ne fait que déplacer un identifiant ;
+  // seules les positions qui changent sont écrites à la fin. Comme dans
+  // Tâches, c'est la fenêtre qui écoute le pointeur pendant le glisser : la
+  // tuile tenue change de place dans la page, et perdrait le suivi.
+  const gridRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ id: string; order: string[] } | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
+
+  async function saveOrder(order: string[]) {
+    const patches = positionPatches(activeGoals, order);
+    if (patches.length === 0) return;
+    // L'écran garde le nouvel ordre pendant l'écriture, sans revenir en arrière.
+    const position = new Map(patches.map((p) => [p.id, p.position]));
+    setGoals((prev) =>
+      prev
+        .map((g) => (position.has(g.id) ? { ...g, position: position.get(g.id)! } : g))
+        .sort((a, b) => a.position - b.position),
+    );
+    await run(() => goalsStore.reorderGoals(patches));
+  }
+
+  useEffect(() => {
+    if (!dragId) return;
+    const move = (e: globalThis.PointerEvent) => {
+      const current = drag.current;
+      if (!current || !gridRef.current) return;
+      // La nouvelle place, en ordre de lecture : les autres tuiles d'une
+      // rangée au-dessus du pointeur, plus celles de sa rangée à sa gauche.
+      const others = [...gridRef.current.querySelectorAll<HTMLElement>(':scope > [data-goal-id]')].filter(
+        (el) => el.dataset.goalId !== current.id,
+      );
+      const to = others.filter((el) => {
+        const box = el.getBoundingClientRect();
+        if (box.bottom < e.clientY) return true;
+        return box.top <= e.clientY && box.left + box.width / 2 < e.clientX;
+      }).length;
+      const from = current.order.indexOf(current.id);
+      if (to === from) return;
+      current.order = moveItem(current.order, from, to);
+      setDragOrder(current.order);
+    };
+    const up = () => {
+      const order = drag.current?.order;
+      drag.current = null;
+      setDragId(null);
+      setDragOrder(null);
+      if (order) void saveOrder(order);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragId]);
+
+  function tileHandle(goal: Goal, ids: string[]): TileHandle {
+    return {
+      dragging: dragId === goal.id,
+      onPointerDown: (e: PointerEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+        drag.current = { id: goal.id, order: ids };
+        setDragOrder(ids);
+        setDragId(goal.id);
+      },
+      onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => {
+        const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
+        if (!step) return;
+        e.preventDefault();
+        const from = ids.indexOf(goal.id);
+        const to = from + step;
+        if (to < 0 || to >= ids.length) return;
+        void saveOrder(moveItem(ids, from, to)).then(() => {
+          // Le focus suit la tuile déplacée, pour enchaîner les flèches.
+          gridRef.current?.querySelector<HTMLElement>(`[data-goal-id="${goal.id}"] .goal-tile-handle`)?.focus();
+        });
+      },
+    };
   }
 
   function archiveGoal(goal: Goal) {
+    if (openGoalId === goal.id) closeGoal();
     void run(() => goalsStore.updateGoal(goal.id, { archived: true }));
   }
 
@@ -639,6 +771,7 @@ export function ZenithScreen({
   function deleteGoal(goal: Goal) {
     const label = `Supprimer « ${goal.title} » et ses ${goal.tiers.length} palier(s) ? Cette action est définitive.`;
     if (!window.confirm(label)) return;
+    if (openGoalId === goal.id) closeGoal();
     void run(() => goalsStore.deleteGoal(goal.id));
   }
 
@@ -728,6 +861,59 @@ export function ZenithScreen({
 
   // --- Rendu ------------------------------------------------------------
 
+  /** La fiche d'un objectif ouvert depuis sa tuile : toute la carte, dépliée. */
+  function renderGoalSheet(goal: Goal) {
+    return (
+    <GoalCard
+      key={goal.id}
+      goal={goal}
+      expanded
+      page
+      onToggleExpand={() => {}}
+      onEdit={() => setEditing({ goal })}
+      onArchive={() => archiveGoal(goal)}
+      onDelete={() => deleteGoal(goal)}
+      onAddTier={(input, index) => addTier(goal, input, index)}
+      onUpdateTier={(tierId, patch) => {
+        if (patch.completedAt) {
+          const tier = goal.tiers.find((t) => t.id === tierId);
+          if (tier) celebrateTier(goal, tier);
+        }
+        return run(() => goalsStore.updateTier(tierId, patch));
+      }}
+      onDeleteTier={(tierId) => run(() => goalsStore.deleteTier(tierId))}
+      onMoveTier={async (tierId, direction) => moveTier(goal, tierId, direction)}
+      onSetTrackAmount={(value) =>
+        run(() => goalsStore.updateGoal(goal.id, { trackAmount: value }))
+      }
+      actions={actions}
+      checkins={checkins}
+      actionEditor={
+        <ActionEditor
+          actions={actions.filter((a) => a.goalId === goal.id)}
+          onCreate={(input: ActionInput) => {
+            // Une action ajoutée après coup à un objectif en cumul
+            // ou en performance doit déjà porter une quantité,
+            // sinon la cocher ne fait jamais monter le palier.
+            const ladder = ladderKind(goal.tiers);
+            const targets = goal.tiers
+              .map((t) => t.target)
+              .filter((t): t is number => typeof t === 'number');
+            const amount = ladder
+              ? inheritedActionAmount(ladder.kind, ladder.unit, targets)
+              : { unit: '', defaultValue: null };
+            return run(() =>
+              goalsStore.createAction(goal.id, { ...input, ...amount }),
+            );
+          }}
+          onUpdate={(id, patch) => run(() => goalsStore.updateAction(id, patch))}
+          onDelete={(id) => run(() => goalsStore.deleteAction(id))}
+        />
+      }
+    />
+    );
+  }
+
   // Première visite : on guide au lieu de laisser devant un écran vide.
   if (!loading && !onboardingDone && goals.length === 0) {
     return (
@@ -735,10 +921,8 @@ export function ZenithScreen({
         onSkip={finishOnboarding}
         onFinish={(input, tiers, actions) => {
           finishOnboarding();
-          void run(async () => {
-            const created = await goalsStore.createGoal(input, tiers, actions);
-            setExpanded((set) => new Set(set).add(created.id));
-          });
+          // On arrive sur l'accueil, là où l'on coche : « Créer et commencer ».
+          void run(() => goalsStore.createGoal(input, tiers, actions));
         }}
       />
     );
@@ -772,7 +956,7 @@ export function ZenithScreen({
             <button
               key={v.id}
               className={`nav-item${view === v.id ? ' active' : ''}`}
-              onClick={() => setView(v.id)}
+              onClick={() => showView(v.id)}
               aria-current={view === v.id ? 'page' : undefined}
             >
               <span className="nav-icon" aria-hidden="true">
@@ -887,7 +1071,7 @@ export function ZenithScreen({
               onSaveNote={saveCheckinNote}
               onSaveValue={saveCheckinValue}
               onValidateTier={validateTier}
-              onGoToGoals={() => setView('objectifs')}
+              onGoToGoals={() => showView('objectifs')}
               freezePurchases={freezePurchases}
               onBuyFreeze={buyFreeze}
             />
@@ -899,60 +1083,38 @@ export function ZenithScreen({
             {activeGoals.length === 0 ? (
               emptyState
             ) : (
-              <div className="goal-grid">
-                {activeGoals.map((goal, index) => (
-                  <GoalCard
-                    key={goal.id}
-                    goal={goal}
-                    index={index}
-                    expanded={expanded.has(goal.id)}
-                    onToggleExpand={() => toggleExpand(goal.id)}
-                    onEdit={() => setEditing({ goal })}
-                    onArchive={() => archiveGoal(goal)}
-                    onDelete={() => deleteGoal(goal)}
-                    onAddTier={(input, index) => addTier(goal, input, index)}
-                    onUpdateTier={(tierId, patch) => {
-                      if (patch.completedAt) {
-                        const tier = goal.tiers.find((t) => t.id === tierId);
-                        if (tier) celebrateTier(goal, tier);
-                      }
-                      return run(() => goalsStore.updateTier(tierId, patch));
-                    }}
-                    onDeleteTier={(tierId) => run(() => goalsStore.deleteTier(tierId))}
-                    onMoveTier={async (tierId, direction) => moveTier(goal, tierId, direction)}
-                    onSetTrackAmount={(value) =>
-                      run(() => goalsStore.updateGoal(goal.id, { trackAmount: value }))
-                    }
-                    actions={actions}
-                    checkins={checkins}
-                    actionEditor={
-                      <ActionEditor
-                        actions={actions.filter((a) => a.goalId === goal.id)}
-                        onCreate={(input: ActionInput) => {
-                          // Une action ajoutée après coup à un objectif en cumul
-                          // ou en performance doit déjà porter une quantité,
-                          // sinon la cocher ne fait jamais monter le palier.
-                          const ladder = ladderKind(goal.tiers);
-                          const targets = goal.tiers
-                            .map((t) => t.target)
-                            .filter((t): t is number => typeof t === 'number');
-                          const amount = ladder
-                            ? inheritedActionAmount(ladder.kind, ladder.unit, targets)
-                            : { unit: '', defaultValue: null };
-                          return run(() =>
-                            goalsStore.createAction(goal.id, { ...input, ...amount }),
-                          );
-                        }}
-                        onUpdate={(id, patch) => run(() => goalsStore.updateAction(id, patch))}
-                        onDelete={(id) => run(() => goalsStore.deleteAction(id))}
+              openedGoal ? (
+                <div className="goal-sheet">
+                  <button type="button" className="btn btn-ghost btn-sm goal-back" onClick={closeGoal}>
+                    ← Objectifs
+                  </button>
+                  {renderGoalSheet(openedGoal)}
+                </div>
+              ) : (
+              <>
+                <p className="goal-grid-hint">Touche un objectif pour l’ouvrir · glisse ⠿ pour le déplacer</p>
+                <div className="goal-grid" ref={gridRef}>
+                  {(dragOrder ?? tileIds)
+                    .map((id) => activeGoals.find((g) => g.id === id))
+                    .filter((g): g is Goal => !!g)
+                    .map((goal, index) => (
+                      <GoalTile
+                        key={goal.id}
+                        goal={goal}
+                        index={index}
+                        actions={actions}
+                        checkins={checkins}
+                        today={today}
+                        onOpen={() => openGoal(goal.id)}
+                        handle={tileHandle(goal, tileIds)}
                       />
-                    }
-                  />
-                ))}
-              </div>
+                    ))}
+                </div>
+              </>
+              )
             )}
 
-            {archivedGoals.length > 0 && (
+            {!openedGoal && archivedGoals.length > 0 && (
               <section className="archived">
                 <h2 className="archived-title">Archivés ({archivedGoals.length})</h2>
                 <p className="archived-hint">

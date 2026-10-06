@@ -18,7 +18,7 @@ import { applyPendingTasks, pendingTaskIds } from './data/taskOutbox';
 import { taskWriter } from './data/taskWriter';
 import { dayLabel, shortDate } from './lib/format';
 import type { QuickAdd } from './lib/quickAdd';
-import { moveItem, positionPatches } from './lib/order';
+import { moveItem, positionPatches } from '../../core/lib/order';
 import { completionPlan, undoCompletion, upcomingOccurrences } from './lib/repeat';
 import { effectiveTaskReminders } from './lib/reminders';
 import { DEFAULT_TACHES_SETTINGS, type TachesSettings, type Task, type TaskInput, type TaskList, type TaskPatch } from './lib/types';

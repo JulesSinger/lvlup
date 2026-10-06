@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { moveItem, positionPatches } from './order';
-import type { Task } from './types';
 
 describe('réordonner', () => {
   it('moveItem déplace un élément, vers le haut ou vers le bas, bornes comprises', () => {
@@ -15,7 +14,7 @@ describe('réordonner', () => {
       { id: 'a', position: 0 },
       { id: 'b', position: 1 },
       { id: 'c', position: 2 },
-    ] as Task[];
+    ];
     expect(positionPatches(tasks, ['a', 'c', 'b'])).toEqual([
       { id: 'c', position: 1 },
       { id: 'b', position: 2 },

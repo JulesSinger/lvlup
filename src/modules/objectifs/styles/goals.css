@@ -1,9 +1,276 @@
 /* ------------------------------------------------------------ goal cards */
+/* Des tuiles toutes égales (06/10/2026) : même structure, même hauteur, quel
+   que soit l'objectif — neuf, avec une longue histoire ou une courbe. La
+   grille ne laisse donc plus de trous, et ne se recompose plus en ouvrant un
+   objectif : sa fiche s'ouvre à la place des tuiles. */
 .goal-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
+}
+
+.goal-grid-hint {
+  margin: -4px 0 12px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.goal-tile {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(170deg, var(--surface), var(--bg-2));
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease;
+  animation: goal-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+.goal-tile:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--shadow-ink) 35%, transparent);
+}
+
+.goal-tile.complete {
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+}
+
+/* La tuile tenue : on voit où elle va se poser, les autres glissent autour. */
+.goal-tile.dragging {
+  opacity: 0.55;
+  border-style: dashed;
+  border-color: var(--accent);
+  transform: none;
+  box-shadow: none;
+  animation: none;
+}
+
+.goal-tile-handle {
+  position: absolute;
+  top: 10px;
+  right: 8px;
+  z-index: 1;
+  padding: 4px 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-faint);
+  font-size: 15px;
+  line-height: 1;
+  cursor: grab;
+  /* Au doigt, la poignée glisse au lieu de faire défiler la page. */
+  touch-action: none;
+}
+
+.goal-tile-handle:hover,
+.goal-tile-handle:focus-visible {
+  color: var(--text);
+  background: var(--tint);
+}
+
+.goal-tile.dragging .goal-tile-handle {
+  cursor: grabbing;
+}
+
+/* Tout le reste de la tuile est un seul bouton : toucher l'ouvre. */
+.goal-tile-body {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  padding: 14px 16px 14px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.goal-tile-body:focus-visible {
+  outline: 2px solid var(--border-strong);
+  outline-offset: -2px;
+  border-radius: var(--radius);
+}
+
+/* Chaque ligne a une hauteur fixe : c'est ce qui rend les tuiles égales. */
+.goal-tile-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding-right: 30px;
+  min-width: 0;
+}
+
+.goal-tile-emoji {
+  font-size: 20px;
+  line-height: 1;
+  flex: none;
+}
+
+.goal-tile-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+
+.goal-tile-progress .rank-badge {
+  flex: none;
+}
+
+.goal-tile-new {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.goal-tile-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 24px;
+}
+
+.goal-tile-progress .bar {
+  flex: 1;
+}
+
+.goal-tile-progress .goal-count {
+  flex: none;
+}
+
+.goal-tile-next {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  height: 18px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+  min-width: 0;
+}
+
+.goal-tile-next-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goal-tile-next-label strong {
+  color: var(--text-dim);
+  font-weight: 550;
+}
+
+/* Le compteur ne se coupe jamais : c'est la seule chose de la ligne qui dise
+   où on en est (même règle que l'ancienne carte repliée). */
+.goal-tile-next-count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.goal-tile-next-count b {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.goal-tile-hint {
+  color: var(--accent);
+}
+
+.goal-tile-activity {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 30px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* Une barre par semaine : la hauteur dit combien de jours on s'y est mis. */
+.goal-tile-strip {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 100%;
+}
+
+.goal-tile-week {
+  flex: 1;
+  min-width: 3px;
+  border-radius: 2px 2px 0 0;
+  background: var(--tile-color);
+}
+
+/* Une semaine sans rien : un trait au ras du sol, pas une barre. */
+.goal-tile-week-empty {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--border-strong);
+}
+
+/* Avant la création de l'objectif : un pointillé, ni échec ni vide. */
+.goal-tile-week-ghost {
+  height: 2px;
+  background: none;
+  border-top: 2px dotted var(--border);
+}
+
+.goal-tile-streak {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.goal-tile-streak b {
+  color: var(--text);
+}
+
+/* La fiche d'un objectif ouvert : à la place des tuiles. */
+.goal-sheet {
+  display: grid;
+  gap: 12px;
+}
+
+.goal-back {
+  justify-self: start;
+}
+
+/* Au doigt, une poignée plus large : 44 px, la taille d'un doigt. */
+@media (pointer: coarse) {
+  .goal-tile-handle {
+    top: 4px;
+    right: 2px;
+    padding: 12px 14px;
+  }
+}
+
+/* Comme les anciennes cartes : pas d'entrée en cascade sur téléphone, ni
+   pour qui demande moins d'animations. */
+@media (prefers-reduced-motion: reduce), (max-width: 760px) {
+  .goal-tile {
+    animation: none;
+  }
 }
 
 .goal {

@@ -42,6 +42,26 @@ async function reloadZenith(p) {
   await enterZenith(p);
 }
 
+/*
+ * La page Objectifs est faite de tuiles égales (06/10/2026) ; toucher une
+ * tuile ouvre la fiche de l'objectif à leur place, « ← Objectifs » y ramène.
+ */
+const goalTile = (p, which = 0) =>
+  typeof which === 'number' ? p.locator('.goal-tile').nth(which) : p.locator('.goal-tile', { hasText: which });
+
+/** Les tuiles, depuis n'importe où dans le module (une fiche ouverte se referme). */
+async function showGoals(p) {
+  await p.getByRole('button', { name: /^Objectifs/ }).first().click();
+  await p.waitForSelector('.goal-tile');
+}
+
+/** Ouvre la fiche d'un objectif (par sa place ou son titre). */
+async function openGoal(p, which = 0) {
+  if ((await p.locator('.goal-tile').count()) === 0) await showGoals(p);
+  await goalTile(p, which).locator('.goal-tile-body').click();
+  await p.waitForSelector('.goal-page .ladder');
+}
+
 export async function run({ browser, check, BASE }) {
   const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
   const page = await context.newPage();
@@ -91,9 +111,8 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.next-tier').count()) === 3,
     String(await page.locator('.next-tier').count()),
   );
-  await page.getByRole('button', { name: /^Objectifs/ }).click();
-  await page.waitForSelector('.goal');
-  check('3 objectifs créés', (await page.locator('.goal').count()) === 3);
+  await showGoals(page);
+  check('3 objectifs créés', (await page.locator('.goal-tile').count()) === 3);
   check(
     'Nombre de paliers variable selon les objectifs',
     (await page.locator('.goal-count').nth(0).textContent())?.includes('0/5') &&
@@ -102,8 +121,7 @@ export async function run({ browser, check, BASE }) {
   );
 
   // 2. Validation de paliers -> rang de l'objectif et rang global
-  await page.locator('.goal').first().locator('.goal-head').click();
-  await page.waitForSelector('.ladder');
+  await openGoal(page, 0);
   await page.locator('.tier-check').nth(0).click();
   await page.waitForSelector('.ceremony');
   check('Cérémonie affichée à la validation', await page.locator('.ceremony-rank').isVisible());
@@ -159,8 +177,7 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.activity-item').count()) === 2,
     String(await page.locator('.activity-item').count()),
   );
-  await page.getByRole('button', { name: /^Objectifs/ }).click();
-  await page.waitForSelector('.ladder');
+  await openGoal(page, 0);
 
   // 3. Ajout d'un palier à un objectif existant
   await page.locator('.ladder-add input').fill('Courir 42 km sous les 4 h');
@@ -184,13 +201,12 @@ export async function run({ browser, check, BASE }) {
   // 4. Persistance après rechargement (retour sur le hub par défaut)
   await reloadZenith(page);
   await page.waitForSelector('.brand');
-  await page.getByRole('button', { name: /^Objectifs/ }).click();
-  await page.waitForSelector('.goal');
-  check('Données persistées après rechargement', (await page.locator('.goal').count()) === 3);
+  await showGoals(page);
+  check('Données persistées après rechargement', (await page.locator('.goal-tile').count()) === 3);
   check(
     'Rang objectif conservé',
-    (await page.locator('.goal').first().locator('.goal-title-row .rank-badge').textContent()) ===
-      'Argent',
+    (await goalTile(page, 0).locator('.rank-badge').textContent()) === 'Argent',
+    await goalTile(page, 0).locator('.rank-badge').textContent(),
   );
 
   // 5. Historique + graphique de progression
@@ -331,45 +347,58 @@ export async function run({ browser, check, BASE }) {
   );
   await dismissCeremonies(page);
   await page.waitForTimeout(400);
-  check('4e objectif créé', (await page.locator('.goal').count()) === 4);
+  check(
+    'Un objectif tout juste créé s’ouvre sur sa fiche',
+    (await page.locator('.goal-page .goal-title').textContent()) === 'Apprendre un instrument',
+    await page.locator('.goal-page .goal-title').textContent(),
+  );
+  await showGoals(page);
+  check('4e objectif créé', (await page.locator('.goal-tile').count()) === 4);
   check(
     'Le modèle apporte ses propres actions',
-    (await page.locator('.goal').nth(3).locator('.goal-count').textContent())?.includes('0/4'),
-    await page.locator('.goal').nth(3).locator('.goal-count').textContent(),
+    (await goalTile(page, 3).locator('.goal-count').textContent())?.includes('0/4'),
+    await goalTile(page, 3).locator('.goal-count').textContent(),
+  );
+  check(
+    'Un objectif jamais travaillé est dit « nouveau »',
+    (await goalTile(page, 3).locator('.goal-tile-new').count()) === 1,
   );
 
-  // 7. Modification d'un objectif
-  await page.locator('.goal').nth(3).locator('.goal-actions button').first().click();
+  // 7. Modification d'un objectif, depuis sa fiche
+  await openGoal(page, 3);
+  await page.locator('.goal-page .goal-actions button').first().click();
   await page.waitForSelector('.modal');
   await page.locator('#goal-title').fill('Apprendre le piano');
   await page.getByRole('button', { name: 'Enregistrer' }).click();
   await page.waitForTimeout(300);
   check(
     'Objectif renommé',
-    (await page.locator('.goal').nth(3).locator('.goal-title').textContent()) ===
-      'Apprendre le piano',
+    (await page.locator('.goal-page .goal-title').textContent()) === 'Apprendre le piano',
   );
 
-  // 8. Suppression (les actions sont désormais ✎ / 📦 / 🗑)
+  // 8. Suppression (les actions sont désormais ✎ / 📦 / 🗑) : on revient aux tuiles
   page.once('dialog', (d) => d.accept());
-  await page.locator('.goal').nth(3).locator('.goal-actions button').nth(2).click();
+  await page.locator('.goal-page .goal-actions button').nth(2).click();
+  await page.waitForSelector('.goal-tile');
   await page.waitForTimeout(400);
-  check('Objectif supprimé', (await page.locator('.goal').count()) === 3);
+  check('Objectif supprimé', (await page.locator('.goal-tile').count()) === 3);
 
   // 8 bis. Archivage réversible
-  await page.locator('.goal').nth(1).locator('.goal-actions button').nth(1).click();
+  await openGoal(page, 1);
+  await page.locator('.goal-page .goal-actions button').nth(1).click();
+  await page.waitForSelector('.goal-tile');
   await page.waitForTimeout(400);
   check(
-    'Objectif archivé : retiré de la grille',
-    (await page.locator('.goal').count()) === 2,
-    String(await page.locator('.goal').count()),
+    'Objectif archivé : retiré des tuiles',
+    (await page.locator('.goal-tile').count()) === 2,
+    String(await page.locator('.goal-tile').count()),
   );
   check('Section Archivés visible', (await page.locator('.archived-row').count()) === 1);
   await page.getByRole('button', { name: 'Restaurer' }).click();
   await page.waitForTimeout(400);
   check(
     'Objectif restauré depuis les archives',
-    (await page.locator('.goal').count()) === 3 && (await page.locator('.archived-row').count()) === 0,
+    (await page.locator('.goal-tile').count()) === 3 && (await page.locator('.archived-row').count()) === 0,
   );
 
   // 9. Actions du quotidien, anneau, streak et trophées
@@ -479,12 +508,10 @@ export async function run({ browser, check, BASE }) {
   );
 
   // Édition d'une action : renommer + changer les PP
-  await page.getByRole('button', { name: /^Objectifs/ }).click();
-  await page.waitForSelector('.goal');
-  await page.locator('.goal').first().locator('.goal-head').click();
+  await openGoal(page, 0);
   await page.waitForSelector('.action-editor');
   check(
-    'Éditeur d’actions présent dans la carte dépliée',
+    'Éditeur d’actions présent dans la fiche de l’objectif',
     (await page.locator('.action-row').count()) === 2,
     String(await page.locator('.action-row').count()),
   );
@@ -621,8 +648,7 @@ export async function run({ browser, check, BASE }) {
 
   // Aucun palier ne bouge : sinon « 30 jours sans écran » se validerait en
   // notant trente fois « j'y ai pensé ».
-  await page.getByRole('button', { name: /^Objectifs/ }).click();
-  await page.waitForSelector('.goal');
+  await showGoals(page);
   check(
     'Aucun palier ne monte grâce à un geste ponctuel',
     ((await page.locator('.goal-count').first().textContent()) ?? '').includes('2/6'),
@@ -653,9 +679,9 @@ export async function run({ browser, check, BASE }) {
 
 
   // 10. Vue finale
-  await page.getByRole('button', { name: /^Objectifs/ }).click();
-  await page.waitForSelector('.goal');
-  await page.locator('.goal').nth(1).locator('.goal-head').click();
+  await showGoals(page);
+  await page.screenshot({ path: 'screens/objectifs.png', fullPage: true });
+  await openGoal(page, 1);
   await page.waitForTimeout(200);
   await page.screenshot({ path: 'screens/accueil.png', fullPage: true });
 
@@ -818,9 +844,11 @@ export async function run({ browser, check, BASE }) {
     );
   }
 
-  await mobile.getByRole('button', { name: /^Objectifs/ }).click();
-  await mobile.waitForSelector('.goal');
-  await mobile.locator('.goal-head').first().click();
+  await showGoals(mobile);
+  check('Rendu mobile des tuiles sans débordement horizontal', await mobile.evaluate(
+    () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+  ));
+  await openGoal(mobile, 0);
   await mobile.waitForTimeout(200);
   await mobile.screenshot({ path: 'screens/mobile.png', fullPage: true });
   check('Rendu mobile sans débordement horizontal', await mobile.evaluate(
@@ -1100,9 +1128,7 @@ export async function run({ browser, check, BASE }) {
       await cp.locator('.meter-count').first().textContent(),
     );
 
-    await cp.getByRole('button', { name: /^Objectifs/ }).click();
-    await cp.waitForSelector('.goal');
-    await cp.locator('.goal-head').first().click();
+    await openGoal(cp, 0);
     await cp.waitForTimeout(400);
     check(
       'Le palier atteint est daté dans l’échelle',
@@ -1121,14 +1147,7 @@ export async function run({ browser, check, BASE }) {
     await cp.locator('.checkin-chip.done').first().click();
     await cp.waitForTimeout(900);
     await dismissCeremonies(cp);
-    await cp.getByRole('button', { name: /^Objectifs/ }).click();
-    await cp.waitForSelector('.goal');
-    // L'échelle est restée dépliée depuis tout à l'heure : re-cliquer sur
-    // l'en-tête la refermerait.
-    if ((await cp.locator('.ladder').count()) === 0) {
-      await cp.locator('.goal-head').first().click();
-    }
-    await cp.waitForSelector('.ladder');
+    await openGoal(cp, 0);
     await cp.waitForTimeout(400);
     check(
       'Annuler une coche ne reprend jamais un palier acquis',
@@ -1260,10 +1279,7 @@ export async function run({ browser, check, BASE }) {
     );
 
     // 4. La courbe : la pente, pas le pourcentage.
-    await qp.getByRole('button', { name: /^Objectifs/ }).click();
-    await qp.waitForSelector('.goal');
-    await qp.locator('.goal-head').first().click();
-    await qp.waitForSelector('.ladder');
+    await openGoal(qp, 0);
     await qp.waitForTimeout(400);
     check(
       'Une mesure a sa courbe dès le deuxième relevé',
@@ -1352,10 +1368,8 @@ export async function run({ browser, check, BASE }) {
     await dismissCeremonies(qp);
     await qp.waitForSelector('.goal');
     await qp.waitForTimeout(600);
-    const poids = qp.locator('.goal', { hasText: 'Perdre du poids' });
-    // La carte d'un objectif tout juste créé s'ouvre d'elle-même : cliquer
-    // l'en-tête la refermerait.
-    if ((await poids.locator('.ladder').count()) === 0) await poids.locator('.goal-head').click();
+    // Un objectif tout juste créé s'ouvre sur sa fiche.
+    const poids = qp.locator('.goal-page', { hasText: 'Perdre du poids' });
     await qp.waitForSelector('.action-editor');
     await qp.waitForTimeout(500);
     check(
@@ -1614,13 +1628,40 @@ export async function run({ browser, check, BASE }) {
     });
     await reloadZenith(hp);
     await hp.waitForSelector('.hub');
-    await hp.getByRole('button', { name: /^Objectifs/ }).click();
-    await hp.waitForSelector('.goal');
+    await showGoals(hp);
     await hp.waitForTimeout(700);
 
+    // Les tuiles (06/10/2026) : une bande de douze semaines chacune, et toutes
+    // la même hauteur — c'est ce qui supprime les trous de la grille.
     check(
-      'Chaque objectif porte sa grille de jours',
-      (await hp.locator('.heat').count()) === 3,
+      'Chaque tuile porte sa bande de douze semaines',
+      (await hp.locator('.goal-tile-strip').count()) === 3 &&
+        (await hp.locator('.goal-tile-strip').first().locator('.goal-tile-week').count()) === 12,
+      String(await hp.locator('.goal-tile-strip').count()),
+    );
+    {
+      const heights = await hp
+        .locator('.goal-tile')
+        .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().height)));
+      check('Toutes les tuiles ont la même hauteur', new Set(heights).size === 1, heights.join(', '));
+    }
+    check(
+      'Une semaine d’avant la création n’est qu’un pointillé',
+      (await goalTile(hp, 'craquer les doigts').locator('.goal-tile-week-ghost').count()) > 0,
+    );
+    check(
+      'Tous les paliers validés + on coche encore = Entretien, dès la tuile',
+      (await goalTile(hp, 'Méditer').locator('.goal-state.maint').textContent()) === 'Entretien',
+      await goalTile(hp, 'Méditer').locator('.goal-tile-streak').textContent(),
+    );
+
+    // La grande grille vit dans la fiche. D'abord l'objectif né il y a
+    // quarante jours, qui porte les cases fantômes et le repère d'hier.
+    await openGoal(hp, 'craquer les doigts');
+    await hp.waitForTimeout(400);
+    check(
+      'La fiche porte la grille de jours',
+      (await hp.locator('.heat').count()) === 1,
       String(await hp.locator('.heat').count()),
     );
     check(
@@ -1644,7 +1685,7 @@ export async function run({ browser, check, BASE }) {
       // fenêtre. L'ancienne version interrogeait la première grille, née bien
       // avant la fenêtre : ses seules cases hors période étaient les jours à
       // venir de la semaine en cours, et il n'y en a aucun le dimanche.
-      const jeune = hp.locator('.goal', { hasText: 'craquer les doigts' }).locator('.heat');
+      const jeune = hp.locator('.goal-page', { hasText: 'craquer les doigts' }).locator('.heat');
       const ghosts = await jeune.locator('.heat-cell.ghost').count();
       check(
         'Rien n’est dessiné avant la création de l’objectif',
@@ -1659,8 +1700,17 @@ export async function run({ browser, check, BASE }) {
 
     // La règle des deux jours : un seul repère, sur la seule habitude concernée.
     check(
-      'La règle des deux jours ne se lève que là où hier est resté vide',
+      'La règle des deux jours se lève là où hier est resté vide',
       (await hp.locator('.heat-cell.warn').count()) === 1,
+      String(await hp.locator('.heat-cell.warn').count()),
+    );
+
+    // Le reste se lit sur une habitude tenue jusqu'à aujourd'hui.
+    await openGoal(hp, 'ronger les ongles');
+    await hp.waitForTimeout(400);
+    check(
+      'Et pas ailleurs',
+      (await hp.locator('.heat-cell.warn').count()) === 0,
       String(await hp.locator('.heat-cell.warn').count()),
     );
 
@@ -1784,16 +1834,20 @@ export async function run({ browser, check, BASE }) {
     }
 
     // On ne finit pas une habitude.
+    await openGoal(hp, 'Méditer');
+    await hp.waitForTimeout(300);
     check(
       'Tous les paliers validés + on coche encore = Entretien',
-      (await hp.locator('.goal', { hasText: 'Méditer' }).locator('.goal-state.maint').textContent()) ===
-        'Entretien',
-      await hp.locator('.goal', { hasText: 'Méditer' }).locator('.goal-state').textContent(),
+      (await hp.locator('.goal-page .goal-state.maint').textContent()) === 'Entretien',
+      await hp.locator('.goal-page .goal-state').textContent(),
     );
     check(
       'Et « Objectif accompli » ne s’affiche plus à sa place',
       (await hp.locator('.goal-state.done').count()) === 0,
     );
+    // Les cases vides et fantômes : sur l'objectif né dans la fenêtre.
+    await openGoal(hp, 'craquer les doigts');
+    await hp.waitForTimeout(300);
     {
       // Une case vide doit se voir comme une case vide, pas comme un trou : sans
       // ça la grille se lit comme des carrés flottants au lieu d'un calendrier.
@@ -1830,6 +1884,72 @@ export async function run({ browser, check, BASE }) {
           `${ghostBorder} contre ${emptyBorder}`,
         );
       }
+    }
+
+    // --- Déplacer les tuiles (06/10/2026) ----------------------------------
+    {
+      const titres = () => hp.locator('.goal-tile-title').allTextContents();
+
+      // Le geste « retour » referme la fiche sans quitter Objectifs.
+      check(
+        'La fiche ouverte est dans l’adresse',
+        /#\/objectifs\/hb3$/.test(hp.url()),
+        hp.url(),
+      );
+      await hp.goBack();
+      await hp.waitForSelector('.goal-tile');
+      check(
+        'Revenir en arrière ramène aux tuiles, toujours dans Objectifs',
+        (await hp.locator('.goal-page').count()) === 0 && (await hp.locator('.goal-tile').count()) === 3,
+        hp.url(),
+      );
+
+      const avant = await titres();
+      await goalTile(hp, 0).locator('.goal-tile-handle').focus();
+      await hp.keyboard.press('ArrowRight');
+      await hp.waitForTimeout(500);
+      const apres = await titres();
+      check(
+        'Au clavier, une flèche déplace la tuile d’un cran',
+        apres[0] === avant[1] && apres[1] === avant[0],
+        apres.join(' | '),
+      );
+
+      // À la souris : la troisième tuile glissée avant la première.
+      const poignee = await goalTile(hp, 2).locator('.goal-tile-handle').boundingBox();
+      const cible = await goalTile(hp, 0).boundingBox();
+      await hp.mouse.move(poignee.x + poignee.width / 2, poignee.y + poignee.height / 2);
+      await hp.mouse.down();
+      for (let i = 1; i <= 12; i++) {
+        await hp.mouse.move(
+          poignee.x + (cible.x + 20 - poignee.x) * (i / 12),
+          poignee.y + (cible.y + cible.height / 2 - poignee.y) * (i / 12),
+        );
+        await hp.waitForTimeout(16);
+      }
+      check('La tuile tenue se voit', (await hp.locator('.goal-tile.dragging').count()) === 1);
+      await hp.mouse.up();
+      await hp.waitForTimeout(600);
+      const glisse = await titres();
+      check(
+        'Glisser une tuile la pose à sa nouvelle place',
+        glisse[0] === apres[2] && glisse[1] === apres[0] && glisse[2] === apres[1],
+        glisse.join(' | '),
+      );
+      await reloadZenith(hp);
+      await showGoals(hp);
+      check(
+        'Le nouvel ordre est retenu',
+        JSON.stringify(await titres()) === JSON.stringify(glisse),
+        (await titres()).join(' | '),
+      );
+      await hp.getByRole('button', { name: 'Accueil' }).click();
+      await hp.waitForSelector('.today-goal');
+      check(
+        'Et l’accueil suit le même ordre',
+        ((await hp.locator('.today-goal').first().textContent()) ?? '').includes(glisse[0]),
+        await hp.locator('.today-goal').first().textContent(),
+      );
     }
     await fresh.close();
   }
@@ -1869,7 +1989,7 @@ export async function run({ browser, check, BASE }) {
     });
     await reloadZenith(fp);
     await fp.waitForSelector('.hub');
-    await fp.getByRole('button', { name: /^Objectifs/ }).click();
+    await openGoal(fp, 'Courir un semi-marathon');
     await fp.waitForSelector('.heat');
     await fp.waitForTimeout(700);
 
@@ -1886,7 +2006,7 @@ export async function run({ browser, check, BASE }) {
     const lit = () => fp.locator('.heat-cell[data-level="3"], .heat-cell[data-level="2"], .heat-cell[data-level="1"]').count();
     const before = await lit();
 
-    await fp.getByRole('button', { name: 'Sortie longue' }).click();
+    await fp.getByRole('button', { name: 'Sortie longue', exact: true }).click();
     await fp.waitForTimeout(350);
     check(
       'Filtrer sur une action réduit la grille à ses jours',
@@ -1899,7 +2019,7 @@ export async function run({ browser, check, BASE }) {
     );
 
     // Le vrai service rendu : voir ce qu'on ne fait jamais.
-    await fp.getByRole('button', { name: 'Renforcement' }).click();
+    await fp.getByRole('button', { name: 'Renforcement', exact: true }).click();
     await fp.waitForTimeout(350);
     check(
       'Une action jamais faite le dit, au lieu de disparaître',
@@ -1912,7 +2032,7 @@ export async function run({ browser, check, BASE }) {
     await fp.waitForTimeout(350);
     check('Revenir à « Tout » restaure la grille entière', (await lit()) === before);
 
-    await fp.getByRole('button', { name: 'Sortie course' }).click();
+    await fp.getByRole('button', { name: 'Sortie course', exact: true }).click();
     await fp.waitForTimeout(300);
     await fp.locator('.heat-cell[data-level="3"]').first().click();
     await fp.waitForTimeout(300);
@@ -1924,7 +2044,7 @@ export async function run({ browser, check, BASE }) {
     );
 
     // Une action de relevé ne se filtre pas en cases : elle se filtre en courbe.
-    await fp.getByRole('button', { name: 'Me peser' }).click();
+    await fp.getByRole('button', { name: 'Me peser', exact: true }).click();
     await fp.waitForTimeout(350);
     check(
       'Filtrer sur un relevé remplace la grille par une courbe',
@@ -2051,13 +2171,8 @@ export async function run({ browser, check, BASE }) {
     await cp.getByRole('button', { name: "Créer l'objectif" }).click();
     await dismissCeremonies(cp);
     await cp.waitForTimeout(500);
-    await cp.getByRole('button', { name: /^Objectifs/ }).click();
-    await cp.waitForSelector('.goal');
-    const carte = cp.locator('.goal', { hasText: 'Traverser la France à pied' });
-    if ((await carte.locator('.goal-head').getAttribute('aria-expanded')) !== 'true') {
-      await carte.locator('.goal-head').click();
-      await cp.waitForTimeout(400);
-    }
+    await openGoal(cp, 'Traverser la France à pied');
+    const carte = cp.locator('.goal-page');
 
     check(
       'La carte annonce la nature de l’objectif entier',
@@ -2083,8 +2198,7 @@ export async function run({ browser, check, BASE }) {
     );
 
     // Un palier ajouté ensuite hérite, sans rien demander.
-    await cp.getByRole('button', { name: /^Objectifs/ }).click();
-    await cp.waitForSelector('.goal');
+    await openGoal(cp, 'Traverser la France à pied');
     await carte.locator('.ladder-add input').fill('Courir 100 km');
     await carte.getByRole('button', { name: 'Ajouter', exact: true }).click();
     await cp.waitForTimeout(500);
@@ -2302,18 +2416,8 @@ export async function run({ browser, check, BASE }) {
     } else {
       await petite.click();
       await ob.waitForTimeout(900);
-      await ob.getByRole('button', { name: /^Objectifs/ }).click();
-      await ob.waitForSelector('.goal');
-      // La carte est déjà dépliée : l'accompagnement ajoute l'objectif créé à
-      // `expanded`. Cliquer l'en-tête la refermerait, et `.ladder` disparu,
-      // toute lecture suivante attendrait 30 s avant de tuer le fichier — au
-      // lieu de nommer un échec. On n'ouvre donc que si c'est nécessaire, et
-      // on lit à travers un garde.
-      const echelle = ob.locator('.ladder');
-      if ((await echelle.count()) === 0) {
-        await ob.locator('.goal').first().locator('.goal-head').click();
-        await ob.waitForTimeout(400);
-      }
+      await openGoal(ob, 0);
+      await ob.waitForTimeout(400);
       const compteur = ob.locator('.meter-count').first();
       const lu = (await compteur.count()) === 0 ? null : await compteur.textContent();
       const propre = (lu ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -2382,13 +2486,9 @@ export async function run({ browser, check, BASE }) {
     );
 
     // La carte de l'objectif porte le cumul des deux, semaine par semaine.
-    await km.getByRole('button', { name: /^Objectifs/ }).click();
-    await km.waitForSelector('.goal');
-    const carteKm = km.locator('.goal', { hasText: 'Courir un marathon' });
-    if ((await carteKm.locator('.goal-amount').count()) === 0) {
-      await carteKm.locator('.goal-head').click();
-      await km.waitForTimeout(400);
-    }
+    await openGoal(km, 'Courir un marathon');
+    await km.waitForTimeout(400);
+    const carteKm = km.locator('.goal-page');
     check(
       'Le cumul multi-actions apparaît sur la carte de l’objectif',
       (await carteKm.locator('.goal-amount').count()) === 1,
@@ -2460,7 +2560,7 @@ export async function run({ browser, check, BASE }) {
     // Une action ajoutée à la main hérite désormais d'une quantité (le
     // correctif du jour) — pour rejouer le cas vraiment sans quantité, on la
     // repasse en « Simple » juste après, ce qui l'efface.
-    await en.getByRole('button', { name: /^Objectifs/ }).click();
+    await openGoal(en, 'Apprendre l’anglais');
     await en.waitForSelector('.action-editor');
     await en.locator('.action-add input').fill('Duolingo');
     await en.getByRole('button', { name: "Ajouter l'action" }).click();
@@ -2483,13 +2583,9 @@ export async function run({ browser, check, BASE }) {
     await blocEn.locator('.checkin-chip', { hasText: 'Duolingo' }).click();
     await en.waitForTimeout(600);
 
-    await en.getByRole('button', { name: /^Objectifs/ }).click();
-    await en.waitForSelector('.goal');
-    const carteEn = en.locator('.goal', { hasText: 'Apprendre l’anglais' });
-    if ((await carteEn.locator('.action-editor').count()) === 0) {
-      await carteEn.locator('.goal-head').click();
-      await en.waitForTimeout(400);
-    }
+    await openGoal(en, 'Apprendre l’anglais');
+    await en.waitForTimeout(400);
+    const carteEn = en.locator('.goal-page');
     check(
       'Une action sans quantité ne fait pas apparaître un cumul à zéro',
       (await carteEn.locator('.goal-amount').count()) === 0,
@@ -2535,7 +2631,7 @@ export async function run({ browser, check, BASE }) {
     await dismissCeremonies(jr);
     await jr.waitForTimeout(500);
 
-    await jr.getByRole('button', { name: /^Objectifs/ }).click();
+    await openGoal(jr, 'Pratiquer l’anglais');
     await jr.waitForSelector('.action-editor');
     await jr.locator('.action-add input').fill('Duolingo');
     await jr.getByRole('button', { name: "Ajouter l'action" }).click();
@@ -2547,13 +2643,9 @@ export async function run({ browser, check, BASE }) {
     await blocJr.locator('.checkin-chip', { hasText: 'Duolingo' }).click();
     await jr.waitForTimeout(600);
 
-    await jr.getByRole('button', { name: /^Objectifs/ }).click();
-    await jr.waitForSelector('.goal');
-    const carteJr = jr.locator('.goal', { hasText: 'Pratiquer l’anglais' });
-    if ((await carteJr.locator('.action-editor').count()) === 0) {
-      await carteJr.locator('.goal-head').click();
-      await jr.waitForTimeout(400);
-    }
+    await openGoal(jr, 'Pratiquer l’anglais');
+    await jr.waitForTimeout(400);
+    const carteJr = jr.locator('.goal-page');
     check(
       'Un jour coché s’affiche tout de suite, sans quantifier l’action',
       (await carteJr.locator('.goal-amount').count()) === 1,

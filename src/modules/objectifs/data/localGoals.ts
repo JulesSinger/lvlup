@@ -132,6 +132,16 @@ export class LocalGoals implements GoalsStore {
   }
 
 
+  async reorderGoals(patches: { id: string; position: number }[]) {
+    const snapshot = read();
+    for (const { id, position } of patches) {
+      const goal = snapshot.goals.find((g) => g.id === id);
+      if (goal) goal.position = position;
+    }
+    write(snapshot);
+  }
+
+
   async deleteGoal(id: string) {
     const snapshot = read();
     snapshot.goals = snapshot.goals.filter((g) => g.id !== id);

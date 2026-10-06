@@ -25,6 +25,11 @@ interface Props {
   index?: number;
   expanded: boolean;
   onToggleExpand: () => void;
+  /**
+   * La fiche d'un objectif, ouverte depuis sa tuile (06/10/2026) : toujours
+   * dépliée, l'en-tête n'est plus un bouton qui replie.
+   */
+  page?: boolean;
   onEdit: () => void;
   onArchive: () => void;
   onDelete: () => void;
@@ -48,8 +53,9 @@ interface Props {
 export function GoalCard({
   goal,
   index = 0,
-  expanded,
+  expanded: expandedProp,
   onToggleExpand,
+  page = false,
   onEdit,
   onArchive,
   onDelete,
@@ -62,6 +68,7 @@ export function GoalCard({
   checkins,
   actionEditor,
 }: Props) {
+  const expanded = page || expandedProp;
   const progress = goalProgress(goal);
   // « Accompli » convient à un marathon couru. Pas à « arrêter de me ronger
   // les ongles » au 365ᵉ jour : on n'a pas fini, on entretient.
@@ -72,23 +79,27 @@ export function GoalCard({
 
   return (
     <article
-      className={`goal${progress.complete ? ' complete' : ''}${expanded ? ' expanded' : ''}`}
+      className={`goal${progress.complete ? ' complete' : ''}${expanded ? ' expanded' : ''}${page ? ' goal-page' : ''}`}
       style={{ ['--i' as string]: index }}
     >
       <div
         className="goal-head"
-        onClick={onToggleExpand}
-        role="button"
-        tabIndex={0}
-        aria-expanded={expanded}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onToggleExpand();
-          }
-        }}
+        {...(page
+          ? {}
+          : {
+              onClick: onToggleExpand,
+              role: 'button',
+              tabIndex: 0,
+              'aria-expanded': expanded,
+              onKeyDown: (e: React.KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onToggleExpand();
+                }
+              },
+            })}
       >
-        <span className={`chevron${expanded ? ' open' : ''}`}>▶</span>
+        {!page && <span className={`chevron${expanded ? ' open' : ''}`}>▶</span>}
         <span className="goal-emoji">{goal.emoji}</span>
 
         <div className="goal-main">
