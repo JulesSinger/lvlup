@@ -620,8 +620,18 @@ export async function run({ browser, check, BASE }) {
   await lp.waitForSelector('.calendrier-editor');
   check('La fenêtre de création propose « Événement » ou « Tâche »', (await lp.locator('.calendrier-kinds [role="radio"]').allTextContents()).join('|') === 'Événement|Tâche');
   await lp.locator('#calendrier-title').fill('Poster le colis');
+  // Guetter le voile pendant la bascule : il ne doit jamais disparaître, même un instant (il clignotait).
+  await lp.evaluate(() => {
+    window.__overlayGone = false;
+    window.__overlayWatch = new MutationObserver(() => {
+      if (!document.querySelector('.overlay')) window.__overlayGone = true;
+    });
+    window.__overlayWatch.observe(document.body, { childList: true, subtree: true });
+  });
   await lp.locator('.calendrier-kinds').getByRole('radio', { name: 'Tâche' }).click();
   await lp.locator('.taches-editor').waitFor();
+  await lp.waitForTimeout(150);
+  check('La bascule vers « Tâche » ne laisse jamais l’écran sans voile (pas de clignotement)', !(await lp.evaluate(() => (window.__overlayWatch.disconnect(), window.__overlayGone))));
   check(
     '« Tâche » ouvre la fenêtre de Tâches, avec le titre déjà tapé et l’heure du créneau',
     (await lp.locator('#taches-title').inputValue()) === 'Poster le colis' && (await lp.locator('#taches-time').inputValue()) !== '' && (await lp.locator('.calendrier-editor').count()) === 0,
