@@ -147,11 +147,31 @@
   gap: 3px;
 }
 
+.measure-plot {
+  position: relative;
+  width: 100%;
+}
+
 .measure-chart svg {
   display: block;
+  width: 100%;
   border-radius: 8px;
   background: var(--bg-2);
   border: 1px solid var(--border);
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+
+.measure-chart svg:focus-visible {
+  outline: 2px solid var(--border-strong);
+  outline-offset: 2px;
+}
+
+/* Combien de relevés, sur combien de temps, et depuis quand plus rien :
+   la temporalité dite en mots, à côté des pointillés. */
+.measure-span {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 
 .measure-foot {
@@ -265,6 +285,7 @@
 
 .goal-amount-bar-col {
   flex: 1;
+  cursor: pointer;
   height: 100%;
   display: flex;
   align-items: flex-end;
@@ -276,6 +297,20 @@
   min-height: 2px;
   border-radius: 2px 2px 0 0;
   background: var(--accent-deep);
+}
+
+.goal-amount-bar-col.is-active .goal-amount-bar {
+  background: var(--accent);
+}
+
+/* Les dates sous les barres : la première semaine montrée, et la dernière. */
+.goal-amount-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
 .goal-amount-foot {

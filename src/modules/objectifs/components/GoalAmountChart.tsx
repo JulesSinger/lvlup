@@ -1,6 +1,9 @@
+import { useState } from 'react';
+import { shortDay } from '../lib/chartTime';
 import { formatAmount } from '../lib/counters';
 import { formatDate } from '../lib/progress';
 import type { GoalAmountSummary } from '../lib/progress';
+import { dayString } from '../lib/streak';
 
 /**
  * Le cumul multi-actions d'un objectif, semaine par semaine — « combien de
@@ -10,6 +13,10 @@ import type { GoalAmountSummary } from '../lib/progress';
  * carte d'un objectif, potentiellement plusieurs à l'écran à la fois, et n'a
  * besoin ni de survol ni de bascule tableau — juste le total et l'allure des
  * dernières semaines.
+ *
+ * Les dates (06/10/2026) : la première et la dernière semaine sous les
+ * barres, et toucher une barre dit sa semaine et son total à la place de
+ * « cette semaine » — l'infobulle `title` ne s'ouvre pas au doigt.
  */
 const WEEKS_SHOWN = 12;
 
@@ -26,6 +33,9 @@ export function GoalAmountChart({
   const recent = summary.weeks.slice(-WEEKS_SHOWN);
   const max = Math.max(...recent.map((w) => w.amount), 1);
   const last = recent[recent.length - 1];
+  const [selected, setSelected] = useState<string | null>(null);
+  const picked = recent.find((w) => w.monday === selected) ?? null;
+  const today = dayString();
 
   return (
     <div className="goal-amount">
@@ -53,7 +63,8 @@ export function GoalAmountChart({
         {recent.map((w) => (
           <div
             key={w.monday}
-            className="goal-amount-bar-col"
+            className={`goal-amount-bar-col${w.monday === selected ? ' is-active' : ''}`}
+            onClick={() => setSelected((s) => (s === w.monday ? null : w.monday))}
             title={`Semaine du ${formatDate(`${w.monday}T12:00:00`)} : ${formatAmount(w.amount, unit)}`}
           >
             {/* Une semaine à zéro ne doit rien dessiner du tout, pas un
@@ -67,7 +78,15 @@ export function GoalAmountChart({
           </div>
         ))}
       </div>
-      <div className="goal-amount-foot">{formatAmount(last.amount, unit)} cette semaine</div>
+      <div className="goal-amount-axis" aria-hidden="true">
+        {recent.length > 1 && <span>sem. du {shortDay(recent[0].monday, today)}</span>}
+        <span>cette semaine</span>
+      </div>
+      <div className="goal-amount-foot">
+        {picked && picked !== last
+          ? `${formatAmount(picked.amount, unit)} la semaine du ${shortDay(picked.monday, today)}`
+          : `${formatAmount(last.amount, unit)} cette semaine`}
+      </div>
     </div>
   );
 }

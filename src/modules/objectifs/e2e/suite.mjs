@@ -1276,6 +1276,26 @@ export async function run({ browser, check, BASE }) {
       /départ 80 kg/.test(foot) && /cible 78 kg/.test(foot),
       foot,
     );
+    check(
+      'La courbe dit combien de relevés, sur combien de temps, et depuis quand',
+      /2 relevés sur 8 jours/.test(foot) && /dernier aujourd'hui/.test(foot),
+      foot,
+    );
+    check(
+      'Les dates s’écrivent sous l’axe de la courbe',
+      (await qp.locator('.measure-tick').count()) >= 2,
+      String(await qp.locator('.measure-tick').count()),
+    );
+    const courbe = await qp.locator('.measure-chart svg').boundingBox();
+    await qp.mouse.move(courbe.x + 16, courbe.y + courbe.height / 2);
+    await qp.waitForTimeout(200);
+    const bulle = ((await qp.locator('.measure-chart .chart-tooltip').textContent()) ?? '').replace(/\s+/g, ' ');
+    check(
+      'Survoler un point dit sa valeur, son jour et le temps passé',
+      bulle.includes('80 kg') && bulle.includes('il y a 7 jours'),
+      bulle,
+    );
+    await qp.mouse.move(0, 0);
 
     // 5. Un palier écrit à la main peut devenir comptable.
     check(
@@ -2378,6 +2398,11 @@ export async function run({ browser, check, BASE }) {
       'Le total additionne l’action cochée et le geste ponctuel',
       Math.abs(total - (actionKm + 6)) < 0.01,
       `${total} km (attendu ${actionKm + 6})`,
+    );
+    check(
+      'Les barres du cumul sont datées',
+      /cette semaine$/.test(((await carteKm.locator('.goal-amount-axis').textContent()) ?? '').trim()),
+      await carteKm.locator('.goal-amount-axis').textContent(),
     );
     const cetteSemaine = parseKm((await carteKm.locator('.goal-amount-foot').textContent()) ?? '');
     check(
