@@ -83,14 +83,14 @@ export function ListEditor({ list, onCancel, onSave, onDelete }: Props) {
               ))}
             </div>
           </div>
-          {list && <p className="taches-hint">Supprimer la liste renvoie ses tâches dans la boîte de réception.</p>}
+          {list && <p className="taches-hint">Supprimer la liste renvoie ses tâches dans À faire.</p>}
           {error && <div className="notice error">{error}</div>}
         </div>
         <div className="modal-foot taches-editor-foot">
           {onDelete && (
             <button
               className="btn btn-ghost btn-sm btn-danger"
-              onClick={() => window.confirm(`Supprimer la liste « ${list?.name} » ? Ses tâches iront dans la boîte de réception.`) && void run(onDelete)}
+              onClick={() => window.confirm(`Supprimer la liste « ${list?.name} » ? Ses tâches iront dans À faire.`) && void run(onDelete)}
               disabled={saving}
             >
               Supprimer

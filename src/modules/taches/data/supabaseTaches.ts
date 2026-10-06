@@ -33,6 +33,7 @@ interface TaskRow {
   planned_day: string | null;
   planned_time: string | null;
   duration_minutes: number | null;
+  reminders: number[] | null;
   due_day: string | null;
   priority: Priority;
   recurrence: Recurrence | null;
@@ -63,6 +64,7 @@ const toTask = (r: TaskRow): Task => ({
   plannedDay: r.planned_day,
   plannedTime: hhmm(r.planned_time),
   durationMinutes: r.duration_minutes ?? null,
+  reminders: r.reminders ?? null,
   dueDay: r.due_day,
   priority: r.priority,
   recurrence: r.recurrence,
@@ -83,6 +85,7 @@ function taskColumns(patch: TaskPatch | TaskInput): Record<string, unknown> {
   if (p.plannedDay !== undefined) row.planned_day = p.plannedDay;
   if (p.plannedTime !== undefined) row.planned_time = p.plannedTime;
   if (p.durationMinutes !== undefined) row.duration_minutes = p.durationMinutes;
+  if (p.reminders !== undefined) row.reminders = p.reminders;
   if (p.dueDay !== undefined) row.due_day = p.dueDay;
   if (p.priority !== undefined) row.priority = p.priority;
   if (p.recurrence !== undefined) row.recurrence = p.recurrence;

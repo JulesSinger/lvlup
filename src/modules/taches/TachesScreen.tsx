@@ -5,6 +5,7 @@ import { dayString, shiftDay } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { ForecastRow } from './components/ForecastRow';
+import { InlineAdd } from './components/InlineAdd';
 import { ListEditor } from './components/ListEditor';
 import { QuickAddBar } from './components/QuickAddBar';
 import { TaskEditor } from './components/TaskEditor';
@@ -19,7 +20,8 @@ import { dayLabel, shortDate } from './lib/format';
 import type { QuickAdd } from './lib/quickAdd';
 import { moveItem, positionPatches } from './lib/order';
 import { completionPlan, undoCompletion, upcomingOccurrences } from './lib/repeat';
-import type { Task, TaskInput, TaskList, TaskPatch } from './lib/types';
+import { effectiveTaskReminders } from './lib/reminders';
+import { DEFAULT_TACHES_SETTINGS, type TachesSettings, type Task, type TaskInput, type TaskList, type TaskPatch } from './lib/types';
 import { validateTask } from './lib/validation';
 import { doneView, inboxView, listView, subtasksOf, todayView, upcomingView } from './lib/views';
 
@@ -54,7 +56,7 @@ type Toast = { text: string; undo?: () => Promise<void> };
 const PLACEHOLDERS: Record<string, string> = {
   today: 'Appeler le garage 9h, Impôts avant le 30 !…',
   upcoming: 'Dentiste jeudi 14h, Anniversaire de Léa le 15 mars…',
-  inbox: 'Une idée, une chose à faire — tu la rangeras plus tard',
+  inbox: 'Une chose à faire — sans liste, elle reste ici',
   list: 'Ajouter à cette liste — « demain », « !! », « #liste » fonctionnent',
 };
 
@@ -72,6 +74,8 @@ const PLACEHOLDERS: Record<string, string> = {
 export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, intent, label, emoji }: ModuleScreenProps) {
   const [lists, setLists] = useState<TaskList[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  // Le rappel par défaut, montré dans la fenêtre d'une tâche qui n'a pas choisi les siens.
+  const [settings, setSettings] = useState<TachesSettings>(DEFAULT_TACHES_SETTINGS);
   const [loaded, setLoaded] = useState(false);
   const [view, setViewState] = useState<View>(savedView);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -96,7 +100,13 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
 
   const refresh = useCallback(async () => {
     try {
-      const [nextLists, nextTasks] = await Promise.all([tachesStore.listLists(), tachesStore.listTasks()]);
+      const [nextLists, nextTasks, nextSettings] = await Promise.all([
+        tachesStore.listLists(),
+        tachesStore.listTasks(),
+        // Des réglages illisibles ne doivent pas empêcher d'afficher les tâches.
+        tachesStore.getSettings().catch(() => DEFAULT_TACHES_SETTINGS),
+      ]);
+      setSettings(nextSettings);
       serverTasks.current = nextTasks;
       // La file par-dessus le serveur : une relecture n'efface jamais ce qui n'est pas encore parti.
       const shown = applyPendingTasks(nextTasks, taskWriter.pending());
@@ -252,7 +262,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
           ? `à faire avant le ${shortDate(created.dueDay, today)}`
           : created.listId
             ? `dans ${listName(created.listId)}`
-            : 'dans la boîte de réception';
+            : 'dans À faire';
       showToast({ text: `« ${created.title} » ajoutée, ${where}.` });
     }
   }
@@ -525,8 +535,8 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
     if (items.length === 0) {
       return (
         <div className="taches-empty">
-          <p>La boîte de réception est vide.</p>
-          <p className="taches-hint">Ce que tu ajoutes sans liste arrive ici, pour le ranger plus tard.</p>
+          <p>Rien à faire.</p>
+          <p className="taches-hint">Ce que tu ajoutes sans liste arrive ici.</p>
         </div>
       );
     }
@@ -534,7 +544,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
   }
 
   const title =
-    view === 'today' ? 'Aujourd’hui' : view === 'upcoming' ? 'À venir' : view === 'inbox' ? 'Boîte de réception' : view === 'done' ? 'Terminées' : (currentList?.name ?? '');
+    view === 'today' ? 'Aujourd’hui' : view === 'upcoming' ? 'À venir' : view === 'inbox' ? 'À faire' : view === 'done' ? 'Terminées' : (currentList?.name ?? '');
 
   return (
     <div className="layout">
@@ -570,7 +580,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
             [
               ['today', 'Aujourd’hui', counts.today],
               ['upcoming', 'À venir', 0],
-              ['inbox', 'Boîte de réception', counts.inbox],
+              ['inbox', 'À faire', counts.inbox],
               ['done', 'Terminées', 0],
             ] as const
           ).map(([id, label, n]) => (
@@ -614,7 +624,13 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
           <QuickAddBar today={today} lists={activeLists} placeholder={PLACEHOLDERS[view.startsWith('list:') ? 'list' : view]} onAdd={add} />
         )}
 
-        <div className="taches-content">{content()}</div>
+        <div className="taches-content">
+          {content()}
+          {/* Sous la dernière tâche, une ligne de plus en touchant (06/10/2026) : là où la vue est une liste à remplir. */}
+          {loaded && (view === 'today' || view === 'inbox' || currentList) && (
+            <InlineAdd key={view} today={today} lists={activeLists} onAdd={add} />
+          )}
+        </div>
 
         {toast && (
           <div className="taches-toast" role="status">
@@ -641,6 +657,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
             subtasks={subtasksOf(tasks, editing.id)}
             allTasks={tasks}
             lists={lists}
+            defaultReminders={effectiveTaskReminders({ reminders: null }, settings)}
             onCancel={() => setEditingId(null)}
             onSave={saveTask}
             onDelete={deleteTask}

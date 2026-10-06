@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultSpan, markItem, markMoveFrom, spanFromRange, spanFromSelection, timeString, toCalendarItem } from './calendarBridge';
+import { defaultSpan, markItem, markMoveFrom, slotFromValues, spanFromRange, spanFromSelection, timeString, toCalendarItem } from './calendarBridge';
 import type { Occurrence } from './recurrence';
 
 const at = (day: string, time = '00:00') => {
@@ -172,5 +172,16 @@ describe('glisser une marque (Polaris)', () => {
     expect(markMoveFrom(at('2026-09-30'), null, true, false)).toEqual({ day: '2026-09-30', time: null });
     expect(markMoveFrom(at('2026-09-30', '16:00'), at('2026-09-30', '16:30'), false, false)).toEqual({ day: '2026-09-30', time: '16:00' });
     expect(markMoveFrom(at('2026-09-30', '16:00'), at('2026-09-30', '17:30'), false, true)).toEqual({ day: '2026-09-30', time: '16:00', duration: 90 });
+  });
+});
+
+describe('slotFromValues — basculer vers « Tâche » (06/10/2026)', () => {
+  const span = { allDay: false, startDay: '2026-10-07', endDay: '2026-10-07', startTime: '14:00', endTime: '15:30' };
+  it('le jour, l’heure, la durée et le titre déjà tapé', () => {
+    expect(slotFromValues({ ...span, title: ' Kiné ' })).toEqual({ day: '2026-10-07', time: '14:00', duration: 90, title: 'Kiné' });
+  });
+  it('journée entière : pas d’heure ; à cheval sur deux jours : pas de durée ; sans titre : rien', () => {
+    expect(slotFromValues({ ...span, allDay: true, startTime: null, endTime: null })).toEqual({ day: '2026-10-07', time: null });
+    expect(slotFromValues({ ...span, endDay: '2026-10-08', title: '' })).toEqual({ day: '2026-10-07', time: '14:00' });
   });
 });

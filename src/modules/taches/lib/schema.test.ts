@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FREQUENCIES } from '../../../core/lib/recurrence';
-import { LIST_COLORS, PRIORITIES, REPEAT_FROM, TASK_TITLE_MAX } from './types';
+import { LIST_COLORS, MAX_TASK_REMINDERS, PRIORITIES, REPEAT_FROM, TASK_REMINDERS, TASK_TITLE_MAX } from './types';
 
 /**
  * Le type TypeScript et la contrainte Postgres doivent dire la même chose —
@@ -51,5 +51,13 @@ describe('le type et la base disent la même chose (Polaris)', () => {
 
   it('les fréquences de récurrence, celles du moteur commun', () => {
     expect(allowedBy('taches_tasks_freq_check')).toEqual([...FREQUENCIES].sort());
+  });
+
+  it('les rappels d’une tâche (06/10/2026)', () => {
+    const sql = readFileSync(join(SQL_DIR, '2026-10-06-taches-reminders.sql'), 'utf8');
+    const m = /taches_tasks_reminders_check\s+check\s*\(reminders is null or \(cardinality\(reminders\) <= (\d+) and reminders <@ array\[([^\]]*)\]/.exec(sql);
+    expect(m).not.toBeNull();
+    expect(Number(m![1])).toBe(MAX_TASK_REMINDERS);
+    expect(m![2].split(',').map(Number)).toEqual([...TASK_REMINDERS].sort((a, b) => a - b));
   });
 });

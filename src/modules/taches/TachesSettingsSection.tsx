@@ -40,7 +40,7 @@ export function TachesSettingsSection({ user }: ModuleSettingsProps) {
       <h3 className="settings-title">Rappels des tâches</h3>
       <p className="settings-hint">
         Une notification à l’heure d’une tâche qui en a une, et un résumé le matin — seulement les jours où il y a
-        quelque chose à faire.
+        quelque chose à faire. Chaque tâche peut aussi choisir ses propres rappels, dans sa fenêtre.
       </p>
       {local ? (
         // Comme le rappel de Zénith : sans serveur, rien ne peut partir — pas d'interrupteur qui ne ferait rien.
@@ -49,7 +49,7 @@ export function TachesSettingsSection({ user }: ModuleSettingsProps) {
         <>
           <label className="switch">
             <input type="checkbox" checked={settings.taskReminders} onChange={(e) => void change({ taskReminders: e.target.checked })} />
-            <span>À l’heure des tâches</span>
+            <span>À l’heure des tâches, par défaut</span>
           </label>
 
           <div className="settings-row">

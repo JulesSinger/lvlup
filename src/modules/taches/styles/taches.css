@@ -827,3 +827,62 @@
 .taches-landing-detail.urgent {
   color: var(--red);
 }
+
+/* Les rappels d'une tâche (06/10/2026) : deux listes côte à côte, l'une
+   sous l'autre sur un écran étroit — comme ceux d'un événement du calendrier. */
+.taches-reminders-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.taches-editor .taches-reminders-row select {
+  flex: 1 1 180px;
+  min-width: 0;
+  width: auto;
+}
+
+/* Toucher sous la dernière tâche pour en ajouter une (06/10/2026) : la zone
+   prend le bas de la vue, la ligne qui s'ouvre a l'allure des autres. */
+.taches-inline-add {
+  min-height: 120px;
+  cursor: text;
+}
+
+.taches-inline-row {
+  border-bottom: 1px solid var(--border);
+}
+
+.taches-inline-check {
+  opacity: 0.5;
+}
+
+/* Deux classes : `input:focus` du socle l'emporterait sur une seule (cadre au focus). */
+.taches-inline-row .taches-inline-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  box-shadow: none;
+}
+
+.taches-inline-input::placeholder {
+  color: var(--text-faint);
+}
+
+.taches-inline-hint {
+  display: block;
+  padding: 14px 0 0 32px;
+  font-size: 13px;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.taches-inline-add:hover .taches-inline-hint {
+  opacity: 1;
+}
