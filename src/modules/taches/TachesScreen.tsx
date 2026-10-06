@@ -5,6 +5,7 @@ import { dayString, shiftDay } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { ForecastRow } from './components/ForecastRow';
+import { InlineAdd } from './components/InlineAdd';
 import { ListEditor } from './components/ListEditor';
 import { QuickAddBar } from './components/QuickAddBar';
 import { TaskEditor } from './components/TaskEditor';
@@ -623,7 +624,13 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
           <QuickAddBar today={today} lists={activeLists} placeholder={PLACEHOLDERS[view.startsWith('list:') ? 'list' : view]} onAdd={add} />
         )}
 
-        <div className="taches-content">{content()}</div>
+        <div className="taches-content">
+          {content()}
+          {/* Sous la dernière tâche, une ligne de plus en touchant (06/10/2026) : là où la vue est une liste à remplir. */}
+          {loaded && (view === 'today' || view === 'inbox' || currentList) && (
+            <InlineAdd key={view} today={today} lists={activeLists} onAdd={add} />
+          )}
+        </div>
 
         {toast && (
           <div className="taches-toast" role="status">

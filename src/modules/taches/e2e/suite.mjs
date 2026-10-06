@@ -278,6 +278,36 @@ export async function run({ browser, check, BASE }) {
   await openTâches(p4, BASE);
   await row(p4, 'Œufs').waitFor();
   check('Le nouvel ordre est gardé après un rechargement', JSON.stringify(await titles(p4)) === JSON.stringify(['Œufs', 'Lait', 'Pain']));
+
+  // Toucher sous la dernière tâche : une ligne vide, avec un texte d'exemple (06/10/2026).
+  const below = p4.locator('.taches-inline-add');
+  const belowBox = await below.boundingBox();
+  check('Sous la dernière tâche, une zone qu’on peut toucher', !!belowBox && belowBox.height >= 100);
+  await p4.mouse.click(belowBox.x + belowBox.width / 2, belowBox.y + belowBox.height - 10);
+  const inline = p4.getByLabel('Nouvelle tâche');
+  await inline.waitFor();
+  check(
+    'Toucher sous la dernière tâche ouvre une ligne, avec un texte d’exemple et le curseur dedans',
+    (await inline.getAttribute('placeholder')) === 'Nouvelle tâche' && (await inline.evaluate((el) => el === document.activeElement)),
+  );
+  await inline.fill('Beurre');
+  await inline.press('Enter');
+  await row(p4, 'Beurre').waitFor();
+  check('Entrée l’ajoute en dernier dans la liste…', JSON.stringify(await titles(p4)) === JSON.stringify(['Œufs', 'Lait', 'Pain', 'Beurre']), (await titles(p4)).join(', '));
+  check('… et laisse une ligne vide pour la suivante', (await inline.inputValue()) === '' && (await inline.evaluate((el) => el === document.activeElement)));
+  await inline.fill('Farine');
+  await inline.press('Enter');
+  await row(p4, 'Farine').waitFor();
+  check('Les lignes s’enchaînent au clavier', (await titles(p4)).at(-1) === 'Farine');
+  await inline.press('Escape');
+  await inline.waitFor({ state: 'detached' });
+  check('Échap referme la ligne vide sans rien ajouter', (await titles(p4)).length === 5);
+  const belowAgain = await below.boundingBox();
+  await p4.mouse.click(belowAgain.x + belowAgain.width / 2, belowAgain.y + belowAgain.height - 10);
+  await inline.waitFor();
+  await p4.locator('.taches-title, h1').first().click();
+  await inline.waitFor({ state: 'detached' });
+  check('Quitter une ligne vide la referme, sans tâche vide', (await titles(p4)).length === 5);
   check('Aucune erreur JavaScript à l’étape 4', errors4.length === 0, errors4.join(' | '));
   await ctx4.close();
 
