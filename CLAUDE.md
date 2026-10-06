@@ -77,18 +77,43 @@ npm run build      # tsc -b && vite build → dist/
 npm run test       # tests unitaires (vitest)
 npm run check      # vérifications bout en bout sur le build
 npm run lint       # oxlint
+npm run verify     # ⭐ tout ce qu'un changement peut casser, en une commande (voir ci-dessous)
 ```
 
-`npm run test` et `npm run check` doivent passer avant tout commit. Pas d'exception.
+### Vérifier un changement : `npm run verify` (depuis le 2026-10-06)
 
-### Lancer les vérifications de bout en bout
+```bash
+npm run verify               # ciblé : avant chaque commit — ~1 min pour un module
+npm run verify -- --all      # tout : avant de fusionner dans main ou de pousser — ~6 min
+npm run verify -- --base=X   # comparer à X plutôt qu'à origin/main
+```
+
+`verify` regarde les fichiers modifiés depuis ce qui est en ligne (`origin/main`, plus ce qui
+n'est pas commité) et ne relance que ce qu'ils peuvent casser (`e2e/affected.mjs`, testé) : la
+suite du module touché, celles des modules qui utilisent ses services (Tâches → Calendar,
+Budget → Courses et Projets, lu dans le code), et le socle ; **tout** dès qu'un fichier du
+socle, du lanceur, des dépendances ou de la configuration change ; rien pour la documentation
+et les migrations. Types, lint, tests unitaires liés (`vitest --changed`) et e2e tournent en
+même temps ; les deux builds (local et comptes) sont servis par la commande elle-même, sur les
+ports 4183 et 4184 — rien à lancer avant. Le mode comptes est vérifié au même passage.
+
+**La règle : `npm run verify` passe avant tout commit, `npm run verify -- --all` avant toute
+fusion dans `main` et tout `git push`.** Pas d'exception.
+
+Pourquoi c'est plus rapide, mesuré : lancées ensemble, les dix suites se disputent les 8 cœurs et
+chacune met 2 à 3 minutes ; seule, celle de Tâches en met 8 secondes, celle de Calendar 40.
+Le lanceur affiche désormais la durée de chaque suite. La plus lente est Objectifs (105 s seule),
+dont la moitié en attentes fixes (`waitForTimeout`, ~51 s) : la gagner demanderait de remplacer
+ces attentes par des conditions, une par une.
+
+### Lancer les vérifications de bout en bout à la main
 
 **`npm run check` ne démarre aucun serveur** : il attend que le build soit déjà servi. Oublier
 cette étape produit un `net::ERR_CONNECTION_REFUSED` qui ressemble à un bug de l'app.
 
 ```bash
 npm run build && npm run preview &            # sert dist/ sur :4173
-npm run check                                 # 205 vérifications (socle + toutes les suites de module)
+npm run check                                 # toutes les suites ; `npm run check -- taches calendrier` pour quelques-unes
 
 npm run build:auth && npm run preview:auth &  # sert dist-auth/ sur :4174
 npm run check:auth                            # 217 : exige les DEUX serveurs
@@ -499,6 +524,7 @@ Le plus récent en haut. Une ligne par décision, avec sa raison.
 
 | 2026-10-06 | Projets **fusionné dans `main`** (avance rapide depuis `etude-projets`, `main` n'ayant pas bougé : le code est celui testé, 1283 tests unitaires, 958/958 et 977/977), à la demande de Jules. **Pas poussé** : pousser met en ligne, geste laissé à Jules | Avant de pousser : appliquer sur Supabase `2026-10-06-projets-payments-time.sql` et `2026-10-06-projets-images.sql` (celles des étapes 1 et 4 le sont, confirmé par Jules), sans quoi l'onglet Argent échoue et la section images affiche un message |
 | 2026-10-06 | Étape 7 de Projets livrée, **découpage terminé** (`docs/etude-projets.md` §19) : migration `2026-10-06-projets-images.sql` (`projets_images`, bucket privé `projets`), images au contrat et dans ses deux implémentations, `ImagesPanel` et `ProjectImg` (onglet Design), logo dans l'en-tête de la fiche. **Au socle** : `core/lib/exif.ts`, `core/lib/images.ts`, `core/data/images/` (`blobStore`, `imageCache`, `prepareImage`), remontés de Hauts faits, qui garde ses noms de stockage (`atlas-hautsfaits`, `hautsfaits-photos-v1`) ; deux identifiants ajoutés à §4 (`atlas-projets`, `projets-images-v1`) | Deuxième module à ranger des images : la règle de §3 (une pièce dont deux modules ont besoin appartient au socle), comme la récurrence avec Tâches. Déplacement vérifié par ce qui ne change pas : la suite de Hauts faits passe à l'identique (50/50). Vingt images au plus : une sélection trop grande garde les premières et le dit. Une image illisible n'empêche pas les autres. Images chargées à part des projets (une table manquante n'empêche rien d'autre). 1278 → **1283** tests unitaires, e2e du module 89 → 97 (vrais JPEG), **958/958** en local et **977/977** en mode comptes. **Migrations à appliquer par Jules** : paiements et temps (étape 5) si ce n'est fait, et images ; envoi réel vers le bucket à essayer |
+| 2026-10-06 | **`npm run verify`** (`e2e/verify.mjs`, `e2e/affected.mjs`), demande de Jules : « les vérifications à chaque dev prennent vraiment trop de temps ». Ne relance que les suites qu'un changement peut casser, sert lui-même les deux builds, fait tourner types, lint, tests unitaires liés et e2e en même temps, mode comptes compris. Le lanceur accepte des noms de suites (`node e2e/run.mjs taches`), affiche la durée de chacune, et trouve Chrome sur le Mac sans `CHROME_PATH`. **Règle changée** : `verify` avant chaque commit, `verify -- --all` avant de fusionner dans `main` ou de pousser (au lieu de `test` + `check` à chaque commit) | Mesuré avant de choisir : les dix suites ensemble sur 8 cœurs, ~3 min 40 et autant en mode comptes ; seule, Tâches 8 s. Une modification de Tâches se vérifie désormais en **~1 min** au lieu de ~8 ; tout, en ~6 min. Les liens entre modules sont lus dans le code (`provides` et `services.<nom>`), pas recopiés : un nouveau service les suit sans rien changer ici. Un test unitaire, la documentation ou une migration ne relancent aucune suite. Reste à gagner : les ~51 s d'attentes fixes de la suite d'Objectifs |
 | 2026-10-06 | Tâches : la **boîte de réception devient « À faire »** (décision de Jules) — onglet, titre, « Aucune (À faire) » dans la fenêtre d'une tâche, messages ; dans le calendrier, une tâche sans liste n'affiche plus de nom de liste (« À faire · à faire aujourd'hui » se répétait). Nom affiché seulement : la vue garde son identifiant `inbox` (et `taches.view.v1` sa valeur). Et un défaut de la ligne d'ajout, signalé par Jules : toucher sous la liste, ligne ouverte, la refermait (perte du curseur) puis la rouvrait aussitôt (le même toucher) — on regarde maintenant si elle était ouverte au `mousedown`, qui précède la perte du curseur | 1291 tests unitaires, **978/978** en local |
 | 2026-10-06 | Tâches : **toucher sous la dernière tâche ouvre une ligne** pour en ajouter une, avec un texte d'exemple (« Nouvelle tâche »), demande de Jules — `InlineAdd`, dans Aujourd'hui, la boîte de réception et chaque liste. Entrée ajoute et laisse une ligne vide pour la suivante ; Échap, ou quitter une ligne vide, la referme | Le texte est lu comme dans la barre du haut (« demain 9h », « !! ») et rangé par les mêmes règles (`add`), sans les pastilles : c'est le geste rapide. Pas dans À venir (une ligne par jour serait à trancher) ni dans Terminées. Piège noté : `input:focus` du socle l'emporte sur une seule classe et dessinait un cadre — deux classes, comme la barre d'ajout. Vérifié sur captures (ordinateur, téléphone). 1291 tests unitaires, **976/976** en local |
 | 2026-10-06 | Tâches ↔ Calendar, trois demandes de Jules (« on doit changer de module pour modifier une tâche », « on ne peut pas définir un événement comme une tâche ») : (1) **les rappels de chaque tâche** — deux au plus, de « à l'heure » à « 1 jour avant », `Task.reminders` (`null` = le défaut des réglages, « à l'heure » ; `[]` = aucun), migration `2026-10-06-taches-reminders.sql` **appliquée**, contrainte comparée à `TASK_REMINDERS` par `schema.test.ts` ; (2) **la fenêtre de Tâches dans le calendrier** — nouveau au socle, `CalendarSource.Editor` et `createLabel` (`core/lib/services.ts`), `CalendarTaskEditor` chez Tâches, `openMark` et `Lent` chez Calendar ; (3) **la bascule « Événement / Tâche »** à la création (`KindSwitch`, `slotFromValues`) : la fenêtre de Tâches reprend jour, heure, durée et titre déjà tapé, et l'on peut revenir à « Événement » | Ses trois choix : la vraie fenêtre de Tâches plutôt qu'un formulaire réduit à maintenir en double ; une bascule plutôt que la conversion d'un élément existant ; les mêmes rappels que les événements, sans rappel pour une tâche sans heure (le résumé du matin la couvre). Le réglage « À l'heure des tâches » devient le **défaut** : une tâche qui a choisi ses rappels les garde, réglage coupé ou non. « À l'heure » garde la référence de rappel d'avant (`task:<id>:<jour>`) pour ne rien reposer de déjà parti. Une tâche nouvelle n'a ni « Supprimer » ni sous-tâches (elles s'ajoutent une fois la tâche créée). Les prochaines fois d'une tâche répétée ouvrent aussi sa fenêtre. 1283 → **1291** tests unitaires, **968/968** en local et **987/987** en mode comptes. **Avant de pousser** : la migration est déjà appliquée (sans elle, enregistrer une tâche échouerait) |
