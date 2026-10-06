@@ -53,6 +53,26 @@ describe('LocalBudget', () => {
     expect((await store.listEnvelopeMoves()).map((m) => m.amountCents)).toEqual([30000]);
   });
 
+  it('les abonnements déclarés : créer (rejouable), modifier, et une catégorie supprimée les laisse sans catégorie', async () => {
+    const cat = await store.createCategory({ name: 'Abonnements', emoji: '📺', color: '#000000', kind: 'variable' });
+    const netflix = await store.createSubscription({ name: 'Netflix', amountCents: 1399, frequency: 'mensuel', nextDay: '2026-10-12', categoryId: cat.id }, 'sub-1');
+    expect(netflix).toMatchObject({ pattern: '', remindDays: null, categoryId: cat.id });
+    expect(await store.createSubscription({ name: 'Autre', amountCents: 1, frequency: 'annuel', nextDay: '2026-10-12' }, 'sub-1')).toEqual(netflix);
+    await store.updateSubscription(netflix.id, { remindDays: 3, pattern: 'NETFLIX' });
+    await store.deleteCategory(cat.id);
+    expect((await store.listSubscriptions())[0]).toMatchObject({ remindDays: 3, pattern: 'NETFLIX', categoryId: null });
+    await store.deleteSubscription(netflix.id);
+    expect(await store.listSubscriptions()).toEqual([]);
+  });
+
+  it('écarter une dépense repérée, une seule fois, et revenir dessus', async () => {
+    await store.ignoreRecurring('loyer', 'LOYER');
+    await store.ignoreRecurring('loyer', 'LOYER');
+    expect((await store.listIgnoredRecurring()).map((i) => i.key)).toEqual(['loyer']);
+    await store.unignoreRecurring('loyer');
+    expect(await store.listIgnoredRecurring()).toEqual([]);
+  });
+
   it('crée une catégorie avec ses valeurs par défaut', async () => {
     const category = await store.createCategory({ name: 'Courses' });
     expect(category.kind).toBe('variable');

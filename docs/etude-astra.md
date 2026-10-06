@@ -630,3 +630,50 @@ feuille produite est identique à l'octet près (md5 vérifié).
 
 1283 → **1307** tests unitaires, la suite de Budget 140 → **167** vérifications, **1006/1006** en
 mode comptes.
+
+## 14. Déclarer ses abonnements soi-même (07/10/2026)
+
+Question de Jules, en regardant l'onglet Abonnements : « ne devrait-on pas pouvoir créer un
+abonnement soi-même ? ». Oui : la détection ne voit que ce qui est déjà passé plusieurs fois
+dans les relevés. Elle rate un abonnement tout neuf (trois mois d'attente), un annuel (deux
+ans), ce qui passe par une autre carte, PayPal ou des espèces — et ne permettait pas de dire
+« ceci n'en est pas un ». Les quatre propositions retenues par Jules :
+
+1. **Déclarer un abonnement** (`SubscriptionEditor`, « + Ajouter un abonnement ») : nom, montant,
+   rythme (semaine, mois, trimestre, an), prochaine échéance, catégorie. Il compte tout de suite
+   dans le coût par mois et par an. Table `budget_subscriptions` (migration
+   `2026-10-07-budget-subscriptions.sql`), contrat et ses deux implémentations.
+2. **Le rapprocher de ses paiements** par un motif de libellé (« NETFLIX ») : la dépense repérée
+   correspondante disparaît de « Repérés dans tes relevés », l'abonnement dit « vu dans tes
+   relevés le … », ou « plus vu depuis le … — résilié ? » au-delà d'une fois et demie son rythme
+   (il sort alors du total), ou « pas encore vu ». La fenêtre dit en direct ce que le motif trouve.
+   « C'est un abonnement » sur une dépense repérée ouvre la fenêtre déjà remplie.
+3. **« Pas un abonnement »** écarte une dépense repérée pour de bon (table
+   `budget_recurring_ignored`, par sa clé `labelKey`) ; « Écartés (n) » permet de la remettre.
+4. **Un rappel avant l'échéance** (3, 7, 15 ou 30 jours avant, à 9 h) : « 🔁 Assurance habitation :
+   prélèvement dans 15 jours — c'est le moment de résilier si tu n'en veux plus ». Premier rappel
+   de Budget, branché sur le mécanisme commun (`data/syncReminders.ts`,
+   `scheduleReminders('budget', …)`), sur soixante jours.
+
+Choix faits en l'écrivant (`lib/subscriptions.ts`, testé) :
+
+- **Une prévision, jamais une écriture** : déclarer un abonnement n'ajoute rien au budget, les
+  relevés restent la vérité. Le dire à l'écran, en tête de l'onglet.
+- **Les échéances se déduisent d'une seule** connue, au rythme : le même jour du mois, un 31
+  ramené au dernier jour d'un mois plus court sans dériver ensuite (on repart toujours du jour
+  d'origine). Une échéance passée avance d'elle-même jusqu'à aujourd'hui.
+- **Un préavis déjà passé pour cette échéance vise la suivante** : régler « 7 jours avant » la
+  veille d'un prélèvement ne prévient pas trop tard, il prévient pour le mois d'après.
+- **Pas de double compte** : une dépense repérée rapprochée d'un abonnement déclaré ne compte
+  qu'une fois, pour le montant déclaré ; un prélèvement plus élevé que prévu se dit
+  (« prélevé … »).
+- Les abonnements se chargent **à part** des écritures : une table manquante (migration pas
+  encore appliquée) affiche un message, la détection reste visible. La sauvegarde les emporte
+  (catégorie retraduite à la restauration). Une catégorie supprimée laisse l'abonnement sans
+  catégorie.
+- Défaut trouvé sur capture : sur téléphone, les boutons d'une ligne d'abonnement faisaient
+  déborder la page de 124 px ; ils passent sur leur propre ligne sous 520 px, comme ceux des
+  écritures — et ceux des règles, qui risquaient la même chose.
+
+1307 → **1335** tests unitaires (+28), suite de Budget 167 → **176**, **1035/1035** en mode comptes.
+**Migration à appliquer par Jules.** L'envoi réel d'un rappel reste à essayer sur un appareil.

@@ -12,6 +12,11 @@ import type {
   BudgetEnvelopeMoveInput,
   BudgetRule,
   BudgetRuleInput,
+  BudgetSubscription,
+  BudgetSubscriptionInput,
+  IgnoredRecurring,
+  SubscriptionFrequency,
+  SubscriptionRemindDays,
 } from '../lib/types';
 import type { BudgetBackup, BudgetStore } from './budgetStore';
 
@@ -113,6 +118,44 @@ function toEnvelopeMove(row: EnvelopeMoveRow): BudgetEnvelopeMove {
     entryId: row.entry_id ?? null,
     createdAt: row.created_at,
   };
+}
+
+interface SubscriptionRow {
+  id: string;
+  name: string;
+  amount_cents: number;
+  frequency: SubscriptionFrequency;
+  next_day: string;
+  category_id: string | null;
+  pattern: string;
+  remind_days: SubscriptionRemindDays | null;
+  created_at: string;
+}
+
+function toSubscription(row: SubscriptionRow): BudgetSubscription {
+  return {
+    id: row.id,
+    name: row.name,
+    amountCents: row.amount_cents,
+    frequency: row.frequency,
+    nextDay: row.next_day,
+    categoryId: row.category_id,
+    pattern: row.pattern ?? '',
+    remindDays: row.remind_days,
+    createdAt: row.created_at,
+  };
+}
+
+function subscriptionColumns(p: Partial<BudgetSubscriptionInput>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (p.name !== undefined) row.name = p.name;
+  if (p.amountCents !== undefined) row.amount_cents = Math.round(p.amountCents);
+  if (p.frequency !== undefined) row.frequency = p.frequency;
+  if (p.nextDay !== undefined) row.next_day = p.nextDay;
+  if (p.categoryId !== undefined) row.category_id = p.categoryId;
+  if (p.pattern !== undefined) row.pattern = p.pattern;
+  if (p.remindDays !== undefined) row.remind_days = p.remindDays;
+  return row;
 }
 
 /** Budget (Astra) stocké sur Supabase, protégé par le Row Level Security. */
@@ -438,13 +481,70 @@ export class SupabaseBudget implements BudgetStore {
     if (error) throw new Error(error.message);
   }
 
+  async listSubscriptions(): Promise<BudgetSubscription[]> {
+    const rows = unwrap(await this.client.from('budget_subscriptions').select('*').order('next_day')) as SubscriptionRow[];
+    return rows.map(toSubscription);
+  }
+
+  async createSubscription(input: BudgetSubscriptionInput, id?: string): Promise<BudgetSubscription> {
+    const userId = await this.requireUserId();
+    const row = { user_id: userId, ...subscriptionColumns(input) };
+    if (id) {
+      // Rejouable : `on conflict do nothing` sur l'id, puis relecture.
+      const { error } = await this.client.from('budget_subscriptions').upsert({ id, ...row }, { onConflict: 'id', ignoreDuplicates: true });
+      if (error) throw new Error(error.message);
+      return toSubscription(unwrap(await this.client.from('budget_subscriptions').select('*').eq('id', id).single()) as SubscriptionRow);
+    }
+    return toSubscription(unwrap(await this.client.from('budget_subscriptions').insert(row).select().single()) as SubscriptionRow);
+  }
+
+  async updateSubscription(id: string, patch: Partial<BudgetSubscriptionInput>) {
+    const { error } = await this.client.from('budget_subscriptions').update(subscriptionColumns(patch)).eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteSubscription(id: string) {
+    const { error } = await this.client.from('budget_subscriptions').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
+  async listIgnoredRecurring(): Promise<IgnoredRecurring[]> {
+    const rows = unwrap(await this.client.from('budget_recurring_ignored').select('key, label, created_at')) as {
+      key: string;
+      label: string;
+      created_at: string;
+    }[];
+    return rows.map((r) => ({ key: r.key, label: r.label, createdAt: r.created_at }));
+  }
+
+  async ignoreRecurring(key: string, label: string) {
+    const userId = await this.requireUserId();
+    const { error } = await this.client
+      .from('budget_recurring_ignored')
+      .upsert({ user_id: userId, key, label }, { onConflict: 'user_id,key', ignoreDuplicates: true });
+    if (error) throw new Error(error.message);
+  }
+
+  async unignoreRecurring(key: string) {
+    const { error } = await this.client.from('budget_recurring_ignored').delete().eq('key', key);
+    if (error) throw new Error(error.message);
+  }
+
   async exportData(): Promise<BudgetBackup> {
+    // Les abonnements à part : des tables manquantes (migration du 2026-10-07 pas
+    // encore appliquée) ne doivent pas empêcher de sauvegarder tout le reste.
+    const [subscriptions, ignoredRecurring] = await Promise.all([
+      this.listSubscriptions().catch(() => []),
+      this.listIgnoredRecurring().catch(() => []),
+    ]);
     return {
       categories: await this.listCategories(),
       entries: await this.listEntries(),
       rules: await this.listRules(),
       envelopes: await this.listEnvelopes(),
       envelopeMoves: await this.listEnvelopeMoves(),
+      subscriptions,
+      ignoredRecurring,
     };
   }
 
@@ -513,6 +613,28 @@ export class SupabaseBudget implements BudgetStore {
     for (const entry of (data.entries ?? []).filter((e) => linked.has(e.id))) {
       const row = unwrap(await this.client.from('budget_entries').insert(entryRow(entry)).select('id').single()) as { id: string };
       entryIdMap.set(entry.id, row.id);
+    }
+
+    // Les abonnements après les catégories, dont ils reprennent le nouvel identifiant.
+    if (data.subscriptions !== undefined || data.ignoredRecurring !== undefined) {
+      await this.client.from('budget_subscriptions').delete().eq('user_id', userId);
+      await this.client.from('budget_recurring_ignored').delete().eq('user_id', userId);
+    }
+    const subscriptions = data.subscriptions ?? [];
+    if (subscriptions.length > 0) {
+      const { error } = await this.client.from('budget_subscriptions').insert(
+        subscriptions.map((sub) => ({
+          user_id: userId,
+          ...subscriptionColumns(sub),
+          category_id: sub.categoryId ? (categoryIdMap.get(sub.categoryId) ?? null) : null,
+        })),
+      );
+      if (error) throw new Error(error.message);
+    }
+    const ignored = data.ignoredRecurring ?? [];
+    if (ignored.length > 0) {
+      const { error } = await this.client.from('budget_recurring_ignored').insert(ignored.map((i) => ({ user_id: userId, key: i.key, label: i.label })));
+      if (error) throw new Error(error.message);
     }
 
     for (const rule of data.rules ?? []) {

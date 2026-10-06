@@ -179,3 +179,62 @@ export interface BudgetEnvelopeMoveInput {
   note?: string;
   entryId?: string | null;
 }
+
+/**
+ * Le rythme d'un abonnement, déclaré à la main ou repéré dans les relevés
+ * (`lib/recurring.ts`). Pendant `as const` de `budget_subscriptions_frequency_check`.
+ */
+export const SUBSCRIPTION_FREQUENCIES = ['hebdomadaire', 'mensuel', 'trimestriel', 'annuel'] as const;
+export type SubscriptionFrequency = (typeof SUBSCRIPTION_FREQUENCIES)[number];
+
+/** Combien de jours avant une échéance on peut être prévenu (`null` : jamais). */
+export const SUBSCRIPTION_REMIND_DAYS = [3, 7, 15, 30] as const;
+export type SubscriptionRemindDays = (typeof SUBSCRIPTION_REMIND_DAYS)[number];
+
+export const SUBSCRIPTION_NAME_MAX = 80;
+
+/**
+ * Un abonnement déclaré à la main (2026-10-07) : ce que la détection ne voit
+ * pas encore (tout neuf, annuel pas encore payé deux fois) ou ne verra
+ * jamais (une autre carte, PayPal, des espèces). Une **prévision**, jamais
+ * une écriture : ce sont les relevés qui restent la vérité du budget.
+ */
+export interface BudgetSubscription {
+  id: string;
+  name: string;
+  /** Le montant habituel, en centimes, positif. */
+  amountCents: number;
+  frequency: SubscriptionFrequency;
+  /** Une échéance connue ; les suivantes s'en déduisent au rythme. */
+  nextDay: string;
+  categoryId: string | null;
+  /**
+   * Un motif de libellé (« NETFLIX ») pour reconnaître ses paiements dans les
+   * relevés : l'abonnement n'apparaît alors qu'une fois, « vu dans tes
+   * relevés ». Vide : rien à rapprocher.
+   */
+  pattern: string;
+  /** Prévenir tant de jours avant chaque échéance ; `null` : jamais. */
+  remindDays: SubscriptionRemindDays | null;
+  createdAt: string;
+}
+
+export interface BudgetSubscriptionInput {
+  name: string;
+  amountCents: number;
+  frequency: SubscriptionFrequency;
+  nextDay: string;
+  categoryId?: string | null;
+  pattern?: string;
+  remindDays?: SubscriptionRemindDays | null;
+}
+
+/**
+ * Une dépense récurrente repérée qu'on a écartée (« ce n'est pas un
+ * abonnement ») : on retient sa clé (`labelKey`), elle ne revient plus.
+ */
+export interface IgnoredRecurring {
+  key: string;
+  label: string;
+  createdAt: string;
+}

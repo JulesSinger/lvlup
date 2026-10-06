@@ -11,9 +11,9 @@
  */
 import { daysBetween, shiftDay } from '../../../core/lib/day';
 import { labelKey, suggestedPattern } from './classify';
-import type { BudgetCategory, BudgetEntry } from './types';
+import type { BudgetCategory, BudgetEntry, SubscriptionFrequency } from './types';
 
-export type Frequency = 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel';
+export type Frequency = SubscriptionFrequency;
 
 /** Les écarts entre deux paiements, en jours, qui font chaque rythme. */
 const RHYTHMS: { frequency: Frequency; min: number; max: number; perYear: number; minCount: number }[] = [

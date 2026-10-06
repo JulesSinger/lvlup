@@ -9,6 +9,9 @@ import type {
   BudgetEnvelopeMoveInput,
   BudgetRule,
   BudgetRuleInput,
+  BudgetSubscription,
+  BudgetSubscriptionInput,
+  IgnoredRecurring,
 } from '../lib/types';
 
 /**
@@ -22,6 +25,9 @@ export interface BudgetBackup {
   rules: BudgetRule[];
   envelopes: BudgetEnvelope[];
   envelopeMoves: BudgetEnvelopeMove[];
+  /** Depuis le 2026-10-07 ; absents d'une sauvegarde plus ancienne. */
+  subscriptions?: BudgetSubscription[];
+  ignoredRecurring?: IgnoredRecurring[];
 }
 
 /** Contrat de stockage du module budget (Astra). */
@@ -61,6 +67,18 @@ export interface BudgetStore {
   listEnvelopeMoves(): Promise<BudgetEnvelopeMove[]>;
   createEnvelopeMove(input: BudgetEnvelopeMoveInput): Promise<BudgetEnvelopeMove>;
   deleteEnvelopeMove(id: string): Promise<void>;
+
+  /** Les abonnements déclarés à la main (docs/etude-astra.md §14). */
+  listSubscriptions(): Promise<BudgetSubscription[]>;
+  createSubscription(input: BudgetSubscriptionInput, id?: string): Promise<BudgetSubscription>;
+  updateSubscription(id: string, patch: Partial<BudgetSubscriptionInput>): Promise<void>;
+  deleteSubscription(id: string): Promise<void>;
+
+  /** Les dépenses récurrentes repérées qu'on a écartées (« ce n'est pas un abonnement »). */
+  listIgnoredRecurring(): Promise<IgnoredRecurring[]>;
+  /** Rejouable : écarter deux fois la même clé n'en garde qu'une. */
+  ignoreRecurring(key: string, label: string): Promise<void>;
+  unignoreRecurring(key: string): Promise<void>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
   exportData(): Promise<BudgetBackup>;

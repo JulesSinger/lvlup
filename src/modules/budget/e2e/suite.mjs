@@ -1261,11 +1261,48 @@ export async function run({ browser, check, BASE }) {
     await p.getByRole('button', { name: 'Abonnements', exact: true }).click();
     await p.waitForSelector('.budget-recurring');
     const txt = async (loc) => ((await loc.textContent()) ?? '').replace(/\s/g, ' ');
-    const stillPaid = p.getByRole('region', { name: 'Encore payés' });
+    const stillPaid = p.getByRole('region', { name: 'Repérés dans tes relevés' });
     check('Un abonnement mensuel est repéré tout seul', (await txt(stillPaid)).includes('CB NETFLIX') && (await txt(stillPaid)).includes('chaque mois'));
     check('Des courses au montant variable n’en sont pas', !(await txt(p.locator('.budget-recurring'))).includes('LIDL'));
     check('Ce qu’ils coûtent par mois et par an', (await txt(p.locator('.budget-recurring .budget-month-summary'))).includes('13,99 €') && (await txt(p.locator('.budget-recurring .budget-month-summary'))).includes('167,88 €'));
     check('Un abonnement qu’on ne voit plus passer est mis à part', (await txt(p.getByRole('region', { name: 'Plus vus depuis un moment' }))).includes('DEEZER'));
+
+    // Déclarer un abonnement à la main : un annuel que les relevés ne montrent pas encore.
+    const summary = async () => txt(p.locator('.budget-recurring .budget-month-summary'));
+    await p.getByRole('button', { name: '+ Ajouter un abonnement' }).click();
+    const subDialog = p.getByRole('dialog', { name: 'Nouvel abonnement' });
+    await p.locator('#budget-sub-name').fill('Assurance habitation');
+    await p.locator('#budget-sub-amount').fill('186');
+    await p.locator('#budget-sub-frequency').selectOption('annuel');
+    await p.locator('#budget-sub-remind').selectOption('15');
+    await subDialog.getByRole('button', { name: 'Ajouter' }).click();
+    await subDialog.waitFor({ state: 'detached' });
+    const declared = p.getByRole('region', { name: 'Tes abonnements' });
+    check('Un abonnement déclaré à la main apparaît, avec son rappel', (await txt(declared)).includes('Assurance habitation') && (await txt(declared)).includes('déclaré à la main') && (await txt(declared)).includes('🔔 15 j avant'));
+    check('Il compte tout de suite, ramené au mois', (await summary()).includes('29,49 €'));
+
+    // Déclarer une dépense repérée : tout est déjà rempli, et elle ne paraît plus qu’une fois.
+    await stillPaid.getByRole('button', { name: 'Déclarer CB NETFLIX comme abonnement' }).click();
+    check('Déclarer une dépense repérée préremplit la fenêtre', (await p.locator('#budget-sub-amount').inputValue()) === '13,99' && (await p.locator('#budget-sub-pattern').inputValue()) === 'CB NETFLIX');
+    check('Le motif dit ce qu’il trouve dans les relevés', (await txt(p.locator('.budget-subscription-editor .field-hint').last())).includes('3 paiements trouvés'));
+    await p.getByRole('dialog', { name: 'Nouvel abonnement' }).getByRole('button', { name: 'Ajouter' }).click();
+    await p.getByRole('dialog', { name: 'Nouvel abonnement' }).waitFor({ state: 'detached' });
+    check('Rapproché de ses paiements, il ne paraît qu’une fois', (await txt(declared)).includes('vu dans tes relevés') && (await p.getByRole('region', { name: 'Repérés dans tes relevés' }).count()) === 0);
+    check('Sans être compté deux fois', (await summary()).includes('29,49 €'));
+
+    // Écarter ce qui n'en est pas un, puis revenir dessus.
+    await p.getByRole('button', { name: 'Écarter DEEZER' }).click();
+    await p.getByRole('region', { name: 'Plus vus depuis un moment' }).waitFor({ state: 'detached' });
+    check('Une dépense écartée disparaît', !(await txt(p.locator('.budget-recurring'))).includes('chaque mois · 3 paiements depuis'));
+    await p.getByRole('button', { name: /Écartés \(1\)/ }).click();
+    await p.getByRole('button', { name: 'Remettre DEEZER' }).click();
+    await p.getByRole('region', { name: 'Plus vus depuis un moment' }).waitFor();
+    check('Et se remet', (await txt(p.getByRole('region', { name: 'Plus vus depuis un moment' }))).includes('DEEZER'));
+
+    await p.getByRole('button', { name: 'Modifier Assurance habitation' }).click();
+    await p.getByRole('dialog', { name: 'Modifier l’abonnement' }).getByRole('button', { name: 'Supprimer' }).click();
+    await p.getByRole('dialog', { name: 'Modifier l’abonnement' }).waitFor({ state: 'detached' });
+    check('Un abonnement déclaré se supprime', !(await txt(p.locator('.budget-recurring'))).includes('Assurance habitation') && (await summary()).includes('13,99 €'));
 
     await p.getByRole('button', { name: 'Aperçu', exact: true }).click();
     await p.waitForSelector('.budget-month-selector');

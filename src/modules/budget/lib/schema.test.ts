@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { BUDGET_CATEGORY_KINDS, BUDGET_ENTRY_SOURCES } from './types';
+import { BUDGET_CATEGORY_KINDS, BUDGET_ENTRY_SOURCES, SUBSCRIPTION_FREQUENCIES, SUBSCRIPTION_NAME_MAX, SUBSCRIPTION_REMIND_DAYS } from './types';
 
 /**
  * Le type TypeScript et la contrainte Postgres doivent dire la même chose —
@@ -49,6 +49,17 @@ describe('le type et la base disent la même chose (Astra)', () => {
 
   it("les origines d'une écriture aussi", () => {
     expect(allowedBy('budget_entries_source_check')).toEqual([...BUDGET_ENTRY_SOURCES].sort());
+  });
+
+  it('les rythmes, les rappels et le nom d’un abonnement', () => {
+    expect(allowedBy('budget_subscriptions_frequency_check')).toEqual([...SUBSCRIPTION_FREQUENCIES].sort());
+    const sql = readFileSync(join(SQL_DIR, '2026-10-07-budget-subscriptions.sql'), 'utf8');
+    expect(sql).toContain(`remind_days in (${SUBSCRIPTION_REMIND_DAYS.join(', ')})`);
+    expect(sql).toContain(`char_length(name) between 1 and ${SUBSCRIPTION_NAME_MAX}`);
+    for (const table of ['budget_subscriptions', 'budget_recurring_ignored']) {
+      expect(sql).toContain(`alter table public.${table} enable row level security`);
+      for (const verb of ['select', 'insert', 'update', 'delete']) expect(sql).toContain(`create policy "${table}_${verb}_own"`);
+    }
   });
 });
 

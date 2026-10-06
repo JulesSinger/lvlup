@@ -12,10 +12,13 @@ import type {
   BudgetEnvelopeMoveInput,
   BudgetRule,
   BudgetRuleInput,
+  BudgetSubscription,
+  BudgetSubscriptionInput,
+  IgnoredRecurring,
 } from '../lib/types';
 import type { BudgetBackup, BudgetStore } from './budgetStore';
 
-interface Snapshot extends BudgetBackup {}
+type Snapshot = Required<BudgetBackup>;
 
 /** Lecture des seules sections du module, sur le blob local partagé. */
 function read(): Snapshot {
@@ -36,6 +39,8 @@ function read(): Snapshot {
     envelopeMoves: (Array.isArray(raw.budgetEnvelopeMoves) ? (raw.budgetEnvelopeMoves as BudgetEnvelopeMove[]) : []).map(
       (m) => ({ ...m, entryId: m.entryId ?? null }),
     ),
+    subscriptions: Array.isArray(raw.budgetSubscriptions) ? (raw.budgetSubscriptions as BudgetSubscription[]) : [],
+    ignoredRecurring: Array.isArray(raw.budgetIgnoredRecurring) ? (raw.budgetIgnoredRecurring as IgnoredRecurring[]) : [],
   };
 }
 
@@ -48,6 +53,8 @@ function write(snapshot: Snapshot) {
     budgetRules: snapshot.rules,
     budgetEnvelopes: snapshot.envelopes,
     budgetEnvelopeMoves: snapshot.envelopeMoves,
+    budgetSubscriptions: snapshot.subscriptions,
+    budgetIgnoredRecurring: snapshot.ignoredRecurring,
   });
 }
 
@@ -119,6 +126,8 @@ export class LocalBudget implements BudgetStore {
     reindexPositions(snapshot.categories);
     // Une écriture pointant sur la catégorie supprimée redevient « à
     // classer » plutôt que de référencer une catégorie fantôme.
+    // Un abonnement garde sa vie, sans catégorie (`on delete set null` côté base).
+    snapshot.subscriptions = snapshot.subscriptions.map((sub) => (sub.categoryId === id ? { ...sub, categoryId: null } : sub));
     snapshot.entries = snapshot.entries.map((e) =>
       e.categoryId === id ? { ...e, categoryId: null } : e,
     );
@@ -310,14 +319,69 @@ export class LocalBudget implements BudgetStore {
     write(snapshot);
   }
 
+  async listSubscriptions(): Promise<BudgetSubscription[]> {
+    return read().subscriptions.slice();
+  }
+
+  async createSubscription(input: BudgetSubscriptionInput, id: string = newId()): Promise<BudgetSubscription> {
+    const snapshot = read();
+    const existing = snapshot.subscriptions.find((s) => s.id === id);
+    if (existing) return existing; // rejoué : rien de plus
+    const subscription: BudgetSubscription = {
+      id,
+      name: input.name,
+      amountCents: Math.round(input.amountCents),
+      frequency: input.frequency,
+      nextDay: input.nextDay,
+      categoryId: input.categoryId ?? null,
+      pattern: input.pattern ?? '',
+      remindDays: input.remindDays ?? null,
+      createdAt: new Date().toISOString(),
+    };
+    snapshot.subscriptions.push(subscription);
+    write(snapshot);
+    return subscription;
+  }
+
+  async updateSubscription(id: string, patch: Partial<BudgetSubscriptionInput>) {
+    const snapshot = read();
+    snapshot.subscriptions = snapshot.subscriptions.map((s) => (s.id === id ? { ...s, ...patch } : s));
+    write(snapshot);
+  }
+
+  async deleteSubscription(id: string) {
+    const snapshot = read();
+    snapshot.subscriptions = snapshot.subscriptions.filter((s) => s.id !== id);
+    write(snapshot);
+  }
+
+  async listIgnoredRecurring(): Promise<IgnoredRecurring[]> {
+    return read().ignoredRecurring.slice();
+  }
+
+  async ignoreRecurring(key: string, label: string) {
+    const snapshot = read();
+    if (snapshot.ignoredRecurring.some((i) => i.key === key)) return;
+    snapshot.ignoredRecurring.push({ key, label, createdAt: new Date().toISOString() });
+    write(snapshot);
+  }
+
+  async unignoreRecurring(key: string) {
+    const snapshot = read();
+    snapshot.ignoredRecurring = snapshot.ignoredRecurring.filter((i) => i.key !== key);
+    write(snapshot);
+  }
+
   async exportData(): Promise<BudgetBackup> {
-    const { categories, entries, rules, envelopes, envelopeMoves } = read();
+    const { categories, entries, rules, envelopes, envelopeMoves, subscriptions, ignoredRecurring } = read();
     return {
       categories: categories.slice(),
       entries: entries.slice(),
       rules: rules.slice(),
       envelopes: envelopes.slice(),
       envelopeMoves: envelopeMoves.slice(),
+      subscriptions: subscriptions.slice(),
+      ignoredRecurring: ignoredRecurring.slice(),
     };
   }
 
@@ -328,6 +392,8 @@ export class LocalBudget implements BudgetStore {
       rules: data.rules ?? [],
       envelopes: data.envelopes ?? [],
       envelopeMoves: data.envelopeMoves ?? [],
+      subscriptions: data.subscriptions ?? [],
+      ignoredRecurring: data.ignoredRecurring ?? [],
     });
   }
 }
