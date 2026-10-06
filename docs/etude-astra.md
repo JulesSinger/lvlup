@@ -554,3 +554,79 @@ appliquée (`git stash`), où l'échec se reproduit à l'identique. Vraisemblabl
 que le test attend, plus sensible à la latence réseau du mode comptes. Non corrigé ici — hors
 périmètre de ce chantier, touche un fichier d'un autre module (`objectifs`) qu'aucune règle
 n'autorise à modifier en passant.
+
+## 13. Améliorations après analyse (07/10/2026)
+
+Demande de Jules : « analyse le module Budget et dis-moi ce que tu trouves en possibilité
+d'améliorations ». Tout ce qui a été trouvé a été retenu, sauf trois pistes écartées par lui :
+un objectif chiffré par enveloppe, l'export CSV des écritures, l'import d'autres banques que
+BoursoBank. Livré en trois lots, sur une branche et un dossier séparés (`git worktree`) : une
+autre conversation travaillait au même moment dans le dossier principal.
+
+### Lot 1 — les défauts
+
+- **Lire par paquets** (`fetchAll`, `core/data/supabaseClient.ts`, au socle). Supabase rend au
+  plus 1 000 lignes par requête dans sa configuration par défaut ; `listEntries` lisait tout
+  d'une requête. Au-delà (moins d'un an d'import bancaire), les écritures les plus anciennes
+  disparaissaient **en silence** : Évolution et total épargné faux, réimport d'un vieux relevé
+  en échec, lien avec Courses et Projets trompé. Écritures, règles et mouvements d'enveloppe se
+  lisent désormais par paquets, triés de façon stable (l'identifiant départage un même jour).
+  Aucun autre module ne s'en sert encore : à brancher là où une table grossit (Objectifs,
+  Tâches terminées…).
+- **Import groupé** (`importEntries`) : les lignes déjà connues sautées, le reste par paquets de
+  500 au lieu d'une requête par ligne ; un paquet refusé pour un doublon arrivé entre-temps est
+  repris ligne par ligne. Une seule règle par libellé, jamais recréée.
+- **Un retrait d'enveloppe ne dépasse plus son solde** (`withdrawalProblem`) ; le formulaire
+  montre ce qu'elle contient.
+- **« Revenus freelance »** parmi les catégories de départ : les encaissements de Projets s'y
+  rangent. Un compte existant doit la créer lui-même.
+
+### Lot 2 — classer et chercher
+
+- **Les règles de classement, visibles** (`RulesSection`, `RuleEditor`, onglet Catégories) :
+  jusqu'ici une règle se créait en cochant une case à l'import et rien ne permettait de la
+  voir, la corriger ou la supprimer. Créer une règle propose de ranger d'un coup les « à
+  classer » qui correspondent. Un motif fait au moins 3 caractères (`validateRulePattern`).
+- **Classer par lot** (`ClassifyDialog`, bouton « N à classer » de l'Aperçu) : les « à
+  classer », tous mois confondus, regroupés par libellé sans dates ni numéros (`labelKey`) ;
+  une catégorie range tout le groupe, « retenir » crée la règle (`suggestedPattern` : le
+  libellé sans ses chiffres). Stockage : `setEntriesCategory`.
+- **Retenir depuis une écriture** : ranger une écriture « à classer » propose de retenir le
+  choix pour les relevés suivants.
+- **La recherche** (`lib/search.ts`) : dans toutes les écritures, sans accents ni casse, par
+  libellé, note, catégorie ou montant (« 12,50 ») ; tous les mots doivent y être ; un bilan
+  (combien, sorti, entré, période).
+- Défaut trouvé en lisant : corriger une écriture importée la marquait « saisie à la main »
+  (`source: 'manuelle'` écrit à chaque enregistrement). Elle garde désormais sa source.
+- `CategorySelect` : le menu des catégories, commun à la fenêtre d'écriture, aux règles et au
+  classement par lot.
+
+### Lot 3 — abonnements, et payer avec une enveloppe
+
+- **L'onglet « Abonnements »** (`lib/recurring.ts`, `RecurringScreen`) : rien à saisir. Un même
+  libellé qui revient à un rythme hebdomadaire, mensuel, trimestriel ou annuel (la plupart des
+  écarts dans la fourchette, pas seulement leur médiane), pour un montant stable à 15 % près sur
+  les trois quarts des paiements — une hausse de prix reste le même abonnement, des courses au
+  montant variable n'en sont pas. Virements internes, épargne et entrées exclus. Coût ramené au
+  mois et à l'an, prochaine échéance (« attendu vers le …, pas encore vu » quand elle est
+  passée), hausse de prix ; à part, ceux qu'on ne voit plus passer depuis une fois et demie
+  leur rythme. Le loyer y figure : c'est une dépense récurrente, l'écran le dit.
+- **Payer une dépense avec une enveloppe** (§6 bis de `etude-astra-epargne.md`, « si refaire le
+  geste à la main s'avère pénible ») : migration `2026-10-07-budget-envelope-link.sql`
+  (`budget_envelope_moves.entry_id`, `on delete cascade`, une enveloppe par dépense au plus),
+  **appliquée par Jules**. Dans la fenêtre d'une dépense, « Payée avec une enveloppe » ; le
+  retrait suit la dépense (`linkPlan` : rien de changé, rien à écrire ; sinon l'ancien retiré,
+  le nouveau créé), plafonné à ce que l'enveloppe peut payer sans compter deux fois le retrait
+  déjà fait (`availableForEntry`). La liste dit quelle enveloppe a payé ; l'historique marque
+  le retrait 🧾. Le total épargné ne bouge toujours pas.
+- **La restauration** garde ce lien (les écritures liées sont recréées une à une pour connaître
+  leur nouvel identifiant) et envoie les autres par paquets — elle comptait jusqu'ici une
+  requête par écriture.
+
+### Dette
+
+`styles/placeholder.css` renommé `budget.css`, à la même place dans `src/styles.css` : la
+feuille produite est identique à l'octet près (md5 vérifié).
+
+1283 → **1307** tests unitaires, la suite de Budget 140 → **167** vérifications, **1006/1006** en
+mode comptes.

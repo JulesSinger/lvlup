@@ -3,7 +3,8 @@
  *
  * Nommé « placeholder.css » depuis l'étape 1, quand l'écran n'était qu'un
  * signet ; il porte maintenant les règles de l'écran des paquets (étape 2).
- * Même convention qu'Astra (`modules/budget/styles/placeholder.css`).
+ * Budget, nommé pareil, a pris son vrai nom (`budget.css`) le 2026-10-07 ;
+ * celui-ci peut suivre le même chemin.
  */
 
 .flashcards-placeholder {

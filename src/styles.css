@@ -59,7 +59,7 @@
 @import './core/styles/hub.css';
 
 /* --- Astra : catégories, opérations, écran du mois (étapes 2-4) ------ */
-@import './modules/budget/styles/placeholder.css';
+@import './modules/budget/styles/budget.css';
 
 /* --- Orbite : signet d'étape 1, en attendant ses vrais écrans -------- */
 @import './modules/flashcards/styles/placeholder.css';

@@ -1,12 +1,10 @@
 /*
  * Styles du module budget (Astra).
  *
- * Nommé « placeholder.css » depuis l'étape 1, quand l'écran n'était qu'un
- * signet ; il porte maintenant les catégories (étape 2), les opérations
- * (étape 3) et l'écran du mois avec son camembert (étape 4). Renommer le
- * fichier demanderait de supprimer l'ancien, ce qu'une session cloud ne
- * peut pas faire sur le dossier monté — voir CLAUDE.md §7. À renommer en
- * `budget.css` depuis un poste local, sans urgence.
+ * Nommé « placeholder.css » de l'étape 1 (un simple signet) au 2026-10-07,
+ * où il a pris son vrai nom : il porte les catégories, les opérations,
+ * l'écran du mois, les enveloppes, l'évolution, les règles et les
+ * abonnements. Sa place dans `src/styles.css` n'a pas changé.
  */
 
 /* `.main` (socle, `core/styles/base.css`) plafonne à 1080px — pensé pour
