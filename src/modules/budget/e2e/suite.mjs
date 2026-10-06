@@ -1122,6 +1122,106 @@ export async function run({ browser, check, BASE }) {
     await fresh.close();
   }
 
+  // --- Recherche, classement par lot, règles (2026-10-07) --------------------
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const p = await fresh.newPage();
+    const errors2 = [];
+    p.on('pageerror', (e) => errors2.push(e.message));
+    p.on('dialog', (d) => void d.accept());
+    await enterBudget(p, BASE);
+    await p.waitForSelector('.empty h3');
+    await p.evaluate(() => {
+      const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const monthsAgo = (n) => {
+        const d = new Date();
+        d.setDate(3);
+        d.setMonth(d.getMonth() - n);
+        return fmt(d);
+      };
+      const entry = (id, n, label, amountCents, categoryId = null) => ({ id, day: monthsAgo(n), label, amountCents, categoryId, source: 'import', importKey: id, note: '', createdAt: monthsAgo(n) });
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      snap.budgetCategories = [
+        { id: 'c-abos', name: 'Abonnements', emoji: '📺', color: '#9c8cf6', kind: 'variable', position: 0, parentId: null },
+        { id: 'c-logement', name: 'Logement', emoji: '🏠', color: '#6fa8f5', kind: 'fixe', position: 1, parentId: null },
+      ];
+      snap.budgetEntries = [
+        entry('n1', 2, 'CB NETFLIX 12/08', -1399),
+        entry('n2', 1, 'CB NETFLIX 12/09', -1399),
+        entry('l1', 0, 'LOYER OCTOBRE', -65000),
+        entry('e1', 0, 'EDF facture', -6250, 'c-logement'),
+        entry('r1', 0, 'Remboursement Amazon', 2499),
+      ];
+      snap.budgetRules = [];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await toHub(p);
+    await p.waitForSelector('.hub-picker-card');
+    await p.getByRole('button', { name: /Budget/ }).click();
+    await p.waitForSelector('.budget-search');
+
+    const search = p.getByLabel('Rechercher dans toutes les écritures');
+    await search.fill('netflix');
+    await p.waitForSelector('.budget-search-summary');
+    const summaryText = async () => ((await p.locator('.budget-search-summary').textContent()) ?? '').replace(/\s/g, ' ');
+    check('La recherche trouve les écritures de tous les mois, avec leur total', (await summaryText()).includes('2 écritures') && (await summaryText()).includes('27,98 € sortis'));
+    await search.fill('650');
+    await p.waitForFunction(() => document.querySelectorAll('.budget-entry-row').length === 1);
+    check('Un montant se cherche aussi', ((await p.locator('.budget-entry-row').textContent()) ?? '').includes('LOYER OCTOBRE'));
+    await search.fill('');
+    await p.waitForSelector('.budget-month-selector');
+
+    await p.getByRole('button', { name: '4 à classer' }).click();
+    const dialog = p.getByRole('dialog', { name: 'Classer les écritures' });
+    const netflix = dialog.locator('.budget-classify-group', { hasText: 'NETFLIX' });
+    check('Les « à classer » sont regroupés par libellé, dates retirées', ((await netflix.textContent()) ?? '').includes('2 écritures'));
+    await netflix.locator('select').selectOption('c-abos');
+    await netflix.getByLabel('Retenir pour les prochains relevés').check();
+    check('La règle proposée est le libellé sans ses chiffres', (await netflix.locator('.budget-classify-pattern').inputValue()) === 'CB NETFLIX');
+    await netflix.getByRole('button', { name: 'Classer' }).click();
+    await dialog.locator('.budget-classify-group', { hasText: 'NETFLIX' }).waitFor({ state: 'detached' });
+    check('Classer un groupe range d’un coup toutes ses écritures', (await p.getByRole('button', { name: '2 à classer' }).count()) === 1);
+    await dialog.getByRole('button', { name: 'Fermer', exact: true }).first().click();
+
+    await p.getByRole('button', { name: 'Catégories', exact: true }).click();
+    const rules = p.locator('.budget-rules');
+    await rules.waitFor();
+    check('La règle retenue apparaît dans les règles de classement', ((await rules.textContent()) ?? '').includes('« CB NETFLIX »'));
+    await p.getByRole('button', { name: '+ Nouvelle règle' }).click();
+    await p.locator('#budget-rule-pattern').fill('lo');
+    await p.locator('#budget-rule-category').selectOption('c-logement');
+    await p.getByRole('button', { name: 'Créer la règle' }).click();
+    check('Un motif trop court est refusé en clair', ((await p.locator('.budget-rule-editor .notice.error').textContent()) ?? '').includes('au moins 3'));
+    await p.locator('#budget-rule-pattern').fill('loyer');
+    check('La règle propose de ranger les « à classer » qui correspondent', ((await p.locator('.budget-rule-editor .budget-remember').textContent()) ?? '').includes('qui correspond'));
+    await p.getByRole('button', { name: 'Créer la règle' }).click();
+    await p.waitForSelector('.budget-rules .notice.success');
+    check('La règle est créée et range l’écriture qui correspond', ((await p.locator('.budget-rules .notice.success').textContent()) ?? '').includes('1 écriture rangée'));
+    await p.getByRole('button', { name: 'Modifier la règle CB NETFLIX' }).click();
+    await p.locator('.budget-rule-editor').getByRole('button', { name: 'Supprimer' }).click();
+    await p.locator('.budget-rule-editor').waitFor({ state: 'detached' });
+    check('Une règle se supprime', !((await rules.textContent()) ?? '').includes('CB NETFLIX') && ((await rules.textContent()) ?? '').includes('« loyer »'));
+
+    await p.getByRole('button', { name: 'Aperçu', exact: true }).click();
+    await p.waitForSelector('.budget-search');
+    check('Il ne reste qu’une écriture à classer', (await p.getByRole('button', { name: '1 à classer' }).count()) === 1);
+    await p.getByLabel('Rechercher dans toutes les écritures').fill('remboursement');
+    await p.locator('.budget-entry-row').getByRole('button', { name: 'Modifier' }).click();
+    await p.locator('#budget-entry-category').selectOption('c-abos');
+    const remember = p.getByLabel(/Retenir : ranger aussi les prochaines écritures/);
+    check('Ranger une écriture « à classer » propose de retenir le choix', await remember.isVisible());
+    await remember.check();
+    await p.getByRole('button', { name: 'Enregistrer' }).click();
+    await p.locator('.budget-entry-editor').waitFor({ state: 'detached' });
+    check('Une écriture importée le reste quand on la corrige', await p.evaluate(() => JSON.parse(localStorage.getItem('palier.v1')).budgetEntries.find((e) => e.id === 'r1').source === 'import'));
+    await p.getByRole('button', { name: 'Catégories', exact: true }).click();
+    await rules.waitFor();
+    check('Retenir depuis une écriture crée la règle', ((await rules.textContent()) ?? '').includes('« Remboursement Amazon »'));
+
+    check('Aucune erreur JavaScript (recherche, classement, règles)', errors2.length === 0, errors2.join(' | '));
+    await fresh.close();
+  }
+
   // --- Rendu mobile --------------------------------------------------------
   // Jamais vérifié jusqu'ici pour Budget, comme pour Flashcards (31/08/2026) : les
   // quatre onglets, le bouton flottant et l'éditeur d'écriture (pastilles +

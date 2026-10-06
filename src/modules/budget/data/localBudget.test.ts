@@ -33,6 +33,15 @@ describe('LocalBudget', () => {
     expect((await store.listEntries()).map((e) => e.importKey).sort()).toEqual(['a', 'b', 'c']);
   });
 
+  it('range plusieurs écritures d’un coup, sans toucher aux autres', async () => {
+    const a = await store.createEntry({ day: '2026-10-01', label: 'Netflix', amountCents: -1399 });
+    const b = await store.createEntry({ day: '2026-11-01', label: 'Netflix', amountCents: -1399 });
+    const c = await store.createEntry({ day: '2026-11-02', label: 'Loyer', amountCents: -65000 });
+    await store.setEntriesCategory([a.id, b.id], 'abonnements');
+    const byId = new Map((await store.listEntries()).map((e) => [e.id, e.categoryId]));
+    expect([byId.get(a.id), byId.get(b.id), byId.get(c.id)]).toEqual(['abonnements', 'abonnements', null]);
+  });
+
   it('crée une catégorie avec ses valeurs par défaut', async () => {
     const category = await store.createCategory({ name: 'Courses' });
     expect(category.kind).toBe('variable');

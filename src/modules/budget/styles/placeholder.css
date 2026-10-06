@@ -91,7 +91,8 @@
   gap: 22px;
 }
 
-.budget-group-title {
+.budget-group-title,
+.budget-rules-title {
   margin: 0 0 10px;
   font-size: 13px;
   font-weight: 650;
@@ -1084,4 +1085,135 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* --- Recherche, classement par lot, règles (2026-10-07) ------------------- */
+
+.budget-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.budget-search input {
+  flex: 1;
+  min-width: 0;
+}
+
+.budget-classify-open {
+  flex: none;
+  border-color: color-mix(in srgb, var(--yellow) 50%, transparent);
+  color: color-mix(in oklab, var(--yellow), var(--text) var(--ink-mix));
+  white-space: nowrap;
+}
+
+.budget-search-summary {
+  margin: 0 0 12px;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.budget-search-summary b {
+  color: var(--text);
+}
+
+.budget-remember {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 10px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+/* Le socle donne `width: 100%` à tout input : une case à cocher s'étirerait. */
+.budget-remember input {
+  width: auto;
+  margin-top: 3px;
+}
+
+.budget-spacer {
+  flex: 1;
+}
+
+.budget-rule-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.budget-rules {
+  margin-top: 8px;
+}
+
+.budget-rules-intro {
+  margin: 0 0 10px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.budget-rule-pattern {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.budget-rule-arrow {
+  color: var(--text-faint);
+}
+
+.budget-rules-add {
+  margin-top: 8px;
+}
+
+.budget-classify {
+  max-width: 640px;
+}
+
+.budget-classify-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.budget-classify-group {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.budget-classify-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+
+.budget-classify-head b {
+  overflow-wrap: anywhere;
+}
+
+.budget-classify-meta {
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+.budget-classify-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.budget-classify-actions select {
+  flex: 1;
+  min-width: 0;
+}
+
+.budget-classify-group .budget-remember {
+  margin: 0;
 }

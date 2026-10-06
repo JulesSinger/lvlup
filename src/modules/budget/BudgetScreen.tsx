@@ -6,6 +6,7 @@ import { EnvelopesScreen } from './components/EnvelopesScreen';
 import { EvolutionScreen } from './components/EvolutionScreen';
 import { ImportScreen } from './components/ImportScreen';
 import { MonthScreen } from './components/MonthScreen';
+import { RulesSection } from './components/RulesSection';
 import { budgetStore } from './data';
 import { BUDGET_CATEGORY_KINDS, CATEGORY_KIND_LABELS } from './lib/types';
 import type { BudgetCategory, BudgetCategoryInput, BudgetCategoryKind } from './lib/types';
@@ -289,6 +290,8 @@ export function BudgetScreen({ error, onError, onOpenSettings, onSwitchModule, r
                 </section>
               );
             })}
+
+            <RulesSection categories={categories} onError={onError} reloadToken={reloadToken} />
 
             <button
               className="btn btn-primary budget-add"

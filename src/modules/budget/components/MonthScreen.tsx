@@ -4,7 +4,9 @@ import { mostUsedCategoryIds } from '../lib/categoryPicker';
 import { currentMonthKey, monthKeyOf, monthLabel, shiftMonthKey } from '../lib/month';
 import { computeMonthlyBreakdown, deltaMap, formatMonthDelta, monthDelta, subcategoryBreakdown } from '../lib/monthlyBreakdown';
 import { centsToInputValue, formatCents } from '../lib/amount';
+import { searchEntries, summarize } from '../lib/search';
 import type { BudgetCategory, BudgetEntry, BudgetRule } from '../lib/types';
+import { ClassifyDialog } from './ClassifyDialog';
 import { EntriesView } from './EntriesView';
 import { PieChart } from './PieChart';
 import { SubcategoryDetail } from './SubcategoryDetail';
@@ -35,6 +37,9 @@ export function MonthScreen({
   const [loading, setLoading] = useState(true);
   /** `undefined` = pas de filtre ; une valeur (dont `null` pour « à classer ») = filtré sur cette part. */
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null | undefined>(undefined);
+  /** Une recherche dans toutes les écritures, tous mois confondus ; vide, l'écran du mois. */
+  const [query, setQuery] = useState('');
+  const [classifying, setClassifying] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -111,8 +116,83 @@ export function MonthScreen({
       ? subcategoryBreakdown(entries, categories, selectedCategoryId, monthKey)
       : null;
 
+  const unclassifiedCount = entries.filter((e) => e.categoryId === null).length;
+  const results = query.trim() ? searchEntries(entries, categories, query) : null;
+  const summary = results ? summarize(results) : null;
+
+  const searchBar = (
+    <div className="budget-search">
+      <input
+        type="search"
+        aria-label="Rechercher dans toutes les écritures"
+        placeholder="Rechercher dans toutes les écritures : Amazon, EDF, 12,50…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+      />
+      {unclassifiedCount > 0 && (
+        <button type="button" className="btn btn-sm budget-classify-open" onClick={() => setClassifying(true)}>
+          {unclassifiedCount} à classer
+        </button>
+      )}
+    </div>
+  );
+
+  const classifyDialog = classifying && (
+    <ClassifyDialog
+      entries={entries}
+      categories={categories}
+      rules={rules}
+      onClose={() => setClassifying(false)}
+      onClassify={async (group, categoryId, pattern) => {
+        await budgetStore.setEntriesCategory(
+          group.entries.map((e) => e.id),
+          categoryId,
+        );
+        if (pattern) await budgetStore.createRule({ pattern, categoryId, priority: 10 });
+        await refresh();
+      }}
+    />
+  );
+
+  if (results && summary) {
+    return (
+      <div className="budget-month">
+        {searchBar}
+        <p className="budget-search-summary" role="status">
+          {summary.count === 0 ? (
+            'Rien ne correspond.'
+          ) : (
+            <>
+              <b>
+                {summary.count} écriture{summary.count > 1 ? 's' : ''}
+              </b>
+              {summary.firstDay && summary.lastDay && summary.firstDay !== summary.lastDay && ` du ${summary.firstDay} au ${summary.lastDay}`}
+              {summary.spentCents > 0 && ` · ${centsToInputValue(summary.spentCents)} € sortis`}
+              {summary.receivedCents > 0 && ` · ${centsToInputValue(summary.receivedCents)} € entrés`}
+            </>
+          )}
+        </p>
+        {results.length > 0 && (
+          <EntriesView
+            entries={results}
+            categories={categories}
+            rules={rules}
+            frequentCategoryIds={mostUsedCategoryIds(entries)}
+            onError={onError}
+            onChanged={refresh}
+            emptyTitle="Rien ne correspond"
+          />
+        )}
+        {classifyDialog}
+      </div>
+    );
+  }
+
   return (
     <div className="budget-month">
+      {searchBar}
+      {classifyDialog}
       <div className="budget-month-selector">
         <button
           type="button"

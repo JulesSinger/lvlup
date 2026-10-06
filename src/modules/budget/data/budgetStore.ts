@@ -41,6 +41,8 @@ export interface BudgetStore {
    */
   importEntries(inputs: BudgetEntryInput[]): Promise<{ written: number; skipped: number }>;
   updateEntry(id: string, patch: Partial<BudgetEntryInput>): Promise<void>;
+  /** Ranger plusieurs écritures dans une catégorie d'un coup (classer un groupe d'« à classer »). */
+  setEntriesCategory(ids: string[], categoryId: string | null): Promise<void>;
   deleteEntry(id: string): Promise<void>;
 
   listRules(): Promise<BudgetRule[]>;

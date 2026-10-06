@@ -290,6 +290,14 @@ export class SupabaseBudget implements BudgetStore {
     return { written, skipped };
   }
 
+  async setEntriesCategory(ids: string[], categoryId: string | null) {
+    // Par paquets : les identifiants voyagent dans l'adresse de la requête.
+    for (let i = 0; i < ids.length; i += 150) {
+      const { error } = await this.client.from('budget_entries').update({ category_id: categoryId }).in('id', ids.slice(i, i + 150));
+      if (error) throw new Error(error.message);
+    }
+  }
+
   async updateEntry(id: string, patch: Partial<BudgetEntryInput>) {
     const row: Record<string, unknown> = {};
     if (patch.day !== undefined) row.day = patch.day;

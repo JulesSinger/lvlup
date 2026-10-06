@@ -63,11 +63,16 @@ export function EntriesView({
     return () => window.removeEventListener('keydown', onKey);
   }, [editing]);
 
-  async function saveEntry(input: BudgetEntryInput) {
+  async function saveEntry(input: BudgetEntryInput, rememberPattern?: string) {
     if (editing !== null && editing !== 'new') {
       await budgetStore.updateEntry(editing.id, input);
     } else {
       await budgetStore.createEntry(input);
+    }
+    // La règle après l'écriture : l'écriture compte plus que la règle, qui
+    // n'est qu'un confort pour les relevés suivants.
+    if (rememberPattern && input.categoryId) {
+      await budgetStore.createRule({ pattern: rememberPattern, categoryId: input.categoryId, priority: 10 });
     }
     setEditing(null);
     await onChanged();

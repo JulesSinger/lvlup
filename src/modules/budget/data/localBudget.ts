@@ -179,6 +179,13 @@ export class LocalBudget implements BudgetStore {
     return { written, skipped };
   }
 
+  async setEntriesCategory(ids: string[], categoryId: string | null) {
+    const snapshot = read();
+    const wanted = new Set(ids);
+    for (const entry of snapshot.entries) if (wanted.has(entry.id)) entry.categoryId = categoryId;
+    write(snapshot);
+  }
+
   async updateEntry(id: string, patch: Partial<BudgetEntryInput>) {
     const snapshot = read();
     const entry = snapshot.entries.find((e) => e.id === id);
