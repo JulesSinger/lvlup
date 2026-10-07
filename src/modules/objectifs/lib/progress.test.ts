@@ -124,12 +124,15 @@ describe('profileRank', () => {
     expect(rank?.id).toBe('platine');
   });
 
-  it('un objectif commencé sans palier validé tire la moyenne vers le bas', () => {
-    // C'est voulu : sinon, créer des objectifs sans les travailler gonflerait
-    // le rang de profil.
+  it('un objectif sans palier validé n’entre pas dans la moyenne (depuis le 07/10/2026)', () => {
+    // Commencer un objectif ne fait plus baisser le rang ; le créer sans le
+    // travailler ne le gonfle pas non plus.
     const a = goal([tier('emeraude', at(2026, 5, 1))], false, 'g1'); // 6
-    const b = goal([tier('or', null)], false, 'g2'); // 0
-    expect(profileRank([a, b]).average).toBe(3);
+    const b = goal([tier('or', null)], false, 'g2'); // non classé
+    const { average, rankedGoals, rank } = profileRank([a, b]);
+    expect(average).toBe(6);
+    expect(rankedGoals).toBe(1);
+    expect(rank?.id).toBe('emeraude');
   });
 
   it('ignore les objectifs archivés et ceux sans palier', () => {
@@ -141,8 +144,8 @@ describe('profileRank', () => {
     expect(rank?.id).toBe('or');
   });
 
-  it('n’attribue aucun rang tant que la moyenne est sous 1', () => {
-    expect(profileRank([goal([tier('or', null)])]).rank).toBeNull();
+  it('n’attribue aucun rang tant qu’aucun palier n’est validé', () => {
+    expect(profileRank([goal([tier('or', null)])])).toMatchObject({ rank: null, rankedGoals: 0 });
     expect(profileRank([]).rank).toBeNull();
   });
 

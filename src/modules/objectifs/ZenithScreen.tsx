@@ -33,7 +33,7 @@ import { DEMO_GOALS } from './lib/demo';
 import { freezeOffer, goalProgress, ppForRank, profileRank, todayPP } from './lib/progress';
 import { getRank, ladderInsert, ladderMove } from './lib/ranks';
 import type { GoalTemplate } from './lib/templates';
-import { MAX_FREEZES, computeStreak, dayString } from './lib/streak';
+import { MAX_FREEZES, computeStreak, crossedMilestone, dayString } from './lib/streak';
 import { goalIdFromHash, hashForGoal } from './lib/tile';
 import { FREEZE_COST, ONE_OFF_PP } from './lib/types';
 import type {
@@ -64,6 +64,14 @@ const VIEWS: { id: View; label: string; icon: string }[] = [
  * ni Supabase ni les autres modules, seulement l'utilisateur qu'on lui donne
  * et les deux portes qu'on lui ouvre : les réglages et le retour au hub.
  */
+/** Le trophée qui célèbre déjà chaque cap du streak la première fois. */
+const CAP_TROPHIES: Record<number, string> = {
+  7: 'semaine-parfaite',
+  30: 'en-fusion',
+  100: 'inarretable',
+  365: 'une-annee',
+};
+
 export function ZenithScreen({
   user,
   settings,
@@ -355,6 +363,21 @@ export function ZenithScreen({
   }
 
   /**
+   * Un cap du streak franchi par une coche du jour (07/10/2026) : 7, 30, 100
+   * ou 365 jours. Si le trophée de ce cap tombe au même geste (« Semaine
+   * parfaite », « En fusion »…), il suffit : un seul écran pour un seul
+   * événement. Les coches d'un jour passé n'appellent jamais ceci — on ne fête
+   * pas une série recollée après coup.
+   */
+  function streakCelebrations(before: Checkin[], after: Checkin[], trophyIds: Set<string>): Celebration[] {
+    const was = computeStreak(goals, before, dayString(), freezePurchases);
+    const now = computeStreak(goals, after, dayString(), freezePurchases);
+    const cap = crossedMilestone(was.current, now.current);
+    if (cap === null || trophyIds.has(CAP_TROPHIES[cap] ?? '')) return [];
+    return [{ kind: 'streak', days: cap, best: was.best }];
+  }
+
+  /**
    * Enregistre une action : PP, streak, trophées, journée.
    * `day` permet de rattraper un oubli — la coche part alors sur le jour
    * concerné, et non sur aujourd'hui.
@@ -391,17 +414,22 @@ export function ZenithScreen({
     const { goalsAfter, queue } = reachedCelebrations(checkins, nextCheckins);
 
     const alreadyOwned = new Set(achievements.map((a) => a.id));
+    const trophyIds = new Set<string>();
     for (const t of newlyUnlocked(
       { goals, checkins },
       { goals: goalsAfter, checkins: nextCheckins },
     )) {
       if (!alreadyOwned.has(t.id)) {
+        trophyIds.add(t.id);
         queue.push({ kind: 'trophy', icon: t.icon, name: t.name, desc: t.desc });
       }
     }
     // La cérémonie de journée bouclée ne se rejoue pas pour un jour passé :
     // ce serait une fausse joie, et l'anneau du jour n'a pas bougé.
-    if (isToday) queue.push(...dayCelebrations(before, after, streakAfter));
+    if (isToday) {
+      queue.push(...streakCelebrations(checkins, nextCheckins, trophyIds));
+      queue.push(...dayCelebrations(before, after, streakAfter));
+    }
     if (queue.length > 0) setCelebrations(queue);
 
     void (async () => {
@@ -460,12 +488,15 @@ export function ZenithScreen({
 
     const queue: Celebration[] = [];
     const alreadyOwned = new Set(achievements.map((a) => a.id));
+    const trophyIds = new Set<string>();
     for (const t of newlyUnlocked({ goals, checkins }, { goals, checkins: nextCheckins })) {
       if (!alreadyOwned.has(t.id)) {
+        trophyIds.add(t.id);
         queue.push({ kind: 'trophy', icon: t.icon, name: t.name, desc: t.desc });
       }
     }
     if (isToday) {
+      queue.push(...streakCelebrations(checkins, nextCheckins, trophyIds));
       queue.push(
         ...dayCelebrations(
           todayPP(goals, checkins),

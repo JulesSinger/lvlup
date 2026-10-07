@@ -163,8 +163,10 @@ export async function run({ browser, check, BASE }) {
   await page.getByRole('button', { name: 'Trophées' }).click();
   await page.waitForSelector('.profile-rank');
   check(
-    'Rang global calculé (moyenne 3/3 objectifs = Fer), en tête de Trophées',
-    (await page.locator('.profile-rank').textContent()) === 'Fer',
+    // Depuis le 07/10/2026, seuls les objectifs qui ont un palier validé
+    // comptent : un seul ici, en Argent.
+    'Rang du profil = moyenne des objectifs classés (Argent), en tête de Trophées',
+    (await page.locator('.profile-rank').textContent()) === 'Argent',
     await page.locator('.profile-rank').textContent(),
   );
   await page.getByRole('button', { name: 'Accueil' }).click();
@@ -363,6 +365,14 @@ export async function run({ browser, check, BASE }) {
   );
   await showGoals(page);
   check('4e objectif créé', (await page.locator('.goal-tile').count()) === 4);
+  await page.getByRole('button', { name: 'Trophées' }).click();
+  await page.waitForSelector('.profile-rank');
+  check(
+    'Commencer un objectif ne fait pas baisser le rang du profil',
+    (await page.locator('.profile-rank').textContent()) === 'Argent',
+    await page.locator('.profile-rank').textContent(),
+  );
+  await showGoals(page);
   check(
     'Le modèle apporte ses propres actions',
     (await goalTile(page, 3).locator('.goal-count').textContent())?.includes('0/4'),
@@ -674,7 +684,7 @@ export async function run({ browser, check, BASE }) {
   // Salle des trophées
   await page.getByRole('button', { name: 'Trophées' }).click();
   await page.waitForSelector('.trophy-grid');
-  check('12 trophées listés', (await page.locator('.trophy').count()) === 12, String(await page.locator('.trophy').count()));
+  check('20 trophées listés', (await page.locator('.trophy').count()) === 20, String(await page.locator('.trophy').count()));
   check(
     "3 trophées acquis — « Premier pas » persiste malgré l'annulation du check-in",
     (await page.locator('.trophy.unlocked').count()) === 3,
@@ -730,6 +740,45 @@ export async function run({ browser, check, BASE }) {
     (await riskPage.locator('.day-band-line').textContent()) ?? 'aucun',
   );
   await riskCtx.close();
+
+  // Un cap du streak franchi se célèbre (07/10/2026). « Semaine parfaite »
+  // est déjà acquise : sinon c'est le trophée qui célébrerait les 7 jours.
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const sp = await ctx.newPage();
+    sp.on('pageerror', (e) => errors.push(e.message));
+    await gotoZenith(sp, BASE);
+    await sp.getByRole('button', { name: 'Passer' }).click();
+    await sp.getByRole('button', { name: 'Charger des exemples' }).click();
+    await sp.waitForSelector('.hub');
+    await sp.evaluate(() => {
+      const snap = JSON.parse(localStorage.getItem('palier.v1'));
+      const day = (n) => { const d = new Date(Date.now() - n * 86400000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+      const old = new Date(Date.now() - 120 * 86400000).toISOString();
+      snap.goals.forEach((g) => { g.createdAt = old; });
+      const g = snap.goals[0];
+      const a = snap.actions.find((x) => x.goalId === g.id);
+      snap.checkins = [1, 2, 3, 4, 5, 6].map((n) => ({ id: `s${n}`, goalId: g.id, actionId: a.id, pp: a.pp, day: day(n), note: '', createdAt: `${day(n)}T09:00:00.000Z`, value: null }));
+      snap.achievements = [{ id: 'semaine-parfaite', unlockedAt: old }, { id: 'premier-pas', unlockedAt: old }];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await reloadZenith(sp);
+    await sp.waitForSelector('.day-band');
+    await sp.locator('.today-goal').first().locator('.checkin-chip:not(.add-oneoff)').first().click();
+    await sp.waitForSelector('.ceremony');
+    const vus = [];
+    for (let i = 0; i < 4 && (await sp.locator('.ceremony').count()) > 0; i++) {
+      vus.push(((await sp.locator('.ceremony-eyebrow').textContent()) ?? '') + ' / ' + ((await sp.locator('.ceremony-rank').textContent()) ?? ''));
+      await sp.locator('.ceremony').click();
+      await sp.waitForTimeout(450);
+    }
+    check(
+      'Franchir 7 jours d’affilée déclenche la cérémonie du cap',
+      vus.some((v) => v === "Cap franchi / 7 jours d'affilée"),
+      vus.join(' | '),
+    );
+    await ctx.close();
+  }
 
   // L'accueil refait (07/10/2026) : une carte par objectif dans l'ordre des
   // tuiles, l'objectif tout coché replié, la série cassée hier, le dernier

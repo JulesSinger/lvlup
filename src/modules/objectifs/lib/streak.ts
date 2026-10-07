@@ -47,6 +47,16 @@ export function nextStreakMilestone(current: number): { target: number; inDays: 
   return target === undefined ? null : { target, inDays: target - current };
 }
 
+/**
+ * Le cap franchi quand le streak passe de `before` à `after` — de quoi déclencher
+ * sa cérémonie au geste même. `null` si aucun cap n'est franchi ; le plus haut
+ * si plusieurs le sont d'un coup (un rattrapage peut recoller deux séries).
+ */
+export function crossedMilestone(before: number, after: number): number | null {
+  const crossed = STREAK_MILESTONES.filter((m) => before < m && m <= after);
+  return crossed.length > 0 ? crossed[crossed.length - 1] : null;
+}
+
 export const MAX_FREEZES = 3;
 const FREEZE_EVERY_DAYS = 7;
 

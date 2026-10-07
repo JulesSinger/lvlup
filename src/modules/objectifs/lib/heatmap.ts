@@ -225,6 +225,23 @@ export function goalStreak(
 }
 
 /**
+ * Le plus long streak jamais tenu sur cet objectif — pour le trophée
+ * « Fidèle ». Même règle que `goalStreak` (des jours consécutifs, sans gel).
+ */
+export function bestGoalStreak(goal: Goal, checkins: Checkin[]): number {
+  const days = [...new Set(checkins.filter((c) => c.goalId === goal.id).map((c) => c.day))].sort();
+  let best = 0;
+  let run = 0;
+  let previous: string | null = null;
+  for (const day of days) {
+    run = previous !== null && shiftDay(previous, 1) === day ? run + 1 : 1;
+    best = Math.max(best, run);
+    previous = day;
+  }
+  return best;
+}
+
+/**
  * L'état d'un objectif.
  *
  * « Accompli » convient à un marathon : on l'a couru, c'est fini. Il ne

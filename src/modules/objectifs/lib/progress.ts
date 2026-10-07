@@ -51,13 +51,18 @@ export interface ProfileRank {
 }
 
 /**
- * Rang global du profil : moyenne des rangs actuels de tous les objectifs
- * actifs qui ont au moins un palier. Un objectif commencé mais sans palier
- * validé compte comme 0 et tire la moyenne vers le bas — c'est voulu, sinon
- * créer des objectifs sans les travailler gonflerait le rang.
+ * Rang global du profil : moyenne des rangs actuels des objectifs actifs qui
+ * ont **au moins un palier validé**.
+ *
+ * Jusqu'au 07/10/2026, un objectif commencé sans palier validé comptait 0 :
+ * créer des objectifs sans les travailler ne gonflait pas le rang, mais en
+ * commencer un nouveau le faisait baisser — de quoi décourager d'en ouvrir
+ * (remarque faite à Jules, qui a choisi de corriger). Un objectif non classé
+ * n'entre plus dans la moyenne : il ne la gonfle toujours pas, et ne la tire
+ * plus vers le bas.
  */
 export function profileRank(goals: Goal[]): ProfileRank {
-  const active = goals.filter((g) => !g.archived && g.tiers.length > 0);
+  const active = goals.filter((g) => !g.archived && g.tiers.some((t) => t.completedAt));
   if (active.length === 0) return { rank: null, average: 0, toNext: 0, rankedGoals: 0 };
 
   const total = active.reduce((sum, goal) => {
