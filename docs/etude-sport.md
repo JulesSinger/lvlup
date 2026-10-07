@@ -519,3 +519,50 @@ Le lecteur de fichiers **FIT** viendra avec l'étape 3 : il demande une dépenda
 FIT.
 
 1401 → **1446** tests unitaires, **1079/1079** en local et en mode comptes.
+
+---
+
+## 14. Étape 3 : l'historique et la V1 (07/10/2026)
+
+L'écran du module existe : **tableau de bord**, **journal**, **fiche d'une sortie**, **saisie à
+la main**, **fréquence cardiaque** et **reprise de l'historique Strava**.
+
+- **Reprendre l'archive** (`ArchiveImport`, `data/readArchive.ts`) : le zip tel que Strava
+  l'envoie, ou `activities.csv` seul. Tout se lit **sur l'appareil**. Un **aperçu** dit, avant
+  d'écrire, combien de courses seront ajoutées, combien sont déjà là, combien ont leurs temps
+  au kilomètre, ce qui est laissé de côté (vélo, marche) et ce qui est illisible. Seuls les
+  fichiers des sorties nouvelles sont lus : une seconde reprise est instantanée et n'ajoute
+  rien. Les chiffres du CSV (distance, durée) restent ceux de Strava ; le fichier d'une sortie
+  apporte ses temps au kilomètre, et la FC ou le dénivelé quand le CSV ne les a pas
+  (`lib/archiveImport.ts`, pur et testé).
+- **Nouvelle dépendance : `fflate` 0.8.3** (MIT, quelques Ko), pour ouvrir le zip et les
+  fichiers `.gz`. Chargée à la demande, à la première reprise. Elle sert aussi aux tests, qui
+  fabriquent une vraie archive.
+- **Le tableau de bord** (`Dashboard`) : cette semaine (km, sorties, temps), les douze dernières
+  semaines en barres, la dernière sortie, les **records** (1, 5, 10 km, semi, marathon ; « dans
+  une sortie » quand le record vient des temps au kilomètre d'une sortie plus longue), une
+  **prédiction au marathon** d'après le meilleur effort récent, dite comme une estimation, et
+  la **fréquence cardiaque** (`HeartRateCard`) : FC max et de repos, la plus haute FC vue
+  proposée d'un toucher, les cinq zones de Karvonen. La FC se règle dans l'écran plutôt que
+  dans le panneau commun : c'est là qu'on en voit l'effet.
+- **Le journal** (`Journal`) : par mois, du plus récent, avec le total du mois ; chaque ligne
+  dit le jour, le titre, la distance, la durée, l'allure et la FC moyenne. Un titre qui répète
+  la sorte (« Footing », comme Strava nomme souvent ses activités) ne reçoit pas en plus
+  l'étiquette « Footing ».
+- **La fiche** (`RunSheet`) : distance, durée, allure, FC moyenne et sa zone, FC max, dénivelé,
+  ressenti, note, et les **temps au kilomètre** en barres, le plus rapide en évidence.
+- **La saisie** (`RunEditor`, `lib/runForm.ts`) : « 10,2 » km, « 52:30 », « 1:05:09 », « 45 »
+  ou « 1 h 05 » ; sorte, ressenti, FC, dénivelé, titre, note. Corriger une sortie importée
+  (sa sorte, son ressenti) passe par la même fenêtre.
+
+Défauts trouvés sur captures, pas par les tests : la ligne de la dernière sortie débordait de
+son panneau étroit (les chiffres recouvraient le titre), elle prend désormais toute la
+largeur ; « Footing » s'affichait deux fois ; la prédiction finissait par un double point.
+
+**Reste à vérifier sur l'archive réelle de Jules** : les colonnes de `activities.csv`, la
+présence de la FC, et la forme des fichiers d'activité (des FIT ne seraient pas encore lus :
+la sortie est reprise, sans ses temps au kilomètre, et l'aperçu le dit).
+
+1446 → **1456** tests unitaires ; la suite de Sport passe de 5 vérifications du signet à 28 sur
+le vrai parcours (dont un vrai zip déposé, et la même archive reprise deux fois) ;
+**1105/1105** en local et en mode comptes.

@@ -143,16 +143,16 @@ export function readStravaActivities(csv: string): ArchiveReading {
  * longue de sa semaine, et au moins 1,3 fois la moyenne des autres. Une
  * proposition, corrigeable d'un toucher ; une course reste une course.
  */
-export function markLongRuns<T extends { day: string; distanceM: number; kind: string }>(runs: T[]): T[] {
+export function markLongRuns<T extends { day: string; distanceM: number; kind?: string }>(runs: T[]): T[] {
   const byWeek = new Map<string, T[]>();
   for (const r of runs) byWeek.set(mondayOf(r.day), [...(byWeek.get(mondayOf(r.day)) ?? []), r]);
   const long = new Set<T>();
   for (const week of byWeek.values()) {
     const sorted = week.slice().sort((a, b) => b.distanceM - a.distanceM);
     const [top, ...others] = sorted;
-    if (!top || top.kind !== 'footing' || top.distanceM < 15_000) continue;
+    if (!top || (top.kind ?? 'footing') !== 'footing' || top.distanceM < 15_000) continue;
     const mean = others.length > 0 ? others.reduce((s, r) => s + r.distanceM, 0) / others.length : 0;
     if (others.length === 0 || top.distanceM >= mean * 1.3) long.add(top);
   }
-  return runs.map((r) => (long.has(r) ? { ...r, kind: 'longue' } : r));
+  return runs.map((r) => (long.has(r) ? ({ ...r, kind: 'longue' } as T) : r));
 }

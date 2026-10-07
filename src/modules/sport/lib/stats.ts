@@ -97,12 +97,12 @@ export function bestEfforts(runs: Run[]): Effort[] {
  * plus récent des records sur 5 km, 10 km ou semi des `days` derniers jours,
  * en préférant la plus longue distance (elle prédit mieux un marathon).
  */
-export function recentReference(runs: Run[], today: string, days = 90): { distanceM: number; timeS: number } | null {
+export function recentReference(runs: Run[], today: string, days = 90): { distanceM: number; timeS: number; day: string } | null {
   const since = shiftDay(today, -days);
   const efforts = bestEfforts(runs.filter((r) => r.day >= since && r.day <= today));
   for (const d of [HALF_MARATHON_M, 10_000, 5000]) {
     const e = efforts.find((x) => x.distanceM === d);
-    if (e) return { distanceM: d, timeS: e.timeS };
+    if (e) return { distanceM: d, timeS: e.timeS, day: e.day };
   }
   return null;
 }

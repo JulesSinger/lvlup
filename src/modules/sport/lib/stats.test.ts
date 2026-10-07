@@ -61,7 +61,7 @@ describe('les records', () => {
 
   it('le temps de référence : le plus long effort récent parmi semi, 10 km et 5 km', () => {
     const runs = [run('2026-09-20', 5, 24), run('2026-09-27', 10, 51), run('2026-03-01', 21.1, 110)];
-    expect(recentReference(runs, today)).toEqual({ distanceM: 10_000, timeS: 3060 });
+    expect(recentReference(runs, today)).toEqual({ distanceM: 10_000, timeS: 3060, day: '2026-09-27' });
     expect(recentReference([], today)).toBeNull();
   });
 });
