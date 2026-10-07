@@ -734,6 +734,75 @@ export async function run({ browser, check, BASE }) {
       (await up.locator('#budget-entry-category').inputValue()) === 'c-restos',
     );
 
+    // Les propositions suivent le sens choisi (demande de Jules, 07/10/2026).
+    await up.getByRole('button', { name: 'Annuler' }).click();
+    await up.getByRole('button', { name: 'Nouvelle écriture' }).click();
+    await up.waitForSelector('.budget-entry-editor');
+    await up.getByRole('button', { name: '+ Entrée' }).click();
+    const incomeChips = (await up.locator('.budget-category-chip').allTextContents()).join(',');
+    check(
+      'Côté Entrée, les pastilles proposent les catégories des entrées',
+      incomeChips.includes('Salaire') && !incomeChips.includes('Courses'),
+      incomeChips,
+    );
+    check(
+      'Côté Entrée, les revenus viennent en tête du menu',
+      (await up.locator('#budget-entry-category optgroup').first().getAttribute('label')) === 'Revenus',
+      String(await up.locator('#budget-entry-category optgroup').first().getAttribute('label')),
+    );
+    await up.getByRole('button', { name: '− Dépense' }).click();
+    const expenseChips = (await up.locator('.budget-category-chip').allTextContents()).join(',');
+    check(
+      'Revenir à Dépense repropose les catégories des dépenses',
+      expenseChips.includes('Courses') && !expenseChips.includes('Salaire'),
+      expenseChips,
+    );
+
+    // Plusieurs écritures d'un coup.
+    await up.getByRole('button', { name: 'Plusieurs à la fois' }).click();
+    await up.waitForSelector('.budget-bulk-editor');
+    check('« Plusieurs à la fois » ouvre le tableau', (await up.locator('.budget-bulk-row').count()) === 3);
+    const before = await up.locator('.budget-entry-row').count();
+    await up.getByLabel('Libellé, ligne 1').fill('Monoprix du soir');
+    await up.getByLabel('Montant, ligne 1').fill('12,40');
+    check(
+      'Une ligne du tableau suggère aussi la catégorie d’après les règles',
+      (await up.getByLabel('Catégorie, ligne 1').inputValue()) === 'c-courses',
+    );
+    await up.getByLabel('Libellé, ligne 2').fill('Remboursement Léa');
+    await up.getByLabel('Dépense ou entrée, ligne 2').getByRole('button', { name: '+' }).click();
+    await up.getByLabel('Montant, ligne 2').fill('8');
+    await up.getByLabel('Libellé, ligne 3').fill('Café');
+    await up.getByLabel('Montant, ligne 3').fill('abc');
+    await up.getByLabel('Montant, ligne 3').press('Enter');
+    check(
+      'Entrée dans le dernier montant ajoute une ligne, le curseur dessus',
+      (await up.locator('.budget-bulk-row').count()) === 4 &&
+        (await up.evaluate(() => document.activeElement?.getAttribute('aria-label'))) === 'Libellé, ligne 4',
+    );
+    check(
+      'La nouvelle ligne reprend le sens de la précédente',
+      (await up.getByLabel('Dépense ou entrée, ligne 4').getByRole('button', { name: '−' }).getAttribute('aria-pressed')) === 'true',
+    );
+    await up.locator('.budget-bulk-editor .btn-primary').click();
+    check(
+      'Une ligne fausse : rien n’est enregistré, l’erreur est sur sa ligne',
+      (await up.locator('.budget-bulk-row.invalid').count()) === 1 &&
+        (await up.locator('.budget-bulk-editor').isVisible()),
+    );
+    await up.getByLabel('Montant, ligne 3').fill('2,10');
+    await up.locator('.budget-bulk-editor .btn-primary').click();
+    await up.locator('.budget-bulk-editor').waitFor({ state: 'detached' });
+    check(
+      'Les trois écritures sont enregistrées d’un coup, la ligne vide ignorée',
+      (await up.locator('.budget-entry-row').count()) === before + 3,
+      `${before} → ${await up.locator('.budget-entry-row').count()}`,
+    );
+    check(
+      'Une ligne marquée « + » devient une entrée',
+      ((await up.locator('.budget-entry-row', { hasText: 'Remboursement Léa' }).locator('.budget-row-amount').textContent()) ?? '').startsWith('+'),
+    );
+
     check('Aucune erreur JavaScript (catégorie et bouton sticky)', uxErrors.length === 0, uxErrors.join(' | '));
     await fresh.close();
   }

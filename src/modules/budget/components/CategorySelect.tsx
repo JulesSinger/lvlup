@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { BUDGET_CATEGORY_KINDS, CATEGORY_KIND_LABELS, type BudgetCategory } from '../lib/types';
+import { BUDGET_CATEGORY_KINDS, CATEGORY_KIND_LABELS, type BudgetCategory, type BudgetCategoryKind } from '../lib/types';
 
 /**
  * Le menu des catégories, groupé par nature — commun à la fenêtre d'une
@@ -14,6 +14,7 @@ export function CategorySelect({
   categories,
   emptyLabel = 'À classer',
   ariaLabel,
+  kindOrder = BUDGET_CATEGORY_KINDS,
 }: {
   id?: string;
   /** `''` : aucune catégorie */
@@ -22,10 +23,12 @@ export function CategorySelect({
   categories: readonly BudgetCategory[];
   emptyLabel?: string;
   ariaLabel?: string;
+  /** L'ordre des groupes : la fenêtre d'une écriture met d'abord ce qui va avec son sens. */
+  kindOrder?: readonly BudgetCategoryKind[];
 }) {
   const groups = useMemo(
     () =>
-      BUDGET_CATEGORY_KINDS.map((kind) => {
+      kindOrder.map((kind) => {
         const items: { category: BudgetCategory; indent: boolean }[] = [];
         for (const category of categories.filter((c) => c.kind === kind && c.parentId === null).sort((a, b) => a.position - b.position)) {
           items.push({ category, indent: false });
@@ -35,7 +38,7 @@ export function CategorySelect({
         }
         return { kind, label: CATEGORY_KIND_LABELS[kind], items };
       }).filter((group) => group.items.length > 0),
-    [categories],
+    [categories, kindOrder],
   );
 
   return (

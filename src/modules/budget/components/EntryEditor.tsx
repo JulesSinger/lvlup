@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { centsToInputValue, parsePositiveAmountToCents } from '../lib/amount';
 import { matchRule } from '../lib/boursobankImport';
+import { frequentCategoryIds, menuKindOrder } from '../lib/categoryPicker';
 import { suggestedPattern, validateRulePattern } from '../lib/classify';
 import { availableForEntry, linkedMove, withdrawalProblem } from '../lib/envelopes';
 import type { BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetEnvelope, BudgetEnvelopeMove, BudgetRule } from '../lib/types';
@@ -16,8 +17,11 @@ interface Props {
   categories: BudgetCategory[];
   /** Pour la suggestion par mots-clés (même moteur que l'import, voir `matchRule`). */
   rules: BudgetRule[];
-  /** Les catégories les plus utilisées, en accès rapide au-dessus du menu déroulant. */
-  frequentCategoryIds: string[];
+  /**
+   * Tout l'historique des écritures : les catégories les plus utilisées dans
+   * le sens choisi (dépense ou entrée) en sont tirées, en accès rapide.
+   */
+  history: BudgetEntry[];
   onCancel: () => void;
   /**
    * `rememberPattern` : une règle à créer avec cette écriture, pour que les
@@ -27,6 +31,8 @@ interface Props {
   /** Les enveloppes : une dépense peut être payée par l'une d'elles (§6 bis). */
   envelopes?: BudgetEnvelope[];
   moves?: BudgetEnvelopeMove[];
+  /** Passer à la saisie de plusieurs écritures d'un coup (nouvelle écriture seulement). */
+  onSwitchToBulk?: () => void;
 }
 
 /**
@@ -41,7 +47,7 @@ interface Props {
  * existantes dès que le libellé matche l'une d'elles, et les catégories les
  * plus utilisées sont proposées en pastilles avant même d'ouvrir le menu.
  */
-export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onCancel, onSave, envelopes = [], moves = [] }: Props) {
+export function EntryEditor({ entry, categories, rules, history, onCancel, onSave, envelopes = [], moves = [], onSwitchToBulk }: Props) {
   const isEdit = entry !== null;
   const [day, setDay] = useState(entry?.day ?? today());
   const [label, setLabel] = useState(entry?.label ?? '');
@@ -78,7 +84,8 @@ export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onC
     if (rule) setCategoryId(rule.categoryId);
   }, [label, rules, isEdit, categoryTouched]);
 
-  const frequentCategories = frequentCategoryIds
+  const direction = isExpense ? 'expense' : 'income';
+  const frequentCategories = frequentCategoryIds(history, categories, direction)
     .map((id) => categories.find((c) => c.id === id))
     .filter((c): c is BudgetCategory => c !== undefined);
 
@@ -137,6 +144,11 @@ export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onC
       >
         <div className="modal-head">
           <span className="modal-title">{isEdit ? "Modifier l'écriture" : 'Nouvelle écriture'}</span>
+          {!isEdit && onSwitchToBulk && (
+            <button type="button" className="btn btn-ghost btn-sm budget-head-action" onClick={onSwitchToBulk}>
+              Plusieurs à la fois
+            </button>
+          )}
           <button className="btn btn-ghost btn-sm" onClick={onCancel} aria-label="Fermer">
             ✕
           </button>
@@ -229,6 +241,7 @@ export function EntryEditor({ entry, categories, rules, frequentCategoryIds, onC
               id="budget-entry-category"
               value={categoryId}
               categories={categories}
+              kindOrder={menuKindOrder(direction)}
               onChange={(id) => {
                 setCategoryId(id);
                 setCategoryTouched(true);

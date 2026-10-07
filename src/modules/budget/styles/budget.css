@@ -1299,3 +1299,121 @@
     justify-content: flex-end;
   }
 }
+
+/* --- Plusieurs écritures d'un coup (2026-10-07) ---------------------------- */
+
+.budget-head-action {
+  margin-left: auto;
+  margin-right: 4px;
+}
+
+.budget-bulk-editor {
+  width: min(900px, 100%);
+}
+
+.budget-bulk-rows {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.budget-bulk-row {
+  display: grid;
+  grid-template-columns: 140px auto minmax(0, 1fr) 90px minmax(0, 190px) auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.budget-bulk-row.invalid input,
+.budget-bulk-row.invalid select {
+  border-color: var(--red);
+}
+
+.budget-bulk-kind .btn {
+  min-width: 32px;
+  justify-content: center;
+}
+
+.budget-bulk-row input {
+  min-width: 0;
+}
+
+.budget-bulk-amount {
+  text-align: right;
+}
+
+.budget-bulk-category select {
+  width: 100%;
+}
+
+.budget-bulk-error {
+  grid-column: 1 / -1;
+  color: var(--red);
+  font-size: 12.5px;
+}
+
+.budget-bulk-hint {
+  display: block;
+  margin-top: 6px;
+}
+
+.budget-bulk-summary {
+  margin-right: auto;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sur téléphone, une ligne devient une petite fiche : jour et sens, puis
+   libellé et montant, puis catégorie. */
+@media (max-width: 640px) {
+  .budget-bulk-row {
+    grid-template-columns: minmax(0, 1fr) 76px 32px;
+    grid-template-areas:
+      'day kind remove'
+      'label amount amount'
+      'category category category'
+      'error error error';
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .budget-bulk-day {
+    grid-area: day;
+  }
+
+  .budget-bulk-kind {
+    grid-area: kind;
+  }
+
+  .budget-bulk-remove {
+    grid-area: remove;
+  }
+
+  .budget-bulk-label {
+    grid-area: label;
+  }
+
+  .budget-bulk-amount {
+    grid-area: amount;
+  }
+
+  .budget-bulk-category {
+    grid-area: category;
+  }
+
+  .budget-bulk-error {
+    grid-area: error;
+  }
+
+  .budget-bulk-editor .modal-foot {
+    flex-wrap: wrap;
+  }
+
+  .budget-bulk-summary {
+    flex-basis: 100%;
+  }
+}

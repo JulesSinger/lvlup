@@ -3,6 +3,7 @@ import { budgetStore } from '../data';
 import { formatCents } from '../lib/amount';
 import { linkedMove, linkPlan } from '../lib/envelopes';
 import type { BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetEnvelope, BudgetEnvelopeMove, BudgetRule } from '../lib/types';
+import { BulkEntryEditor } from './BulkEntryEditor';
 import { EntryEditor } from './EntryEditor';
 
 function categoryFor(categories: BudgetCategory[], id: string | null): BudgetCategory | null {
@@ -24,7 +25,7 @@ export function EntriesView({
   rules,
   envelopes = [],
   moves = [],
-  frequentCategoryIds,
+  history,
   onError,
   onChanged,
   emptyTitle,
@@ -36,13 +37,14 @@ export function EntriesView({
   /** Les enveloppes et leurs mouvements : une dépense peut être payée par une enveloppe. */
   envelopes?: BudgetEnvelope[];
   moves?: BudgetEnvelopeMove[];
-  frequentCategoryIds: string[];
+  /** Tout l'historique : la fenêtre d'une écriture en tire ses catégories fréquentes. */
+  history: BudgetEntry[];
   onError: (message: string) => void;
   onChanged: () => Promise<void>;
   emptyTitle: string;
   emptyBody?: string;
 }) {
-  const [editing, setEditing] = useState<BudgetEntry | 'new' | null>(null);
+  const [editing, setEditing] = useState<BudgetEntry | 'new' | 'bulk' | null>(null);
 
   // Raccourci « N » : ouvre une nouvelle écriture sans passer par la souris.
   // Ignoré pendant la frappe (un champ de texte, un menu…) et avec un
@@ -71,7 +73,7 @@ export function EntriesView({
 
   async function saveEntry(input: BudgetEntryInput, rememberPattern?: string, envelopeId?: string | null) {
     let saved: { id: string; amountCents: number; day: string; label: string };
-    if (editing !== null && editing !== 'new') {
+    if (editing !== null && editing !== 'new' && editing !== 'bulk') {
       await budgetStore.updateEntry(editing.id, input);
       saved = { id: editing.id, amountCents: input.amountCents, day: input.day, label: input.label };
     } else {
@@ -89,6 +91,14 @@ export function EntriesView({
       if (plan.remove) await budgetStore.deleteEnvelopeMove(plan.remove);
       if (plan.create) await budgetStore.createEnvelopeMove(plan.create);
     }
+    setEditing(null);
+    await onChanged();
+  }
+
+  // Toutes les lignes en un envoi (`importEntries`, sans clé d'import : rien
+  // n'est écarté comme doublon) — elles partent ensemble ou pas du tout.
+  async function saveBulk(inputs: BudgetEntryInput[]) {
+    await budgetStore.importEntries(inputs);
     setEditing(null);
     await onChanged();
   }
@@ -111,6 +121,9 @@ export function EntriesView({
           {emptyBody && <p>{emptyBody}</p>}
           <button className="btn btn-primary" onClick={() => setEditing('new')}>
             Ajouter une écriture
+          </button>
+          <button className="btn" onClick={() => setEditing('bulk')}>
+            Plusieurs à la fois
           </button>
         </div>
       ) : (
@@ -170,16 +183,26 @@ export function EntriesView({
         </>
       )}
 
-      {editing !== null && (
+      {editing === 'bulk' && (
+        <BulkEntryEditor
+          categories={categories}
+          rules={rules}
+          onCancel={() => setEditing(null)}
+          onSave={saveBulk}
+        />
+      )}
+
+      {editing !== null && editing !== 'bulk' && (
         <EntryEditor
           entry={editing === 'new' ? null : editing}
           categories={categories}
           rules={rules}
           envelopes={envelopes}
           moves={moves}
-          frequentCategoryIds={frequentCategoryIds}
+          history={history}
           onCancel={() => setEditing(null)}
           onSave={saveEntry}
+          onSwitchToBulk={() => setEditing('bulk')}
         />
       )}
     </div>

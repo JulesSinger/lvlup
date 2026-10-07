@@ -677,3 +677,43 @@ Choix faits en l'écrivant (`lib/subscriptions.ts`, testé) :
 
 1307 → **1335** tests unitaires (+28), suite de Budget 167 → **176**, **1035/1035** en mode comptes.
 **Migration à appliquer par Jules.** L'envoi réel d'un rappel reste à essayer sur un appareil.
+
+## 15. Plusieurs écritures d'un coup, et des propositions qui suivent le sens (07/10/2026)
+
+Deux demandes de Jules : « pouvoir entrer plusieurs écritures en même temps », et « les
+propositions suggérées lors de la création d'une écriture doivent s'adapter si on choisit
+dépense ou entrée ».
+
+**Les propositions suivent le sens** (`lib/categoryPicker.ts`, testé) :
+
+- Les pastilles comptent la fréquence **par sens** : « Dépense » propose les catégories où l'on
+  range ses dépenses, « Entrée » celles où l'on range ses entrées. C'est l'historique qui le dit,
+  pas la nature de la catégorie : un remboursement rangé chaque fois dans « Santé » remonte bien
+  côté Entrée. Cela remplace la décision du 31/08/2026 (« les pastilles ne filtrent pas par
+  nature »), dont la crainte — cacher la catégorie d'un remboursement — ne vaut plus quand on
+  compte par sens.
+- Un historique trop court est complété par la nature qui va avec le sens (revenus pour une
+  entrée ; variables puis fixes pour une dépense), parents seulement. Une catégorie supprimée
+  n'est jamais proposée.
+- Le menu met en tête ce qui va avec le sens (Revenus d'abord pour une entrée, à la fin pour une
+  dépense) ; rien n'en est retiré.
+- La suggestion d'après les règles ne change pas : elle dépend du libellé, pas du sens.
+
+**Plusieurs écritures** (`BulkEntryEditor`, `lib/bulkEntries.ts` testé) : « Plusieurs à la
+fois » dans la fenêtre d'une nouvelle écriture, et sur l'écran vide. Un tableau, une ligne par
+écriture : jour, − / +, libellé, montant, catégorie (suggérée d'après les règles tant qu'on ne
+l'a pas choisie).
+
+- Entrée dans le dernier montant ajoute une ligne et y met le curseur ; une ligne neuve reprend
+  le jour et le sens de la précédente. Les lignes vides sont ignorées.
+- **Tout ou rien** : une ligne fausse est signalée sur sa ligne et rien n'est enregistré, pour
+  ne jamais se demander lesquelles sont parties. L'envoi passe par `importEntries` (sans clé
+  d'import, donc rien n'est écarté comme doublon), en une seule requête.
+- Plus court que la fenêtre d'une écriture : ni enveloppe, ni règle à retenir — ces cas-là se
+  règlent une écriture à la fois.
+- Rien de tapé ne se perd : Échap ne ferme que si tout est vide, « Annuler » demande
+  confirmation dès qu'une ligne est remplie.
+- Sur téléphone, chaque ligne devient une petite fiche (jour et sens, libellé et montant,
+  catégorie) ; vérifié sur capture, sans débordement à 390 px.
+
+1351 → **1360** tests unitaires, suite de Budget +13 vérifications, 500/500 sur les suites liées.

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { budgetStore } from '../data';
-import { mostUsedCategoryIds } from '../lib/categoryPicker';
 import { currentMonthKey, monthKeyOf, monthLabel, shiftMonthKey } from '../lib/month';
 import { computeMonthlyBreakdown, deltaMap, formatMonthDelta, monthDelta, subcategoryBreakdown } from '../lib/monthlyBreakdown';
 import { centsToInputValue, formatCents } from '../lib/amount';
@@ -189,7 +188,7 @@ export function MonthScreen({
             rules={rules}
             envelopes={envelopes}
             moves={moves}
-            frequentCategoryIds={mostUsedCategoryIds(entries)}
+            history={entries}
             onError={onError}
             onChanged={refresh}
             emptyTitle="Rien ne correspond"
@@ -311,7 +310,7 @@ export function MonthScreen({
           rules={rules}
           envelopes={envelopes}
           moves={moves}
-          frequentCategoryIds={mostUsedCategoryIds(entries)}
+          history={entries}
           onError={onError}
           onChanged={refresh}
           emptyTitle={monthEntries.length === 0 ? 'Aucune écriture ce mois-ci' : 'Aucune écriture pour cette part'}
