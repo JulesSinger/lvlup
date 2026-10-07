@@ -365,3 +365,85 @@ L'étape 4 dépend d'un essai du raccourci sur l'iPhone de Jules (§8).
 - Apple, « Event triggers in Shortcuts on iPhone or iPad » —
   https://support.apple.com/guide/shortcuts/event-triggers-apd932ff833f/ios
 - `fit-file-parser` (MIT) — https://www.npmjs.com/package/fit-file-parser
+
+---
+
+## 12. Décisions prises avec Jules (07/10/2026)
+
+1. **Pas d'abonnement Strava** : l'API reste écartée, **le raccourci iPhone est le chemin
+   automatique**.
+2. **D'accord pour installer le raccourci** une fois.
+3. **La course visée : le marathon d'Annecy, fin avril 2027**, sans date officielle à ce jour.
+4. **Des temps existent** dans l'app Forme et sur Strava : ils viendront avec l'historique.
+5. **3 ou 4 séances par semaine, sans jours fixes.**
+6. **La fréquence cardiaque est très utile.**
+7. **Reprendre l'historique** au démarrage : oui.
+8. **Le nom : Sport** 🏃.
+
+Et une consigne qui donne au module son centre : **« le module doit me permettre de créer un
+plan pour réussir mon marathon »**.
+
+### Ce que ces décisions changent
+
+**Le plan marathon devient le cœur du module**, et non une étape parmi d'autres. Il remonte
+dans le découpage (étape 4, juste après les données), et le tableau de bord s'organise autour
+de lui : la semaine en cours du plan, la séance suivante, le compte à rebours.
+
+**Une date à confirmer.** Le plan se construit sur une **date provisoire, le dimanche 25 avril
+2027** (le dernier dimanche d'avril), marquée « à confirmer » à l'écran. Quand la date
+officielle sera publiée, la changer **décale le plan** : les semaines déjà passées restent
+telles qu'elles ont été vécues, seules les semaines à venir se recalent.
+
+**Un plan long, en deux temps.** De mi-octobre à fin avril, il y a environ vingt-huit semaines,
+plus que les seize à vingt d'un plan marathon courant. Le plan commence donc par une **phase de
+base** (volume qui monte doucement, uniquement en endurance), puis un **bloc spécifique** de
+dix-huit semaines vers le marathon (sortie longue qui monte jusqu'à 30-32 km, séances à allure
+marathon, seuil), puis l'affûtage. Les longueurs exactes seront fixées et testées à
+l'étape 2.
+
+**Un plan par semaine, pas par jour.** Sans jours fixes, chaque semaine liste **ses 3 ou 4
+séances**, dans un ordre conseillé (jamais deux séances dures d'affilée, la sortie longue en
+fin de semaine) mais libre. Atlas propose **la séance suivante** ; une sortie faite se rattache
+à la séance de la semaine qui lui ressemble le plus (sorte, distance), et Jules peut corriger.
+Le modèle de §7 change : une séance appartient à une **semaine** du plan, son jour est
+facultatif.
+
+**La fréquence cardiaque, au premier plan** (§1 disait « sans zones » : c'est corrigé) :
+- **la FC moyenne et maximale de chaque sortie**, rangées ;
+- **cinq zones**, calculées par la méthode de Karvonen (réserve cardiaque) depuis la FC
+  maximale et la FC de repos, toutes deux réglables ; la FC maximale est proposée d'après la
+  plus haute observée dans l'historique, sans jamais remplacer une valeur saisie ;
+- **des consignes en zones** : « footing en zone 2 » plutôt qu'une allure seule, quand la FC
+  est connue ;
+- **un indicateur d'endurance** : l'allure moyenne des footings faits en zone 2, semaine après
+  semaine. Courir plus vite au même cœur est la progression la plus honnête d'une préparation
+  marathon.
+Toujours sans conseil de santé : des chiffres et des zones, pas un diagnostic.
+
+**Reprendre l'historique : l'archive de Strava.** Strava fournit gratuitement l'archive de tout
+le compte : un fichier `activities.csv` (une ligne par activité) et un dossier des fichiers
+d'activité (GPX, FIT ou TCX, souvent compressés en `.gz`). Atlas la lit **dans le navigateur** :
+le zip par `fflate` (licence MIT, quelques Ko), le `.gz` par `DecompressionStream`, intégré aux
+navigateurs. Seules les courses sont reprises. Les colonnes exactes du CSV (et la présence de
+la FC) se vérifient sur l'archive réelle de Jules à l'étape 3.
+
+**Le temps de référence vient de l'historique** : les meilleurs efforts récents sur 5 km,
+10 km ou semi, calculés depuis les sorties reprises, proposent les allures du plan et une
+première prédiction pour Annecy. Jules peut les corriger.
+
+### Découpage révisé (7 étapes)
+
+1. **Le module existe** : tables, contrat et ses deux implémentations, module signet.
+2. **Les règles, testées avant tout écran** : allures, semaines, zones de FC, records et
+   meilleurs efforts, Riegel, **générateur du plan marathon**, lecture de l'archive Strava, du
+   GPX, du TCX et du FIT.
+3. **L'historique et la V1** : reprise de l'archive Strava, journal des sorties, fiche d'une
+   sortie, saisie à la main, tableau de bord.
+4. **Le plan marathon** : création (course, date provisoire, séances par semaine, temps de
+   référence), semaine en cours, séance suivante, sortie ↔ séance, modifier une séance, décaler
+   la date.
+5. **L'import automatique** : la fonction `sport-import`, le jeton, le raccourci fourni et ses
+   instructions, essayé sur l'iPhone de Jules.
+6. **La progression** : volume, allure, FC et zones, endurance en zone 2, records, prédiction.
+7. **Les liens** : séances dans Calendar, rappel du matin, lien avec Objectifs (service et
+   référence de coche côté Objectifs).

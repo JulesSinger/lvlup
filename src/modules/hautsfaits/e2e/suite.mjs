@@ -163,7 +163,9 @@ export async function run({ browser, check, BASE }) {
   // --- Au jour près, avec un récit ---------------------------------------------------------------
   await page.getByRole('button', { name: '＋ Haut fait' }).click();
   await page.locator('#hautsfaits-title').fill('Semi-marathon de Paris');
-  await page.getByRole('button', { name: /Sport/ }).click();
+  // Dans la fenêtre : depuis l'arrivée du module Sport, la barre des modules a
+  // aussi son bouton « Ouvrir Sport ».
+  await page.locator('.hautsfaits-category-picker').getByRole('button', { name: /Sport/ }).click();
   await page.locator('#hautsfaits-start-day').fill('2025-03-02');
   await page.locator('#hautsfaits-highlight').fill('1 h 52 min');
   await page.locator('#hautsfaits-place').fill('Paris');

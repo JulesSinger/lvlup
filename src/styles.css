@@ -87,3 +87,6 @@
 
 /* --- Projets : les projets clients (étape 1) ------------------------ */
 @import './modules/projets/styles/projets.css';
+
+/* --- Sport : la course à pied (étape 1) --------------------------- */
+@import './modules/sport/styles/sport.css';
