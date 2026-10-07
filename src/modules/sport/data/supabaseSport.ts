@@ -324,6 +324,12 @@ export class SupabaseSport implements SportStore {
     check((await this.client.from('sport_plan_sessions').delete().eq('id', id)).error);
   }
 
+  async deleteSessions(ids: string[]) {
+    for (const batch of batches(ids)) {
+      check((await this.client.from('sport_plan_sessions').delete().in('id', batch)).error);
+    }
+  }
+
   async getSettings(): Promise<SportSettings> {
     const row = unwrap(await this.client.from('sport_settings').select('*').maybeSingle()) as SettingsRow | null;
     if (!row) return { ...DEFAULT_SPORT_SETTINGS };

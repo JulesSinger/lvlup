@@ -217,6 +217,14 @@ export class LocalSport implements SportStore {
     write(s);
   }
 
+  async deleteSessions(ids: string[]) {
+    const gone = new Set(ids);
+    const s = read();
+    s.sessions = s.sessions.filter((x) => !gone.has(x.id));
+    for (const run of s.runs) if (run.sessionId && gone.has(run.sessionId)) run.sessionId = null;
+    write(s);
+  }
+
   async getSettings(): Promise<SportSettings> {
     return read().settings;
   }

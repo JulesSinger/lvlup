@@ -108,6 +108,15 @@ describe('LocalSport', () => {
     expect((await store.listRuns())[0].sessionId).toBeNull();
   });
 
+  it('retire plusieurs séances d’un coup, et détache leurs sorties', async () => {
+    await store.createPlan(MARATHON, 'p-1');
+    await store.addSessions([session('s-1', 'p-1', 1), session('s-2', 'p-1', 2), session('s-3', 'p-1', 3)]);
+    await store.createRun({ startedAt: '2026-10-20T07:00:00Z', day: '2026-10-20', distanceM: 8000, durationS: 2700, sessionId: 's-2' }, 'r-1');
+    await store.deleteSessions(['s-2', 's-3']);
+    expect((await store.listSessions()).map((s) => s.id)).toEqual(['s-1']);
+    expect((await store.listRuns())[0].sessionId).toBeNull();
+  });
+
   it('refuse de rattacher une sortie à une séance inconnue', async () => {
     await expect(
       store.createRun({ startedAt: '2026-10-13T07:00:00Z', day: '2026-10-13', distanceM: 8000, durationS: 2700, sessionId: 'nulle-part' }),

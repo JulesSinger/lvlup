@@ -5,6 +5,9 @@ import { bestEfforts, recentReference, weeklyVolumes } from '../lib/stats';
 import { HALF_MARATHON_M, MARATHON_M, type Run, type SportSettings } from '../lib/types';
 import { suggestedHrMax } from '../lib/zones';
 import { HeartRateCard } from './HeartRateCard';
+import { PlanSummary } from './PlanView';
+import type { WeekStatus } from '../lib/planView';
+import type { Plan } from '../lib/types';
 import { RunRow, shortDay } from './Journal';
 
 const DISTANCE_LABELS: Record<number, string> = { 1000: '1 km', 5000: '5 km', 10_000: '10 km', [HALF_MARATHON_M]: 'Semi', [MARATHON_M]: 'Marathon' };
@@ -12,15 +15,17 @@ const DISTANCE_LABELS: Record<number, string> = { 1000: '1 km', 5000: '5 km', 10
 /**
  * Le tableau de bord (docs/etude-sport.md §5) : cette semaine, la tendance
  * des douze dernières, la dernière sortie, les records, une prédiction pour le
- * marathon, et la fréquence cardiaque. Le plan viendra s'y placer en tête
- * (étape 4).
+ * marathon, et la fréquence cardiaque. Le plan en cours en tête (étape 4).
  */
-export function Dashboard({ runs, settings, today, onOpen, onSaveHr }: {
+export function Dashboard({ runs, settings, today, onOpen, onSaveHr, plan, onCreatePlan }: {
   runs: Run[];
   settings: SportSettings;
   today: string;
   onOpen: (run: Run) => void;
   onSaveHr: (patch: Pick<SportSettings, 'hrMax' | 'hrRest'>) => Promise<void>;
+  /** Le plan en cours, en tête du tableau de bord (étape 4). */
+  plan: { plan: Plan; weeks: WeekStatus[]; onOpen: () => void } | null;
+  onCreatePlan: () => void;
 }) {
   const weeks = weeklyVolumes(runs, today, 12);
   const week = weeks[weeks.length - 1];
@@ -31,6 +36,17 @@ export function Dashboard({ runs, settings, today, onOpen, onSaveHr }: {
 
   return (
     <div className="sport-dash">
+      {plan ? (
+        <PlanSummary plan={plan.plan} weeks={plan.weeks} today={today} onOpen={plan.onOpen} />
+      ) : (
+        <section className="sport-panel sport-plan-summary">
+          <h2 className="sport-panel-title">Marathon</h2>
+          <p className="sport-hint">Un plan semaine par semaine jusqu’à la course, construit sur ce que tu cours aujourd’hui.</p>
+          <button className="btn btn-sm btn-primary" onClick={onCreatePlan}>
+            Créer le plan
+          </button>
+        </section>
+      )}
       <section className="sport-panel sport-week">
         <h2 className="sport-panel-title">Cette semaine</h2>
         <div className="sport-stats">

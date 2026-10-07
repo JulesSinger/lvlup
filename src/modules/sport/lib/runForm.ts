@@ -121,3 +121,17 @@ export function formToRun(form: RunForm): { input: RunInput } | { error: string 
     },
   };
 }
+
+/** Une allure tapée, « 5:20 » (par kilomètre) → secondes ; `null` si vide ou incompréhensible. */
+export function parsePace(text: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(text.trim().replace(/\s*\/\s*km$/i, ''));
+  if (!m || Number(m[2]) >= 60) return null;
+  const s = Number(m[1]) * 60 + Number(m[2]);
+  return s >= 120 && s <= 1200 ? s : null;
+}
+
+/** Une allure en secondes, pour un champ : « 5:20 ». */
+export function paceInput(seconds: number | null): string {
+  if (seconds === null) return '';
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}

@@ -60,6 +60,8 @@ export interface SportStore {
   updateSession(id: string, patch: PlanSessionPatch): Promise<void>;
   /** Les sorties qui l'avaient faite restent, détachées. */
   deleteSession(id: string): Promise<void>;
+  /** Plusieurs séances d'un coup (recaler le plan sur une nouvelle date). */
+  deleteSessions(ids: string[]): Promise<void>;
 
   getSettings(): Promise<SportSettings>;
   updateSettings(patch: Partial<SportSettings>): Promise<void>;

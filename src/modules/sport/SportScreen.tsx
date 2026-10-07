@@ -7,11 +7,29 @@ import { Dashboard } from './components/Dashboard';
 import { Journal } from './components/Journal';
 import { RunEditor } from './components/RunEditor';
 import { RunSheet } from './components/RunSheet';
+import { PlanCreator } from './components/PlanCreator';
+import { PlanView } from './components/PlanView';
+import { RaceDateEditor } from './components/RaceDateEditor';
+import { SessionEditor } from './components/SessionEditor';
+import { newId } from '../../core/data/coreStore';
 import { sportStore as store } from './data';
-import { DEFAULT_SPORT_SETTINGS, type Run, type RunImport, type RunInput, type SportSettings } from './lib/types';
+import { planDrafts, weekOfPlan, type PlanWeek } from './lib/plan';
+import { assignRuns, planWeeks, reschedule } from './lib/planView';
+import { longestRecent, recentWeeklyAverage } from './lib/stats';
+import {
+  DEFAULT_SPORT_SETTINGS,
+  type Plan,
+  type PlanInput,
+  type PlanSession,
+  type PlanSessionPatch,
+  type Run,
+  type RunImport,
+  type RunInput,
+  type SportSettings,
+} from './lib/types';
 import { hrZones } from './lib/zones';
 
-type View = 'dash' | 'journal';
+type View = 'dash' | 'plan' | 'journal';
 
 /** La dernière vue ouverte, retenue sur cet appareil — un confort, pas une donnée. */
 const VIEW_KEY = 'sport.view.v1';
@@ -19,7 +37,7 @@ const VIEW_KEY = 'sport.view.v1';
 function savedView(): View {
   try {
     const v = localStorage.getItem(VIEW_KEY);
-    if (v === 'dash' || v === 'journal') return v;
+    if (v === 'dash' || v === 'plan' || v === 'journal') return v;
   } catch {
     // Stockage refusé : le tableau de bord suffit.
   }
@@ -27,10 +45,11 @@ function savedView(): View {
 }
 
 /**
- * Écran racine de Sport — étape 3 (docs/etude-sport.md §12) : reprendre
+ * Écran racine de Sport (docs/etude-sport.md §12) — étape 3 : reprendre
  * l'historique Strava, le journal des sorties, la fiche d'une sortie, la
- * saisie à la main, le tableau de bord et la fréquence cardiaque. Le plan
- * marathon arrive à l'étape 4.
+ * saisie à la main, le tableau de bord et la fréquence cardiaque. Étape 4 :
+ * le plan marathon — le créer, la semaine en cours et la séance suivante, les
+ * sorties rattachées à leurs séances, modifier une séance, changer la date.
  *
  * Toute la logique est dans les bibliothèques pures (`lib/`) : cet écran ne
  * fait qu'appeler le contrat de stockage et afficher.
@@ -43,13 +62,25 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
   const [openId, setOpenId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Run | 'new' | null>(null);
   const [importing, setImporting] = useState(false);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [sessions, setSessions] = useState<PlanSession[]>([]);
+  const [creatingPlan, setCreatingPlan] = useState(false);
+  const [editingSession, setEditingSession] = useState<PlanSession | null>(null);
+  const [changingDate, setChangingDate] = useState(false);
   const today = dayString();
 
   const refresh = useCallback(async () => {
     try {
-      const [nextRuns, nextSettings] = await Promise.all([store.listRuns(), store.getSettings()]);
+      const [nextRuns, nextSettings, nextPlans, nextSessions] = await Promise.all([
+        store.listRuns(),
+        store.getSettings(),
+        store.listPlans(),
+        store.listSessions(),
+      ]);
       setRuns(nextRuns);
       setSettings(nextSettings);
+      setPlans(nextPlans);
+      setSessions(nextSessions);
       onError('');
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Chargement impossible.');
@@ -74,6 +105,66 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
   const zones = useMemo(() => hrZones(settings), [settings]);
   const knownRefs = useMemo(() => new Set(runs.map((r) => r.sourceRef).filter((r): r is string => !!r)), [runs]);
   const open = runs.find((r) => r.id === openId) ?? null;
+  /** Le plan en cours : un seul à la fois (on supprime pour en refaire un). */
+  const plan = plans.find((p) => p.status === 'actif') ?? null;
+  const weeks = useMemo(() => (plan ? planWeeks(plan, sessions, runs, today) : []), [plan, sessions, runs, today]);
+  const assigned = useMemo(() => (plan ? assignRuns(plan, sessions, runs) : new Map<string, Run>()), [plan, sessions, runs]);
+
+  /** Ce dont la fiche d'une sortie a besoin pour choisir sa séance. */
+  function planFor(run: Run) {
+    if (!plan) return undefined;
+    const week = weekOfPlan(plan.startDay, run.day);
+    const inWeek = sessions.filter((s) => s.planId === plan.id && s.week === week).sort((a, b) => a.position - b.position);
+    const auto = inWeek.find((s) => assigned.get(s.id)?.id === run.id) ?? null;
+    return { sessions: inWeek, auto, onAssign: (sessionId: string | null) => void write(() => store.updateRun(run.id, { sessionId })) };
+  }
+
+  /** Une écriture, puis la relecture ; l'erreur s'affiche en haut. */
+  async function write(action: () => Promise<void>) {
+    try {
+      await action();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Enregistrement impossible.');
+    }
+    await refresh();
+  }
+
+  async function createPlan(input: PlanInput, generated: PlanWeek[]) {
+    const id = newId();
+    // Le plan, puis ses séances : rejouable (ids choisis ici), au pire un plan sans séances, jamais deux plans.
+    await store.createPlan(input, id);
+    await store.addSessions(planDrafts(id, generated, newId));
+    setCreatingPlan(false);
+    setView('plan');
+    await refresh();
+  }
+
+  async function saveSession(patch: PlanSessionPatch) {
+    if (!editingSession) return;
+    await store.updateSession(editingSession.id, patch);
+    setEditingSession(null);
+    await refresh();
+  }
+
+  async function changeRaceDay(raceDay: string, confirmed: boolean) {
+    if (!plan) return;
+    if (raceDay !== plan.raceDay) {
+      const reference = plan.referenceDistanceM && plan.referenceS ? { distanceM: plan.referenceDistanceM, timeS: plan.referenceS } : null;
+      const { removeIds, add } = reschedule(
+        plan,
+        sessions,
+        { raceDay, reference, currentWeeklyM: recentWeeklyAverage(runs, today), longestRecentM: longestRecent(runs, today) },
+        today,
+        newId,
+      );
+      // Les nouvelles séances d'abord : une coupure laisse au pire des séances en double, jamais un plan vide.
+      await store.addSessions(add);
+      await store.deleteSessions(removeIds);
+    }
+    await store.updatePlan(plan.id, { raceDay, raceDayConfirmed: confirmed });
+    setChangingDate(false);
+    await refresh();
+  }
 
   async function saveRun(input: RunInput) {
     if (editing && editing !== 'new') await store.updateRun(editing.id, input);
@@ -135,6 +226,7 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
           {(
             [
               ['dash', 'Tableau de bord', 0],
+              ['plan', 'Plan', 0],
               ['journal', 'Journal', runs.length],
             ] as const
           ).map(([id, text, n]) => (
@@ -155,7 +247,32 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
           </button>
         </nav>
 
-        {!loaded ? null : runs.length === 0 ? (
+        {!loaded ? null : view === 'plan' ? (
+          plan ? (
+            <PlanView
+              plan={plan}
+              weeks={weeks}
+              today={today}
+              onEditSession={setEditingSession}
+              onOpenRun={(r) => setOpenId(r.id)}
+              onChangeDate={() => setChangingDate(true)}
+              onDelete={() => void write(() => store.deletePlan(plan.id))}
+            />
+          ) : (
+            <div className="sport-empty">
+              <span className="sport-empty-emoji" aria-hidden="true">
+                🏁
+              </span>
+              <h1 className="sport-empty-title">Prépare ton marathon</h1>
+              <p className="sport-hint">Un plan semaine par semaine jusqu’à la course, construit sur ce que tu cours aujourd’hui.</p>
+              <div className="sport-empty-actions">
+                <button className="btn btn-primary" onClick={() => setCreatingPlan(true)}>
+                  Créer le plan
+                </button>
+              </div>
+            </div>
+          )
+        ) : runs.length === 0 ? (
           <div className="sport-empty">
             <span className="sport-empty-emoji" aria-hidden="true">
               {emoji}
@@ -172,7 +289,15 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
             </div>
           </div>
         ) : view === 'dash' ? (
-          <Dashboard runs={runs} settings={settings} today={today} onOpen={(r) => setOpenId(r.id)} onSaveHr={saveHr} />
+          <Dashboard
+            runs={runs}
+            settings={settings}
+            today={today}
+            onOpen={(r) => setOpenId(r.id)}
+            onSaveHr={saveHr}
+            plan={plan ? { plan, weeks, onOpen: () => setView('plan') } : null}
+            onCreatePlan={() => setCreatingPlan(true)}
+          />
         ) : (
           <Journal runs={runs} onOpen={(r) => setOpenId(r.id)} />
         )}
@@ -184,10 +309,28 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
             onClose={() => setOpenId(null)}
             onEdit={() => setEditing(open)}
             onDelete={() => void deleteRun(open.id)}
+            plan={planFor(open)}
           />
         )}
 
         {editing && <RunEditor run={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSave={saveRun} />}
+
+        {creatingPlan && <PlanCreator runs={runs} today={today} onClose={() => setCreatingPlan(false)} onCreate={createPlan} />}
+
+        {editingSession && (
+          <SessionEditor
+            session={editingSession}
+            onClose={() => setEditingSession(null)}
+            onSave={saveSession}
+            onDelete={async () => {
+              await store.deleteSession(editingSession.id);
+              setEditingSession(null);
+              await refresh();
+            }}
+          />
+        )}
+
+        {changingDate && plan && <RaceDateEditor plan={plan} today={today} onClose={() => setChangingDate(false)} onSave={changeRaceDay} />}
 
         {importing && <ArchiveImport knownRefs={knownRefs} onImport={importRuns} onClose={() => setImporting(false)} />}
       </main>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { archiveRunsFixture } from './archiveImport.fixture';
 import { planArchiveImport, readableTrack } from './archiveImport';
-import { emptyRunForm, formToRun, parseDuration, parseKm, runToForm } from './runForm';
+import { emptyRunForm, formToRun, paceInput, parseDuration, parseKm, parsePace, runToForm } from './runForm';
 import type { Run } from './types';
 
 describe('saisir une sortie', () => {
@@ -31,6 +31,16 @@ describe('saisir une sortie', () => {
     expect(result.input).toMatchObject({ day: '2026-10-06', distanceM: 10_200, durationS: 3150, avgHr: 152, maxHr: null, kind: 'seuil' });
     const back = runToForm({ ...result.input, id: 'r', title: '', note: '', source: 'manuel', sourceRef: null, sessionId: null, splitsS: null, createdAt: '' } as Run);
     expect(back).toMatchObject({ day: '2026-10-06', time: '18:30', km: '10,2', duration: '52:30', avgHr: '152' });
+  });
+
+  it('lit une allure, « 5:20 » ou « 5:20 /km »', () => {
+    expect(parsePace('5:20')).toBe(320);
+    expect(parsePace('4:05 /km')).toBe(245);
+    expect(parsePace('5:75')).toBeNull();
+    expect(parsePace('0:30')).toBeNull();
+    expect(parsePace('')).toBeNull();
+    expect(paceInput(320)).toBe('5:20');
+    expect(paceInput(null)).toBe('');
   });
 
   it('dit ce qui manque', () => {

@@ -3,8 +3,9 @@
  * façon dans tout le module.
  */
 
-/** « 10,2 km » ; « 850 m » sous le kilomètre. */
+/** « 10,2 km » ; « 850 m » sous le kilomètre ; « 0 km » pour rien du tout. */
 export function formatKm(meters: number): string {
+  if (meters <= 0) return '0 km';
   if (meters < 1000) return `${Math.round(meters)} m`;
   return `${(meters / 1000).toFixed(1).replace('.', ',')} km`;
 }

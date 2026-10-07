@@ -1,7 +1,7 @@
 import { formatDuration, formatKm, formatPace } from '../lib/format';
 import { KIND_LABELS, SOURCE_LABELS } from '../lib/kinds';
 import { paceOf } from '../lib/pace';
-import type { Run } from '../lib/types';
+import type { PlanSession, Run } from '../lib/types';
 import { runTitle } from './Journal';
 import { zoneOf, ZONE_LABELS, type HrZone } from '../lib/zones';
 import { Modal } from './Modal';
@@ -14,12 +14,17 @@ export function longDate(run: Run): string {
 }
 
 /** La fiche d'une sortie : tout ce qu'on en sait, et ses temps au kilomètre quand un fichier les a donnés. */
-export function RunSheet({ run, zones, onClose, onEdit, onDelete }: {
+export function RunSheet({ run, zones, onClose, onEdit, onDelete, plan }: {
   run: Run;
   zones: HrZone[] | null;
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  /**
+   * Les séances du plan de la semaine de cette sortie, la séance à laquelle
+   * elle se rattache d'elle-même, et de quoi en choisir une autre.
+   */
+  plan?: { sessions: PlanSession[]; auto: PlanSession | null; onAssign: (sessionId: string | null) => void };
 }) {
   const pace = paceOf(run.distanceM, run.durationS);
   const zone = run.avgHr !== null ? zoneOf(run.avgHr, zones) : null;
@@ -110,6 +115,21 @@ export function RunSheet({ run, zones, onClose, onEdit, onDelete }: {
             ))}
           </tbody>
         </table>
+      )}
+
+      {plan && plan.sessions.length > 0 && (
+        <div className="field sport-sheet-plan">
+          <label htmlFor="sport-run-session">Séance du plan</label>
+          <select id="sport-run-session" value={run.sessionId ?? ''} onChange={(e) => plan.onAssign(e.target.value || null)}>
+            <option value="">Automatique{plan.auto && !run.sessionId ? ` (${plan.auto.title})` : ''}</option>
+            {plan.sessions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title}
+                {s.distanceM !== null ? ` · ${formatKm(s.distanceM)}` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
 
       {run.note && <p className="sport-sheet-note">{run.note}</p>}

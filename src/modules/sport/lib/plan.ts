@@ -99,6 +99,21 @@ export function mondayOfWeek(startDay: string, week: number): string {
   return shiftDay(mondayOf(startDay), 7 * (week - 1));
 }
 
+/**
+ * La phase d'une semaine du plan, et si elle est allégée — la règle du
+ * générateur, partagée avec l'écran pour qu'ils ne puissent pas se
+ * contredire (rien de cela n'est rangé : une séance ne connaît que sa semaine).
+ */
+export function weekPhase(week: number, total: number): { phase: PlanPhase; recovery: boolean } {
+  const taperStart = Math.max(1, total - TAPER_WEEKS);
+  const buildWeeks = taperStart - 1;
+  const specificStart = Math.max(1, buildWeeks - SPECIFIC_WEEKS + 1);
+  if (week >= total) return { phase: 'course', recovery: false };
+  if (week >= taperStart) return { phase: 'affutage', recovery: false };
+  // Une semaine sur quatre allège, sauf la dernière avant l'affûtage (le pic).
+  return { phase: week >= specificStart ? 'specifique' : 'base', recovery: week % 4 === 0 && week !== buildWeeks };
+}
+
 /** Les séances de seuil du bloc spécifique, de la plus douce à la plus longue. */
 const THRESHOLD = ['3 × 8 min', '3 × 10 min', '2 × 15 min', '4 × 8 min', '3 × 12 min', '2 × 20 min', '25 min continues'];
 /** Le fractionné, à l'allure du 5 km. */
@@ -183,9 +198,7 @@ export function generatePlan(opts: PlanOptions): PlanWeek[] {
       continue;
     }
 
-    const phase: PlanPhase = week >= specificStart ? 'specifique' : 'base';
-    // Une semaine sur quatre allège, sauf la dernière avant l'affûtage (le pic).
-    const recovery = week % 4 === 0 && week !== buildWeeks;
+    const { phase, recovery } = weekPhase(week, total);
     // Dans le bloc spécifique, les plafonds montent pas à pas jusqu'à la dernière
     // semaine avant l'affûtage : le pic (volume et plus longue sortie) arrive à
     // la fin, pas neuf semaines d'affilée à 32 km.

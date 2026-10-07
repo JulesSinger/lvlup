@@ -566,3 +566,46 @@ la sortie est reprise, sans ses temps au kilomètre, et l'aperçu le dit).
 1446 → **1456** tests unitaires ; la suite de Sport passe de 5 vérifications du signet à 28 sur
 le vrai parcours (dont un vrai zip déposé, et la même archive reprise deux fois) ;
 **1105/1105** en local et en mode comptes.
+
+## 15. Étape 4 : le plan marathon (07/10/2026)
+
+Le cœur du module, demandé par Jules : « le module doit me permettre de créer un plan pour
+réussir mon marathon ».
+
+- **Créer le plan** (`PlanCreator`) : la course (« Marathon d’Annecy », 25 avril 2027 proposé,
+  « à confirmer » tant que la case « date officielle » n'est pas cochée), le début du plan, 3
+  ou 4 séances par semaine, un **temps de référence** proposé d'après le meilleur effort récent
+  (5 km, 10 km ou semi, corrigible) et un temps espéré facultatif. L'écran rappelle d'où part
+  le plan (moyenne des quatre dernières semaines, plus longue sortie récente) et montre un
+  **aperçu avant d'enregistrer** : nombre de semaines et phases, pic de kilomètres, plus longue
+  sortie longue, prédiction de Riegel. Sans temps de référence, les séances se règlent en
+  zones cardiaques.
+- **Le plan** (`PlanView`) : la course, le compte à rebours (J-200), la **semaine en cours**
+  (phase, km courus sur km prévus, ses séances), puis les autres semaines repliées, la
+  suivante ouverte. Chaque séance dit sa distance, ses allures (« 6:10–6:40 /km »), sa zone et
+  sa consigne ; la prochaine à faire porte « prochaine ».
+- **Les sorties se rattachent toutes seules** (`lib/planView.ts`, `assignRuns`) : une sortie
+  choisie à la main pour une séance d'abord, puis chaque sortie, dans l'ordre, sur la séance
+  de sa semaine qui lui ressemble le plus (`matchSession`). Une séance est « faite », « à
+  faire », « manquée » (semaine passée) ou « à venir ». La fiche d'une sortie propose sa
+  séance du plan (« Automatique (…) » ou une autre de la semaine).
+- **Modifier une séance** (`SessionEditor`) : titre, sorte, distance, allures (« 5:20 »,
+  `parsePace`), zone, jour, consigne, ou la retirer. Des allures à l'envers sont refusées.
+- **Changer la date** (`RaceDateEditor`, `reschedule`) : la date confirmée ou repoussée, le
+  plan **se recalcule à partir de la semaine en cours** ; les semaines passées et leurs
+  sorties restent telles quelles. Les nouvelles séances sont ajoutées **avant** de retirer
+  les anciennes (`deleteSessions`, au contrat et dans ses deux implémentations) : une coupure
+  laisse au pire des séances en double, jamais un plan vide.
+- **Le tableau de bord** commence par le plan (compte à rebours, semaine, prochaine séance),
+  ou propose de le créer.
+
+`weekPhase` (`lib/plan.ts`) dit la phase d'une semaine pour le générateur comme pour
+l'affichage : une seule règle. Aucune migration : les tables de l'étape 1 suffisaient.
+Défauts vus sur captures : « 0 m courus » (une distance nulle se dit « 0 km ») et un double
+point dans l'aide du temps de référence.
+
+**À relire par Jules** : le plan généré pour sa date et son temps — volumes, sorties
+longues, allures — avant de s'y fier.
+
+1456 → **1465** tests unitaires ; suite de Sport 28 → **44** ; **1118/1118** en local et en
+mode comptes.

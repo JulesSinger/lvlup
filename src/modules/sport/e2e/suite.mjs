@@ -35,6 +35,12 @@ const gpx = (n) =>
     .map((k) => `<trkpt lat="0" lon="${k * DEG_PER_KM}"><time>${isoAt(n, k * 5)}</time><extensions><hr>${140 + k * 5}</hr></extensions></trkpt>`)
     .join('')}</trkseg></trk></gpx>`;
 
+/** Un jour local, `n` jours après aujourd'hui, au format d'un champ date. */
+const localDay = (n) => {
+  const d = new Date(Date.now() + n * 86_400_000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 function archive() {
   const csv = [
     'Activity ID,Activity Date,Activity Name,Activity Type,Elapsed Time,Distance,Max Heart Rate,Filename,Elapsed Time,Moving Time,Distance,Average Heart Rate,Elevation Gain,Workout Type',
@@ -155,6 +161,63 @@ export async function run({ browser, check, BASE }) {
   await modal.getByRole('button', { name: 'Supprimer' }).click();
   await page.waitForTimeout(400);
   check('Supprimer une sortie la retire du journal', (await page.locator('.sport-run').count()) === 3);
+
+  // --- Le plan marathon (étape 4) -------------------------------------------------------------
+  await page.getByRole('button', { name: /^Plan/ }).click();
+  await page.waitForSelector('.sport-empty');
+  check('Sans plan, Sport propose d’en créer un', (await text(page.locator('.sport-empty'))).includes('Prépare ton marathon'));
+  await page.getByRole('button', { name: 'Créer le plan' }).click();
+  await page.waitForSelector('.sport-plan-preview');
+  check('Le temps de référence est proposé d’après le meilleur 10 km récent', (await page.locator('#sport-plan-reftime').inputValue()) === '50:00', await page.locator('#sport-plan-reftime').inputValue());
+  await page.locator('#sport-plan-race').fill(localDay(200));
+  await page.waitForTimeout(200);
+  const planPreview = await text(page.locator('.sport-plan-preview'));
+  check('L’aperçu dit les semaines, les phases et le pic avant de créer', /\d+ semaines/.test(planPreview) && planPreview.includes('bloc spécifique') && planPreview.includes('Prédiction'), planPreview);
+  await modal.getByRole('button', { name: 'Créer le plan' }).click();
+  await page.waitForSelector('.sport-plan-head');
+  const head = await text(page.locator('.sport-plan-head'));
+  check('Le plan dit sa course, sa date à confirmer et le compte à rebours', head.includes('Marathon d’Annecy') && head.includes('à confirmer') && head.includes('J-200'), head);
+  check('La semaine en cours a ses quatre séances', (await page.locator('.sport-plan-current .sport-session').count()) === 4);
+  check('La sortie du jour s’est rattachée d’elle-même à une séance', (await page.locator('.sport-plan-current .sport-session-faite').count()) === 1);
+  check('Une seule séance est marquée « prochaine »', (await page.locator('.sport-session-next').count()) === 1);
+  const weeksBefore = (await page.locator('.sport-week-item').count()) + 1;
+
+  // Modifier une séance.
+  await page.locator('.sport-session-next .sport-session-body').click();
+  await page.waitForSelector('#sport-session-title');
+  await page.locator('#sport-session-title').fill('Footing du lac');
+  await page.locator('#sport-session-km').fill('7,5');
+  await page.locator('#sport-session-pacemin').fill('6:40');
+  await page.locator('#sport-session-pacemax').fill('6:10');
+  await modal.getByRole('button', { name: 'Enregistrer' }).click();
+  check('Des allures à l’envers sont refusées, avec la raison', (await text(modal.locator('.sport-error'))).includes('plus rapide'));
+  await page.locator('#sport-session-pacemin').fill('6:10');
+  await page.locator('#sport-session-pacemax').fill('6:40');
+  await modal.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForTimeout(300);
+  const edited = await text(page.locator('.sport-session-next'));
+  check('La séance modifiée se voit dans la semaine', ['Footing du lac', '7,5 km', '6:10–6:40 /km'].every((t) => edited.includes(t)), edited);
+
+  // La fiche d'une sortie dit sa séance, et permet d'en choisir une autre.
+  await page.locator('.sport-plan-current .sport-session-run').click();
+  await page.waitForSelector('#sport-run-session');
+  check('La fiche d’une sortie propose sa séance du plan', (await text(page.locator('#sport-run-session option').first())).startsWith('Automatique ('));
+  await modal.getByRole('button', { name: 'Fermer' }).click();
+
+  // Changer la date de la course.
+  await page.getByRole('button', { name: 'Changer la date' }).click();
+  await page.locator('#sport-race-day').fill(localDay(207));
+  await modal.locator('.sport-check input').check();
+  await modal.getByRole('button', { name: 'Recaler le plan' }).click();
+  await page.waitForTimeout(500);
+  const moved = await text(page.locator('.sport-plan-head'));
+  check('Une semaine plus tard : J-207, et la date n’est plus « à confirmer »', moved.includes('J-207') && !moved.includes('à confirmer'), moved);
+  check('Le plan compte une semaine de plus', (await page.locator('.sport-week-item').count()) + 1 === weeksBefore + 1);
+
+  await page.getByRole('button', { name: /^Tableau de bord/ }).click();
+  const summary = await text(page.locator('.sport-plan-summary'));
+  check('Le tableau de bord commence par le plan et sa prochaine séance', summary.includes('J-207') && summary.includes('Prochaine séance'), summary);
+  await page.getByRole('button', { name: /^Journal/ }).click();
 
   // --- Rechargement, puis téléphone ----------------------------------------------------------
   await page.reload();

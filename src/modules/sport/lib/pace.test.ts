@@ -7,6 +7,7 @@ describe('dire une distance, un temps, une allure', () => {
   it('en français', () => {
     expect(formatKm(10_210)).toBe('10,2 km');
     expect(formatKm(850)).toBe('850 m');
+    expect(formatKm(0)).toBe('0 km');
     expect(formatTime(2832)).toBe('47:12');
     expect(formatTime(3909)).toBe('1:05:09');
     expect(formatDuration(2700)).toBe('45 min');
