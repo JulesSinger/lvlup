@@ -1,5 +1,5 @@
 import { parseSignedAmountToCents } from './amount';
-import { parseCsvRecords } from './csv';
+import { parseCsvRecords } from '../../../core/lib/csv';
 import type { BudgetCategory, BudgetRule } from './types';
 
 /** Sépare les fragments d'une empreinte de dédoublonnage — un caractère qu'un libellé bancaire ne contiendra jamais. */

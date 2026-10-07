@@ -1,6 +1,9 @@
 /**
  * Lecteur CSV minimal, générique — pas de dépendance externe pour un
- * format aussi contraint (docs/astra-import-boursobank.md §1). Comprend
+ * format aussi contraint (docs/astra-import-boursobank.md §1). Écrit pour
+ * les relevés de Budget, remonté au socle le 07/10/2026 quand Sport a eu à
+ * lire l'archive de Strava (CLAUDE.md §3 : une pièce dont deux modules ont
+ * besoin appartient au socle). Comprend
  * les guillemets RFC4180 (`""` = un guillemet littéral dans un champ) et
  * retire le BOM UTF-8 en tête de fichier, sans quoi le nom de la première
  * colonne devient `﻿dateOp` et la lecture de l'en-tête échoue en silence.

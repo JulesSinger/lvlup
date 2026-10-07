@@ -447,3 +447,75 @@ première prédiction pour Annecy. Jules peut les corriger.
 6. **La progression** : volume, allure, FC et zones, endurance en zone 2, records, prédiction.
 7. **Les liens** : séances dans Calendar, rappel du matin, lien avec Objectifs (service et
    référence de coche côté Objectifs).
+
+---
+
+## 13. Étape 2 : les règles, testées avant tout écran (07/10/2026)
+
+Neuf bibliothèques pures, sans écran, toutes testées :
+
+- **`format.ts`** : « 10,2 km », « 1:05:09 », « 5:30 /km », « 5:20–5:40 /km ».
+- **`pace.ts`** : l'allure, toujours calculée ; la **formule de Riegel** ; les **allures
+  d'entraînement** tirées d'un temps de référence — footing à l'allure marathon + 45 à 75 s,
+  sortie longue + 30 à 60 s, allure marathon à ± 5 s, seuil entre l'allure du 10 km et celle du
+  semi, fractionné à l'allure du 5 km. Pour un 10 km en 50 min : allure marathon vers
+  5:27 /km, footing 6:12–6:42 /km.
+- **`zones.ts`** : les cinq zones de **Karvonen** (50, 60, 70, 80 et 90 % de la réserve
+  cardiaque), ou des parts de la FC maximale sans FC de repos ; la FC maximale **proposée**
+  d'après la plus haute vue, jamais imposée.
+- **`stats.ts`** : volume par semaine, moyenne des quatre semaines pleines (le départ du plan),
+  plus longue sortie récente, **records** (sortie entière à 3 % près, ramenée à la distance
+  exacte ; ou les kilomètres consécutifs les plus rapides d'une sortie plus longue, quand on a
+  les temps au kilomètre), **temps de référence** (le plus long effort récent parmi semi, 10 et
+  5 km), **endurance en zone 2**.
+- **`track.ts`** : lire un **GPX** et un **TCX** sans `DOMParser`, et en tirer distance
+  (haversine, ou la distance du fichier), durée, dénivelé (au-delà de 3 m, sous le bruit de
+  l'altimètre), FC moyenne et maximale (un capteur décroché à 0 n'entre pas dans la moyenne),
+  **temps au kilomètre** interpolés.
+- **`stravaArchive.ts`** : lire `activities.csv` — courses seulement, distance en mètres de la
+  seconde colonne « Distance », temps en mouvement plutôt qu'écoulé (l'allure que montre
+  Strava), une compétition (« Workout Type » 1) reste une course, une ligne illisible est
+  comptée et dite, jamais devinée ; et repérer les **sorties longues** d'un historique.
+  **À vérifier sur l'archive réelle de Jules à l'étape 3** : les colonnes ont été écrites
+  d'après le format connu de l'export.
+- **`plan.ts`** : **le générateur du plan marathon** (ci-dessous), l'ordre d'une semaine, et le
+  **rattachement** d'une sortie à sa séance.
+- **`validation.ts`**, **`kinds.ts`**.
+
+**Le lecteur CSV de Budget remonte au socle** (`core/lib/csv.ts`) : Sport en a besoin pour
+l'archive Strava, et une pièce dont deux modules ont besoin appartient au socle (CLAUDE.md §3).
+Budget l'importe désormais de là, ses tests ont suivi.
+
+### Le plan généré pour Annecy
+
+Sur le cas de Jules (début le 12 octobre 2026, course le 25 avril 2027, 4 séances, un 10 km en
+50 min, 25 km par semaine aujourd'hui), le plan fait **28 semaines** :
+
+- **Semaines 1 à 10, la base** : footings (dont un avec lignes droites) et sortie longue, de
+  25 à 44 km par semaine, sortie longue de 12 à 18 km.
+- **Semaines 11 à 25, le bloc spécifique** : seuil et fractionné en alternance, une sortie
+  longue sur deux finissant à allure marathon à partir de la 5e semaine du bloc (6 puis jusqu'à
+  14 km), volume de 46 à **60 km**, sortie longue jusqu'à **32 km, atteinte une seule fois, la
+  semaine 25**.
+- **Une semaine allégée sur quatre** (4, 8, 12… 24), un quart de volume en moins.
+- **Semaines 26 et 27, l'affûtage** (45 puis 32 km), avec une séance à allure marathon.
+- **Semaine 28, la course** : un rappel d'allure, un footing, puis le marathon, le dimanche.
+
+À trois séances, le pic descend à 50 km et la plus longue sortie à 30 km.
+
+Deux défauts trouvés en vérifiant, avant tout écran :
+- la première version plafonnait la sortie longue à 32 km **dès la mi-janvier**, et l'y
+  gardait neuf semaines : trop de très longues sorties. Volume et sortie longue montent
+  désormais pas à pas sur tout le bloc spécifique, le pic arrivant juste avant l'affûtage ;
+- la semaine de la course n'était pas remise dans l'ordre conseillé : le rappel d'allure
+  tombait juste avant le marathon (trouvé par le test « jamais deux séances dures
+  d'affilée »).
+
+**Ce plan est à relire par Jules** avant l'étape 4 : c'est une base raisonnable, construite
+sur des règles écrites, pas l'avis d'un entraîneur.
+
+Le lecteur de fichiers **FIT** viendra avec l'étape 3 : il demande une dépendance
+(`fit-file-parser`), qu'on ajoutera quand on saura, sur l'archive réelle, si elle contient des
+FIT.
+
+1401 → **1446** tests unitaires, **1079/1079** en local et en mode comptes.
