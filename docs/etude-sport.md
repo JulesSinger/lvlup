@@ -1,0 +1,367 @@
+# Sport — étude du dixième module (la course à pied)
+
+*Étude de conception, écrite avant le code — même exercice que `docs/etude-projets.md` et
+`docs/etude-hauts-faits.md`. Objectif : voir ce que fait le marché, comment faire venir dans
+Atlas des sorties qui sont déjà enregistrées ailleurs (sans rien payer), et ce que le module
+échange avec le reste d'Atlas. Les décisions qui reviennent encore à Jules sont regroupées en
+fin de document (§11).*
+
+Demande de Jules (07/10/2026) : « fais l'étude du module Sport », après une liste de modules
+possibles où Sport était recommandé parce qu'il ferait vivre Objectifs : « Courir un marathon »
+se coche aujourd'hui à la main, alors que chaque sortie est déjà mesurée par la montre.
+
+**Ce que Jules a précisé avant la rédaction (07/10/2026)** :
+
+1. **Le sport suivi : la course à pied.** Le reste (vélo, musculation, sports collectifs)
+   viendra peut-être, l'étude ne le conçoit pas.
+2. **Comment il enregistre aujourd'hui** : il lance la séance dans l'app Exercice de l'**Apple
+   Watch** ; à la fin, la séance est rangée dans **Santé** sur l'iPhone, puis envoyée
+   automatiquement **sur Strava**.
+3. **Ce qu'il attend du module** : **voir sa progression**, **suivre un programme**, et **faire
+   avancer ses objectifs**. Pas d'abord un carnet de saisie : les sorties existent déjà, il
+   faut les faire venir.
+
+---
+
+## 1. Ce que le module est, et ce qu'il n'est pas
+
+**Ce qu'il est** : le carnet de la course à pied, alimenté sans geste par la montre, qui montre
+la progression (volume, allure, records) et suit un programme vers une course datée.
+
+**Ce qu'il n'est pas** :
+- **un enregistreur GPS.** La montre enregistre déjà, et mieux qu'une page web ne le pourrait :
+  un navigateur sur iPhone n'enregistre pas le GPS écran éteint ;
+- **un réseau social.** Ni kudos, ni classement, ni segments (règle n°2 : pas de
+  fonctionnalité sociale tant que les utilisateurs se comptent sur une main) ;
+- **un coach qui réécrit le plan chaque jour.** Le programme est généré une fois, selon des
+  règles qu'on peut lire, puis modifié à la main. Un plan « adaptatif » (Runna) demande des
+  données et un modèle qu'on ne saurait pas justifier ;
+- **un outil médical.** La fréquence cardiaque est affichée si elle existe, sans zones ni
+  conseils de santé.
+
+**Frontière avec Objectifs.** Sport sait **ce qui a été couru** (10,2 km en 58 min, mardi).
+Objectifs sait **pourquoi** (« Courir un marathon », palier « 100 km cumulés »). Le lien se fait
+dans un sens : une sortie enregistrée dans Sport coche l'action correspondante d'Objectifs (§6).
+Les deux ne se recopient pas l'un l'autre.
+
+---
+
+## 2. Le marché, et ce qu'on en retient
+
+| Outil | Ce qu'il fait bien | Prix | Ce qu'on retient |
+|---|---|---|---|
+| **Strava** | Journal, records par distance (« meilleurs efforts »), tendances, segments | Gratuit, analyses et plans en abonnement | Les records par distance, le volume par semaine |
+| **Runna** | Plans personnalisés vers une course, allures cibles par séance | Abonnement | Le plan daté, la séance du jour avec son allure |
+| **Nike Run Club** | Plans gratuits, séances guidées | Gratuit | La preuve qu'un plan simple suffit à beaucoup |
+| **Garmin Coach** | Plans adaptatifs | Gratuit avec une montre Garmin | — (Jules n'a pas de Garmin) |
+| **Runalyze, intervals.icu** | Analyse poussée sur le web (charge, forme, prédictions) | Gratuits | La prédiction de temps ; la charge d'entraînement, en V2 au mieux |
+
+**Ce qu'on garde** : le volume par semaine, les records par distance, l'allure qui baisse à
+effort égal, un plan daté vers une course avec trois sortes de séances (footing, fractionné,
+sortie longue), la prédiction d'un temps de course.
+
+**Ce qu'on laisse** : le social et les segments (règle n°2), la carte des sorties (§8), la
+charge d'entraînement détaillée (ATL, CTL, « forme »), qui demande la fréquence cardiaque de
+chaque seconde et un modèle qu'il faudrait expliquer avant de s'en servir.
+
+---
+
+## 3. Faire venir les sorties — le point dur
+
+C'est la question qui décide du module : si les sorties ne viennent pas toutes seules, il
+redevient un carnet de saisie, ce que Jules ne veut pas. Quatre chemins ont été vérifiés.
+
+### 3.1 L'API de Strava : écartée
+
+Strava est le chemin naturel : les sorties de Jules y arrivent déjà. Mais **depuis le 1er juin
+2026, un nouveau développeur doit avoir un abonnement Strava payant pour accéder à l'API**
+(11,99 $ par mois aux États-Unis), y compris pour une application personnelle qui ne lit que ses
+propres données. Strava l'a annoncé dans « An Update To Our Developer Program » : la demande, le
+moissonnage et les abus l'ont conduit à revoir l'accès. C'est contraire à la règle n°1
+d'Atlas (aucun service payant).
+
+S'y ajoutent des contraintes techniques : des jetons d'accès valables six heures, à renouveler
+côté serveur, une limite de requêtes (100 toutes les 15 minutes, 1 000 par jour pour la
+lecture), et un changement d'adresse de l'API au 1er septembre 2026.
+
+Une exception : **si Jules est déjà abonné à Strava** pour son propre usage, l'API lui est
+ouverte sans coût supplémentaire. Ce n'est pas le chemin retenu (Atlas dépendrait d'un
+abonnement), mais la question est posée (§11).
+
+Ce qui reste gratuit chez Strava : **télécharger ses propres données**, une sortie à la fois
+(« Exporter le GPX ») ou toute l'archive du compte.
+
+### 3.2 Apple Santé : pas d'accès depuis le web
+
+HealthKit, qui donne accès aux données de Santé, n'existe que pour une application iOS
+installée. Une application web, même installée sur l'écran d'accueil comme Atlas, ne peut pas
+le lire. L'export manuel de Santé existe, mais c'est une archive de tout le compte, à refaire
+à la main : inutilisable au quotidien.
+
+### 3.3 Retenu : un raccourci iPhone
+
+L'app **Raccourcis** d'Apple offre exactement le pont qui manque, gratuitement :
+- un **déclencheur d'automatisation « Exercice sur Apple Watch »**, qui se lance au début, à la
+  fin, ou aux deux, d'une séance — d'un type choisi (course) ou de toutes (documentation
+  d'Apple, « Event triggers in Shortcuts ») ;
+- une action qui **lit les entraînements enregistrés dans Santé** ;
+- une action qui **envoie le résultat à une adresse web**.
+
+Le chemin proposé :
+
+1. Jules termine sa course sur la montre. La séance part dans Santé, comme aujourd'hui (et sur
+   Strava, comme aujourd'hui).
+2. L'automatisation se déclenche, lit le dernier entraînement de course et l'envoie à une
+   fonction d'Atlas : `sport-import`, une Edge Function Supabase comme `send-reminders`.
+3. La fonction reconnaît Jules par un **jeton d'import personnel**, créé dans les réglages de
+   Sport, montré une seule fois, révocable. Seule son empreinte est rangée en base, comme pour
+   un mot de passe. La fonction écrit la sortie, et n'accepte rien d'autre.
+4. La sortie apparaît dans Sport à la prochaine ouverture.
+
+Le raccourci serait **fourni tout fait** (un lien iCloud à installer une fois, plus les
+instructions pour coller le jeton). Aucun geste ensuite.
+
+**Ce que ce chemin apporte** : la date, l'heure, la durée, la distance, l'énergie et la
+fréquence cardiaque moyenne de la séance. **Ce qu'il n'apporte probablement pas** : le tracé GPS
+et les temps au kilomètre. Ce que Santé expose exactement à Raccourcis reste **à vérifier sur
+l'iPhone de Jules** avant l'étape 4 : c'est la pièce la moins maîtrisée de l'étude (§8).
+
+Deux réserves honnêtes :
+- une automatisation peut demander une confirmation selon la version d'iOS et le réglage choisi
+  (« Exécuter immédiatement ») : à essayer ;
+- sans réseau à la fin de la séance, l'envoi échoue. Le raccourci peut prendre les
+  entraînements des sept derniers jours plutôt que le dernier : la fonction ignore ceux qu'elle
+  a déjà (§3.5), et un oubli se rattrape au passage suivant.
+
+### 3.4 En complément : un fichier GPX ou FIT
+
+Pour le détail d'une sortie (tracé, temps au kilomètre), Jules peut exporter le GPX d'une
+sortie depuis Strava (gratuit) et le déposer dans Sport. Ou exporter l'archive complète du
+compte Strava, une fois, pour **reprendre tout l'historique** au démarrage du module.
+
+- Le **GPX** est du XML : lu dans le navigateur, sans dépendance.
+- Le **FIT** est binaire : `fit-file-parser` (licence MIT, accepte un `ArrayBuffer`, donc
+  utilisable dans le navigateur) le lit. À ne charger qu'à la première importation d'un FIT,
+  comme le lecteur de code-barres de Nutrition.
+
+Avec un tracé, les **records au sein d'une sortie** deviennent calculables (le meilleur 5 km
+d'un semi-marathon), comme les « meilleurs efforts » de Strava.
+
+### 3.5 Toujours : la saisie à la main, et jamais de doublon
+
+Une sortie sans montre se note à la main (distance, durée, jour).
+
+Une même sortie peut arriver par deux chemins (le raccourci, puis le GPX de Strava). Chaque
+source porte une **référence** (l'identifiant de l'entraînement dans Santé, le nom et l'heure de
+départ du fichier), unique par compte, comme `import_key` pour l'import bancaire de Budget.
+Un GPX qui correspond à une sortie déjà venue du raccourci (même jour, départ à quelques
+minutes près, distance proche) **complète** cette sortie avec son tracé au lieu d'en créer une
+seconde.
+
+---
+
+## 4. Les briques
+
+### 4.1 La sortie
+
+Le jour et l'heure de départ, la **distance** (en mètres, entier), la **durée** (en secondes,
+entier), le dénivelé positif, la fréquence cardiaque moyenne si elle existe, la **sorte**
+(footing, fractionné, sortie longue, course, autre), un **ressenti** facultatif de 1 à 10, une
+note, la source (main, raccourci, GPX, FIT).
+
+L'**allure** (min/km) est toujours **calculée**, jamais rangée : elle ne peut pas contredire
+la distance et la durée. Même principe que les kcal de Nutrition, déduites des grammes.
+
+La sorte se devine quand c'est possible : une sortie nettement plus longue que les autres de
+la semaine est probablement la sortie longue. Mais c'est une proposition, que Jules corrige
+d'un toucher, jamais une certitude affichée.
+
+### 4.2 Les records
+
+Les meilleurs temps sur **1 km, 5 km, 10 km, semi-marathon (21,0975 km) et marathon
+(42,195 km)** :
+- sur une **sortie entière** de cette distance (à quelques pour cent près, une course de 10 km
+  mesurée à 10,08 km est un 10 km), toujours possible ;
+- **au sein d'une sortie**, seulement avec un tracé (GPX ou FIT).
+
+Un nouveau record se célèbre, comme un palier dans Objectifs.
+
+### 4.3 Le programme
+
+Une **course visée** : distance (5 km, 10 km, semi, marathon), date, temps espéré facultatif.
+Le programme se **génère à rebours** depuis la date, selon des règles simples et écrites :
+
+- **3 ou 4 séances par semaine**, sur les jours choisis par Jules ;
+- une **sortie longue** qui monte de semaine en semaine ;
+- une **semaine allégée toutes les quatre** (volume réduit) ;
+- un **affûtage** sur les dernières semaines (moins de volume, un peu d'allure de course) ;
+- des **allures cibles** tirées d'un temps de référence récent (un 10 km couru il y a moins
+  de deux mois, par exemple), par la prédiction du §4.4 : footing plus lent que l'allure de
+  course, fractionné plus rapide.
+
+Chaque séance prévue a un jour, une sorte, une distance ou une durée, une allure cible et une
+consigne en clair (« 6 × 800 m à 4:35/km, 2 min de récupération »). Tout est **modifiable
+séance par séance** ; déplacer une séance ne recalcule pas le reste.
+
+Une sortie faite le jour d'une séance prévue s'y rattache d'elle-même ; Jules peut la
+rattacher à une autre. Le programme montre ainsi, semaine par semaine, ce qui était prévu et
+ce qui a été fait. Une séance manquée reste manquée : pas de rattrapage automatique qui
+surchargerait la semaine suivante.
+
+### 4.4 La prédiction
+
+La **formule de Riegel** : T2 = T1 × (D2 / D1)^1,06. À partir d'un 10 km en 50 min, elle
+prédit un semi en environ 1 h 50. Elle est connue pour être optimiste sur le marathon quand
+l'entraînement est court : la prédiction est présentée comme **une estimation**, avec la sortie
+dont elle part, jamais comme un objectif.
+
+---
+
+## 5. Les vues
+
+- **Le tableau de bord** : cette semaine (km faits sur km prévus, séances faites), la prochaine
+  séance du programme avec sa consigne, la dernière sortie, la tendance des douze dernières
+  semaines en barres.
+- **Le journal** : les sorties, de la plus récente à la plus ancienne, avec distance, durée,
+  allure et sorte ; filtrer par sorte.
+- **La fiche d'une sortie** : tout ce qu'on sait d'elle ; avec un tracé, les temps au
+  kilomètre et ses records internes.
+- **La progression** : kilomètres par semaine et par mois, allure moyenne par sorte (un
+  footing qui passe de 6:10 à 5:45/km à effort égal se voit ici), records et leur historique.
+  Les courbes datées comme celles d'Objectifs (`lib/chartTime.ts`).
+- **Le programme** : semaine par semaine, chaque séance prévue avec son état (faite, à venir,
+  manquée), et le compte à rebours jusqu'à la course.
+
+---
+
+## 6. Les liens avec Atlas
+
+### 6.1 Objectifs — le lien qui justifie le module
+
+Un **service rendu par Objectifs**, sur le motif d'`expenses` (Courses → Budget, §18 de
+`docs/etude-courses.md`) : le socle définit la forme, Objectifs la déclare dans sa fiche
+(`provides`), Sport s'en sert, et fonctionne sans.
+
+- Dans les réglages de Sport, Jules choisit **l'action d'Objectifs que nourrit une sortie**
+  (« Sortie course » de « Courir un marathon »).
+- Chaque sortie enregistrée **coche cette action le jour de la sortie, avec ses kilomètres**.
+  Le palier en km, le streak, la grille des jours et les PP d'Objectifs avancent sans rien
+  toucher.
+- La coche porte une **référence stable** (`sport:sortie:<identifiant>`) : une sortie importée
+  deux fois ne coche qu'une fois, et supprimer la sortie retire sa coche.
+- Il faudra donc, **côté Objectifs**, une colonne de référence sur une coche (migration). C'est
+  la seule modification d'un autre module.
+
+Ce choix (écrire une coche) plutôt qu'Objectifs qui lirait Sport : toute la mécanique
+d'Objectifs (paliers, streak, grille, PP, trophées) est construite sur les coches. En écrire
+une la fait marcher telle quelle.
+
+### 6.2 Calendar
+
+Les séances du programme et les sorties faites, en calque (`calendarSources`, déjà additionné
+entre modules), comme Projets et Tâches.
+
+### 6.3 Les rappels
+
+La séance du jour, au matin, avec sa consigne, par les rappels communs du socle
+(`scheduleReminders`). Rien les jours sans séance.
+
+### 6.4 Hauts faits, plus tard
+
+Une course terminée (un semi, un marathon) pourrait être proposée comme haut fait, avec sa
+date et son temps.
+
+---
+
+## 7. Le modèle de données
+
+Tables préfixées `sport_`, chacune avec `user_id`, RLS et ses quatre politiques ; identifiants
+choisis par l'application. Distances en **mètres** et durées en **secondes**, entiers : jamais
+de flottant qu'une addition ferait dériver.
+
+| Table | Rôle |
+|---|---|
+| `sport_runs` | une sortie : départ, distance, durée, dénivelé, FC moyenne, sorte, ressenti, note, source, référence de la source (unique par compte), séance rattachée |
+| `sport_run_tracks` | le tracé d'une sortie importée d'un fichier : temps au kilomètre, à part pour ne pas alourdir la liste |
+| `sport_plans` | une course visée : distance, date, temps espéré, temps de référence, jours d'entraînement |
+| `sport_plan_sessions` | une séance prévue : jour, sorte, distance ou durée, allure cible, consigne, sortie qui l'a faite |
+| `sport_settings` | l'action d'Objectifs nourrie par les sorties, les réglages de rappel |
+| `sport_import_tokens` | l'empreinte du jeton d'import du raccourci, jamais le jeton lui-même |
+
+Les sortes de sortie et de séance sont des contraintes CHECK, avec leur tableau `as const` en
+TypeScript et un test qui compare les deux (CLAUDE.md §5).
+
+**Hors ligne.** Rien à écrire en mobilité : la sortie arrive par le raccourci, la saisie à la
+main se fait au calme. Pas de file hors ligne en V1, mais des identifiants choisis par l'app
+dès l'étape 1, pour pouvoir s'y brancher sans migration.
+
+---
+
+## 8. Ce qui va bloquer, ou coûter
+
+- **Le raccourci iPhone** est la pièce la moins maîtrisée. Ce que Santé expose exactement à
+  Raccourcis (distance d'une course, fréquence cardiaque, identifiant de l'entraînement), et le
+  comportement de l'automatisation (confirmation demandée ou non), se vérifient sur l'appareil,
+  pas dans une suite de tests. À faire **avant** de construire l'étape 4.
+- **La première fonction d'Atlas qui reçoit des données de l'extérieur.** `send-reminders`
+  envoie ; `sport-import` recevra. Il faut un jeton vérifié par empreinte, une validation
+  stricte (bornes de distance et de durée), une taille de requête limitée, et rien d'autre
+  d'accepté.
+- **Le générateur de programme.** Il faut des règles simples et explicables plutôt qu'un
+  générateur « intelligent ». Les règles de §4.3 seront testées une à une, et le plan produit
+  pour un semi en 10 semaines relu par Jules avant la mise en ligne.
+- **La carte d'une sortie** demanderait des tuiles (OpenStreetMap, dont la politique d'usage
+  interdit l'usage intensif sans serveur à soi). Ce n'est pas demandé : plus tard, peut-être.
+- **Le stockage.** Un tracé complet pèse lourd ; on ne range que les temps au kilomètre (quelques
+  dizaines de nombres), pas les milliers de points GPS.
+
+---
+
+## 9. Nommer le module
+
+Nom affiché proposé : **Sport** 🏃, conformément à la règle des noms fonctionnels (28/09/2026).
+« Course » est écarté : il se confondrait avec **Courses**, le module des listes de courses.
+Nom technique : `sport`, qui laisse la place au vélo ou à la musculation plus tard sans rien
+renommer.
+
+---
+
+## 10. Découpage proposé
+
+1. **Le module existe** : tables, contrat `SportStore` et ses deux implémentations, module
+   signet, aperçu sur la page d'accueil.
+2. **Les règles, testées avant tout écran** : allures, semaines, records (sortie entière et
+   au sein d'un tracé), Riegel, générateur de programme, lecture GPX et FIT.
+3. **La V1** : journal, saisie à la main, fiche d'une sortie, tableau de bord.
+4. **L'import automatique** : la fonction `sport-import`, le jeton, le raccourci fourni et ses
+   instructions ; l'import GPX et FIT, et la reprise de l'archive Strava.
+5. **La progression** : graphiques et records.
+6. **Le programme** : générateur, séances dans Calendar, rappels, sortie ↔ séance.
+7. **Le lien avec Objectifs** : le service, et la référence de coche côté Objectifs.
+
+L'étape 4 dépend d'un essai du raccourci sur l'iPhone de Jules (§8).
+
+---
+
+## 11. Questions à trancher ensemble
+
+1. **Es-tu abonné à Strava ?** Si oui, l'API redevient possible sans coût de plus (§3.1) : à
+   comparer avec le raccourci. Sinon, le raccourci est le seul chemin automatique.
+2. **D'accord pour installer un raccourci une fois** (et autoriser son automatisation) ?
+3. **Une course visée**, et sa date ? Elle sert à concevoir le programme sur un vrai cas.
+4. **Un temps de référence récent** (un 5 ou un 10 km chronométré) ?
+5. **3 ou 4 séances par semaine**, et quels jours ?
+6. **La fréquence cardiaque** : utile à afficher, ou du bruit ?
+7. **Reprendre l'historique** depuis l'archive Strava au démarrage ?
+8. **Le nom** : Sport ?
+
+---
+
+## Sources
+
+- Strava, « An Update To Our Developer Program » —
+  https://communityhub.strava.com/insider-journal-9/an-update-to-our-developer-program-13428
+- Strava, « Rate Limits » — https://developers.strava.com/docs/rate-limits/
+- Apple, « Event triggers in Shortcuts on iPhone or iPad » —
+  https://support.apple.com/guide/shortcuts/event-triggers-apd932ff833f/ios
+- `fit-file-parser` (MIT) — https://www.npmjs.com/package/fit-file-parser
