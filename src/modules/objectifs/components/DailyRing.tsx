@@ -11,10 +11,16 @@ export function DailyRing({
   value,
   goal,
   size = 196,
+  compact = false,
 }: {
   value: number;
   goal: number;
   size?: number;
+  /**
+   * Le petit anneau du bandeau de l'accueil (07/10/2026) : la valeur seule au
+   * centre, l'objectif est dit à côté.
+   */
+  compact?: boolean;
 }) {
   const pct = goal > 0 ? Math.min(1, value / goal) : 0;
   const done = value >= goal && goal > 0;
@@ -43,7 +49,7 @@ export function DailyRing({
   }, [value]);
 
   return (
-    <div className={`ring-wrap${done ? ' done' : ''}`} style={{ width: size, height: size }}>
+    <div className={`ring-wrap${done ? ' done' : ''}${compact ? ' compact' : ''}`} style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox="0 0 196 196" aria-hidden="true">
         <circle cx="98" cy="98" r={R} fill="none" stroke="var(--border)" strokeWidth="14" />
         <circle
@@ -68,8 +74,12 @@ export function DailyRing({
       <div className="ring-center">
         <div>
           <div className="ring-value">{display}</div>
-          <div className="ring-goal">/ {goal} PP</div>
-          <div className="ring-label">Objectif du jour</div>
+          {!compact && (
+            <>
+              <div className="ring-goal">/ {goal} PP</div>
+              <div className="ring-label">Objectif du jour</div>
+            </>
+          )}
         </div>
       </div>
     </div>

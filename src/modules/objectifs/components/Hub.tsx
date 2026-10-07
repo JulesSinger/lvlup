@@ -1,49 +1,23 @@
 import { useEffect, useState } from 'react';
-import type { CSSProperties } from 'react';
 import { catchupDays, catchupLabel, ignoreDay, shiftDay } from '../lib/catchup';
-import { formatAmount, isCountable } from '../lib/counters';
+import { formatAmount } from '../lib/counters';
+import { agoLabel } from '../lib/chartTime';
 import { ladderKind, needsInput, parseAmount, tapValue } from '../lib/quantities';
-import {
-  formatDate,
-  freezeFill,
-  freezeOffer,
-  goalProgress,
-  history,
-  ppForRank,
-  relativeDate,
-  todayPP,
-  weekStats,
-} from '../lib/progress';
-import { getRank } from '../lib/ranks';
-import { MAX_FREEZES, computeStreak, dayString, recentStreakDays } from '../lib/streak';
-import type { DayStreakStatus } from '../lib/streak';
-import { FREEZE_COST, ONE_OFF_PP } from '../lib/types';
+import { dayString } from '../lib/streak';
+import { lastReading, dayComplete } from '../lib/today';
+import { ONE_OFF_PP } from '../lib/types';
 import type { Action, Checkin, FreezePurchase, Goal, Tier } from '../lib/types';
-import { useCountUp } from './useCountUp';
-import { DailyRing } from './DailyRing';
-import { ProfileHeader } from './ProfileHeader';
-import { RankBadge } from './RankBadge';
-import { TierMeter } from './TierMeter';
-
-/** Ce que dit chaque jour de la bandelette de streak, au survol. */
-function streakDayTitle(entry: { day: string; status: DayStreakStatus }, today: string): string {
-  const date = formatDate(`${entry.day}T12:00:00`);
-  const etat =
-    entry.status === 'done'
-      ? 'fait'
-      : entry.status === 'frozen'
-        ? 'gel utilisé'
-        : entry.status === 'missed'
-          ? 'manqué'
-          : entry.day === today
-            ? 'à venir'
-            : 'avant le début du streak';
-  return `${date} : ${etat}`;
-}
+import { DayBand } from './DayBand';
+import { TodayGoal } from './TodayGoal';
 
 /**
- * Écran d'accueil — le hub. L'anneau du jour au premier plan (le quotidien),
- * ce qu'il construit juste en dessous (les paliers). La route et les cols.
+ * Écran d'accueil — le hub. Refait le 07/10/2026 à la demande de Jules : ce
+ * qui compte, ce sont les actions à cocher, les paliers qu'elles font monter
+ * et le streak. Le bandeau du jour (streak, PP du jour, gel), puis une carte
+ * par objectif, dans l'ordre choisi sur la page Objectifs, qui réunit le
+ * palier visé et ce qu'on coche pour s'en approcher. Le profil est passé sur
+ * Trophées ; « Cette semaine » et « Paliers récents », qui répétaient
+ * l'Historique, ont été retirés.
  */
 export function Hub({
   goals,
@@ -56,7 +30,7 @@ export function Hub({
   onSaveNote,
   onSaveValue,
   onValidateTier,
-  onGoToGoals,
+  onOpenGoal,
   freezePurchases,
   onBuyFreeze,
 }: {
@@ -70,7 +44,8 @@ export function Hub({
   onSaveNote: (checkin: Checkin, note: string) => void;
   onSaveValue: (checkin: Checkin, value: number) => void;
   onValidateTier: (goal: Goal, tier: Tier) => void;
-  onGoToGoals: () => void;
+  /** Ouvre la fiche d'un objectif, sur la page Objectifs. */
+  onOpenGoal: (goalId: string) => void;
   /** Journal des gels achetés : la réserve s'en déduit. */
   freezePurchases: FreezePurchase[];
   onBuyFreeze: () => void;
@@ -180,11 +155,20 @@ export function Hub({
     setValueFor(null);
   }
 
+  /**
+   * Objectifs entièrement cochés qu'on garde dépliés : ceux qu'on vient de
+   * toucher (la dernière coche ne doit pas faire disparaître la pastille
+   * qu'on voudrait défaire) et ceux qu'on a rouverts à la main.
+   */
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const keepOpen = (id: string) => setOpened((set) => (set.has(id) ? set : new Set(set).add(id)));
+
   // Changer de jour ferme les saisies : elles portent sur une journée précise,
   // et les laisser ouvertes ferait enregistrer sur le mauvais jour.
   useEffect(() => {
     setValueFor(null);
     setOneOffFor(null);
+    setOpened(new Set());
   }, [viewDay]);
 
   function saveNote(close: boolean) {
@@ -194,140 +178,15 @@ export function Hub({
     if (close) setNoteFor(null);
   }
 
-  const earned = todayPP(goals, checkins);
-  const streak = computeStreak(goals, checkins, dayString(), freezePurchases);
-  /** Les sept derniers jours, pour la bandelette sous la flamme du jour. */
-  const recentDays = recentStreakDays(goals, checkins, freezePurchases, dayString(), 7);
-  const remaining = Math.max(0, dailyGoal - earned);
-  const dayDone = earned >= dailyGoal;
-
-  const nextTiers = active
-    .map((goal) => ({ goal, progress: goalProgress(goal) }))
-    .filter(({ progress }) => progress.next)
-    .map(({ goal, progress }) => ({ goal, tier: progress.next as Tier }))
-    .sort((a, b) => getRank(a.tier.rank).value - getRank(b.tier.rank).value);
-
-  const recentTiers = history(goals).slice(0, 4);
-  const offre = freezeOffer(
-    goals,
-    checkins,
-    freezePurchases,
-    streak.freezes,
-    MAX_FREEZES,
-    FREEZE_COST,
-  );
-  const week = weekStats(goals, checkins, 0);
-  const lastWeek = weekStats(goals, checkins, -1);
-  // Le compteur défile au lieu de sauter : c'est ici que les gains de PP se
-  // voient maintenant, depuis qu'ils ont quitté le bandeau de profil.
-  const weekPP = useCountUp(week.pp);
-
   return (
     <div className="hub">
-      {streak.atRisk && streak.current > 0 && (
-        <div className="notice streak-banner" role="status">
-          🔥 <strong>
-            Streak de {streak.current} jour{streak.current > 1 ? 's' : ''} en jeu
-          </strong>{' '}
-          — fais une action avant minuit pour le prolonger
-          {streak.freezes > 0 ? ` (sinon un gel ❄ sur ${streak.freezes} sera consommé).` : '.'}
-        </div>
-      )}
-
-      {/* ---------- héros : anneau + flamme ---------- */}
-      <section className="daily-hero">
-        <DailyRing value={earned} goal={dailyGoal} />
-
-        <div className="daily-side">
-          <h2 className="daily-title">
-            {dayDone
-              ? 'Journée bouclée'
-              : earned === 0
-                ? 'La journée commence'
-                : `Plus que ${remaining} PP`}
-          </h2>
-          <p className="daily-sub">
-            {dayDone
-              ? `${earned - dailyGoal > 0 ? `+${earned - dailyGoal} PP au-delà de l'objectif. ` : ''}Le streak est assuré.`
-              : streak.current > 0
-                ? 'Une action et ton streak continue.'
-                : 'Fais une action pour lancer ton streak.'}
-          </p>
-
-          <div className="flame-row">
-            <span className={`flame${streak.activeToday ? ' lit' : ''}`} aria-hidden="true">
-              🔥
-            </span>
-            <div>
-              <div className="flame-count">{streak.current}</div>
-              <div className="flame-label">
-                jour{streak.current > 1 ? 's' : ''} d'affilée
-                {streak.freezes > 0 && (
-                  <>
-                    {' · '}
-                    <span
-                      className="freeze"
-                      title={`${streak.freezes} gel(s) : un jour manqué en consomme un au lieu de casser le streak`}
-                    >
-                      ❄×{streak.freezes}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* La seule chose que les PP achètent.
-                Elle a d'abord été cachée tant qu'elle n'était pas possible —
-                ne pas afficher un manque tous les jours. Mauvais calcul : la
-                seule chose que les PP achètent devenait invisible à qui n'a
-                jamais atteint 200 PP dans une semaine, donc il n'apprenait
-                jamais que les PP servent à quelque chose, donc il n'avait
-                aucune raison d'en gagner. La boutique était réservée à ceux
-                qui n'en avaient plus besoin.
-                Le bouton reste donc visible en permanence, et se remplit à
-                mesure que la semaine avance : la jauge est ce qui enseigne le
-                lien PP → gel, sans qu'on ait à l'écrire nulle part. */}
-            {offre.full ? (
-              <span className="freeze-full" title={`Réserve pleine : ${MAX_FREEZES} gels`}>
-                ❄ Réserve pleine
-              </span>
-            ) : (
-              <button
-                className={`btn btn-sm buy-freeze${offre.affordable ? '' : ' is-short'}`}
-                onClick={onBuyFreeze}
-                disabled={!offre.affordable}
-                style={{ '--freeze-fill': `${freezeFill(offre)}%` } as CSSProperties}
-                title={
-                  offre.affordable
-                    ? `Il te reste ${offre.balance} PP cette semaine`
-                    : `Encore ${offre.cost - offre.balance} PP cette semaine pour un gel`
-                }
-              >
-                ❄ Un gel · {offre.cost} PP
-                <span className="buy-freeze-balance">
-                  {offre.affordable ? `sur ${offre.balance}` : `${offre.balance}/${offre.cost}`}
-                </span>
-              </button>
-            )}
-          </div>
-
-          {/* La bandelette des sept derniers jours : une flamme les jours
-              faits, un gel ceux couverts par un gel, une flamme éteinte les
-              jours vraiment manqués — le détail que la flamme du jour, seule,
-              ne peut pas raconter. */}
-          <ol className="streak-strip" aria-label="Les sept derniers jours">
-            {recentDays.map((entry) => (
-              <li
-                key={entry.day}
-                className={`streak-day ${entry.status}`}
-                title={streakDayTitle(entry, dayString())}
-              >
-                <span aria-hidden="true">{entry.status === 'frozen' ? '❄' : '🔥'}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
+      <DayBand
+        goals={goals}
+        checkins={checkins}
+        freezePurchases={freezePurchases}
+        dailyGoal={dailyGoal}
+        onBuyFreeze={onBuyFreeze}
+      />
 
       {/* ---------- une seule ligne, et seulement s'il y a eu un oubli ----------
           L'app ne prend la parole que quand une journée récente est restée
@@ -392,16 +251,30 @@ export function Hub({
 
           {active.map((goal) => {
             const goalActions = actions.filter((a) => a.goalId === goal.id);
-            if (goalActions.length === 0) return null;
             // Une unité connue permet de saisir une quantité sur le geste
             // ponctuel — sinon, le champ n'aurait rien à demander.
             const ladder = ladderKind(goal.tiers);
+            const collapsed = dayComplete(goal, actions, checkins, viewDay) && !opened.has(goal.id);
+            // Le dernier relevé d'une mesure pas encore notée ce jour-là : le
+            // chiffre qu'on a en tête en se pesant.
+            const readings = goalActions
+              .filter((action) => action.isMeasure && !logByAction.has(action.id))
+              .map((action) => ({ action, reading: lastReading(action, checkins, viewDay) }))
+              .filter((r) => r.reading !== null);
             return (
-              <div className="today-goal" key={goal.id}>
-                <div className="today-goal-name">
-                  <span aria-hidden="true">{goal.emoji}</span> {goal.title}
-                </div>
-                <div className="checkin-chips">
+              <TodayGoal
+                key={goal.id}
+                goal={goal}
+                actions={actions}
+                checkins={checkins}
+                today={today}
+                onToday={onToday}
+                collapsed={collapsed}
+                onExpand={() => keepOpen(goal.id)}
+                onOpenGoal={() => onOpenGoal(goal.id)}
+                onValidateTier={onValidateTier}
+              >
+                <div className="checkin-chips" onClickCapture={() => keepOpen(goal.id)}>
                   {goalActions.map((action) => {
                     const log = logByAction.get(action.id);
                     const quantified = action.unit.trim() !== '';
@@ -583,6 +456,13 @@ export function Hub({
                   </button>
                 </div>
 
+                {readings.map(({ action, reading }) => (
+                  <p className="today-goal-reading" key={action.id}>
+                    {action.title} · dernier <b>{formatAmount(reading!.value, action.unit)}</b>,{' '}
+                    {agoLabel(reading!.day, viewDay)}
+                  </p>
+                ))}
+
                 {oneOffFor?.id === goal.id && (
                   <div className="checkin-note oneoff-bar">
                     <span className="checkin-note-label" aria-hidden="true">
@@ -633,7 +513,7 @@ export function Hub({
                     </button>
                   </div>
                 )}
-              </div>
+              </TodayGoal>
             );
           })}
 
@@ -696,135 +576,6 @@ export function Hub({
         </section>
       )}
 
-      {/* ---------- la carrière : le rang que tout ça construit ---------- */}
-      <ProfileHeader goals={goals} checkins={checkins} freezePurchases={freezePurchases} />
-
-      {/* ---------- ce que ça construit ---------- */}
-      <div className="hub-columns">
-        <section className="hub-section">
-          <div className="hub-section-head">
-            <h2>Ce que ça construit</h2>
-            <span className="hub-section-hint">le prochain palier de chaque objectif</span>
-          </div>
-          {nextTiers.length === 0 ? (
-            <div className="hub-empty">
-              {active.length === 0 ? (
-                <>
-                  <p>Aucun objectif pour l'instant — c'est le moment d'ouvrir la saison.</p>
-                  <button className="btn btn-primary btn-sm" onClick={onGoToGoals}>
-                    Créer mon premier objectif
-                  </button>
-                </>
-              ) : (
-                <p>Tous tes paliers sont validés. Ajoute une suite à tes objectifs !</p>
-              )}
-            </div>
-          ) : (
-            <ul className="next-list">
-              {nextTiers.map(({ goal, tier }) => {
-                const rank = getRank(tier.rank);
-                return (
-                  <li key={tier.id} className="next-tier">
-                    <span className="next-emoji" aria-hidden="true">
-                      {goal.emoji}
-                    </span>
-                    <span className="next-body">
-                      <span className="next-title">{tier.title}</span>
-                      <span className="next-goal">{goal.title}</span>
-                      {/* Le lien entre le geste du soir et la marche qu'il
-                          fait monter. Rien ne s'affiche pour un jalon. */}
-                      <TierMeter tier={tier} actions={actions} checkins={checkins} compact />
-                    </span>
-                    <RankBadge rank={rank} />
-                    {/* Un palier comptable se valide tout seul en atteignant
-                        sa cible : proposer le bouton reviendrait à proposer de
-                        tricher. */}
-                    {!isCountable(tier) && (
-                      <button
-                        className="btn btn-sm next-validate"
-                        onClick={() => onValidateTier(goal, tier)}
-                        title={`Valider « ${tier.title} » (+${ppForRank(rank)} PP)`}
-                      >
-                        Valider · +{ppForRank(rank)} PP
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
-        <div className="hub-side">
-          <section className="hub-section week-section">
-            <div className="hub-section-head">
-              <h2>Cette semaine</h2>
-              <span className="hub-section-hint">
-                {lastWeek.pp > 0 ? `vs ${lastWeek.pp} PP la semaine dernière` : 'lundi → dimanche'}
-              </span>
-            </div>
-            <div className="week-stats">
-              <div>
-                <div className="week-value week-pp">
-                  {weekPP}
-                  {lastWeek.pp > 0 && (
-                    <span
-                      className={`week-delta${week.pp >= lastWeek.pp ? ' up' : ' down'}`}
-                      title="Par rapport à la semaine dernière"
-                    >
-                      {week.pp >= lastWeek.pp ? '▲' : '▼'}
-                    </span>
-                  )}
-                </div>
-                <div className="week-label">PP gagnés</div>
-              </div>
-              <div>
-                <div className="week-value">{week.checkins}</div>
-                <div className="week-label">Actions</div>
-              </div>
-              <div>
-                <div className="week-value">{week.tiersValidated}</div>
-                <div className="week-label">Paliers</div>
-              </div>
-            </div>
-          </section>
-
-          <section className="hub-section">
-            <div className="hub-section-head">
-              <h2>Paliers récents</h2>
-            </div>
-            {recentTiers.length === 0 ? (
-              <div className="hub-empty">
-                <p>Tes validations de paliers apparaîtront ici.</p>
-              </div>
-            ) : (
-              <ul className="activity-list">
-                {recentTiers.map(({ tier, goal, date }) => {
-                  const rank = getRank(tier.rank);
-                  return (
-                    <li key={tier.id} className="activity-item">
-                      <span
-                        className="activity-dot"
-                        style={{
-                          background: `linear-gradient(150deg, ${rank.color2}, ${rank.color})`,
-                        }}
-                        aria-hidden="true"
-                      />
-                      <span className="activity-body">
-                        <span className="activity-title">{tier.title}</span>
-                        <span className="activity-meta">
-                          {goal.emoji} {goal.title} · {relativeDate(date)}
-                        </span>
-                      </span>
-                      <span className="activity-pp">+{ppForRank(rank)} PP</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        </div>
-      </div>
     </div>
   );
 }

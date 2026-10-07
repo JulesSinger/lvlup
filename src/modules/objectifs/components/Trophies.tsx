@@ -1,19 +1,24 @@
 import type { UnlockedAchievement } from '../data/goalsStore';
 import { ACHIEVEMENTS } from '../lib/achievements';
 import { formatDate } from '../lib/progress';
+import type { Goal } from '../lib/types';
+import { ProfileHeader } from './ProfileHeader';
 
 /**
  * Salle des trophées : les débloqués brillent (avec leur date), les autres
  * restent en silhouette avec leur condition affichée — on sait toujours quoi
  * viser. Un trophée acquis l'est pour toujours.
  */
-export function Trophies({ achievements }: { achievements: UnlockedAchievement[] }) {
+export function Trophies({ achievements, goals }: { achievements: UnlockedAchievement[]; goals: Goal[] }) {
   const byId = new Map(achievements.map((a) => [a.id, a]));
   const base = ACHIEVEMENTS.filter((a) => a.family === 'base');
   const rare = ACHIEVEMENTS.filter((a) => a.family === 'rare');
 
   return (
     <div className="trophies">
+      {/* Le rang du profil, passé de l'accueil à Trophées le 07/10/2026 : il
+          bouge rarement, et sa place est avec ce qu'on a décroché. */}
+      <ProfileHeader goals={goals} />
       <p className="trophies-score">
         {achievements.length}/{ACHIEVEMENTS.length} trophées débloqués
       </p>

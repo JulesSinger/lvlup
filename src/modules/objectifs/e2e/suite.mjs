@@ -55,6 +55,14 @@ async function showGoals(p) {
   await p.waitForSelector('.goal-tile');
 }
 
+/**
+ * Sur l'accueil, un objectif tout coché se replie en « ✓ fait » (07/10/2026) :
+ * pour défaire une coche, on le rouvre d'abord.
+ */
+async function expandDone(p) {
+  for (const button of await p.locator('.today-goal-done').all()) await button.click();
+}
+
 /** Ouvre la fiche d'un objectif (par sa place ou son titre). */
 async function openGoal(p, which = 0) {
   if ((await p.locator('.goal-tile').count()) === 0) await showGoals(p);
@@ -151,31 +159,32 @@ export async function run({ browser, check, BASE }) {
     await page.locator('.tier-date').first().textContent(),
   );
   check('Barre de progression à 40 %', (await page.locator('.goal-count').first().textContent())?.includes('2/5'));
-  // Le rang de profil et les PP s'affichent sur le hub
-  await page.getByRole('button', { name: 'Accueil' }).click();
+  // Le rang du profil est sur Trophées depuis le 07/10/2026.
+  await page.getByRole('button', { name: 'Trophées' }).click();
   await page.waitForSelector('.profile-rank');
   check(
-    'Rang global calculé (moyenne 3/3 objectifs = Fer)',
+    'Rang global calculé (moyenne 3/3 objectifs = Fer), en tête de Trophées',
     (await page.locator('.profile-rank').textContent()) === 'Fer',
     await page.locator('.profile-rank').textContent(),
   );
+  await page.getByRole('button', { name: 'Accueil' }).click();
+  await page.waitForSelector('.day-band');
   await page.waitForTimeout(1100); // laisse le compteur de PP finir son animation
   check(
-    // Les PP ont quitté le bandeau de profil — qui dit l'identité — pour la
-    // carte « Cette semaine », qui dit le rythme et porte le comparatif.
-    'PP de la semaine (Bronze 50 + Argent 75 = 125)',
-    (await page.locator('.week-pp').textContent())?.replace(/[^0-9]/g, '') === '125',
-    await page.locator('.week-pp').textContent(),
+    'PP du jour dans le bandeau (Bronze 50 + Argent 75 = 125)',
+    (await page.locator('.day-band .ring-value').textContent()) === '125',
+    await page.locator('.day-band .ring-value').textContent(),
   );
   check(
-    'Le bandeau de profil ne répète pas les PP',
-    (await page.locator('.stat-pp').count()) === 0,
-    (await page.locator('.stat-label').allTextContents()).join(' | '),
+    'L’accueil ne montre plus le profil, la semaine ni les paliers récents',
+    (await page.locator('.hub .profile').count()) === 0 &&
+      (await page.locator('.week-stats').count()) === 0 &&
+      (await page.locator('.activity-item').count()) === 0,
   );
   check(
-    "Activité récente alimentée sur le hub",
-    (await page.locator('.activity-item').count()) === 2,
-    String(await page.locator('.activity-item').count()),
+    'Le palier visé et les actions à cocher sont dans la même carte',
+    (await page.locator('.today-goal').first().locator('.next-tier').count()) === 1 &&
+      (await page.locator('.today-goal').first().locator('.checkin-chip').count()) > 0,
   );
   await openGoal(page, 0);
 
@@ -415,9 +424,10 @@ export async function run({ browser, check, BASE }) {
     String(await page.locator('.checkin-chip.add-oneoff').count()),
   );
   check(
-    'Anneau du jour affiché',
-    (await page.locator('.ring-goal').textContent()) === '/ 40 PP',
-    await page.locator('.ring-goal').textContent(),
+    'Anneau du jour affiché, avec l’objectif du jour à côté',
+    (await page.locator('.day-band .ring-wrap').count()) === 1 &&
+      ((await page.locator('.day-band .daily-sub').textContent()) ?? '').includes('/ 40 PP'),
+    await page.locator('.day-band .daily-sub').textContent(),
   );
   check(
     'Streak à 1 (les validations du jour comptent)',
@@ -484,11 +494,6 @@ export async function run({ browser, check, BASE }) {
   );
   await page.getByRole('button', { name: 'Accueil' }).click();
   await page.waitForSelector('.checkin-chips');
-  check(
-    'Récap « Cette semaine » : 1 action',
-    (await page.locator('.week-stats > div').nth(1).locator('.week-value').textContent()) === '1',
-    await page.locator('.week-stats > div').nth(1).locator('.week-value').textContent(),
-  );
 
   // Persistance après rechargement
   await reloadZenith(page);
@@ -719,10 +724,111 @@ export async function run({ browser, check, BASE }) {
   await reloadZenith(riskPage);
   await riskPage.waitForSelector('.hub');
   check(
-    "Bannière « streak en jeu » quand rien n'est fait aujourd'hui",
-    await riskPage.locator('.streak-banner').isVisible(),
+    "Le bandeau dit « streak en jeu » quand rien n'est fait aujourd'hui",
+    (await riskPage.locator('.day-band.at-risk').count()) === 1 &&
+      /en jeu/.test((await riskPage.locator('.day-band-line').textContent()) ?? ''),
+    (await riskPage.locator('.day-band-line').textContent()) ?? 'aucun',
   );
   await riskCtx.close();
+
+  // L'accueil refait (07/10/2026) : une carte par objectif dans l'ordre des
+  // tuiles, l'objectif tout coché replié, la série cassée hier, le dernier
+  // relevé d'une mesure, le prochain cap du streak.
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1200, height: 1000 } });
+    const ap = await ctx.newPage();
+    ap.on('pageerror', (e) => errors.push(e.message));
+    await gotoZenith(ap, BASE);
+    await ap.getByRole('button', { name: 'Passer' }).click();
+    await ap.getByRole('button', { name: 'Charger des exemples' }).click();
+    await ap.waitForSelector('.hub');
+    await ap.evaluate(() => {
+      const snap = JSON.parse(localStorage.getItem('palier.v1'));
+      const day = (n) => { const d = new Date(Date.now() - n * 86400000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+      const old = new Date(Date.now() - 120 * 86400000).toISOString();
+      snap.goals.forEach((g) => { g.createdAt = old; });
+      snap.actions.forEach((a) => { a.createdAt = old; });
+      snap.goals.push({ id: 'poids', title: 'Perdre du poids', description: '', emoji: '⚖️', position: 9, archived: false, createdAt: old,
+        tiers: [{ id: 'pt1', goalId: 'poids', title: 'Perdre 3 kg', rank: 'bronze', position: 0, completedAt: null, createdAt: old, kind: 'mesure', target: -3, unit: 'kg', direction: 'baisse', mode: 'relatif', sources: [] }] });
+      snap.actions.push({ id: 'pesee', goalId: 'poids', title: 'Me peser', pp: 5, position: 0, archived: false, createdAt: old, unit: 'kg', defaultValue: null, isMeasure: true });
+      const [g0, g1, g2] = snap.goals;
+      const acts = (g) => snap.actions.filter((a) => a.goalId === g.id);
+      const ck = [];
+      // Douze jours d'affilée sur le premier, jusqu'à hier.
+      for (let i = 1; i <= 12; i++) { const a = acts(g0)[0]; ck.push({ id: `a${i}`, goalId: g0.id, actionId: a.id, pp: a.pp, day: day(i), note: '', createdAt: `${day(i)}T09:00:00.000Z`, value: null }); }
+      // Le deuxième : fait avant-hier, rien hier.
+      ck.push({ id: 'b2', goalId: g1.id, actionId: acts(g1)[0].id, pp: 10, day: day(2), note: '', createdAt: `${day(2)}T09:00:00.000Z`, value: null });
+      // Le troisième : tout coché aujourd'hui.
+      for (const a of acts(g2)) ck.push({ id: `c${a.id}`, goalId: g2.id, actionId: a.id, pp: a.pp, day: day(0), note: '', createdAt: `${day(0)}T09:00:00.000Z`, value: null });
+      // Une pesée par semaine : jamais « hier vide ».
+      [[11, 83.2], [4, 82.1]].forEach(([d, v], i) => ck.push({ id: `p${i}`, goalId: 'poids', actionId: 'pesee', pp: 5, day: day(d), note: '', createdAt: `${day(d)}T07:00:00.000Z`, value: v }));
+      snap.checkins = ck;
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await reloadZenith(ap);
+    await ap.waitForSelector('.day-band');
+    await ap.waitForTimeout(600);
+
+    const noms = (await ap.locator('.today-goal-name').allTextContents()).map((t) => t.trim());
+    check(
+      'Une carte par objectif, dans l’ordre des tuiles (même sans action à cocher ce jour-là)',
+      noms.length === 4 && noms[0].includes('Courir un marathon') && noms[3].includes('Perdre du poids'),
+      noms.join(' | '),
+    );
+    check(
+      'Le bandeau annonce le prochain cap du streak',
+      /Prochain cap : 30 jours, dans 17 jours/.test((await ap.locator('.day-band-line').textContent()) ?? ''),
+      await ap.locator('.day-band-line').textContent(),
+    );
+    check(
+      'Le streak de chaque objectif est sur sa carte',
+      ((await ap.locator('.today-goal').first().locator('.today-goal-streak').textContent()) ?? '').includes('12'),
+      await ap.locator('.today-goal').first().locator('.today-goal-streak').textContent(),
+    );
+    check(
+      '« Hier vide » ne se dit que d’une série cassée hier',
+      (await ap.locator('.today-goal-gap').count()) === 1 &&
+        ((await ap.locator('.today-goal', { has: ap.locator('.today-goal-gap') }).textContent()) ?? '').includes(noms[1]),
+      String(await ap.locator('.today-goal-gap').count()),
+    );
+    check(
+      'Un objectif tout coché aujourd’hui se replie en « ✓ fait »',
+      (await ap.locator('.today-goal.collapsed').count()) === 1 &&
+        (await ap.locator('.today-goal.collapsed .checkin-chip').count()) === 0,
+    );
+    await ap.locator('.today-goal-done').click();
+    await ap.waitForTimeout(200);
+    check(
+      'Et se rouvre d’un toucher',
+      (await ap.locator('.today-goal.collapsed').count()) === 0 &&
+        (await ap.locator('.today-goal').nth(2).locator('.checkin-chip.done').count()) === 2,
+    );
+    check(
+      'Une mesure rappelle son dernier relevé',
+      /Me peser · dernier 82,1 kg, il y a 4 jours/.test(
+        ((await ap.locator('.today-goal-reading').textContent()) ?? '').replace(/\s+/g, ' '),
+      ),
+      await ap.locator('.today-goal-reading').textContent(),
+    );
+    // Cocher la dernière action d'un objectif ne doit pas faire disparaître la
+    // pastille qu'on voudrait défaire.
+    const premier = ap.locator('.today-goal').first();
+    for (const chip of await premier.locator('.checkin-chip:not(.add-oneoff)').all()) await chip.click();
+    await ap.waitForTimeout(900);
+    await dismissCeremonies(ap);
+    check(
+      'La dernière coche ne replie pas la carte qu’on vient de toucher',
+      (await premier.locator('.checkin-chip.done').count()) === 2,
+      String(await premier.locator('.checkin-chip.done').count()),
+    );
+    await ap.locator('.today-goal-name').first().click();
+    await ap.waitForSelector('.goal-page');
+    check(
+      'Toucher le nom d’un objectif ouvre sa fiche',
+      ((await ap.locator('.goal-page .goal-title').textContent()) ?? '').includes('Courir un marathon'),
+    );
+    await ctx.close();
+  }
 
   // Bandelette de streak : un jour manqué, et un jour couvert par un gel —
   // reproduits avec des dates relatives à aujourd'hui, injectées directement
@@ -1144,6 +1250,7 @@ export async function run({ browser, check, BASE }) {
     // Décocher fait redescendre le compteur, mais ne reprend pas la victoire.
     await cp.getByRole('button', { name: 'Accueil' }).click();
     await cp.waitForSelector('.hub');
+    await expandDone(cp);
     await cp.locator('.checkin-chip.done').first().click();
     await cp.waitForTimeout(900);
     await dismissCeremonies(cp);
@@ -1510,8 +1617,8 @@ export async function run({ browser, check, BASE }) {
     await rp.waitForTimeout(800);
     check(
       'Un palier déjà atteint ailleurs se valide au chargement',
-      (await rp.locator('.next-tier').count()) === 0,
-      `${await rp.locator('.next-tier').count()} palier(s) encore en cours`,
+      (await rp.locator('.next-tier:not(.next-tier-none)').count()) === 0,
+      `${await rp.locator('.next-tier:not(.next-tier-none)').count()} palier(s) encore en cours`,
     );
     check(
       'Sans cérémonie : on ne fête pas une victoire découverte en rechargeant',
@@ -2252,10 +2359,8 @@ export async function run({ browser, check, BASE }) {
     await pp.waitForSelector('.hub');
 
     check(
-      'Les PP se comptent à la semaine, et à un seul endroit',
-      (await pp.locator('.week-label').first().textContent()) === 'PP gagnés' &&
-        (await pp.locator('.stat-pp').count()) === 0,
-      (await pp.locator('.week-label').first().textContent()) ?? '?',
+      'Les PP de la semaine ne se lisent plus qu’au bouton du gel',
+      (await pp.locator('.week-pp').count()) === 0 && (await pp.locator('.stat-pp').count()) === 0,
     );
     // Tous les accesseurs Playwright (`textContent`, `isDisabled`, `evaluate`…)
     // attendent l'élément 30 s avant de lever, et cette exception tue le
@@ -2291,9 +2396,7 @@ export async function run({ browser, check, BASE }) {
       );
       // La jauge doit valoir le solde, pas un décor : on la compare au solde
       // affiché juste à côté.
-      const solde = Number(
-        ((await pp.locator('.week-pp').textContent()) ?? '0').replace(/[^0-9]/g, ''),
-      );
+      const solde = Number(/(\d+)\/200/.exec(b?.texte ?? '')?.[1] ?? '0');
       const attendu = Math.max(0, Math.min(100, Math.round((solde / 200) * 100)));
       check(
         'La jauge du bouton vaut le solde de la semaine',
@@ -2327,8 +2430,8 @@ export async function run({ browser, check, BASE }) {
 
     check(
       'Le solde de la semaine est celui qu’on dépense',
-      (await pp.locator('.week-pp').textContent())?.replace(/[^0-9]/g, '') === '300',
-      await pp.locator('.week-pp').textContent(),
+      ((await pp.locator('.buy-freeze').textContent()) ?? '').includes('sur 300'),
+      await pp.locator('.buy-freeze').textContent(),
     );
     {
       const b = await lireBouton();

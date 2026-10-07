@@ -1055,7 +1055,7 @@ export function ZenithScreen({
         ) : view === 'historique' ? (
           <Timeline goals={goals} checkins={checkins} />
         ) : view === 'trophees' ? (
-          <Trophies achievements={achievements} />
+          <Trophies achievements={achievements} goals={goals} />
         ) : view === 'accueil' ? (
           activeGoals.length === 0 ? (
             emptyState
@@ -1071,7 +1071,7 @@ export function ZenithScreen({
               onSaveNote={saveCheckinNote}
               onSaveValue={saveCheckinValue}
               onValidateTier={validateTier}
-              onGoToGoals={() => showView('objectifs')}
+              onOpenGoal={openGoal}
               freezePurchases={freezePurchases}
               onBuyFreeze={buyFreeze}
             />

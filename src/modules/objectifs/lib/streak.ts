@@ -34,6 +34,19 @@ export interface Streak {
   atRisk: boolean;
 }
 
+/**
+ * Les caps du streak (docs/etude-quotidien.md §3) : 7, 30, 100 et 365 jours.
+ * L'accueil annonce le prochain — « 30 jours dans 18 j » — pour donner au
+ * chiffre une direction, pas seulement une hauteur.
+ */
+export const STREAK_MILESTONES = [7, 30, 100, 365] as const;
+
+/** Le prochain cap à franchir et le nombre de jours qui en séparent ; `null` au-delà de 365. */
+export function nextStreakMilestone(current: number): { target: number; inDays: number } | null {
+  const target = STREAK_MILESTONES.find((m) => m > current);
+  return target === undefined ? null : { target, inDays: target - current };
+}
+
 export const MAX_FREEZES = 3;
 const FREEZE_EVERY_DAYS = 7;
 
