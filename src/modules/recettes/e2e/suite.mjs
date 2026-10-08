@@ -165,6 +165,44 @@ export async function run({ browser, check, BASE }) {
   await page.waitForFunction(() => document.querySelectorAll('.recettes-card').length === 1);
   check('Supprimer une recette demande confirmation, puis la retire', (await page.locator('.recettes-card').count()) === 1);
 
+  // --- Le menu de la semaine (étape 5) -----------------------------------------------------------------
+  await page.locator('.recettes-card', { hasText: 'Lasagnes' }).click();
+  await sheet.getByRole('button', { name: '📅 Au menu' }).click();
+  await modal.getByRole('group', { name: 'Le repas' }).getByRole('button', { name: 'Soir' }).click();
+  await modal.getByRole('button', { name: 'Ajouter au menu' }).click();
+  await page.waitForSelector('.notice.info');
+  check('Une recette se pose au menu depuis sa fiche, et Atlas le dit', (await text(page.locator('.notice.info'))).includes('Au menu : Lasagnes à la bolognaise, soir'));
+  await sheet.getByRole('button', { name: '← Carnet' }).click();
+  await page.getByRole('button', { name: /^Menu de la semaine/ }).click();
+  await page.waitForSelector('.recettes-menu');
+  const today = page.locator('.recettes-menu-day.today');
+  check('Le menu s’ouvre sur cette semaine, aujourd’hui en évidence', (await text(page.locator('.recettes-menu-title'))) === 'Cette semaine' && (await today.count()) === 1);
+  check('Le soir d’aujourd’hui porte la recette', (await text(today.locator('.recettes-menu-slot').nth(1))).includes('Lasagnes à la bolognaise'));
+  await today.locator('.recettes-menu-slot').nth(0).locator('.recettes-menu-add').click();
+  await page.locator('#recettes-plan-free').fill('Restes');
+  await modal.getByRole('button', { name: 'Ajouter au menu' }).click();
+  await page.waitForFunction(() => document.querySelector('.recettes-menu-day.today .recettes-menu-slot')?.textContent?.includes('Restes'));
+  check('Une case peut porter un simple titre (« Restes »)', true);
+  await page.getByRole('button', { name: 'Semaine suivante' }).click();
+  check('Les semaines se parcourent', (await text(page.locator('.recettes-menu-title'))).startsWith('Semaine du') && (await page.locator('.recettes-menu-entry').count()) === 0);
+  await page.getByRole('button', { name: 'Revenir à cette semaine' }).click();
+  await today.getByRole('button', { name: 'Retirer Restes du menu' }).click();
+  await page.waitForFunction(() => !document.querySelector('.recettes-menu-day.today')?.textContent?.includes('Restes'));
+  check('Un repas se retire du menu', true);
+
+  // Le calque de Recettes dans Calendar.
+  await page.evaluate(() => (location.hash = '#/calendrier'));
+  await page.waitForSelector('.fc-event', { timeout: 20_000 });
+  await page.waitForTimeout(400);
+  check('Calendar montre le menu de Recettes', (await text(page.locator('.fc'))).includes('Soir · Lasagnes à la bolognaise'));
+  await page.evaluate(() => (location.hash = '#/recettes'));
+  await page.waitForSelector('.recettes-menu');
+  await page.locator('.recettes-menu-recipe', { hasText: 'Lasagnes' }).first().click();
+  await page.waitForSelector('.recettes-sheet');
+  check('Toucher une recette du menu ouvre sa fiche', (await text(sheet.locator('h1'))) === 'Lasagnes à la bolognaise');
+  await sheet.getByRole('button', { name: '← Carnet' }).click();
+  await page.getByRole('button', { name: /^Carnet/ }).click();
+
   // --- Téléphone ----------------------------------------------------------------------------------
   const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   for (const width of [390, 320]) {
@@ -178,7 +216,11 @@ export async function run({ browser, check, BASE }) {
     const editorFits = await fits();
     await modal.getByRole('button', { name: 'Annuler' }).click();
     await sheet.getByRole('button', { name: '← Carnet' }).click();
-    check(`Rien ne déborde sur téléphone (${width} px) : carnet, fiche, fenêtre`, notebook && sheetFits && editorFits, `${notebook} ${sheetFits} ${editorFits}`);
+    await page.getByRole('button', { name: /^Menu de la semaine/ }).click();
+    await page.waitForSelector('.recettes-menu');
+    const menuFits = await fits();
+    await page.getByRole('button', { name: /^Carnet/ }).click();
+    check(`Rien ne déborde sur téléphone (${width} px) : carnet, fiche, fenêtre, menu`, notebook && sheetFits && editorFits && menuFits, `${notebook} ${sheetFits} ${editorFits} ${menuFits}`);
   }
 
   await page.getByRole('button', { name: 'Changer de module — Recettes' }).click();

@@ -1,25 +1,44 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { prepareImage } from '../../core/data/images/prepareImage';
-import { dayString } from '../../core/lib/day';
+import { dayString, shiftDay } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { CookedDialog } from './components/CookedDialog';
+import { MenuView } from './components/MenuView';
+import { PlanPicker } from './components/PlanPicker';
 import { Notebook } from './components/Notebook';
 import { RecipeEditor, type PhotoChange } from './components/RecipeEditor';
 import { forgetPhoto } from './components/RecipePhotoImg';
 import { RecipeSheet } from './components/RecipeSheet';
 import { recettesStore as store } from './data';
 import { canImportFromLink, importFromLink } from './data/importFromLink';
-import { DEFAULT_RECETTES_SETTINGS, type Cooked, type CookedInput, type Recipe, type RecipeInput, type RecipePhoto, type RecettesSettings } from './lib/types';
+import { MEAL_LABELS } from './lib/calendarMarks';
+import { weekdayLabel } from './lib/format';
+import { nextPosition, weekDays } from './lib/menu';
+import { DEFAULT_RECETTES_SETTINGS, type Cooked, type CookedInput, type Meal, type PlanEntry, type PlanEntryInput, type Recipe, type RecipeInput, type RecipePhoto, type RecettesSettings } from './lib/types';
 
 /** Une photo réduite dans le navigateur avant tout envoi : 1 600 px et une vignette (étude §12). */
 export const PHOTO_SIZES = { full: 1600, thumb: 600 };
 
+type View = 'carnet' | 'menu';
+
+/** La dernière vue ouverte, retenue sur cet appareil — un confort, pas une donnée. */
+const VIEW_KEY = 'recettes.view.v1';
+
+function savedView(): View {
+  try {
+    if (localStorage.getItem(VIEW_KEY) === 'menu') return 'menu';
+  } catch {
+    // Stockage refusé : le carnet suffit.
+  }
+  return 'carnet';
+}
+
 /**
- * Écran racine de Recettes (docs/etude-recettes.md §5, §15) : le carnet, la
- * fiche d'une recette, la fenêtre pour en ajouter une.
+ * Écran racine de Recettes (docs/etude-recettes.md §5, §15, §17) : le carnet,
+ * le menu de la semaine, la fiche d'une recette, la fenêtre pour en ajouter.
  */
-export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji }: ModuleScreenProps) {
+export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji, intent }: ModuleScreenProps) {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [photos, setPhotos] = useState<RecipePhoto[]>([]);
   const [cooked, setCooked] = useState<Cooked[]>([]);
@@ -30,12 +49,23 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
   const [editing, setEditing] = useState<Recipe | 'new' | null>(null);
   const [cooking, setCooking] = useState(false);
   const [notice, setNotice] = useState('');
+  const [view, setViewState] = useState<View>(savedView);
+  const [menuDay, setMenuDay] = useState(dayString());
+  const [plan, setPlan] = useState<PlanEntry[]>([]);
+  const [picking, setPicking] = useState<{ day: string; meal: Meal } | 'recipe' | null>(null);
   const today = dayString();
+  const week = weekDays(menuDay);
 
   const refresh = useCallback(async () => {
     try {
-      const [nextRecipes, nextCooked, nextSettings] = await Promise.all([store.listRecipes(), store.listCooked(), store.getSettings()]);
+      const [nextRecipes, nextCooked, nextSettings, nextPlan] = await Promise.all([
+        store.listRecipes(),
+        store.listCooked(),
+        store.getSettings(),
+        store.listPlan(week[0], week[6]),
+      ]);
       setRecipes(nextRecipes);
+      setPlan(nextPlan);
       setCooked(nextCooked);
       setSettings(nextSettings);
       // Les photos à part : un bucket ou une table manquante n'empêche pas le carnet.
@@ -46,11 +76,53 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
     } finally {
       setLoaded(true);
     }
-  }, [onError]);
+    // La semaine affichée fait partie de ce qu'on relit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onError, week[0]]);
 
   useEffect(() => {
     void refresh();
   }, [refresh, reloadToken]);
+
+  function setView(next: View) {
+    setViewState(next);
+    setOpenId(null);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // Sans stockage, la vue vaut pour cette visite.
+    }
+  }
+
+  /**
+   * Ouvert depuis Calendar (`onOpenModule('recettes', …)`) : « recipe:<id> »
+   * la fiche, « menu » le menu. Une seule fois par intention.
+   */
+  const [intentDone, setIntentDone] = useState<string | null>(null);
+  useEffect(() => {
+    if (!loaded || !intent || intentDone === intent) return;
+    setIntentDone(intent);
+    if (intent.startsWith('recipe:')) {
+      const r = recipes.find((x) => x.id === intent.slice(7));
+      if (r) {
+        setOpenId(r.id);
+        setServings(r.servings);
+      }
+    } else if (intent === 'menu') {
+      setViewState('menu');
+      setOpenId(null);
+    }
+  }, [loaded, intent, intentDone, recipes]);
+
+  async function addToMenu(input: Omit<PlanEntryInput, 'position'>) {
+    const sameDay = await store.listPlan(input.day, input.day);
+    await store.addPlanEntry({ ...input, position: nextPosition(sameDay, input.day, input.meal) }, crypto.randomUUID());
+    setPicking(null);
+    if (input.day < week[0] || input.day > week[6]) setMenuDay(input.day);
+    const what = input.recipeId ? (recipes.find((r) => r.id === input.recipeId)?.title ?? '') : input.title;
+    setNotice(`Au menu : ${what}, ${MEAL_LABELS[input.meal].toLowerCase()} du ${weekdayLabel(input.day)}.`);
+    await refresh();
+  }
 
   const open = useMemo(() => recipes.find((r) => r.id === openId) ?? null, [recipes, openId]);
   const photoOf = (id: string) => photos.find((p) => p.recipeId === id) ?? null;
@@ -141,6 +213,22 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
           </div>
         )}
 
+        {loaded && !open && (
+          <nav className="recettes-nav" aria-label="Vues">
+            {(
+              [
+                ['carnet', 'Carnet', recipes.length],
+                ['menu', 'Menu de la semaine', 0],
+              ] as const
+            ).map(([id, text, n]) => (
+              <button key={id} type="button" className={`recettes-nav-item${view === id ? ' on' : ''}`} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>
+                {text}
+                {n > 0 && <span className="recettes-count">{n}</span>}
+              </button>
+            ))}
+          </nav>
+        )}
+
         {!loaded ? null : open ? (
           <RecipeSheet
             recipe={open}
@@ -162,6 +250,23 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
             }}
             onCooked={() => setCooking(true)}
             onDeleteCooked={(c) => void write(() => store.deleteCooked(c.id))}
+            actions={
+              <button type="button" className="btn btn-sm" onClick={() => setPicking('recipe')}>
+                📅 Au menu
+              </button>
+            }
+          />
+        ) : view === 'menu' ? (
+          <MenuView
+            day={menuDay}
+            today={today}
+            entries={plan}
+            recipes={recipes}
+            onWeek={(delta) => setMenuDay((d) => shiftDay(d, 7 * delta))}
+            onToday={() => setMenuDay(today)}
+            onAdd={(day, meal) => setPicking({ day, meal })}
+            onOpen={openRecipe}
+            onRemove={(e) => void write(() => store.deletePlanEntry(e.id))}
           />
         ) : recipes.length === 0 ? (
           <div className="recettes-empty">
@@ -187,6 +292,17 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
             onSave={save}
             onClose={() => setEditing(null)}
             onImportLink={canImportFromLink ? importFromLink : null}
+          />
+        )}
+        {picking && (
+          <PlanPicker
+            recipes={recipes}
+            recipe={picking === 'recipe' && open ? open : undefined}
+            slot={picking !== 'recipe' ? picking : undefined}
+            today={today}
+            servings={picking === 'recipe' ? servings : null}
+            onAdd={addToMenu}
+            onClose={() => setPicking(null)}
           />
         )}
         {cooking && open && (

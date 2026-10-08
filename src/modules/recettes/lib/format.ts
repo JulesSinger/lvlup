@@ -13,6 +13,9 @@ export function weekdayLabel(day: string): string {
   return date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+/** « Lun. 12 oct. » : en tête de ligne, seule la première lettre prend une capitale. */
+export const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
 /** Le nom d'un site d'après son lien, sans « www. » ; vide si le lien ne se lit pas. */
 export function hostOf(url: string): string {
   try {

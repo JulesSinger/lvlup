@@ -499,3 +499,26 @@ rechargement, 390 et 320 px) ; **1166/1166** en local et en mode comptes.
 migration.
 
 1603 → **1622** tests unitaires ; suite de Recettes 31 → **33**.
+
+## 17. Étape 5 : le menu de la semaine (08/10/2026)
+
+- **Le menu** (`MenuView`, onglet « Menu de la semaine », vue retenue sur l'appareil,
+  `recettes.view.v1`) : sept jours, midi et soir ; aujourd'hui en évidence, les jours passés
+  atténués ; semaines précédente et suivante, « Revenir à cette semaine ». Une case porte une
+  recette du carnet (la toucher ouvre sa fiche), un simple titre (« Restes », « Resto avec
+  Paul ») ou plusieurs choses (un plat, un dessert), chacune avec son nombre de personnes et un ✕.
+  Sur téléphone, midi et soir l'un sous l'autre : les noms tiennent en entier (côte à côte, ils
+  étaient coupés — vu sur capture).
+- **Poser un repas** (`PlanPicker`) : depuis une case, choisir une recette (favoris d'abord,
+  recherche) ou écrire un titre ; depuis la fiche (« 📅 Au menu »), choisir le jour et le repas,
+  au nombre de personnes de la fiche. Un message dit ce qui a été posé.
+- **Le calque dans Calendar** (`lib/calendarMarks.ts`, `data/calendarSource.ts`) : une marque par
+  repas, sur la journée (« Soir · Lasagnes »), qui ouvre la recette dans Recettes ; glissée à un
+  autre jour, le repas y passe ; glissée sur une heure, il devient le midi (avant 16 h) ou le
+  soir de ce jour. Ouvrir Recettes sur une recette ou sur le menu passe par `intent`
+  (`recipe:<id>`, `menu`).
+
+Rien ne part vers Courses depuis le menu : c'est l'étape suivante, et toujours un geste voulu.
+
+1622 → **1625** tests unitaires ; suite de Recettes 33 → **41** (le calque vu dans Calendar
+compris) ; **1176/1176** en local et en mode comptes.

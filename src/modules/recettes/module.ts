@@ -1,6 +1,7 @@
 import type { AtlasModule } from '../../core/lib/module';
 import { RecettesLandingPreview } from './components/RecettesLandingPreview';
 import { recettesStore } from './data';
+import { createCalendarSource } from './data/calendarSource';
 import { RecettesScreen } from './RecettesScreen';
 
 /**
@@ -19,4 +20,5 @@ export const recettesModule: AtlasModule = {
   data: recettesStore,
   Screen: RecettesScreen,
   LandingPreview: RecettesLandingPreview,
+  provides: { calendarSources: [createCalendarSource(recettesStore)] },
 };
