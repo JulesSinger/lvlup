@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { bestEfforts, longestRecent, recentReference, recentWeeklyAverage, weeklyVolumes, zone2Paces } from './stats';
-import type { Run } from './types';
-import { hrZones } from './zones';
+import { bestEfforts, longestRecent, recentReference, recentWeeklyAverage, weeklyVolumes } from './stats';
+import { HALF_MARATHON_M, type Run } from './types';
 
 let n = 0;
 const run = (day: string, km: number, minutes: number, extra: Partial<Run> = {}): Run => ({
@@ -64,20 +63,11 @@ describe('les records', () => {
     expect(recentReference(runs, today)).toEqual({ distanceM: 10_000, timeS: 3060, day: '2026-09-27' });
     expect(recentReference([], today)).toBeNull();
   });
-});
 
-describe('l’endurance en zone 2', () => {
-  it('l’allure des footings courus en zone 2, pondérée par la distance', () => {
-    const zones = hrZones({ hrMax: 190, hrRest: 50 });
-    const runs = [
-      run('2026-10-05', 10, 60, { avgHr: 140 }),
-      run('2026-10-06', 5, 27.5, { avgHr: 142, kind: 'longue' }),
-      run('2026-10-06', 6, 30, { avgHr: 165 }), // zone 4 : écarté
-      run('2026-10-06', 8, 40, { avgHr: 140, kind: 'seuil' }), // pas un footing : écarté
-      run('2026-10-06', 8, 40), // pas de FC : écarté
-    ];
-    const points = zone2Paces(runs, zones, today, 2);
-    expect(points[0].paceS).toBeNull();
-    expect(points[1]).toEqual({ monday: '2026-10-05', paceS: 350, distanceM: 15_000 });
+  it('un semi couru en sortie longue ne fait pas référence face à un vrai 10 km', () => {
+    const runs = [run('2026-09-27', 10, 50), run('2026-10-04', 21.1, 140)];
+    expect(recentReference(runs, today)?.distanceM).toBe(10_000);
+    // Un semi couru vite, lui, l'emporte : il prédit à peine plus lent.
+    expect(recentReference([...runs, run('2026-10-05', 21.1, 112)], today)?.distanceM).toBe(HALF_MARATHON_M);
   });
 });

@@ -647,3 +647,38 @@ dira (« Refusée : distance manquante ») — à me rapporter, la fonction s'ad
 
 1465 → **1482** tests unitaires ; suite de Sport 44 → **46** ; **1120/1120** en local et en
 mode comptes.
+
+## 17. Étape 6 : la progression (08/10/2026)
+
+Un quatrième onglet, **Progression** (`components/Progress.tsx`, `lib/progress.ts`), sur une
+période au choix — 3 mois, 6 mois, 1 an, tout — retenue sur l'appareil
+(`sport.progress.v1`). Le temps est découpé en **tranches régulières** (semaines jusqu'à six
+mois, mois au-delà) : chaque point pèse le même temps, la pente ne ment pas.
+
+- **Volume** : kilomètres, sorties, temps, D+, et la période d'avant de même longueur —
+  seulement si l'historique la couvre (un historique commencé au milieu affichait
+  « +1369 % ») ; barres par tranche.
+- **Allure par sorte** (footing, sortie longue, seuil, fractionné), pondérée par la distance :
+  toutes sortes mêlées, la courbe ne dirait rien. Une phrase dit le changement (trois
+  premières tranches renseignées contre trois dernières, six au moins).
+- **Endurance** : l'allure des footings et sorties longues dont la FC moyenne est en zone 2.
+  `zone2Trend` remplace `zone2Paces` (étape 2, jamais affichée).
+- **Temps par zone**, en barres empilées, et la part du temps en zones 1 et 2 (repère :
+  environ 80 % dans les plans marathon). Approximation dite comme telle : chaque sortie compte
+  dans la zone de sa FC moyenne.
+- **Prédiction au marathon**, tranche après tranche, par la même règle que le plan.
+- **Records et leur histoire** : chaque amélioration, avec ce qu'elle a fait gagner ; toucher
+  une date ouvre la sortie.
+
+`TrendChart` : une courbe SVG à sa vraie largeur, le meilleur en haut pour une allure ou un
+temps (une courbe qui monte est une progression), valeur au toucher.
+
+**Règle corrigée en regardant l'écran** (`recentReference`, qui sert aussi au plan) : la plus
+longue distance récente restait la référence même courue tranquillement — un semi fait en
+sortie longue prédisait un marathon en 4 h 35 quand le 10 km de la même semaine disait
+3 h 35. Elle n'est plus retenue si elle prédit plus de 5 % plus lent que le meilleur des
+efforts récents. Sur téléphone, « Reprendre l'historique Strava » devient « Strava » (la barre
+des vues tenait sur trois lignes).
+
+1482 → **1492** tests unitaires ; suite de Sport 46 → **53** ; **1127/1127** en local et en
+mode comptes.

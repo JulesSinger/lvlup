@@ -3,9 +3,8 @@
  * (docs/etude-sport.md §4.2, §5, §12).
  */
 import { mondayOf, shiftDay } from '../../../core/lib/day';
-import { paceOf } from './pace';
+import { riegel } from './pace';
 import { HALF_MARATHON_M, MARATHON_M, type Run } from './types';
-import { zoneOf, type HrZone } from './zones';
 
 export interface WeekVolume {
   /** Lundi de la semaine. */
@@ -93,45 +92,24 @@ export function bestEfforts(runs: Run[]): Effort[] {
 }
 
 /**
- * Le meilleur effort récent qui servira de temps de référence au plan : le
- * plus récent des records sur 5 km, 10 km ou semi des `days` derniers jours,
- * en préférant la plus longue distance (elle prédit mieux un marathon).
+ * Le meilleur effort récent qui servira de temps de référence au plan et à la
+ * prédiction : parmi les records sur 5 km, 10 km ou semi des `days` derniers
+ * jours, le plus long (il prédit mieux un marathon) — sauf s'il prédit plus de
+ * 5 % plus lent que le meilleur des trois. Un semi couru en sortie longue,
+ * tranquillement, n'est pas une course : il ferait croire à un marathon en
+ * 4 h 35 quand le 10 km de la veille dit 3 h 35 (vu sur l'écran de
+ * progression, étape 6).
  */
 export function recentReference(runs: Run[], today: string, days = 90): { distanceM: number; timeS: number; day: string } | null {
   const since = shiftDay(today, -days);
-  const efforts = bestEfforts(runs.filter((r) => r.day >= since && r.day <= today));
-  for (const d of [HALF_MARATHON_M, 10_000, 5000]) {
-    const e = efforts.find((x) => x.distanceM === d);
-    if (e) return { distanceM: d, timeS: e.timeS, day: e.day };
-  }
-  return null;
-}
-
-export interface EndurancePoint {
-  monday: string;
-  /** L'allure moyenne des footings et sorties longues courus en zone 2, pondérée par la distance. */
-  paceS: number | null;
-  distanceM: number;
-}
-
-/**
- * L'indicateur d'endurance (§12) : l'allure en zone 2, semaine après semaine.
- * Courir plus vite au même cœur est la progression la plus honnête d'une
- * préparation marathon. Une sortie sans FC moyenne n'entre pas dans le calcul.
- */
-export function zone2Paces(runs: Run[], zones: HrZone[] | null, today: string, weeks = 12): EndurancePoint[] {
-  return weeklyVolumes([], today, weeks).map(({ monday }) => {
-    const end = shiftDay(monday, 7);
-    const easy = runs.filter(
-      (r) =>
-        r.day >= monday &&
-        r.day < end &&
-        (r.kind === 'footing' || r.kind === 'longue') &&
-        r.avgHr !== null &&
-        zoneOf(r.avgHr, zones) === 2,
-    );
-    const distanceM = easy.reduce((s, r) => s + r.distanceM, 0);
-    const durationS = easy.reduce((s, r) => s + r.durationS, 0);
-    return { monday, paceS: distanceM > 0 ? paceOf(distanceM, durationS) : null, distanceM };
-  });
+  const efforts = bestEfforts(runs.filter((r) => r.day >= since && r.day <= today)).filter((e) =>
+    [5000, 10_000, HALF_MARATHON_M].includes(e.distanceM),
+  );
+  if (efforts.length === 0) return null;
+  const predicted = (e: Effort) => riegel(e.distanceM, e.timeS, MARATHON_M);
+  const best = Math.min(...efforts.map(predicted));
+  const chosen = efforts
+    .filter((e) => predicted(e) <= best * 1.05)
+    .reduce((a, e) => (e.distanceM > a.distanceM ? e : a));
+  return { distanceM: chosen.distanceM, timeS: chosen.timeS, day: chosen.day };
 }

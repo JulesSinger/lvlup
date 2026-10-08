@@ -219,6 +219,25 @@ export async function run({ browser, check, BASE }) {
   check('Le tableau de bord commence par le plan et sa prochaine séance', summary.includes('J-207') && summary.includes('Prochaine séance'), summary);
   await page.getByRole('button', { name: /^Journal/ }).click();
 
+  // --- La progression (étape 6) ---------------------------------------------------------------
+  await page.getByRole('button', { name: /^Progression/ }).click();
+  await page.waitForSelector('.sport-progress');
+  const volTitle = () => text(page.locator('.sport-progress-volume .sport-panel-title'));
+  check('La progression s’ouvre sur trois mois, semaine par semaine', (await volTitle()).includes('par semaine') && (await page.locator('.sport-progress-bars .sport-weeks-col').count()) === 13);
+  await page.getByRole('button', { name: '1 an', exact: true }).click();
+  check('Sur un an, le volume se compte par mois', (await volTitle()).includes('par mois') && (await page.locator('.sport-progress-bars .sport-weeks-col').count()) === 12);
+  check('L’allure des footings a sa courbe', (await page.locator('.sport-trend svg').count()) >= 1);
+  check('Le temps par zone a ses cinq zones et les sorties sans FC', (await page.locator('.sport-zone-legend li').count()) === 6);
+  check('La prédiction au marathon est dite comme une estimation', (await text(page.locator('.sport-panel', { hasText: 'Prédiction au marathon' }))).includes('≈'));
+  const recordLine = page.locator('.sport-record-history summary').first();
+  check('Le record du 10 km a son histoire', (await text(recordLine)).includes('10 km') && (await text(recordLine)).includes('50:00'), await text(recordLine));
+  await recordLine.click();
+  await page.locator('.sport-record-steps .sport-link').first().click();
+  await page.waitForSelector('.sport-modal');
+  check('Toucher un record ouvre la sortie où il est tombé', (await text(modal)).includes('10,0 km'), await text(modal));
+  await modal.getByRole('button', { name: 'Fermer' }).click();
+  await page.getByRole('button', { name: /^Journal/ }).click();
+
   // --- Relier l'Apple Watch (étape 5) ---------------------------------------------------------
   await page.getByRole('button', { name: '⌚ Apple Watch' }).click();
   await page.waitForSelector('.sport-shortcut-intro');

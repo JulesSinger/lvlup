@@ -10,6 +10,7 @@ import { RunEditor } from './components/RunEditor';
 import { RunSheet } from './components/RunSheet';
 import { PlanCreator } from './components/PlanCreator';
 import { PlanView } from './components/PlanView';
+import { Progress } from './components/Progress';
 import { RaceDateEditor } from './components/RaceDateEditor';
 import { SessionEditor } from './components/SessionEditor';
 import { newId } from '../../core/data/coreStore';
@@ -30,7 +31,7 @@ import {
 } from './lib/types';
 import { hrZones } from './lib/zones';
 
-type View = 'dash' | 'plan' | 'journal';
+type View = 'dash' | 'plan' | 'progress' | 'journal';
 
 /** La dernière vue ouverte, retenue sur cet appareil — un confort, pas une donnée. */
 const VIEW_KEY = 'sport.view.v1';
@@ -38,7 +39,7 @@ const VIEW_KEY = 'sport.view.v1';
 function savedView(): View {
   try {
     const v = localStorage.getItem(VIEW_KEY);
-    if (v === 'dash' || v === 'plan' || v === 'journal') return v;
+    if (v === 'dash' || v === 'plan' || v === 'progress' || v === 'journal') return v;
   } catch {
     // Stockage refusé : le tableau de bord suffit.
   }
@@ -229,6 +230,7 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
             [
               ['dash', 'Tableau de bord', 0],
               ['plan', 'Plan', 0],
+              ['progress', 'Progression', 0],
               ['journal', 'Journal', runs.length],
             ] as const
           ).map(([id, text, n]) => (
@@ -247,8 +249,8 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
           <button type="button" className="btn btn-sm" onClick={() => setLinkingWatch(true)}>
             ⌚ Apple Watch
           </button>
-          <button type="button" className="btn btn-sm" onClick={() => setImporting(true)}>
-            Reprendre l’historique Strava
+          <button type="button" className="btn btn-sm" onClick={() => setImporting(true)} aria-label="Reprendre l’historique Strava">
+            <span className="sport-nav-long">Reprendre l’historique </span>Strava
           </button>
         </nav>
 
@@ -306,6 +308,8 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
             plan={plan ? { plan, weeks, onOpen: () => setView('plan') } : null}
             onCreatePlan={() => setCreatingPlan(true)}
           />
+        ) : view === 'progress' ? (
+          <Progress runs={runs} settings={settings} today={today} targetS={plan?.targetS ?? null} onOpen={(r) => setOpenId(r.id)} />
         ) : (
           <Journal runs={runs} onOpen={(r) => setOpenId(r.id)} />
         )}
