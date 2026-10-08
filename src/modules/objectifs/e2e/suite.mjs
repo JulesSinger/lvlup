@@ -6,6 +6,70 @@
  * d'un contexte fraîchement créé qui joue le scénario Objectifs de bout en bout.
  */
 
+/**
+ * Attendre que la page se pose, au plus `max` millisecondes : plus aucun
+ * changement du DOM depuis 150 ms et plus aucune animation finie en cours
+ * (les animations sans fin, la flamme, ne comptent pas). Remplace les attentes
+ * fixes d'avant (121, ~56 s au total, mesuré le 08/10/2026) sans jamais
+ * attendre plus longtemps qu'elles : une attente qui gardait une animation ou
+ * vérifiait que « rien ne se passe » se pose d'elle-même, une autre rend la
+ * main dès que l'écran a fini de bouger.
+ */
+/**
+ * Un clic n'attend pas de « navigation » : ouvrir et fermer la fiche d'un
+ * objectif passe par `pushState` et `history.back()`, que Playwright prenait
+ * pour une navigation à attendre (~1 s par clic, jusqu'à 4,7 s ; mesuré le
+ * 08/10/2026). La suite attend ensuite ce qu'elle vérifie (sélecteur, `settle`).
+ */
+const NO_WAIT = { noWaitAfter: true };
+
+/**
+ * Un contexte de navigateur pour cette suite : sans l'entrée en cascade des
+ * objectifs (`goal-in`, 0,4 s à chaque fiche ou tuile qui paraît). Playwright
+ * attend qu'un élément cesse de bouger avant de le toucher, en reculant jusqu'à
+ * 500 ms : c'était l'essentiel du temps de la suite (mesuré le 08/10/2026).
+ * Les animations que la suite vérifie (cérémonies, « +PP », flamme) restent.
+ */
+async function newContext(browser, options) {
+  const context = await browser.newContext(options);
+  await context.addInitScript(() => {
+    const style = () => {
+      const s = document.createElement('style');
+      s.textContent = '.goal, .goal-tile { animation: none !important; }';
+      document.head.appendChild(s);
+    };
+    if (document.head) style();
+    else document.addEventListener('DOMContentLoaded', style);
+  });
+  return context;
+}
+
+async function settle(p, max) {
+  const t0 = Date.now();
+  await p.evaluate(
+    (max) =>
+      new Promise((resolve) => {
+        const start = performance.now();
+        let last = start;
+        const observer = new MutationObserver(() => (last = performance.now()));
+        observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+        const tick = () => {
+          const now = performance.now();
+          const moving = document
+            .getAnimations()
+            .some((a) => a.playState === 'running' && a.effect?.getComputedTiming().iterations !== Infinity);
+          if (now - start >= max || (!moving && now - last >= 150)) {
+            observer.disconnect();
+            resolve();
+          } else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    max,
+  );
+  if (process.env.SETTLE_LOG) console.error(`settle ${max} ${Date.now() - t0} ${new Error().stack.split('\n')[2].trim()}`);
+}
+
 async function dismissCeremonies(p) {
   for (let i = 0; i < 5; i++) {
     const visible = await p
@@ -13,8 +77,8 @@ async function dismissCeremonies(p) {
       .isVisible()
       .catch(() => false);
     if (!visible) return;
-    await p.getByRole('button', { name: 'Continuer' }).click();
-    await p.waitForTimeout(200);
+    await p.getByRole('button', { name: 'Continuer' }).click(NO_WAIT);
+    await settle(p, 200);
   }
 }
 
@@ -28,7 +92,7 @@ async function dismissCeremonies(p) {
 async function enterZenith(p) {
   const card = p.locator('.hub-picker-card', { hasText: 'Objectifs' });
   if (await card.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await card.click();
+    await card.click(NO_WAIT);
   }
 }
 
@@ -51,7 +115,7 @@ const goalTile = (p, which = 0) =>
 
 /** Les tuiles, depuis n'importe où dans le module (une fiche ouverte se referme). */
 async function showGoals(p) {
-  await p.getByRole('button', { name: /^Objectifs/ }).first().click();
+  await p.getByRole('button', { name: /^Objectifs/ }).first().click(NO_WAIT);
   await p.waitForSelector('.goal-tile');
 }
 
@@ -60,18 +124,18 @@ async function showGoals(p) {
  * pour défaire une coche, on le rouvre d'abord.
  */
 async function expandDone(p) {
-  for (const button of await p.locator('.today-goal-done').all()) await button.click();
+  for (const button of await p.locator('.today-goal-done').all()) await button.click(NO_WAIT);
 }
 
 /** Ouvre la fiche d'un objectif (par sa place ou son titre). */
 async function openGoal(p, which = 0) {
   if ((await p.locator('.goal-tile').count()) === 0) await showGoals(p);
-  await goalTile(p, which).locator('.goal-tile-body').click();
+  await goalTile(p, which).locator('.goal-tile-body').click(NO_WAIT);
   await p.waitForSelector('.goal-page .ladder');
 }
 
 export async function run({ browser, check, BASE }) {
-  const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  const context = await newContext(browser, { viewport: { width: 1200, height: 900 } });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -87,9 +151,9 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.onboarding-title').textContent()) === 'Un objectif, des paliers',
     await page.locator('.onboarding-title').textContent(),
   );
-  await page.getByRole('button', { name: 'Suivant' }).click();
-  await page.getByRole('button', { name: 'Suivant' }).click();
-  await page.getByRole('button', { name: 'Suivant' }).click();
+  await page.getByRole('button', { name: 'Suivant' }).click(NO_WAIT);
+  await page.getByRole('button', { name: 'Suivant' }).click(NO_WAIT);
+  await page.getByRole('button', { name: 'Suivant' }).click(NO_WAIT);
   check(
     'Dernier écran : objectif de départ pré-rempli',
     (await page.locator('#starter-title').inputValue()) === 'Courir un semi-marathon',
@@ -100,18 +164,18 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.starter-preview li').count()) === 4,
     String(await page.locator('.starter-preview li').count()),
   );
-  await page.getByRole('button', { name: 'Lecture' }).click();
+  await page.getByRole('button', { name: 'Lecture' }).click(NO_WAIT);
   check(
     'Changer de modèle met à jour l’intitulé',
     (await page.locator('#starter-title').inputValue()) === 'Me remettre à lire',
     await page.locator('#starter-title').inputValue(),
   );
-  await page.getByRole('button', { name: 'Passer' }).click();
+  await page.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
   await page.waitForSelector('.brand');
 
   // 1. Écran vide (sur le hub) puis chargement des exemples
   check('Écran vide affiché après avoir passé l’onboarding', await page.locator('.empty h3').isVisible());
-  await page.getByRole('button', { name: 'Charger des exemples' }).click();
+  await page.getByRole('button', { name: 'Charger des exemples' }).click(NO_WAIT);
   await page.waitForSelector('.hub');
   check('Hub affiché après chargement', await page.locator('.hub').isVisible());
   check(
@@ -130,7 +194,7 @@ export async function run({ browser, check, BASE }) {
 
   // 2. Validation de paliers -> rang de l'objectif et rang global
   await openGoal(page, 0);
-  await page.locator('.tier-check').nth(0).click();
+  await page.locator('.tier-check').nth(0).click(NO_WAIT);
   await page.waitForSelector('.ceremony');
   check('Cérémonie affichée à la validation', await page.locator('.ceremony-rank').isVisible());
   check(
@@ -139,14 +203,14 @@ export async function run({ browser, check, BASE }) {
     await page.locator('.ceremony-pp').textContent(),
   );
   await dismissCeremonies(page);
-  await page.locator('.tier-check').nth(1).click();
+  await page.locator('.tier-check').nth(1).click(NO_WAIT);
   await page.waitForSelector('.ceremony');
   await dismissCeremonies(page);
   check(
     'Cérémonie de montée de rang enchaînée puis refermée',
     !(await page.locator('.ceremony').isVisible().catch(() => false)),
   );
-  await page.waitForTimeout(300);
+  await settle(page, 300);
   check(
     "Rang de l'objectif = palier validé le plus haut (Argent)",
     (await page.locator('.goal').first().locator('.goal-title-row .rank-badge').textContent()) ===
@@ -160,7 +224,7 @@ export async function run({ browser, check, BASE }) {
   );
   check('Barre de progression à 40 %', (await page.locator('.goal-count').first().textContent())?.includes('2/5'));
   // Le rang du profil est sur Trophées depuis le 07/10/2026.
-  await page.getByRole('button', { name: 'Trophées' }).click();
+  await page.getByRole('button', { name: 'Trophées' }).click(NO_WAIT);
   await page.waitForSelector('.profile-rank');
   check(
     // Depuis le 07/10/2026, seuls les objectifs qui ont un palier validé
@@ -169,9 +233,9 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.profile-rank').textContent()) === 'Argent',
     await page.locator('.profile-rank').textContent(),
   );
-  await page.getByRole('button', { name: 'Accueil' }).click();
+  await page.getByRole('button', { name: 'Accueil' }).click(NO_WAIT);
   await page.waitForSelector('.day-band');
-  await page.waitForTimeout(1100); // laisse le compteur de PP finir son animation
+  await settle(page, 1100); // laisse le compteur de PP finir son animation
   check(
     'PP du jour dans le bandeau (Bronze 50 + Argent 75 = 125)',
     (await page.locator('.day-band .ring-value').textContent()) === '125',
@@ -205,8 +269,8 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.ladder-add .rank-badge').count()) === 1,
     (await page.locator('.ladder-add .rank-badge').textContent()) ?? 'aucun',
   );
-  await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
-  await page.waitForTimeout(300);
+  await page.getByRole('button', { name: 'Ajouter', exact: true }).click(NO_WAIT);
+  await settle(page, 300);
   check('Palier ajouté', (await page.locator('.goal-count').first().textContent())?.includes('2/6'));
 
   // 4. Persistance après rechargement (retour sur le hub par défaut)
@@ -221,7 +285,7 @@ export async function run({ browser, check, BASE }) {
   );
 
   // 5. Historique + graphique de progression
-  await page.getByRole('button', { name: 'Historique' }).click();
+  await page.getByRole('button', { name: 'Historique' }).click(NO_WAIT);
   await page.waitForSelector('.entry');
   check('Historique daté alimenté', (await page.locator('.entry').count()) === 2);
   check(
@@ -250,21 +314,21 @@ export async function run({ browser, check, BASE }) {
     check('Les barres sont ancrées à la ligne de base', /Z$/.test(d ?? '') && /V/.test(d ?? ''), d ?? '');
   }
   await page.locator('.chart-wrap svg').hover();
-  await page.waitForTimeout(200);
+  await settle(page, 200);
   check('Infobulle au survol du graphe', await page.locator('.chart-tooltip').isVisible());
-  await page.getByRole('button', { name: 'Voir le tableau' }).click();
+  await page.getByRole('button', { name: 'Voir le tableau' }).click(NO_WAIT);
   await page.waitForSelector('.chart-table');
   check(
     'Vue tableau : les valeurs sont lisibles sans survol',
     (await page.locator('.chart-table tbody tr').count()) >= 1,
     String(await page.locator('.chart-table tbody tr').count()),
   );
-  await page.getByRole('button', { name: 'Voir le graphe' }).click();
+  await page.getByRole('button', { name: 'Voir le graphe' }).click(NO_WAIT);
   await page.screenshot({ path: 'screens/historique.png', fullPage: true });
 
   // 6. Création : bibliothèque de modèles puis éditeur
-  await page.getByRole('button', { name: /^Objectifs/ }).click();
-  await page.getByRole('button', { name: 'Nouvel objectif' }).click();
+  await page.getByRole('button', { name: /^Objectifs/ }).click(NO_WAIT);
+  await page.getByRole('button', { name: 'Nouvel objectif' }).click(NO_WAIT);
   await page.waitForSelector('.picker-grid');
   check(
     'Bibliothèque de modèles ouverte',
@@ -278,9 +342,9 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.picker-tab').count()) === 9,
     String(await page.locator('.picker-tab').count()),
   );
-  await page.getByRole('button', { name: 'Apprendre' }).click();
-  await page.waitForTimeout(200);
-  await page.locator('.picker-card', { hasText: 'Apprendre un instrument' }).click();
+  await page.getByRole('button', { name: 'Apprendre' }).click(NO_WAIT);
+  await settle(page, 200);
+  await page.locator('.picker-card', { hasText: 'Apprendre un instrument' }).click(NO_WAIT);
   await page.waitForSelector('.preview-tiers');
   check(
     'Aperçu du modèle : étapes et rangs automatiques',
@@ -306,11 +370,11 @@ export async function run({ browser, check, BASE }) {
     String(await page.locator('.preview-action').count()),
   );
   // Contrôle de l'échelle à 3 étapes sur un autre modèle
-  await page.locator('.modal-foot .btn', { hasText: 'Retour' }).click();
+  await page.locator('.modal-foot .btn', { hasText: 'Retour' }).click(NO_WAIT);
   await page.waitForSelector('.picker-grid');
-  await page.getByRole('button', { name: 'Esprit' }).click();
-  await page.waitForTimeout(200);
-  await page.locator('.picker-card', { hasText: 'Noter 3 gratitudes' }).click();
+  await page.getByRole('button', { name: 'Esprit' }).click(NO_WAIT);
+  await settle(page, 200);
+  await page.locator('.picker-card', { hasText: 'Noter 3 gratitudes' }).click(NO_WAIT);
   await page.waitForSelector('.preview-tiers');
   check(
     'Échelle cohérente à 3 étapes : Bronze / Argent / Or',
@@ -318,13 +382,13 @@ export async function run({ browser, check, BASE }) {
       'Bronze · Argent · Or',
     (await page.locator('.preview-tiers .rank-badge').allTextContents()).join(' · '),
   );
-  await page.locator('.modal-foot .btn', { hasText: 'Retour' }).click();
+  await page.locator('.modal-foot .btn', { hasText: 'Retour' }).click(NO_WAIT);
   await page.waitForSelector('.picker-grid');
-  await page.getByRole('button', { name: 'Apprendre' }).click();
-  await page.waitForTimeout(200);
-  await page.locator('.picker-card', { hasText: 'Apprendre un instrument' }).click();
+  await page.getByRole('button', { name: 'Apprendre' }).click(NO_WAIT);
+  await settle(page, 200);
+  await page.locator('.picker-card', { hasText: 'Apprendre un instrument' }).click(NO_WAIT);
   await page.waitForSelector('.preview-tiers');
-  await page.getByRole('button', { name: 'Choisir cet objectif' }).click();
+  await page.getByRole('button', { name: 'Choisir cet objectif' }).click(NO_WAIT);
   await page.waitForSelector('.modal #goal-title');
   check(
     'Éditeur pré-rempli par le modèle',
@@ -342,7 +406,7 @@ export async function run({ browser, check, BASE }) {
     String(await page.locator('.draft-tier .rank-badge').count()),
   );
   await page.screenshot({ path: 'screens/creation.png' });
-  await page.getByRole('button', { name: "Créer l'objectif" }).click();
+  await page.getByRole('button', { name: "Créer l'objectif" }).click(NO_WAIT);
 
   // La planification est elle-même célébrée
   await page.waitForSelector('.ceremony');
@@ -357,7 +421,7 @@ export async function run({ browser, check, BASE }) {
     String(await page.locator('.ceremony-step-row').count()),
   );
   await dismissCeremonies(page);
-  await page.waitForTimeout(400);
+  await settle(page, 400);
   check(
     'Un objectif tout juste créé s’ouvre sur sa fiche',
     (await page.locator('.goal-page .goal-title').textContent()) === 'Apprendre un instrument',
@@ -365,7 +429,7 @@ export async function run({ browser, check, BASE }) {
   );
   await showGoals(page);
   check('4e objectif créé', (await page.locator('.goal-tile').count()) === 4);
-  await page.getByRole('button', { name: 'Trophées' }).click();
+  await page.getByRole('button', { name: 'Trophées' }).click(NO_WAIT);
   await page.waitForSelector('.profile-rank');
   check(
     'Commencer un objectif ne fait pas baisser le rang du profil',
@@ -385,11 +449,11 @@ export async function run({ browser, check, BASE }) {
 
   // 7. Modification d'un objectif, depuis sa fiche
   await openGoal(page, 3);
-  await page.locator('.goal-page .goal-actions button').first().click();
+  await page.locator('.goal-page .goal-actions button').first().click(NO_WAIT);
   await page.waitForSelector('.modal');
   await page.locator('#goal-title').fill('Apprendre le piano');
-  await page.getByRole('button', { name: 'Enregistrer' }).click();
-  await page.waitForTimeout(300);
+  await page.getByRole('button', { name: 'Enregistrer' }).click(NO_WAIT);
+  await settle(page, 300);
   check(
     'Objectif renommé',
     (await page.locator('.goal-page .goal-title').textContent()) === 'Apprendre le piano',
@@ -397,31 +461,31 @@ export async function run({ browser, check, BASE }) {
 
   // 8. Suppression (les actions sont désormais ✎ / 📦 / 🗑) : on revient aux tuiles
   page.once('dialog', (d) => d.accept());
-  await page.locator('.goal-page .goal-actions button').nth(2).click();
+  await page.locator('.goal-page .goal-actions button').nth(2).click(NO_WAIT);
   await page.waitForSelector('.goal-tile');
-  await page.waitForTimeout(400);
+  await settle(page, 400);
   check('Objectif supprimé', (await page.locator('.goal-tile').count()) === 3);
 
   // 8 bis. Archivage réversible
   await openGoal(page, 1);
-  await page.locator('.goal-page .goal-actions button').nth(1).click();
+  await page.locator('.goal-page .goal-actions button').nth(1).click(NO_WAIT);
   await page.waitForSelector('.goal-tile');
-  await page.waitForTimeout(400);
+  await settle(page, 400);
   check(
     'Objectif archivé : retiré des tuiles',
     (await page.locator('.goal-tile').count()) === 2,
     String(await page.locator('.goal-tile').count()),
   );
   check('Section Archivés visible', (await page.locator('.archived-row').count()) === 1);
-  await page.getByRole('button', { name: 'Restaurer' }).click();
-  await page.waitForTimeout(400);
+  await page.getByRole('button', { name: 'Restaurer' }).click(NO_WAIT);
+  await settle(page, 400);
   check(
     'Objectif restauré depuis les archives',
     (await page.locator('.goal-tile').count()) === 3 && (await page.locator('.archived-row').count()) === 0,
   );
 
   // 9. Actions du quotidien, anneau, streak et trophées
-  await page.getByRole('button', { name: 'Accueil' }).click();
+  await page.getByRole('button', { name: 'Accueil' }).click(NO_WAIT);
   await page.waitForSelector('.checkin-chips');
   check(
     'Deux actions génériques créées par objectif',
@@ -467,7 +531,7 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.checkin-chip').first().textContent())?.includes('Un vrai effort'),
     await page.locator('.checkin-chip').first().textContent(),
   );
-  await page.locator('.checkin-chip').first().click();
+  await page.locator('.checkin-chip').first().click(NO_WAIT);
   await page.waitForSelector('.ceremony');
   check(
     'Trophée « Premier pas » célébré à la première action',
@@ -475,7 +539,7 @@ export async function run({ browser, check, BASE }) {
     await page.locator('.ceremony-rank').textContent(),
   );
   await dismissCeremonies(page);
-  await page.waitForTimeout(1000);
+  await settle(page, 1000);
   check('Action marquée comme faite', await page.locator('.checkin-chip.done').isVisible());
   check(
     'Anneau du jour à 140 PP (125 des paliers + 15 de l’action)',
@@ -484,17 +548,17 @@ export async function run({ browser, check, BASE }) {
   );
 
   // Note libre optionnelle
-  await page.locator('.checkin-chip.done .checkin-note-btn').click();
+  await page.locator('.checkin-chip.done .checkin-note-btn').click(NO_WAIT);
   await page.waitForSelector('.checkin-note input');
   await page.locator('.checkin-note input').fill('8 km ce matin, dur mais fait');
   await page.locator('.checkin-note input').press('Enter');
-  await page.waitForTimeout(500);
+  await settle(page, 500);
   check(
     'Note enregistrée (indicateur 📝 sur le chip)',
     (await page.locator('.checkin-chip.done .checkin-note-btn').textContent()) === '📝',
     await page.locator('.checkin-chip.done .checkin-note-btn').textContent(),
   );
-  await page.getByRole('button', { name: 'Historique' }).click();
+  await page.getByRole('button', { name: 'Historique' }).click(NO_WAIT);
   await page.waitForSelector('.entry');
   check(
     'La note apparaît dans le journal',
@@ -502,7 +566,7 @@ export async function run({ browser, check, BASE }) {
       '8 km ce matin, dur mais fait',
     await page.locator('.entry-checkin .entry-title').first().textContent(),
   );
-  await page.getByRole('button', { name: 'Accueil' }).click();
+  await page.getByRole('button', { name: 'Accueil' }).click(NO_WAIT);
   await page.waitForSelector('.checkin-chips');
 
   // Persistance après rechargement
@@ -514,8 +578,8 @@ export async function run({ browser, check, BASE }) {
   );
 
   // Annulation : re-cliquer rend les PP
-  await page.locator('.checkin-chip.done').click();
-  await page.waitForTimeout(1000);
+  await page.locator('.checkin-chip.done').click(NO_WAIT);
+  await settle(page, 1000);
   check(
     'Annulation : les PP du jour retombent à 125',
     (await page.locator('.ring-value').textContent()) === '125',
@@ -530,16 +594,16 @@ export async function run({ browser, check, BASE }) {
     (await page.locator('.action-row').count()) === 2,
     String(await page.locator('.action-row').count()),
   );
-  await page.getByRole('button', { name: 'Renommer Un vrai effort' }).click();
+  await page.getByRole('button', { name: 'Renommer Un vrai effort' }).click(NO_WAIT);
   await page.locator('.action-row-body input').fill('Sortie course');
   await page.locator('.action-row-body input').press('Enter');
-  await page.waitForTimeout(500);
+  await settle(page, 500);
   check(
     'Action renommée',
     (await page.locator('.action-row-title').first().textContent()) === 'Sortie course',
     await page.locator('.action-row-title').first().textContent(),
   );
-  await page.getByRole('button', { name: 'Accueil' }).click();
+  await page.getByRole('button', { name: 'Accueil' }).click(NO_WAIT);
   await page.waitForSelector('.checkin-chips');
   check(
     'Le renommage se voit sur le hub',
@@ -549,8 +613,8 @@ export async function run({ browser, check, BASE }) {
 
   // Réaction instantanée au clic : l'état bascule sans attendre le serveur,
   // et l'action faite le dit explicitement.
-  await page.locator('.checkin-chip').first().click();
-  await page.waitForTimeout(120);
+  await page.locator('.checkin-chip').first().click(NO_WAIT);
+  await settle(page, 120);
   check(
     'Le chip bascule immédiatement en « fait » (optimisme)',
     await page.locator('.checkin-chip.done').first().isVisible(),
@@ -568,21 +632,21 @@ export async function run({ browser, check, BASE }) {
     await page.locator('.checkin-chip.done .checkin-mark').first().textContent(),
   );
   await dismissCeremonies(page);
-  await page.waitForTimeout(900);
-  await page.locator('.checkin-chip.done').first().click();
-  await page.waitForTimeout(150);
+  await settle(page, 900);
+  await page.locator('.checkin-chip.done').first().click(NO_WAIT);
+  await settle(page, 150);
   check(
     'L’annulation bascule aussi immédiatement',
     (await page.locator('.checkin-chip.done').count()) === 0,
     String(await page.locator('.checkin-chip.done').count()),
   );
-  await page.waitForTimeout(600);
+  await settle(page, 600);
 
   // 9 bis. Gestes ponctuels — un pas vers l'objectif qui ne se refera pas
   // « J'ai regardé un tuto sur la gestion de budget » : ça compte pour la
   // journée, ça n'a rien à faire dans la liste des cases à cocher de demain.
   const ppAvant = Number(await page.locator('.ring-value').textContent());
-  await page.locator('.checkin-chip.add-oneoff').first().click();
+  await page.locator('.checkin-chip.add-oneoff').first().click(NO_WAIT);
   await page.waitForSelector('.oneoff-bar input');
   check(
     'La barre de saisie ponctuelle s’ouvre sans quitter le hub',
@@ -596,20 +660,20 @@ export async function run({ browser, check, BASE }) {
   // Échap referme sans rien enregistrer : une porte ouverte par erreur ne
   // doit pas coûter une ligne d'historique.
   await page.locator('.oneoff-bar input').press('Escape');
-  await page.waitForTimeout(200);
+  await settle(page, 200);
   check(
     'Échap referme la barre sans rien noter',
     (await page.locator('.oneoff-bar').count()) === 0 &&
       (await page.locator('.checkin-chip.oneoff').count()) === 0,
   );
 
-  await page.locator('.checkin-chip.add-oneoff').first().click();
+  await page.locator('.checkin-chip.add-oneoff').first().click(NO_WAIT);
   await page.waitForSelector('.oneoff-bar input');
   await page.locator('.oneoff-bar input').fill('Tuto sur la gestion de budget');
   await page.locator('.oneoff-bar input').press('Enter');
-  await page.waitForTimeout(1000);
+  await settle(page, 1000);
   await dismissCeremonies(page);
-  await page.waitForTimeout(300);
+  await settle(page, 300);
   check(
     'Le geste ponctuel apparaît, nommé, sur la journée',
     ((await page.locator('.checkin-chip.oneoff .checkin-title').first().textContent()) ?? '').includes(
@@ -651,7 +715,7 @@ export async function run({ browser, check, BASE }) {
     `${await page.locator('.checkin-chip.oneoff').count()} / ${await page.locator('.checkin-chip:not(.add-oneoff):not(.oneoff)').count()}`,
   );
   // Le journal doit le nommer : dans six mois, « Check-in » ne dira rien.
-  await page.getByRole('button', { name: 'Historique' }).click();
+  await page.getByRole('button', { name: 'Historique' }).click(NO_WAIT);
   await page.waitForSelector('.entry');
   check(
     'Le journal nomme le geste et le distingue d’une coche',
@@ -669,11 +733,11 @@ export async function run({ browser, check, BASE }) {
     ((await page.locator('.goal-count').first().textContent()) ?? '').includes('2/6'),
     await page.locator('.goal-count').first().textContent(),
   );
-  await page.getByRole('button', { name: 'Accueil' }).click();
+  await page.getByRole('button', { name: 'Accueil' }).click(NO_WAIT);
   await page.waitForSelector('.checkin-chips');
   // Re-cliquer annule : c'est la seule sortie de secours d'une faute de frappe.
-  await page.locator('.checkin-chip.oneoff').first().click();
-  await page.waitForTimeout(900);
+  await page.locator('.checkin-chip.oneoff').first().click(NO_WAIT);
+  await settle(page, 900);
   check(
     'Re-cliquer annule le geste et rend les PP',
     (await page.locator('.checkin-chip.oneoff').count()) === 0 &&
@@ -682,7 +746,7 @@ export async function run({ browser, check, BASE }) {
   );
 
   // Salle des trophées
-  await page.getByRole('button', { name: 'Trophées' }).click();
+  await page.getByRole('button', { name: 'Trophées' }).click(NO_WAIT);
   await page.waitForSelector('.trophy-grid');
   check('20 trophées listés', (await page.locator('.trophy').count()) === 20, String(await page.locator('.trophy').count()));
   check(
@@ -697,13 +761,13 @@ export async function run({ browser, check, BASE }) {
   await showGoals(page);
   await page.screenshot({ path: 'screens/objectifs.png', fullPage: true });
   await openGoal(page, 1);
-  await page.waitForTimeout(200);
+  await settle(page, 200);
   await page.screenshot({ path: 'screens/accueil.png', fullPage: true });
 
   // 10. Rendu mobile
   // Même contexte que la page précédente, sinon le localStorage repart à vide.
   // Bannière « streak en jeu » : contexte isolé, activité datée d'hier seulement
-  const riskCtx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+  const riskCtx = await newContext(browser, { viewport: { width: 1200, height: 800 } });
   const riskPage = await riskCtx.newPage();
   await gotoZenith(riskPage, BASE);
   await riskPage.evaluate(() => {
@@ -744,12 +808,12 @@ export async function run({ browser, check, BASE }) {
   // Un cap du streak franchi se célèbre (07/10/2026). « Semaine parfaite »
   // est déjà acquise : sinon c'est le trophée qui célébrerait les 7 jours.
   {
-    const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const ctx = await newContext(browser, { viewport: { width: 1200, height: 900 } });
     const sp = await ctx.newPage();
     sp.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(sp, BASE);
-    await sp.getByRole('button', { name: 'Passer' }).click();
-    await sp.getByRole('button', { name: 'Charger des exemples' }).click();
+    await sp.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
+    await sp.getByRole('button', { name: 'Charger des exemples' }).click(NO_WAIT);
     await sp.waitForSelector('.hub');
     await sp.evaluate(() => {
       const snap = JSON.parse(localStorage.getItem('palier.v1'));
@@ -764,13 +828,13 @@ export async function run({ browser, check, BASE }) {
     });
     await reloadZenith(sp);
     await sp.waitForSelector('.day-band');
-    await sp.locator('.today-goal').first().locator('.checkin-chip:not(.add-oneoff)').first().click();
+    await sp.locator('.today-goal').first().locator('.checkin-chip:not(.add-oneoff)').first().click(NO_WAIT);
     await sp.waitForSelector('.ceremony');
     const vus = [];
     for (let i = 0; i < 4 && (await sp.locator('.ceremony').count()) > 0; i++) {
       vus.push(((await sp.locator('.ceremony-eyebrow').textContent()) ?? '') + ' / ' + ((await sp.locator('.ceremony-rank').textContent()) ?? ''));
-      await sp.locator('.ceremony').click();
-      await sp.waitForTimeout(450);
+      await sp.locator('.ceremony').click(NO_WAIT);
+      await settle(sp, 450);
     }
     check(
       'Franchir 7 jours d’affilée déclenche la cérémonie du cap',
@@ -784,12 +848,12 @@ export async function run({ browser, check, BASE }) {
   // tuiles, l'objectif tout coché replié, la série cassée hier, le dernier
   // relevé d'une mesure, le prochain cap du streak.
   {
-    const ctx = await browser.newContext({ viewport: { width: 1200, height: 1000 } });
+    const ctx = await newContext(browser, { viewport: { width: 1200, height: 1000 } });
     const ap = await ctx.newPage();
     ap.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(ap, BASE);
-    await ap.getByRole('button', { name: 'Passer' }).click();
-    await ap.getByRole('button', { name: 'Charger des exemples' }).click();
+    await ap.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
+    await ap.getByRole('button', { name: 'Charger des exemples' }).click(NO_WAIT);
     await ap.waitForSelector('.hub');
     await ap.evaluate(() => {
       const snap = JSON.parse(localStorage.getItem('palier.v1'));
@@ -816,7 +880,7 @@ export async function run({ browser, check, BASE }) {
     });
     await reloadZenith(ap);
     await ap.waitForSelector('.day-band');
-    await ap.waitForTimeout(600);
+    await settle(ap, 600);
 
     const noms = (await ap.locator('.today-goal-name').allTextContents()).map((t) => t.trim());
     check(
@@ -845,8 +909,8 @@ export async function run({ browser, check, BASE }) {
       (await ap.locator('.today-goal.collapsed').count()) === 1 &&
         (await ap.locator('.today-goal.collapsed .checkin-chip').count()) === 0,
     );
-    await ap.locator('.today-goal-done').click();
-    await ap.waitForTimeout(200);
+    await ap.locator('.today-goal-done').click(NO_WAIT);
+    await settle(ap, 200);
     check(
       'Et se rouvre d’un toucher',
       (await ap.locator('.today-goal.collapsed').count()) === 0 &&
@@ -862,15 +926,15 @@ export async function run({ browser, check, BASE }) {
     // Cocher la dernière action d'un objectif ne doit pas faire disparaître la
     // pastille qu'on voudrait défaire.
     const premier = ap.locator('.today-goal').first();
-    for (const chip of await premier.locator('.checkin-chip:not(.add-oneoff)').all()) await chip.click();
-    await ap.waitForTimeout(900);
+    for (const chip of await premier.locator('.checkin-chip:not(.add-oneoff)').all()) await chip.click(NO_WAIT);
+    await settle(ap, 900);
     await dismissCeremonies(ap);
     check(
       'La dernière coche ne replie pas la carte qu’on vient de toucher',
       (await premier.locator('.checkin-chip.done').count()) === 2,
       String(await premier.locator('.checkin-chip.done').count()),
     );
-    await ap.locator('.today-goal-name').first().click();
+    await ap.locator('.today-goal-name').first().click(NO_WAIT);
     await ap.waitForSelector('.goal-page');
     check(
       'Toucher le nom d’un objectif ouvre sa fiche',
@@ -884,7 +948,7 @@ export async function run({ browser, check, BASE }) {
   // (le seul moyen de simuler un historique sans attendre neuf jours pour de
   // vrai). Sept jours d'affilée (un gel gagné), un jour sauté (couvert par ce
   // gel), puis un vrai trou d'un jour, sans rien pour le couvrir.
-  const stripCtx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+  const stripCtx = await newContext(browser, { viewport: { width: 1200, height: 800 } });
   const stripPage = await stripCtx.newPage();
   await gotoZenith(stripPage, BASE);
   await stripPage.evaluate(() => {
@@ -944,7 +1008,7 @@ export async function run({ browser, check, BASE }) {
   // l'écran prenait la largeur de son plus long contenu insécable (signalé par
   // Jules le 08/10/2026, une règle du socle retirée par mégarde le 25/08).
   {
-    const smallCtx = await browser.newContext({ viewport: { width: 320, height: 700 } });
+    const smallCtx = await newContext(browser, { viewport: { width: 320, height: 700 } });
     const at = new Date().toISOString();
     await smallCtx.addInitScript((at) => {
       if (localStorage.getItem('palier.v1')) return;
@@ -962,8 +1026,8 @@ export async function run({ browser, check, BASE }) {
     const atHome = await fits();
     const views = [];
     for (const name of ['Objectifs', 'Historique', 'Trophées']) {
-      await small.locator('.sidebar .nav-item', { hasText: name }).first().click();
-      await small.waitForTimeout(300);
+      await small.locator('.sidebar .nav-item', { hasText: name }).first().click(NO_WAIT);
+      await settle(small, 300);
       views.push(`${name} ${await fits()}`);
     }
     check('Sur un iPhone SE (320 px), aucun écran ne déborde, même avec de longs titres', atHome && views.every((v) => v.endsWith('true')), `accueil ${atHome}, ${views.join(', ')}`);
@@ -985,9 +1049,9 @@ export async function run({ browser, check, BASE }) {
   );
   // iOS zoome sur tout champ dont la police fait moins de 16px : on vérifie que
   // le champ de note (le plus exposé, il s'ouvre après chaque check-in) est à 16px.
-  await mobile.locator('.checkin-chip').first().click();
+  await mobile.locator('.checkin-chip').first().click(NO_WAIT);
   await mobile.waitForSelector('.checkin-chip.done .checkin-note-btn');
-  await mobile.locator('.checkin-chip.done .checkin-note-btn').first().click();
+  await mobile.locator('.checkin-chip.done .checkin-note-btn').first().click(NO_WAIT);
   await mobile.waitForSelector('.checkin-note input');
   check(
     'Champ de note à 16px sur mobile (pas de zoom iOS)',
@@ -1001,7 +1065,7 @@ export async function run({ browser, check, BASE }) {
     (await mobile.evaluate(() => getComputedStyle(document.body).backgroundAttachment)) !== 'fixed',
     await mobile.evaluate(() => getComputedStyle(document.body).backgroundAttachment),
   );
-  await mobile.waitForTimeout(600); // le scrollIntoView est animé
+  await settle(mobile, 600); // le scrollIntoView est animé
   check(
     'Champ de note visible, pas masqué par la barre d\'onglets',
     await mobile.evaluate(() => {
@@ -1044,7 +1108,7 @@ export async function run({ browser, check, BASE }) {
     () => document.documentElement.scrollWidth <= window.innerWidth + 1,
   ));
   await openGoal(mobile, 0);
-  await mobile.waitForTimeout(200);
+  await settle(mobile, 200);
   await mobile.screenshot({ path: 'screens/mobile.png', fullPage: true });
   check('Rendu mobile sans débordement horizontal', await mobile.evaluate(
     () => document.documentElement.scrollWidth <= window.innerWidth + 1,
@@ -1069,7 +1133,7 @@ export async function run({ browser, check, BASE }) {
   );
 
   // --- Réglages ---------------------------------------------------------
-  await page.locator('.topbar-settings').click();
+  await page.locator('.topbar-settings').click(NO_WAIT);
   await page.waitForSelector('.settings-block');
   check('Le panneau de réglages s’ouvre', await page.locator('.settings-block').first().isVisible());
   check(
@@ -1080,8 +1144,8 @@ export async function run({ browser, check, BASE }) {
   {
     // Changer de rythme doit être immédiat : c'est un réglage, pas un formulaire.
     const before = await page.locator('.goal-level.active b').textContent();
-    await page.locator('.goal-level').last().click();
-    await page.waitForTimeout(200);
+    await page.locator('.goal-level').last().click(NO_WAIT);
+    await settle(page, 200);
     const after = await page.locator('.goal-level.active b').textContent();
     check('Le rythme choisi est appliqué tout de suite', before !== after, `${before} → ${after}`);
   }
@@ -1089,22 +1153,22 @@ export async function run({ browser, check, BASE }) {
     'Pas de réglage de rappel en mode local (il demande un compte)',
     (await page.locator('.switch').count()) === 0,
   );
-  await page.locator('.modal-foot').getByRole('button', { name: 'Fermer' }).click();
-  await page.waitForTimeout(250);
+  await page.locator('.modal-foot').getByRole('button', { name: 'Fermer' }).click(NO_WAIT);
+  await settle(page, 250);
   check('Le panneau se referme', (await page.locator('.settings-block').count()) === 0);
 
   // --- Revenir sur les jours précédents ----------------------------------
   // Contexte neuf : ce bloc dépend de l'ancienneté des objectifs, on ne veut pas
   // polluer l'état des vérifications précédentes.
   {
-    const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+    const fresh = await newContext(browser, { viewport: { width: 1100, height: 950 } });
     const rp = await fresh.newPage();
     rp.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(rp, BASE);
-    await rp.getByRole('button', { name: 'Passer' }).click();
-    await rp.getByRole('button', { name: 'Charger des exemples' }).click();
+    await rp.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
+    await rp.getByRole('button', { name: 'Charger des exemples' }).click(NO_WAIT);
     await rp.waitForSelector('.hub');
-    await rp.waitForTimeout(300);
+    await settle(rp, 300);
 
     // Sur un compte tout neuf, rien à corriger : l'app se tait complètement, et
     // les flèches ne mènent nulle part.
@@ -1136,7 +1200,7 @@ export async function run({ browser, check, BASE }) {
     });
     await reloadZenith(rp);
     await rp.waitForSelector('.forgotten');
-    await rp.waitForTimeout(400);
+    await settle(rp, 400);
 
     // Une seule ligne, pour le seul jour resté vide. Hier est entamé : l'app
     // n'en dit rien — c'est ce qui la rend supportable au quotidien.
@@ -1152,8 +1216,8 @@ export async function run({ browser, check, BASE }) {
     );
 
     // La navigation par flèches : hier, puis retour.
-    await rp.locator('.day-arrow').first().click();
-    await rp.waitForTimeout(250);
+    await rp.locator('.day-arrow').first().click(NO_WAIT);
+    await settle(rp, 250);
     check(
       'La flèche arrière change le jour de la section',
       /^Hier · /.test((await rp.locator('.day-nav h2').textContent()) ?? ''),
@@ -1173,15 +1237,15 @@ export async function run({ browser, check, BASE }) {
 
     // Décocher une erreur de la veille, puis rajouter un oubli.
     const titleBefore = await rp.locator('.daily-title').textContent();
-    await rp.locator('.past-day .checkin-chip.done').first().click();
-    await rp.waitForTimeout(800);
+    await rp.locator('.past-day .checkin-chip.done').first().click(NO_WAIT);
+    await settle(rp, 800);
     await dismissCeremonies(rp);
     check(
       'On peut décocher une action de la veille',
       (await rp.locator('.past-day .checkin-chip.done').count()) === 0,
     );
-    await rp.locator('.past-day .checkin-chip').first().click();
-    await rp.waitForTimeout(800);
+    await rp.locator('.past-day .checkin-chip').first().click(NO_WAIT);
+    await settle(rp, 800);
     await dismissCeremonies(rp);
     check(
       'On peut cocher une action oubliée la veille',
@@ -1200,8 +1264,8 @@ export async function run({ browser, check, BASE }) {
     );
 
     // La fenêtre est bornée à 48 h : on ne remonte pas plus loin.
-    await rp.locator('.day-arrow').first().click();
-    await rp.waitForTimeout(250);
+    await rp.locator('.day-arrow').first().click(NO_WAIT);
+    await settle(rp, 250);
     check(
       'On remonte jusqu’à avant-hier',
       /^Avant-hier · /.test((await rp.locator('.day-nav h2').textContent()) ?? ''),
@@ -1212,8 +1276,8 @@ export async function run({ browser, check, BASE }) {
       await rp.locator('.day-arrow').first().isDisabled(),
     );
 
-    await rp.getByRole('button', { name: "Revenir à aujourd'hui" }).click();
-    await rp.waitForTimeout(250);
+    await rp.getByRole('button', { name: "Revenir à aujourd'hui" }).click(NO_WAIT);
+    await settle(rp, 250);
     check(
       'Le retour à aujourd’hui remet tout en place',
       (await rp.locator('.day-nav h2').textContent()) === "Aujourd'hui" &&
@@ -1221,8 +1285,8 @@ export async function run({ browser, check, BASE }) {
     );
 
     // « Rien fait » fait taire l'alerte, définitivement.
-    await rp.locator('.forgotten').getByRole('button', { name: 'Rien fait' }).click();
-    await rp.waitForTimeout(300);
+    await rp.locator('.forgotten').getByRole('button', { name: 'Rien fait' }).click(NO_WAIT);
+    await settle(rp, 300);
     check('« Rien fait » retire l’alerte', (await rp.locator('.forgotten').count()) === 0);
     check(
       'Mais le jour reste atteignable par les flèches',
@@ -1231,7 +1295,7 @@ export async function run({ browser, check, BASE }) {
 
     await reloadZenith(rp);
     await rp.waitForSelector('.hub');
-    await rp.waitForTimeout(400);
+    await settle(rp, 400);
     check(
       'La question ne se repose pas au rechargement',
       (await rp.locator('.forgotten').count()) === 0,
@@ -1243,12 +1307,12 @@ export async function run({ browser, check, BASE }) {
   // Le cœur du sprint : l'action quotidienne fait monter le palier, et le palier
   // se valide seul en atteignant sa cible.
   {
-    const fresh = await browser.newContext({ viewport: { width: 1150, height: 1000 } });
+    const fresh = await newContext(browser, { viewport: { width: 1150, height: 1000 } });
     const cp = await fresh.newPage();
     cp.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(cp, BASE);
-    await cp.getByRole('button', { name: 'Passer' }).click();
-    await cp.getByRole('button', { name: 'Charger des exemples' }).click();
+    await cp.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
+    await cp.getByRole('button', { name: 'Charger des exemples' }).click(NO_WAIT);
     await cp.waitForSelector('.hub');
 
     // Un palier « 3 jours » avec deux jours déjà faits : la coche du jour est
@@ -1281,7 +1345,7 @@ export async function run({ browser, check, BASE }) {
     });
     await reloadZenith(cp);
     await cp.waitForSelector('.meter');
-    await cp.waitForTimeout(400);
+    await settle(cp, 400);
 
     check(
       'Le palier comptable affiche son avancée',
@@ -1301,8 +1365,8 @@ export async function run({ browser, check, BASE }) {
       (await cp.locator('.next-validate').count()) === 0,
     );
 
-    await cp.locator('.checkin-chip').first().click();
-    await cp.waitForTimeout(1200);
+    await cp.locator('.checkin-chip').first().click(NO_WAIT);
+    await settle(cp, 1200);
     const ceremony = (await cp.locator('.ceremony').first().innerText().catch(() => '')).replace(
       /\s+/g,
       ' ',
@@ -1314,7 +1378,7 @@ export async function run({ browser, check, BASE }) {
     );
     check('Elle annonce les PP du rang', /\+50 PP/.test(ceremony), ceremony.slice(0, 80));
     await dismissCeremonies(cp);
-    await cp.waitForTimeout(500);
+    await settle(cp, 500);
 
     check(
       'Le palier suivant prend le relais avec son propre compte',
@@ -1324,7 +1388,7 @@ export async function run({ browser, check, BASE }) {
     );
 
     await openGoal(cp, 0);
-    await cp.waitForTimeout(400);
+    await settle(cp, 400);
     check(
       'Le palier atteint est daté dans l’échelle',
       (await cp.locator('.tier-date').first().textContent())?.startsWith('Validé le'),
@@ -1337,14 +1401,14 @@ export async function run({ browser, check, BASE }) {
     );
 
     // Décocher fait redescendre le compteur, mais ne reprend pas la victoire.
-    await cp.getByRole('button', { name: 'Accueil' }).click();
+    await cp.getByRole('button', { name: 'Accueil' }).click(NO_WAIT);
     await cp.waitForSelector('.hub');
     await expandDone(cp);
-    await cp.locator('.checkin-chip.done').first().click();
-    await cp.waitForTimeout(900);
+    await cp.locator('.checkin-chip.done').first().click(NO_WAIT);
+    await settle(cp, 900);
     await dismissCeremonies(cp);
     await openGoal(cp, 0);
-    await cp.waitForTimeout(400);
+    await settle(cp, 400);
     check(
       'Annuler une coche ne reprend jamais un palier acquis',
       (await cp.locator('.tier-date').count()) === 1,
@@ -1362,12 +1426,12 @@ export async function run({ browser, check, BASE }) {
   // La promesse du lot : un appui reste un appui. La saisie n'apparaît que pour
   // un relevé (où elle est le geste) ou pour corriger.
   {
-    const fresh = await browser.newContext({ viewport: { width: 1150, height: 1000 } });
+    const fresh = await newContext(browser, { viewport: { width: 1150, height: 1000 } });
     const qp = await fresh.newPage();
     qp.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(qp, BASE);
-    await qp.getByRole('button', { name: 'Passer' }).click();
-    await qp.getByRole('button', { name: 'Charger des exemples' }).click();
+    await qp.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
+    await qp.getByRole('button', { name: 'Charger des exemples' }).click(NO_WAIT);
     await qp.waitForSelector('.hub');
 
     await qp.evaluate(() => {
@@ -1400,7 +1464,7 @@ export async function run({ browser, check, BASE }) {
     });
     await reloadZenith(qp);
     await qp.waitForSelector('.meter');
-    await qp.waitForTimeout(400);
+    await settle(qp, 400);
 
     const course = qp.locator('.checkin-chip', { hasText: 'Sortie course' });
     const balance = qp.locator('.checkin-chip', { hasText: 'Me peser' });
@@ -1419,8 +1483,8 @@ export async function run({ browser, check, BASE }) {
     check('Le relevé de la semaine dernière n’a pas nourri le cumul', (await cumul()).includes('0 / 20 km'), await cumul());
 
     // 1. Un appui, rien d'autre : pas de clavier sur le chemin.
-    await course.click();
-    await qp.waitForTimeout(800);
+    await course.click(NO_WAIT);
+    await settle(qp, 800);
     check(
       'Cocher une action quantifiée n’ouvre aucun clavier',
       (await qp.locator('.checkin-value').count()) === 0,
@@ -1428,7 +1492,7 @@ export async function run({ browser, check, BASE }) {
     check('Et la valeur habituelle nourrit le cumul', (await cumul()).includes('8 / 20 km'), await cumul());
 
     // 2. Ajuster : une correction, jamais un passage obligé.
-    await qp.getByRole('button', { name: 'Ajuster la quantité de Sortie course', exact: true }).click();
+    await qp.getByRole('button', { name: 'Ajuster la quantité de Sortie course', exact: true }).click(NO_WAIT);
     await qp.waitForSelector('.checkin-value input');
     check(
       'Ajuster propose la valeur déjà enregistrée',
@@ -1436,8 +1500,8 @@ export async function run({ browser, check, BASE }) {
       await qp.locator('.checkin-value input').inputValue(),
     );
     await qp.locator('.checkin-value input').fill('12,5');
-    await qp.getByRole('button', { name: 'Enregistrer' }).click();
-    await qp.waitForTimeout(700);
+    await qp.getByRole('button', { name: 'Enregistrer' }).click(NO_WAIT);
+    await settle(qp, 700);
     check('La correction est reprise par le compteur', (await cumul()).includes('12,5 / 20 km'), await cumul());
     check(
       'Et affichée sur la pastille',
@@ -1446,7 +1510,7 @@ export async function run({ browser, check, BASE }) {
     );
 
     // 3. Le relevé : la saisie EST le geste, rien n'est enregistré avant.
-    await balance.click();
+    await balance.click(NO_WAIT);
     await qp.waitForSelector('.checkin-value input');
     check('Un relevé ouvre la saisie au lieu de se cocher', await qp.locator('.checkin-value').isVisible());
     check(
@@ -1454,8 +1518,8 @@ export async function run({ browser, check, BASE }) {
       !((await balance.getAttribute('class')) ?? '').includes('done'),
     );
     await qp.locator('.checkin-value input').fill('78');
-    await qp.getByRole('button', { name: 'Enregistrer' }).click();
-    await qp.waitForTimeout(1300);
+    await qp.getByRole('button', { name: 'Enregistrer' }).click(NO_WAIT);
+    await settle(qp, 1300);
 
     const mCeremony = (await qp.locator('.ceremony').first().innerText().catch(() => '')).replace(
       /\s+/g,
@@ -1467,7 +1531,7 @@ export async function run({ browser, check, BASE }) {
       mCeremony.slice(0, 80),
     );
     await dismissCeremonies(qp);
-    await qp.waitForTimeout(600);
+    await settle(qp, 600);
     check(
       'Le relevé n’a pas gonflé le cumul de 78 kilomètres',
       (await cumul()).includes('12,5 / 20 km'),
@@ -1476,7 +1540,7 @@ export async function run({ browser, check, BASE }) {
 
     // 4. La courbe : la pente, pas le pourcentage.
     await openGoal(qp, 0);
-    await qp.waitForTimeout(400);
+    await settle(qp, 400);
     check(
       'Une mesure a sa courbe dès le deuxième relevé',
       (await qp.locator('.measure-chart').count()) === 1,
@@ -1500,7 +1564,7 @@ export async function run({ browser, check, BASE }) {
     );
     const courbe = await qp.locator('.measure-chart svg').boundingBox();
     await qp.mouse.move(courbe.x + 16, courbe.y + courbe.height / 2);
-    await qp.waitForTimeout(200);
+    await settle(qp, 200);
     const bulle = ((await qp.locator('.measure-chart .chart-tooltip').textContent()) ?? '').replace(/\s+/g, ' ');
     check(
       'Survoler un point dit sa valeur, son jour et le temps passé',
@@ -1515,10 +1579,10 @@ export async function run({ browser, check, BASE }) {
       (await qp.locator('.ladder .meter').count()) === 2,
       String(await qp.locator('.ladder .meter').count()),
     );
-    await qp.getByRole('button', { name: 'Façon de compter Faire un bilan' }).click();
+    await qp.getByRole('button', { name: 'Façon de compter Faire un bilan' }).click(NO_WAIT);
     await qp.waitForSelector('.tier-counter');
-    await qp.locator('.tier-counter').getByRole('button', { name: 'Jours' }).click();
-    await qp.waitForTimeout(600);
+    await qp.locator('.tier-counter').getByRole('button', { name: 'Jours' }).click(NO_WAIT);
+    await settle(qp, 600);
     check(
       'Le passer en « Jours » lui donne une barre',
       (await qp.locator('.ladder .meter').count()) === 3,
@@ -1533,7 +1597,7 @@ export async function run({ browser, check, BASE }) {
     );
 
     // 6. L'éditeur d'action : quantifier après coup, pas de formulaire à la création.
-    await qp.getByRole('button', { name: 'Quantifier Me peser' }).click();
+    await qp.getByRole('button', { name: 'Quantifier Me peser' }).click(NO_WAIT);
     await qp.waitForSelector('.action-quant');
     check(
       'La nature d’une action est reconnue',
@@ -1542,8 +1606,8 @@ export async function run({ browser, check, BASE }) {
         .getByRole('button', { name: 'Relevé' })
         .getAttribute('aria-pressed')) === 'true',
     );
-    await qp.locator('.action-quant').getByRole('button', { name: 'Simple' }).click();
-    await qp.waitForTimeout(600);
+    await qp.locator('.action-quant').getByRole('button', { name: 'Simple' }).click(NO_WAIT);
+    await settle(qp, 600);
     check(
       'Revenir à « Simple » efface l’unité',
       (await qp.locator('.action-row-wrap', { hasText: 'Me peser' }).locator('.action-row-unit').count()) === 0,
@@ -1552,22 +1616,22 @@ export async function run({ browser, check, BASE }) {
     // 7. Le chemin complet d'un modèle : ses paliers en kilos n'ont de sens que
     // si ses actions savent en produire. « Perdre du poids » était le cas le
     // plus grave — quatre paliers de mesure et aucune façon de les atteindre.
-    await qp.getByRole('button', { name: 'Nouvel objectif' }).click();
+    await qp.getByRole('button', { name: 'Nouvel objectif' }).click(NO_WAIT);
     await qp.waitForSelector('.picker-card');
-    await qp.getByRole('button', { name: 'Santé' }).click();
-    await qp.waitForTimeout(200);
-    await qp.locator('.picker-card', { hasText: 'Perdre du poids' }).click();
+    await qp.getByRole('button', { name: 'Santé' }).click(NO_WAIT);
+    await settle(qp, 200);
+    await qp.locator('.picker-card', { hasText: 'Perdre du poids' }).click(NO_WAIT);
     await qp.waitForSelector('.preview-tiers');
-    await qp.getByRole('button', { name: 'Choisir cet objectif' }).click();
+    await qp.getByRole('button', { name: 'Choisir cet objectif' }).click(NO_WAIT);
     await qp.waitForSelector('.modal');
-    await qp.getByRole('button', { name: "Créer l'objectif" }).click();
+    await qp.getByRole('button', { name: "Créer l'objectif" }).click(NO_WAIT);
     await dismissCeremonies(qp);
     await qp.waitForSelector('.goal');
-    await qp.waitForTimeout(600);
+    await settle(qp, 600);
     // Un objectif tout juste créé s'ouvre sur sa fiche.
     const poids = qp.locator('.goal-page', { hasText: 'Perdre du poids' });
     await qp.waitForSelector('.action-editor');
-    await qp.waitForTimeout(500);
+    await settle(qp, 500);
     check(
       'Un modèle de mesure arrive avec son relevé',
       (await poids.locator('.action-row-wrap', { hasText: 'Pesée' }).locator('.action-row-unit').textContent()) ===
@@ -1584,15 +1648,15 @@ export async function run({ browser, check, BASE }) {
   // sous un badge, une puce native, un panneau plus large que le téléphone : ça
   // ne se voit qu'en mesurant.
   {
-    const fresh = await browser.newContext({ viewport: { width: 1280, height: 950 } });
+    const fresh = await newContext(browser, { viewport: { width: 1280, height: 950 } });
     const lp = await fresh.newPage();
     lp.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(lp, BASE);
-    await lp.getByRole('button', { name: 'Passer' }).click();
+    await lp.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
     await lp.waitForSelector('.empty');
-    await lp.getByRole('button', { name: 'Créer mon premier objectif' }).click();
+    await lp.getByRole('button', { name: 'Créer mon premier objectif' }).click(NO_WAIT);
     await lp.waitForSelector('.picker-card');
-    await lp.waitForTimeout(300);
+    await settle(lp, 300);
 
     check(
       'Les modèles sont disposés en grille, pas empilés en ligne',
@@ -1610,9 +1674,9 @@ export async function run({ browser, check, BASE }) {
       );
     }
 
-    await lp.locator('.picker-card').first().click();
+    await lp.locator('.picker-card').first().click(NO_WAIT);
     await lp.waitForSelector('.preview-tiers');
-    await lp.waitForTimeout(250);
+    await settle(lp, 250);
 
     check(
       'L’aperçu n’affiche pas de puce native',
@@ -1634,9 +1698,9 @@ export async function run({ browser, check, BASE }) {
       );
     }
 
-    await lp.getByRole('button', { name: 'Choisir cet objectif' }).click();
+    await lp.getByRole('button', { name: 'Choisir cet objectif' }).click(NO_WAIT);
     await lp.waitForSelector('.modal-foot');
-    await lp.waitForTimeout(300);
+    await settle(lp, 300);
     {
       // Le badge de rang change de largeur selon le mot : sans colonne fixe,
       // chaque ligne de l'échelle démarre à un endroit différent.
@@ -1652,9 +1716,9 @@ export async function run({ browser, check, BASE }) {
       );
     }
 
-    await lp.getByRole('button', { name: "Créer l'objectif" }).click();
+    await lp.getByRole('button', { name: "Créer l'objectif" }).click(NO_WAIT);
     await lp.waitForSelector('.ceremony-ladder');
-    await lp.waitForTimeout(1200);
+    await settle(lp, 1200);
     {
       const row = await lp.locator('.ceremony-step-row').first().boundingBox();
       const title = await lp.locator('.ceremony-step-title').first().boundingBox();
@@ -1672,12 +1736,12 @@ export async function run({ browser, check, BASE }) {
   // Une coche peut arriver d'un autre appareil ou d'un import : la barre serait
   // pleine à côté d'un palier non validé.
   {
-    const fresh = await browser.newContext({ viewport: { width: 1150, height: 900 } });
+    const fresh = await newContext(browser, { viewport: { width: 1150, height: 900 } });
     const rp = await fresh.newPage();
     rp.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(rp, BASE);
-    await rp.getByRole('button', { name: 'Passer' }).click();
-    await rp.getByRole('button', { name: 'Charger des exemples' }).click();
+    await rp.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
+    await rp.getByRole('button', { name: 'Charger des exemples' }).click(NO_WAIT);
     await rp.waitForSelector('.hub');
     await rp.evaluate(() => {
       const snap = JSON.parse(localStorage.getItem('palier.v1'));
@@ -1703,7 +1767,7 @@ export async function run({ browser, check, BASE }) {
     });
     await reloadZenith(rp);
     await rp.waitForSelector('.hub');
-    await rp.waitForTimeout(800);
+    await settle(rp, 800);
     check(
       'Un palier déjà atteint ailleurs se valide au chargement',
       (await rp.locator('.next-tier:not(.next-tier-none)').count()) === 0,
@@ -1719,15 +1783,15 @@ export async function run({ browser, check, BASE }) {
   {
     // Sur téléphone, un panneau plus large que l'écran cache ses propres
     // boutons — on ne peut littéralement plus choisir.
-    const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const phone = await newContext(browser, { viewport: { width: 390, height: 844 } });
     const pp = await phone.newPage();
     pp.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(pp, BASE);
-    await pp.getByRole('button', { name: 'Passer' }).click();
+    await pp.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
     await pp.waitForSelector('.empty');
-    await pp.getByRole('button', { name: 'Créer mon premier objectif' }).click();
+    await pp.getByRole('button', { name: 'Créer mon premier objectif' }).click(NO_WAIT);
     await pp.waitForSelector('.picker-card');
-    await pp.waitForTimeout(300);
+    await settle(pp, 300);
     const box = await pp.locator('.modal').boundingBox();
     check(
       'Le choix d’un modèle tient dans l’écran d’un téléphone',
@@ -1745,19 +1809,19 @@ export async function run({ browser, check, BASE }) {
 
   // --- La grille des jours : la mémoire d'une habitude ---------------------
   {
-    const fresh = await browser.newContext({ viewport: { width: 1180, height: 950 } });
+    const fresh = await newContext(browser, { viewport: { width: 1180, height: 950 } });
     const hp = await fresh.newPage();
     hp.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(hp, BASE);
-    await hp.getByRole('button', { name: 'Passer' }).click();
+    await hp.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
     await hp.waitForSelector('.empty');
 
     // L'onglet « Habitudes » traverse les domaines au lieu de s'y ajouter :
     // méditer relève de l'esprit, arrêter de fumer de l'arrêt, et les deux sont
     // des habitudes.
-    await hp.getByRole('button', { name: 'Créer mon premier objectif' }).click();
+    await hp.getByRole('button', { name: 'Créer mon premier objectif' }).click(NO_WAIT);
     await hp.waitForSelector('.picker-card');
-    await hp.waitForTimeout(300);
+    await settle(hp, 300);
     check(
       'La bibliothèque s’ouvre sur les habitudes',
       (await hp.locator('.picker-tab.active').textContent()) === 'Habitudes',
@@ -1779,9 +1843,9 @@ export async function run({ browser, check, BASE }) {
         return new Set(titles).size === titles.length;
       }),
     );
-    await hp.getByRole('button', { name: 'Fermer' }).click();
+    await hp.getByRole('button', { name: 'Fermer' }).click(NO_WAIT);
 
-    await hp.getByRole('button', { name: 'Charger des exemples' }).click();
+    await hp.getByRole('button', { name: 'Charger des exemples' }).click(NO_WAIT);
     await hp.waitForSelector('.hub');
     await hp.evaluate(() => {
       const snap = JSON.parse(localStorage.getItem('palier.v1'));
@@ -1825,7 +1889,7 @@ export async function run({ browser, check, BASE }) {
     await reloadZenith(hp);
     await hp.waitForSelector('.hub');
     await showGoals(hp);
-    await hp.waitForTimeout(700);
+    await settle(hp, 700);
 
     // Les tuiles (06/10/2026) : une bande de douze semaines chacune, et toutes
     // la même hauteur — c'est ce qui supprime les trous de la grille.
@@ -1854,7 +1918,7 @@ export async function run({ browser, check, BASE }) {
     // La grande grille vit dans la fiche. D'abord l'objectif né il y a
     // quarante jours, qui porte les cases fantômes et le repère d'hier.
     await openGoal(hp, 'craquer les doigts');
-    await hp.waitForTimeout(400);
+    await settle(hp, 400);
     check(
       'La fiche porte la grille de jours',
       (await hp.locator('.heat').count()) === 1,
@@ -1903,7 +1967,7 @@ export async function run({ browser, check, BASE }) {
 
     // Le reste se lit sur une habitude tenue jusqu'à aujourd'hui.
     await openGoal(hp, 'ronger les ongles');
-    await hp.waitForTimeout(400);
+    await settle(hp, 400);
     check(
       'Et pas ailleurs',
       (await hp.locator('.heat-cell.warn').count()) === 0,
@@ -1928,8 +1992,8 @@ export async function run({ browser, check, BASE }) {
     {
       const grid = hp.locator('.heat').first();
       const filled = grid.locator('.heat-cell[data-level="3"]').first();
-      await filled.click();
-      await hp.waitForTimeout(250);
+      await filled.click(NO_WAIT);
+      await settle(hp, 250);
       const text = (await grid.locator('.heat-detail').innerText()).replace(/\s+/g, ' ');
       check(
         'Toucher un jour nomme ce qui a été fait',
@@ -1940,8 +2004,8 @@ export async function run({ browser, check, BASE }) {
         'Et le jour lu est repéré dans la grille',
         (await grid.locator('.heat-cell.picked').count()) === 1,
       );
-      await filled.click();
-      await hp.waitForTimeout(200);
+      await filled.click(NO_WAIT);
+      await settle(hp, 200);
       check(
         'Re-toucher referme le détail',
         (await grid.locator('.heat-cell.picked').count()) === 0,
@@ -1950,8 +2014,8 @@ export async function run({ browser, check, BASE }) {
     {
       // Un jour vide doit le dire, pas rester muet.
       const grid = hp.locator('.heat').first();
-      await grid.locator('.heat-cell[data-level="0"]:not(.ghost)').first().click();
-      await hp.waitForTimeout(200);
+      await grid.locator('.heat-cell[data-level="0"]:not(.ghost)').first().click(NO_WAIT);
+      await settle(hp, 200);
       check(
         'Un jour sans rien le dit clairement',
         /rien ce jour-là/.test(await grid.locator('.heat-detail').innerText()),
@@ -1972,8 +2036,8 @@ export async function run({ browser, check, BASE }) {
     // Bascule vers l'année.
     {
       const heat = hp.locator('.heat').first();
-      await heat.getByRole('button', { name: "Voir l'année entière" }).click();
-      await hp.waitForTimeout(400);
+      await heat.getByRole('button', { name: "Voir l'année entière" }).click(NO_WAIT);
+      await settle(hp, 400);
       check(
         'La bascule ouvre les cinquante-trois semaines d’une année',
         (await heat.locator('.heat-cell').count()) === 53 * 7,
@@ -1994,8 +2058,8 @@ export async function run({ browser, check, BASE }) {
           `${Math.round(heatBox.width)} px dans ${Math.round(card.width)} px`,
         );
       }
-      await heat.getByRole('button', { name: 'Revenir aux douze dernières semaines' }).click();
-      await hp.waitForTimeout(400);
+      await heat.getByRole('button', { name: 'Revenir aux douze dernières semaines' }).click(NO_WAIT);
+      await settle(hp, 400);
       check(
         'Le retour ramène les douze semaines',
         (await heat.locator('.heat-cell').count()) === 84,
@@ -2010,8 +2074,8 @@ export async function run({ browser, check, BASE }) {
       // Un dimanche : la dernière ligne de la grille, celle où le rognage se
       // voyait. Les cases sont posées colonne par colonne, donc une sur sept.
       const last = grid.locator('.heat-cell:nth-child(7n):not(.ghost)').last();
-      await last.click();
-      await hp.waitForTimeout(250);
+      await last.click(NO_WAIT);
+      await settle(hp, 250);
       const ring = await grid
         .locator('.heat-cell.picked')
         .evaluate((el) => getComputedStyle(el).boxShadow);
@@ -2025,13 +2089,13 @@ export async function run({ browser, check, BASE }) {
           `${(cellBox.y + cellBox.height).toFixed(1)} ≤ ${(scroll.y + scroll.height).toFixed(1)}`,
         );
       }
-      await last.click();
-      await hp.waitForTimeout(150);
+      await last.click(NO_WAIT);
+      await settle(hp, 150);
     }
 
     // On ne finit pas une habitude.
     await openGoal(hp, 'Méditer');
-    await hp.waitForTimeout(300);
+    await settle(hp, 300);
     check(
       'Tous les paliers validés + on coche encore = Entretien',
       (await hp.locator('.goal-page .goal-state.maint').textContent()) === 'Entretien',
@@ -2043,7 +2107,7 @@ export async function run({ browser, check, BASE }) {
     );
     // Les cases vides et fantômes : sur l'objectif né dans la fenêtre.
     await openGoal(hp, 'craquer les doigts');
-    await hp.waitForTimeout(300);
+    await settle(hp, 300);
     {
       // Une case vide doit se voir comme une case vide, pas comme un trou : sans
       // ça la grille se lit comme des carrés flottants au lieu d'un calendrier.
@@ -2103,7 +2167,7 @@ export async function run({ browser, check, BASE }) {
       const avant = await titres();
       await goalTile(hp, 0).locator('.goal-tile-handle').focus();
       await hp.keyboard.press('ArrowRight');
-      await hp.waitForTimeout(500);
+      await settle(hp, 500);
       const apres = await titres();
       check(
         'Au clavier, une flèche déplace la tuile d’un cran',
@@ -2121,11 +2185,11 @@ export async function run({ browser, check, BASE }) {
           poignee.x + (cible.x + 20 - poignee.x) * (i / 12),
           poignee.y + (cible.y + cible.height / 2 - poignee.y) * (i / 12),
         );
-        await hp.waitForTimeout(16);
+        await settle(hp, 16);
       }
       check('La tuile tenue se voit', (await hp.locator('.goal-tile.dragging').count()) === 1);
       await hp.mouse.up();
-      await hp.waitForTimeout(600);
+      await settle(hp, 600);
       const glisse = await titres();
       check(
         'Glisser une tuile la pose à sa nouvelle place',
@@ -2139,7 +2203,7 @@ export async function run({ browser, check, BASE }) {
         JSON.stringify(await titres()) === JSON.stringify(glisse),
         (await titres()).join(' | '),
       );
-      await hp.getByRole('button', { name: 'Accueil' }).click();
+      await hp.getByRole('button', { name: 'Accueil' }).click(NO_WAIT);
       await hp.waitForSelector('.today-goal');
       check(
         'Et l’accueil suit le même ordre',
@@ -2154,13 +2218,13 @@ export async function run({ browser, check, BASE }) {
   // La grille entière répond à « est-ce que je m'y suis mis ». Le filtre répond
   // à « laquelle de mes trois actions je ne fais jamais ».
   {
-    const fresh = await browser.newContext({ viewport: { width: 1180, height: 950 } });
+    const fresh = await newContext(browser, { viewport: { width: 1180, height: 950 } });
     const fp = await fresh.newPage();
     fp.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(fp, BASE);
-    await fp.getByRole('button', { name: 'Passer' }).click();
+    await fp.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
     await fp.waitForSelector('.empty');
-    await fp.getByRole('button', { name: 'Charger des exemples' }).click();
+    await fp.getByRole('button', { name: 'Charger des exemples' }).click(NO_WAIT);
     await fp.waitForSelector('.hub');
     await fp.evaluate(() => {
       const snap = JSON.parse(localStorage.getItem('palier.v1'));
@@ -2187,7 +2251,7 @@ export async function run({ browser, check, BASE }) {
     await fp.waitForSelector('.hub');
     await openGoal(fp, 'Courir un semi-marathon');
     await fp.waitForSelector('.heat');
-    await fp.waitForTimeout(700);
+    await settle(fp, 700);
 
     check(
       'Un objectif à plusieurs actions propose de filtrer',
@@ -2202,8 +2266,8 @@ export async function run({ browser, check, BASE }) {
     const lit = () => fp.locator('.heat-cell[data-level="3"], .heat-cell[data-level="2"], .heat-cell[data-level="1"]').count();
     const before = await lit();
 
-    await fp.getByRole('button', { name: 'Sortie longue', exact: true }).click();
-    await fp.waitForTimeout(350);
+    await fp.getByRole('button', { name: 'Sortie longue', exact: true }).click(NO_WAIT);
+    await settle(fp, 350);
     check(
       'Filtrer sur une action réduit la grille à ses jours',
       (await lit()) === 4 && before > 4,
@@ -2215,8 +2279,8 @@ export async function run({ browser, check, BASE }) {
     );
 
     // Le vrai service rendu : voir ce qu'on ne fait jamais.
-    await fp.getByRole('button', { name: 'Renforcement', exact: true }).click();
-    await fp.waitForTimeout(350);
+    await fp.getByRole('button', { name: 'Renforcement', exact: true }).click(NO_WAIT);
+    await settle(fp, 350);
     check(
       'Une action jamais faite le dit, au lieu de disparaître',
       (await lit()) === 0 &&
@@ -2224,14 +2288,14 @@ export async function run({ browser, check, BASE }) {
       (await fp.locator('.heat-detail').innerText()).replace(/\s+/g, ' '),
     );
 
-    await fp.getByRole('button', { name: 'Tout', exact: true }).click();
-    await fp.waitForTimeout(350);
+    await fp.getByRole('button', { name: 'Tout', exact: true }).click(NO_WAIT);
+    await settle(fp, 350);
     check('Revenir à « Tout » restaure la grille entière', (await lit()) === before);
 
-    await fp.getByRole('button', { name: 'Sortie course', exact: true }).click();
-    await fp.waitForTimeout(300);
-    await fp.locator('.heat-cell[data-level="3"]').first().click();
-    await fp.waitForTimeout(300);
+    await fp.getByRole('button', { name: 'Sortie course', exact: true }).click(NO_WAIT);
+    await settle(fp, 300);
+    await fp.locator('.heat-cell[data-level="3"]').first().click(NO_WAIT);
+    await settle(fp, 300);
     check(
       'Sous filtre, le détail d’un jour ne nomme que l’action filtrée',
       /Sortie course/.test(await fp.locator('.heat-detail').innerText()) &&
@@ -2240,8 +2304,8 @@ export async function run({ browser, check, BASE }) {
     );
 
     // Une action de relevé ne se filtre pas en cases : elle se filtre en courbe.
-    await fp.getByRole('button', { name: 'Me peser', exact: true }).click();
-    await fp.waitForTimeout(350);
+    await fp.getByRole('button', { name: 'Me peser', exact: true }).click(NO_WAIT);
+    await settle(fp, 350);
     check(
       'Filtrer sur un relevé remplace la grille par une courbe',
       (await fp.locator('.heat-grid').count()) === 0 &&
@@ -2252,8 +2316,8 @@ export async function run({ browser, check, BASE }) {
       (await fp.locator('.heat-zoom').count()) === 0,
     );
 
-    await fp.getByRole('button', { name: 'Tout', exact: true }).click();
-    await fp.waitForTimeout(350);
+    await fp.getByRole('button', { name: 'Tout', exact: true }).click(NO_WAIT);
+    await settle(fp, 350);
     check(
       'Revenir à « Tout » restaure la grille, même après une courbe',
       (await fp.locator('.heat-grid').count()) === 1 &&
@@ -2268,14 +2332,14 @@ export async function run({ browser, check, BASE }) {
   // navigateur déjà servi sautait l'accompagnement et atterrissait sur un écran
   // vide, sans savoir ce qu'est un palier.
   {
-    const fresh = await browser.newContext({ viewport: { width: 1100, height: 900 } });
+    const fresh = await newContext(browser, { viewport: { width: 1100, height: 900 } });
     const op = await fresh.newPage();
     op.on('pageerror', (e) => errors.push(e.message));
 
     await gotoZenith(op, BASE);
     await op.waitForSelector('.onboarding-card');
     check('Première visite : l’accompagnement s’affiche', await op.locator('.onboarding-card').isVisible());
-    await op.getByRole('button', { name: 'Passer' }).click();
+    await op.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
     await op.waitForSelector('.empty');
     check(
       'Le passer écrit un marqueur portant l’identifiant de l’utilisateur',
@@ -2326,18 +2390,18 @@ export async function run({ browser, check, BASE }) {
   // le requalifier un par un dans la carte. Pire, les actions naissaient sans
   // unité, si bien qu'un palier « 100 km » restait à 0/100 quoi qu'on coche.
   {
-    const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+    const fresh = await newContext(browser, { viewport: { width: 1100, height: 950 } });
     const cp = await fresh.newPage();
     cp.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(cp, BASE);
     await cp.waitForSelector('.onboarding-card');
-    await cp.getByRole('button', { name: 'Passer' }).click();
+    await cp.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
     await cp.waitForSelector('.brand');
-    await cp.getByRole('button', { name: 'Charger des exemples' }).click();
+    await cp.getByRole('button', { name: 'Charger des exemples' }).click(NO_WAIT);
     await cp.waitForSelector('.hub');
-    await cp.getByRole('button', { name: 'Nouvel objectif' }).click();
+    await cp.getByRole('button', { name: 'Nouvel objectif' }).click(NO_WAIT);
     await cp.waitForSelector('.picker-grid');
-    await cp.getByRole('button', { name: 'Partir de zéro' }).click();
+    await cp.getByRole('button', { name: 'Partir de zéro' }).click(NO_WAIT);
     await cp.waitForSelector('.draft-tier');
 
     await cp.locator('#goal-title').fill('Traverser la France à pied');
@@ -2352,7 +2416,7 @@ export async function run({ browser, check, BASE }) {
     );
 
     await cp.locator('#goal-kind').selectOption('cumul');
-    await cp.waitForTimeout(300);
+    await settle(cp, 300);
     const valeurs = (sel) => cp.locator(sel).evaluateAll((els) => els.map((el) => el.value));
     const cibles = await valeurs('.draft-amount input:first-child');
     check(
@@ -2364,9 +2428,9 @@ export async function run({ browser, check, BASE }) {
     const unites = await valeurs('.draft-amount input:last-child');
     check("L’unité aussi", unites.every((u) => u === 'km'), unites.join(' '));
 
-    await cp.getByRole('button', { name: "Créer l'objectif" }).click();
+    await cp.getByRole('button', { name: "Créer l'objectif" }).click(NO_WAIT);
     await dismissCeremonies(cp);
-    await cp.waitForTimeout(500);
+    await settle(cp, 500);
     await openGoal(cp, 'Traverser la France à pied');
     const carte = cp.locator('.goal-page');
 
@@ -2383,7 +2447,7 @@ export async function run({ browser, check, BASE }) {
 
     // Le trou le plus coûteux : sans unité sur les actions, un palier
     // « 100 km » reste à 0/100 quoi qu'on coche.
-    await cp.getByRole('button', { name: 'Accueil' }).click();
+    await cp.getByRole('button', { name: 'Accueil' }).click(NO_WAIT);
     await cp.waitForSelector('.checkin-chips');
     const bloc = cp.locator('.today-goal', { hasText: 'Traverser la France à pied' });
     const montants = await bloc.locator('.checkin-amount').allTextContents();
@@ -2396,8 +2460,8 @@ export async function run({ browser, check, BASE }) {
     // Un palier ajouté ensuite hérite, sans rien demander.
     await openGoal(cp, 'Traverser la France à pied');
     await carte.locator('.ladder-add input').fill('Courir 100 km');
-    await carte.getByRole('button', { name: 'Ajouter', exact: true }).click();
-    await cp.waitForTimeout(500);
+    await carte.getByRole('button', { name: 'Ajouter', exact: true }).click(NO_WAIT);
+    await settle(cp, 500);
     const ajoute = carte.locator('.tier', { hasText: 'Courir 100 km' });
     const jauge = await ajoute.locator('.meter-count').textContent();
     check(
@@ -2410,11 +2474,11 @@ export async function run({ browser, check, BASE }) {
     // descendante quand il fallait « ajouter à la fin puis remonter ».
     const portes = carte.locator('.ladder-insert');
     check('Une porte d’insertion par palier', (await portes.count()) === 4, String(await portes.count()));
-    await portes.nth(1).click();
+    await portes.nth(1).click(NO_WAIT);
     await cp.waitForSelector('.ladder-insert-bar input');
     await cp.locator('.ladder-insert-bar input').fill('Courir 40 km');
     await cp.locator('.ladder-insert-bar input').press('Enter');
-    await cp.waitForTimeout(900);
+    await settle(cp, 900);
     const titres = await carte.locator('.tier .tier-title').allTextContents();
     check(
       'L’étape se glisse à la place choisie, pas à la fin',
@@ -2437,14 +2501,14 @@ export async function run({ browser, check, BASE }) {
 
   // --- Les PP servent enfin à quelque chose --------------------------------
   {
-    const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+    const fresh = await newContext(browser, { viewport: { width: 1100, height: 950 } });
     const pp = await fresh.newPage();
     pp.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(pp, BASE);
     await pp.waitForSelector('.onboarding-card');
-    await pp.getByRole('button', { name: 'Passer' }).click();
+    await pp.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
     await pp.waitForSelector('.brand');
-    await pp.getByRole('button', { name: 'Charger des exemples' }).click();
+    await pp.getByRole('button', { name: 'Charger des exemples' }).click(NO_WAIT);
     await pp.waitForSelector('.hub');
 
     check(
@@ -2515,7 +2579,7 @@ export async function run({ browser, check, BASE }) {
     });
     await reloadZenith(pp);
     await pp.waitForSelector('.hub');
-    await pp.waitForTimeout(500);
+    await settle(pp, 500);
 
     check(
       'Le solde de la semaine est celui qu’on dépense',
@@ -2536,8 +2600,8 @@ export async function run({ browser, check, BASE }) {
       );
     }
 
-    await pp.locator('.buy-freeze').click();
-    await pp.waitForTimeout(1000);
+    await pp.locator('.buy-freeze').click(NO_WAIT);
+    await settle(pp, 1000);
     check(
       'L’achat crédite la réserve',
       (await pp.locator('.freeze').textContent()) === '❄×1',
@@ -2562,7 +2626,7 @@ export async function run({ browser, check, BASE }) {
     // Journalisé, pas compté dans un solde : il survit au rechargement.
     await reloadZenith(pp);
     await pp.waitForSelector('.hub');
-    await pp.waitForTimeout(400);
+    await settle(pp, 400);
     check(
       'Le gel acheté survit au rechargement',
       (await pp.locator('.freeze').textContent()) === '❄×1',
@@ -2579,15 +2643,15 @@ export async function run({ browser, check, BASE }) {
     // chaque nouveau venu restait bloqué à 0 / 5 km pour toujours. Ce bloc
     // termine le parcours pour de bon (les autres le « Passent ») et vérifie
     // qu'une action fait bouger le palier.
-    const fresh = await browser.newContext({ viewport: { width: 1200, height: 950 } });
+    const fresh = await newContext(browser, { viewport: { width: 1200, height: 950 } });
     const ob = await fresh.newPage();
     ob.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(ob, BASE);
     await ob.waitForSelector('.onboarding-card');
-    for (let i = 0; i < 3; i++) await ob.getByRole('button', { name: 'Suivant' }).click();
-    await ob.getByRole('button', { name: 'Créer et commencer' }).click();
+    for (let i = 0; i < 3; i++) await ob.getByRole('button', { name: 'Suivant' }).click(NO_WAIT);
+    await ob.getByRole('button', { name: 'Créer et commencer' }).click(NO_WAIT);
     await ob.waitForSelector('.hub');
-    await ob.waitForTimeout(600);
+    await settle(ob, 600);
 
     const gestes = (await ob.locator('.hub button').allTextContents()).map((t) => t.trim());
     check(
@@ -2606,10 +2670,10 @@ export async function run({ browser, check, BASE }) {
     if ((await petite.count()) === 0) {
       check('Une action du modèle est cochable depuis l’accueil', false, 'action introuvable');
     } else {
-      await petite.click();
-      await ob.waitForTimeout(900);
+      await petite.click(NO_WAIT);
+      await settle(ob, 900);
       await openGoal(ob, 0);
-      await ob.waitForTimeout(400);
+      await settle(ob, 400);
       const compteur = ob.locator('.meter-count').first();
       const lu = (await compteur.count()) === 0 ? null : await compteur.textContent();
       const propre = (lu ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -2627,39 +2691,39 @@ export async function run({ browser, check, BASE }) {
   // ponctuel quantifié doivent se retrouver dans le même total, sur la carte
   // de l'objectif — pas seulement dans la barre de progression d'un palier.
   {
-    const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+    const fresh = await newContext(browser, { viewport: { width: 1100, height: 950 } });
     const km = await fresh.newPage();
     km.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(km, BASE);
     await km.waitForSelector('.onboarding-card');
-    await km.getByRole('button', { name: 'Passer' }).click();
+    await km.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
     await km.waitForSelector('.brand');
-    await km.getByRole('button', { name: 'Nouvel objectif' }).click();
+    await km.getByRole('button', { name: 'Nouvel objectif' }).click(NO_WAIT);
     await km.waitForSelector('.picker-grid');
-    await km.getByRole('button', { name: 'Partir de zéro' }).click();
+    await km.getByRole('button', { name: 'Partir de zéro' }).click(NO_WAIT);
     await km.waitForSelector('.draft-tier');
     await km.locator('#goal-title').fill('Courir un marathon');
     await km.locator('.draft-tier > input').first().fill('Courir 42,2 km');
     await km.locator('#goal-kind').selectOption('cumul');
-    await km.waitForTimeout(300);
-    await km.getByRole('button', { name: "Créer l'objectif" }).click();
+    await settle(km, 300);
+    await km.getByRole('button', { name: "Créer l'objectif" }).click(NO_WAIT);
     await dismissCeremonies(km);
-    await km.waitForTimeout(500);
+    await settle(km, 500);
 
     // Cocher une action ordinaire : elle porte déjà l'unité de l'objectif.
-    await km.getByRole('button', { name: 'Accueil' }).click();
+    await km.getByRole('button', { name: 'Accueil' }).click(NO_WAIT);
     await km.waitForSelector('.checkin-chips');
     const bloc = km.locator('.today-goal', { hasText: 'Courir un marathon' });
     const premiere = bloc.locator('.checkin-chip:not(.add-oneoff)').first();
     const montant = (await premiere.locator('.checkin-amount').textContent()) ?? '';
     const parseKm = (text) => Number(text.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
     const actionKm = parseKm(montant);
-    await premiere.click();
-    await km.waitForTimeout(600);
+    await premiere.click(NO_WAIT);
+    await settle(km, 600);
 
     // Puis un geste ponctuel avec sa propre quantité — la nouveauté : il doit
     // compter dans le même total qu'une action cochée.
-    await bloc.locator('.checkin-chip.add-oneoff').click();
+    await bloc.locator('.checkin-chip.add-oneoff').click(NO_WAIT);
     await km.waitForSelector('.oneoff-bar input');
     check(
       'Une unité connue ouvre un champ de quantité sur le geste ponctuel',
@@ -2667,8 +2731,8 @@ export async function run({ browser, check, BASE }) {
     );
     await km.locator('.oneoff-bar input').first().fill('Sortie improvisée');
     await km.locator('.oneoff-value').fill('6');
-    await km.locator('.oneoff-bar .btn-primary').click();
-    await km.waitForTimeout(500);
+    await km.locator('.oneoff-bar .btn-primary').click(NO_WAIT);
+    await settle(km, 500);
     check(
       'Le geste ponctuel affiche sa quantité, comme une action cochée',
       ((await bloc.locator('.checkin-chip.oneoff .checkin-amount').first().textContent()) ?? '').includes(
@@ -2679,7 +2743,7 @@ export async function run({ browser, check, BASE }) {
 
     // La carte de l'objectif porte le cumul des deux, semaine par semaine.
     await openGoal(km, 'Courir un marathon');
-    await km.waitForTimeout(400);
+    await settle(km, 400);
     const carteKm = km.locator('.goal-page');
     check(
       'Le cumul multi-actions apparaît sur la carte de l’objectif',
@@ -2704,8 +2768,8 @@ export async function run({ browser, check, BASE }) {
     );
 
     // Choix explicite : masquer puis rouvrir, même avec un total réel.
-    await carteKm.locator('.goal-amount-hide').click();
-    await km.waitForTimeout(300);
+    await carteKm.locator('.goal-amount-hide').click(NO_WAIT);
+    await settle(km, 300);
     check(
       'Masquer le cumul le retire de la carte',
       (await carteKm.locator('.goal-amount').count()) === 0,
@@ -2714,8 +2778,8 @@ export async function run({ browser, check, BASE }) {
       'Un lien reste pour le rouvrir',
       (await carteKm.locator('.goal-amount-reveal').count()) === 1,
     );
-    await carteKm.locator('.goal-amount-reveal').click();
-    await km.waitForTimeout(300);
+    await carteKm.locator('.goal-amount-reveal').click(NO_WAIT);
+    await settle(km, 300);
     check(
       'Rouvrir restaure le même total',
       Math.abs(parseKm((await carteKm.locator('.goal-amount-total').textContent()) ?? '') - (actionKm + 6)) <
@@ -2730,24 +2794,24 @@ export async function run({ browser, check, BASE }) {
   // semaine — l'objectif n'a simplement rien à sommer, et ça ne devait pas
   // s'afficher tout seul. Un lien reste pour le montrer quand même.
   {
-    const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+    const fresh = await newContext(browser, { viewport: { width: 1100, height: 950 } });
     const en = await fresh.newPage();
     en.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(en, BASE);
     await en.waitForSelector('.onboarding-card');
-    await en.getByRole('button', { name: 'Passer' }).click();
+    await en.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
     await en.waitForSelector('.brand');
-    await en.getByRole('button', { name: 'Nouvel objectif' }).click();
+    await en.getByRole('button', { name: 'Nouvel objectif' }).click(NO_WAIT);
     await en.waitForSelector('.picker-grid');
-    await en.getByRole('button', { name: 'Partir de zéro' }).click();
+    await en.getByRole('button', { name: 'Partir de zéro' }).click(NO_WAIT);
     await en.waitForSelector('.draft-tier');
     await en.locator('#goal-title').fill('Apprendre l’anglais');
     await en.locator('.draft-tier > input').first().fill('Pratiquer 30 jours');
     await en.locator('#goal-kind').selectOption('cumul');
-    await en.waitForTimeout(300);
-    await en.getByRole('button', { name: "Créer l'objectif" }).click();
+    await settle(en, 300);
+    await en.getByRole('button', { name: "Créer l'objectif" }).click(NO_WAIT);
     await dismissCeremonies(en);
-    await en.waitForTimeout(500);
+    await settle(en, 500);
 
     // Une action ajoutée à la main hérite désormais d'une quantité (le
     // correctif du jour) — pour rejouer le cas vraiment sans quantité, on la
@@ -2755,8 +2819,8 @@ export async function run({ browser, check, BASE }) {
     await openGoal(en, 'Apprendre l’anglais');
     await en.waitForSelector('.action-editor');
     await en.locator('.action-add input').fill('Duolingo');
-    await en.getByRole('button', { name: "Ajouter l'action" }).click();
-    await en.waitForTimeout(400);
+    await en.getByRole('button', { name: "Ajouter l'action" }).click(NO_WAIT);
+    await settle(en, 400);
     check(
       'Une action ajoutée après coup hérite de l’unité de l’objectif',
       ((await en.locator('.action-row-title', { hasText: 'Duolingo' }).textContent()) ?? '').includes(
@@ -2764,19 +2828,19 @@ export async function run({ browser, check, BASE }) {
       ),
       await en.locator('.action-row-title', { hasText: 'Duolingo' }).textContent(),
     );
-    await en.getByRole('button', { name: 'Quantifier Duolingo' }).click();
+    await en.getByRole('button', { name: 'Quantifier Duolingo' }).click(NO_WAIT);
     await en.waitForSelector('.action-quant');
-    await en.locator('.action-quant-natures').getByRole('button', { name: 'Simple' }).click();
-    await en.waitForTimeout(300);
+    await en.locator('.action-quant-natures').getByRole('button', { name: 'Simple' }).click(NO_WAIT);
+    await settle(en, 300);
 
-    await en.getByRole('button', { name: 'Accueil' }).click();
+    await en.getByRole('button', { name: 'Accueil' }).click(NO_WAIT);
     await en.waitForSelector('.checkin-chips');
     const blocEn = en.locator('.today-goal', { hasText: 'Apprendre l’anglais' });
-    await blocEn.locator('.checkin-chip', { hasText: 'Duolingo' }).click();
-    await en.waitForTimeout(600);
+    await blocEn.locator('.checkin-chip', { hasText: 'Duolingo' }).click(NO_WAIT);
+    await settle(en, 600);
 
     await openGoal(en, 'Apprendre l’anglais');
-    await en.waitForTimeout(400);
+    await settle(en, 400);
     const carteEn = en.locator('.goal-page');
     check(
       'Une action sans quantité ne fait pas apparaître un cumul à zéro',
@@ -2786,8 +2850,8 @@ export async function run({ browser, check, BASE }) {
       'Un lien discret propose de l’afficher quand même',
       (await carteEn.locator('.goal-amount-reveal').count()) === 1,
     );
-    await carteEn.locator('.goal-amount-reveal').click();
-    await en.waitForTimeout(300);
+    await carteEn.locator('.goal-amount-reveal').click(NO_WAIT);
+    await settle(en, 300);
     check(
       'Forcé, il s’affiche, à zéro — honnête plutôt que masqué en douce',
       (await carteEn.locator('.goal-amount-total').textContent())?.includes('0'),
@@ -2804,39 +2868,39 @@ export async function run({ browser, check, BASE }) {
   // lui-même. Aucune manipulation de quantité requise ici : ça doit marcher
   // tout de suite, coché une fois.
   {
-    const fresh = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+    const fresh = await newContext(browser, { viewport: { width: 1100, height: 950 } });
     const jr = await fresh.newPage();
     jr.on('pageerror', (e) => errors.push(e.message));
     await gotoZenith(jr, BASE);
     await jr.waitForSelector('.onboarding-card');
-    await jr.getByRole('button', { name: 'Passer' }).click();
+    await jr.getByRole('button', { name: 'Passer' }).click(NO_WAIT);
     await jr.waitForSelector('.brand');
-    await jr.getByRole('button', { name: 'Nouvel objectif' }).click();
+    await jr.getByRole('button', { name: 'Nouvel objectif' }).click(NO_WAIT);
     await jr.waitForSelector('.picker-grid');
-    await jr.getByRole('button', { name: 'Partir de zéro' }).click();
+    await jr.getByRole('button', { name: 'Partir de zéro' }).click(NO_WAIT);
     await jr.waitForSelector('.draft-tier');
     await jr.locator('#goal-title').fill('Pratiquer l’anglais');
     await jr.locator('.draft-tier > input').first().fill('Pratiquer 30 jours');
     await jr.locator('#goal-kind').selectOption('compte');
-    await jr.waitForTimeout(300);
-    await jr.getByRole('button', { name: "Créer l'objectif" }).click();
+    await settle(jr, 300);
+    await jr.getByRole('button', { name: "Créer l'objectif" }).click(NO_WAIT);
     await dismissCeremonies(jr);
-    await jr.waitForTimeout(500);
+    await settle(jr, 500);
 
     await openGoal(jr, 'Pratiquer l’anglais');
     await jr.waitForSelector('.action-editor');
     await jr.locator('.action-add input').fill('Duolingo');
-    await jr.getByRole('button', { name: "Ajouter l'action" }).click();
-    await jr.waitForTimeout(400);
+    await jr.getByRole('button', { name: "Ajouter l'action" }).click(NO_WAIT);
+    await settle(jr, 400);
 
-    await jr.getByRole('button', { name: 'Accueil' }).click();
+    await jr.getByRole('button', { name: 'Accueil' }).click(NO_WAIT);
     await jr.waitForSelector('.checkin-chips');
     const blocJr = jr.locator('.today-goal', { hasText: 'Pratiquer l’anglais' });
-    await blocJr.locator('.checkin-chip', { hasText: 'Duolingo' }).click();
-    await jr.waitForTimeout(600);
+    await blocJr.locator('.checkin-chip', { hasText: 'Duolingo' }).click(NO_WAIT);
+    await settle(jr, 600);
 
     await openGoal(jr, 'Pratiquer l’anglais');
-    await jr.waitForTimeout(400);
+    await settle(jr, 400);
     const carteJr = jr.locator('.goal-page');
     check(
       'Un jour coché s’affiche tout de suite, sans quantifier l’action',
