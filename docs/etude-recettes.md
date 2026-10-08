@@ -406,3 +406,45 @@ plus unique : le bouton « Ouvrir Recettes » de la barre des modules le contena
 exacte, comme pour « Sport » dans Hauts faits.
 
 **Migration à appliquer par Jules** avant de pousser.
+
+## 14. Étape 2 : les règles, testées avant tout écran (08/10/2026)
+
+- **Lire une ligne d'ingrédient** (`lib/ingredients.ts`) : quantité (chiffres, virgule, « 1 1/2 »,
+  « ½ », « une », fourchette « 2 à 3 »), unité (g, kg, ml, cl, l, cuillères écrites de dix
+  façons, pincée, gousse, tranche, sachet, boîte, brique, botte, brin, feuille…, « (s) »
+  compris), nom, et ce qui suit (« + une noix pour le moule », « (facultatif) »). « un peu de
+  sel », « Sel poivre », « thym » restent sans quantité, jamais devinés. « 1 bouquet garni » est
+  un nom, pas un bouquet de « garni ». Éprouvé sur un **corpus de 89 lignes réelles** relevées
+  sur Marmiton et CuisineAZ (`ingredients.corpus.ts`) : toutes celles qui commencent par un
+  chiffre sont lues, et doubler une recette double chacune.
+- **Ajuster au nombre de personnes** : la quantité remplacée dans le texte tel qu'il est écrit,
+  arrondie à ce qui se mesure (grammes à 5 près au-delà de 50, cuillères et pièces au quart :
+  « ¾ gousse d'ail »), « 1 200 g » écrit « 1,2 kg », l'unité en toutes lettres accordée
+  (« 2 feuilles »), le nom compté mis au pluriel à partir de 2 (« 2 pâtes brisées », « pommes
+  Golden » sans toucher au nom propre). **Jamais vers le singulier** : « radis », « ananas »,
+  « pois » sont invariables, et « ¾ courgettes » se lit très bien.
+- **Durées** (`lib/duration.ts`) : `PT1H35M` → 95 minutes → « 1 h 35 ».
+- **Minuteurs d'une étape** (`lib/timers.ts`) : « 25 minutes », « 1 h 30 », « 20 à 25 min » (le
+  plus court), « 5 mn » ; « 180°C » ou « 200 g » n'en sont pas.
+- **Texte collé** (`lib/pasteText.ts`) : titre, « Pour 4 personnes », parties « Ingrédients » et
+  « Préparation » quand elles sont dites, groupes (« Pour le nappage : »), étapes numérotées ;
+  sans parties, une quantité ou une puce fait un ingrédient. Un brouillon, toujours relu.
+- **Retrouver** (`lib/search.ts`) : chaque mot tapé dans le titre, les étiquettes, la source ou
+  les ingrédients, sans accents ; filtres catégorie, « moins de N min » (une recette sans temps
+  n'y entre pas), favoris, jamais faite ; **« avec ce que j'ai »** classé par ingrédients trouvés
+  puis par ce qui manque (les « toujours là » ne manquent jamais) ; résumé de l'historique.
+- **Le menu et la liste de courses** (`lib/menu.ts`) : semaines du lundi au dimanche, cases
+  ordonnées ; une liste à relire qui additionne un même ingrédient de plusieurs recettes, chacune
+  à son nombre de personnes — masses ensemble, volumes ensemble, pièces par unité, le reste bout à
+  bout (« 2 + 200 g ») — et marque les « toujours là » (« Sel poivre » compris).
+- **Lire la recette d'une page** (`supabase/functions/recettes-import/extract.ts`, testé par
+  Vitest comme `payload.ts` de Sport) : le JSON-LD `Recipe` à n'importe quelle profondeur
+  (`@graph`, `mainEntity`), le nombre de personnes (« 8 personnes », « 15 crêpes », `["6","6
+  parts"]`), les temps (le repos déduit du temps total), la catégorie du site ramenée aux nôtres,
+  les étapes en texte, en `HowToStep` ou en `HowToSection`, la photo, l'éditeur ; les balises et
+  entités nettoyées ; les formules du site retirées du titre (« : la meilleure recette ») ; un
+  « Préparation » glissé dans les ingrédients n'est pas un groupe. Essayé sur les 12 pages réelles
+  relevées : toutes lues.
+
+1529 → **1613** tests unitaires (84 pour le module). Aucun écran : les suites de bout en bout ne
+changent pas.
