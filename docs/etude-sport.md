@@ -728,3 +728,8 @@ Santé sur son iPhone, donc ni leur distance, ni leur durée, ni leur départ. L
 `sport-import` est prête, mais rien ne peut encore lui envoyer une séance automatiquement.
 Pistes en cours d'examen avec Jules : additionner les échantillons de distance et de fréquence
 cardiaque de la dernière heure (approximatif), ou reprendre l'archive Strava régulièrement.
+
+**Décision de Jules (08/10/2026)** : il **s'abonne à Strava** (le 09/10). L'API de Strava, écartée
+au §3.1 seulement faute d'abonnement, redevient le chemin automatique : à reprendre une fois
+l'abonnement actif (application déclarée sur developers.strava.com, connexion OAuth, fonction
+qui reçoit les nouvelles activités). Le raccourci iPhone est mis de côté.
