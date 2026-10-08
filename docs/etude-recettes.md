@@ -331,3 +331,45 @@ technique `recettes`. Couleur : une teinte encore libre de la palette (pêche ou
   [Progressier](https://progressier.com/pwa-capabilities/screen-wake-lock),
   [bogue WebKit 254545](https://webkit.org/b/254545),
   [tableau de compatibilité](https://docs.w3cub.com/browser_support_tables/wake-lock).
+
+---
+
+## 12. Décisions prises avec Jules (08/10/2026)
+
+1. **Nom : Recettes** 🍳.
+2. **Des recettes d'un peu partout** : l'import par lien, le texte collé et la saisie à la main
+   sont tous les trois utiles ; aucun ne passe avant les autres.
+3. **Pas de reprise d'un existant** : on part d'un carnet vide, pas d'import en masse à prévoir.
+4. **Prévoir les repas à l'avance : oui.** Le menu de la semaine entre dans le cœur du module,
+   plus seulement en fin de découpage.
+5. **Courses : oui, mais jamais automatiquement.** Un geste voulu (« Ajouter aux courses »
+   sur une recette ou sur le menu), qui ouvre la liste des ingrédients à relire et à décocher,
+   puis envoie ce qui reste coché. Rien ne part vers Courses sans ce geste : ni en ajoutant une
+   recette, ni en posant un repas au menu.
+6. **Nutrition : plus tard.** Jules ne l'utilise pas encore ; le lien vient après, s'il s'y met.
+   Le modèle garde la place des associations aux aliments, sans les remplir.
+7. **Photos : le plus économique** (choix laissé à Claude) — **une seule photo par recette**,
+   réduite dans le navigateur (1 600 px de côté au plus, plus une vignette, ~200 Ko en tout),
+   avec les briques du socle (`core/data/images`). Pas de photos d'étapes. Pour un import, la
+   photo du site est reprise et réduite pareil : le carnet ne dépend pas d'un lien vers un site
+   qui peut disparaître. Une photo de son propre plat remplace celle du site si Jules le veut.
+   Sans photo, une couverture à l'emblème de la catégorie.
+8. **Pour Jules seul** : pas de partage.
+9. **Le mode cuisine** : expliqué à Jules (une étape à la fois, en grand, minuteurs, écran
+   allumé), réponse attendue.
+
+### Découpage révisé (7 étapes)
+
+1. **Le module existe** : tables (`recettes_recipes`, `recettes_photos`, `recettes_plan`,
+   `recettes_cooked`, `recettes_settings`), contrat et ses deux implémentations, module signet.
+2. **Les règles, testées avant tout écran** : analyseur d'ingrédients, ajustement et arrondis,
+   durées, extraction schema.org, texte collé, recherche, menu (semaines, repas), fusion des
+   ingrédients d'une semaine.
+3. **La V1** : carnet, fiche avec personnes réglables, saisie à la main et texte collé, photo,
+   « je l'ai faite ».
+4. **L'import depuis un lien** : la fonction `recettes-import` et la photo rapportée.
+5. **Le menu de la semaine** : midi et soir, poser une recette, personnes par repas, calque dans
+   Calendar.
+6. **Vers Courses, à la demande** : le service rendu par Courses, la liste à relire (ingrédients
+   « toujours là » décochés d'office), depuis une recette ou depuis le menu.
+7. **Le mode cuisine** (si Jules le veut) ; **Nutrition** reste hors du découpage, pour plus tard.
