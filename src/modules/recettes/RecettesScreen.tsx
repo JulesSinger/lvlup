@@ -9,6 +9,7 @@ import { RecipeEditor, type PhotoChange } from './components/RecipeEditor';
 import { forgetPhoto } from './components/RecipePhotoImg';
 import { RecipeSheet } from './components/RecipeSheet';
 import { recettesStore as store } from './data';
+import { canImportFromLink, importFromLink } from './data/importFromLink';
 import { DEFAULT_RECETTES_SETTINGS, type Cooked, type CookedInput, type Recipe, type RecipeInput, type RecipePhoto, type RecettesSettings } from './lib/types';
 
 /** Une photo réduite dans le navigateur avant tout envoi : 1 600 px et une vignette (étude §12). */
@@ -185,6 +186,7 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
             photo={editing === 'new' ? null : photoOf(editing.id)}
             onSave={save}
             onClose={() => setEditing(null)}
+            onImportLink={canImportFromLink ? importFromLink : null}
           />
         )}
         {cooking && open && (

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { CATEGORY_LABELS } from '../lib/categories';
 import { ingredientsToText, readMinutesField, stepsToText, textToIngredients, textToSteps, textToTags } from '../lib/editorText';
 import { parsePastedRecipe } from '../lib/pasteText';
@@ -105,21 +105,25 @@ function toInput(f: Fields): RecipeInput | string {
 
 /**
  * La fenêtre d'une recette (docs/etude-recettes.md §3.2, §3.3, §15) : la taper
- * à la main, ou coller un texte qu'Atlas découpe en brouillon à relire.
- * `extraSource` : d'autres façons de commencer (le lien, étape 4).
+ * à la main, coller un texte qu'Atlas découpe en brouillon à relire, ou
+ * l'importer depuis un lien (étape 4) — toujours un brouillon relu avant
+ * d'enregistrer.
  */
-export function RecipeEditor({ recipe, photo, draft, onSave, onClose, extraSource }: {
+export function RecipeEditor({ recipe, photo, draft, onSave, onClose, onImportLink }: {
   recipe: Recipe | null;
   photo: RecipePhoto | null;
   /** Un brouillon venu d'ailleurs (un lien) : les champs s'en remplissent. */
   draft?: Partial<RecipeInput> | null;
   onSave: (input: RecipeInput, photo: PhotoChange) => Promise<void>;
   onClose: () => void;
-  extraSource?: (fill: (draft: Partial<RecipeInput>, photoFile: File | null) => void) => ReactNode;
+  /** Lire une recette depuis un lien ; null sans compte (pas de serveur pour aller chercher la page). */
+  onImportLink: ((url: string) => Promise<{ draft: RecipeInput; photo: File | null }>) | null;
 }) {
   const [f, setF] = useState<Fields>(() => (recipe ? fieldsOf(recipe) : draft ? fieldsOf(draft) : EMPTY));
-  const [mode, setMode] = useState<'form' | 'paste'>('form');
+  const [mode, setMode] = useState<'form' | 'paste' | 'link'>('form');
   const [pasted, setPasted] = useState('');
+  const [link, setLink] = useState('');
+  const [importing, setImporting] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [removePhoto, setRemovePhoto] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
@@ -156,11 +160,20 @@ export function RecipeEditor({ recipe, photo, draft, onSave, onClose, extraSourc
     setMode('form');
   }
 
-  function fill(d: Partial<RecipeInput>, photoFile: File | null) {
-    setF(fieldsOf(d));
-    if (photoFile) setFile(photoFile);
+  async function importLink() {
+    if (!onImportLink) return;
+    setImporting(true);
     setError('');
-    setMode('form');
+    try {
+      const { draft: d, photo: photoFile } = await onImportLink(link);
+      setF(fieldsOf(d));
+      if (photoFile) setFile(photoFile);
+      setMode('form');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'L’import n’a pas abouti.');
+    } finally {
+      setImporting(false);
+    }
   }
 
   async function save() {
@@ -194,7 +207,7 @@ export function RecipeEditor({ recipe, photo, draft, onSave, onClose, extraSourc
               Enregistrer
             </button>
           </>
-        ) : (
+        ) : mode === 'paste' ? (
           <>
             <span className="recettes-spacer" />
             <button className="btn" onClick={() => setMode('form')}>
@@ -202,6 +215,16 @@ export function RecipeEditor({ recipe, photo, draft, onSave, onClose, extraSourc
             </button>
             <button className="btn btn-primary" onClick={readPasted} disabled={!pasted.trim()}>
               Lire le texte
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="recettes-spacer" />
+            <button className="btn" onClick={() => setMode('form')}>
+              Retour
+            </button>
+            <button className="btn btn-primary" onClick={() => void importLink()} disabled={!onImportLink || !link.trim() || importing}>
+              {importing ? 'Lecture…' : 'Importer'}
             </button>
           </>
         )
@@ -215,11 +238,38 @@ export function RecipeEditor({ recipe, photo, draft, onSave, onClose, extraSourc
           <button type="button" className={`recettes-choice-item${mode === 'paste' ? ' on' : ''}`} onClick={() => setMode('paste')}>
             Coller un texte
           </button>
+          <button type="button" className={`recettes-choice-item${mode === 'link' ? ' on' : ''}`} onClick={() => setMode('link')}>
+            Depuis un lien
+          </button>
         </div>
       )}
-      {!recipe && mode === 'form' && extraSource?.(fill)}
 
-      {mode === 'paste' ? (
+      {mode === 'link' ? (
+        onImportLink ? (
+          <div className="field">
+            <label htmlFor="recettes-link">L’adresse de la recette</label>
+            <input
+              id="recettes-link"
+              inputMode="url"
+              value={link}
+              placeholder="https://www.marmiton.org/recettes/…"
+              onChange={(e) => setLink(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && link.trim()) void importLink();
+              }}
+            />
+            <p className="recettes-hint">
+              Copie le lien dans Safari (Partager → Copier), colle-le ici : Atlas lit la recette et sa photo, tu relis avant d’enregistrer. Marche avec la
+              plupart des grands sites ; sinon, copie le texte et colle-le.
+            </p>
+          </div>
+        ) : (
+          <p className="recettes-local" role="note">
+            Importer depuis un lien demande d’être connecté avec un compte : c’est le serveur d’Atlas qui va lire la page du site. Sur cet appareil, Atlas
+            fonctionne sans compte — copie plutôt le texte de la recette et colle-le.
+          </p>
+        )
+      ) : mode === 'paste' ? (
         <div className="field">
           <label htmlFor="recettes-paste">La recette, telle quelle</label>
           <textarea

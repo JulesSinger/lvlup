@@ -593,3 +593,13 @@
 .recettes-landing-meal {
   color: var(--text);
 }
+
+/* --- Depuis un lien (étape 4) -------------------------------------------- */
+.recettes-local {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13.5px;
+}

@@ -473,3 +473,29 @@ bande. « Avec ce que j'ai » montrait les mots repliés (« oeuf ») : ils sont
 
 1598 → **1603** tests unitaires ; suite de Recettes 5 → **31** (une vraie photo JPEG, le
 rechargement, 390 et 320 px) ; **1166/1166** en local et en mode comptes.
+
+## 16. Étape 4 : l'import depuis un lien (08/10/2026)
+
+- **La fonction `recettes-import`** (`supabase/functions/recettes-import/index.ts`) : va chercher
+  la page, en extrait la recette (`extract.ts`, étape 2) et rapporte sa photo. **Elle n'écrit
+  rien** : elle rend un brouillon, relu dans la fenêtre de la recette avant d'enregistrer.
+- **Sa sécurité** (`safety.ts`, pur, testé) : réservée à un **compte connecté** (jeton de
+  session vérifié auprès de Supabase), sinon elle servirait de relais à n'importe qui ; adresses
+  `http(s)` publiques seulement — ni `localhost`, ni `.local`/`.internal`, ni adresse IP privée
+  (IPv4 et IPv6, `169.254.169.254` compris), ni identifiants dans l'adresse, ni port exotique ;
+  le nom de domaine résolu avant l'appel ; **chaque redirection revérifiée** (trois au plus) ;
+  2 Mo de page et 5 Mo de photo au plus, lus par morceaux et coupés au-delà ; 10 secondes.
+- **Dans l'app** : un troisième onglet, « Depuis un lien », dans la fenêtre d'une nouvelle
+  recette ; Entrée lance la lecture ; la photo rapportée devient un fichier comme si Jules
+  l'avait choisie, réduite pareil ; le brouillon est relu champ par champ (`lib/linkDraft.ts`) —
+  la réponse vient d'un site qu'on ne maîtrise pas. Sans compte, l'onglet dit pourquoi et propose
+  le texte collé.
+- **Essayé pour de vrai** : la fonction a tourné sous Node (Deno et la vérification du compte
+  remplacés par des doublures) contre les vrais sites — Marmiton rend la recette entière (8
+  personnes, 20 ingrédients) et sa photo (136 Ko) ; une adresse privée est refusée ; une page sans
+  recette reçoit « copie le texte de la recette et colle-le ».
+
+**À faire par Jules** : `supabase functions deploy recettes-import --no-verify-jwt`. Aucune
+migration.
+
+1603 → **1622** tests unitaires ; suite de Recettes 31 → **33**.

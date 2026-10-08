@@ -106,6 +106,13 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.recettes-favorite.on');
   check('Une recette se met en favori', await sheet.getByRole('button', { name: 'Retirer des favoris' }).isVisible());
 
+  // --- Depuis un lien (étape 4) : sans compte, la fenêtre dit pourquoi --------------------------------
+  await page.getByRole('button', { name: 'Nouvelle recette' }).click();
+  await modal.getByRole('button', { name: 'Depuis un lien' }).click();
+  check('Sans compte, importer un lien dit qu’il faut un compte et propose le texte collé', (await text(modal.locator('.recettes-local'))).includes('connecté avec un compte'));
+  check('Et le bouton d’import reste inactif', await modal.getByRole('button', { name: 'Importer' }).isDisabled());
+  await modal.getByRole('button', { name: 'Fermer' }).click();
+
   // --- Une recette collée -------------------------------------------------------------------------
   await page.getByRole('button', { name: 'Nouvelle recette' }).click();
   await modal.getByRole('button', { name: 'Coller un texte' }).click();
