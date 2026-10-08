@@ -1,6 +1,8 @@
 import type { AtlasModule } from '../../core/lib/module';
 import { SportLandingPreview } from './components/SportLandingPreview';
 import { sportStore } from './data';
+import { createCalendarSource } from './data/calendarSource';
+import { syncReminders } from './data/syncReminders';
 import { SportScreen } from './SportScreen';
 
 /**
@@ -19,4 +21,5 @@ export const sportModule: AtlasModule = {
   data: sportStore,
   Screen: SportScreen,
   LandingPreview: SportLandingPreview,
+  provides: { calendarSources: [createCalendarSource(sportStore, () => syncReminders())] },
 };

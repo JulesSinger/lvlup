@@ -682,3 +682,40 @@ des vues tenait sur trois lignes).
 
 1482 → **1492** tests unitaires ; suite de Sport 46 → **53** ; **1127/1127** en local et en
 mode comptes.
+
+## 18. Étape 7 : les liens, découpage terminé (08/10/2026)
+
+**Objectifs.** Nouveau service du socle, `checkins` (`core/lib/services.ts`), **rendu par
+Objectifs** (`objectifs/data/checkinService.ts`) : la liste des actions qu'on peut cocher (celles
+des objectifs en cours, hors relevés), poser, retirer et lister des coches portant une
+**référence**. Objectifs n'accepte qu'une coche par action et par jour : Sport coche donc
+l'action choisie **une fois par jour couru**, avec la quantité du jour dans l'unité de l'action
+(km, m, min, h ; rien pour une autre unité), sous la référence `sport:jour:AAAA-MM-JJ`
+(`lib/objectifsLink.ts`, `data/syncObjectifs.ts`). Les PP sont ceux de l'action. Rien avant la
+création de l'objectif. À chaque changement des sorties, Sport recalcule et n'écrit que ce qui
+diffère : une sortie supprimée retire sa coche, une seconde sortie le même jour met la quantité
+à jour. **Une coche faite à la main n'est jamais réécrite** : Sport la laisse et le dit. « Aucune »
+retire toutes les coches de Sport, et elles seules. Dans Objectifs, décocher une coche tenue par
+Sport est refusé avec un message (elle reviendrait). Le choix vit dans un panneau « Objectifs »
+du tableau de bord, rangé dans `sport_settings.objectifs_action_id` (étape 1).
+
+Côté Objectifs : `Checkin.ref`, `saveRefCheckin` et `deleteRefCheckin` au contrat et dans ses deux
+implémentations, la référence gardée par la sauvegarde, et la migration
+`2026-10-08-checkins-ref.sql` (colonne `ref`, unique par compte).
+
+**Calendar.** Le calque de Sport (`lib/calendarMarks.ts`, `data/calendarSource.ts`) : les sorties
+à leur heure et leur durée ; la semaine du plan, le lundi (« 🏃 Semaine 5 · 3 séances, 32 km » —
+le plan n'impose pas de jours) ; chaque séance qui a un jour, déplaçable **dans sa semaine**
+seulement (aller plus loin changerait le plan) ; la course. Toucher une marque ouvre Sport sur la
+sortie, la séance ou le plan (`intent`).
+
+**Rappels** (`lib/reminders.ts`, `data/syncReminders.ts`) : le lundi à 7 h 30 la semaine du plan,
+à 7 h 30 le jour d'une séance datée, la veille de la course à 18 h. Rien les jours sans séance,
+rien pour une séance déjà faite.
+
+**À faire par Jules** : appliquer `supabase/2026-10-08-checkins-ref.sql` **avant de pousser**
+(sans elle, le lien avec Objectifs échoue avec un message, le reste marche), puis choisir
+l'action dans Sport. Envoi réel des rappels à essayer.
+
+1492 → **1504** tests unitaires ; suite de Sport 53 → **59** ; **1133/1133** en local et en mode
+comptes. **Le découpage de l'étude est terminé.**

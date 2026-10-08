@@ -163,10 +163,66 @@ export interface CalendarSource {
   createLabel?: string;
 }
 
+/**
+ * Une action d'Objectifs qu'un autre module peut cocher (Sport, 08/10/2026,
+ * docs/etude-sport.md §6.1, §18) : « Sortie course » de « Courir un marathon ».
+ */
+export interface GoalActionChoice {
+  actionId: string;
+  goalTitle: string;
+  actionTitle: string;
+  /** L'unité de la quantité de l'action (« km », « min ») ; vide si sans objet. */
+  unit: string;
+  /** Le jour où l'objectif a été créé : on ne coche rien avant. */
+  since: string;
+}
+
+/** Une coche qu'un module demande à Objectifs, tenue par lui. */
+export interface CheckinRequest {
+  /**
+   * Référence stable, préfixée par le module (« sport:jour:2026-10-07 ») :
+   * c'est elle qui rend la coche rejouable sans doublon, modifiable et
+   * retirable. Une seule coche par référence.
+   */
+  ref: string;
+  actionId: string;
+  /** AAAA-MM-JJ */
+  day: string;
+  /** La quantité, dans l'unité de l'action ; null si sans objet. */
+  value: number | null;
+  note: string;
+}
+
+/** Une coche posée par un module, telle qu'Objectifs la garde. */
+export interface RecordedCheckin {
+  ref: string;
+  actionId: string | null;
+  day: string;
+  value: number | null;
+  note: string;
+}
+
+export interface CheckinService {
+  /** Les actions qu'on peut cocher : celles des objectifs en cours, hors relevés (une pesée n'est pas une sortie). */
+  actions(): Promise<GoalActionChoice[]>;
+  /**
+   * Pose la coche, ou la met à jour si sa référence existe déjà. `taken` :
+   * l'action est déjà cochée ce jour-là à la main — Objectifs n'y touche pas,
+   * une coche faite par Jules n'est jamais réécrite par un autre module.
+   */
+  record(request: CheckinRequest): Promise<'recorded' | 'taken'>;
+  /** Retire la coche portant cette référence ; sans effet si elle n'existe pas. */
+  remove(ref: string): Promise<void>;
+  /** Les coches dont la référence commence par `prefix`. */
+  list(prefix: string): Promise<RecordedCheckin[]>;
+}
+
 /** Tout ce que les modules peuvent se rendre les uns aux autres. */
 export interface AtlasServices {
   /** Fourni par le module budget (Astra). */
   expenses?: ExpenseService;
+  /** Fourni par le module objectifs : cocher une action depuis un autre module (Sport). */
+  checkins?: CheckinService;
   /** Fournis par tout module qui a quelque chose à montrer dans le calendrier — plusieurs à la fois. */
   calendarSources?: CalendarSource[];
 }

@@ -337,6 +337,38 @@ export class LocalGoals implements GoalsStore {
     write(snapshot);
   }
 
+  async saveRefCheckin(input: { ref: string; goalId: string; actionId: string; day: string; pp: number; value: number | null; note: string }) {
+    const snapshot = read();
+    const mine = snapshot.checkins.find((c) => c.ref === input.ref);
+    const other = snapshot.checkins.find((c) => c.actionId === input.actionId && c.day === input.day && c.ref !== input.ref);
+    // Même règle que la base : une seule coche par action et par jour.
+    if (other) return 'taken';
+    if (mine) {
+      Object.assign(mine, { goalId: input.goalId, actionId: input.actionId, day: input.day, value: input.value, note: input.note });
+    } else {
+      snapshot.checkins.push({
+        id: newId(),
+        goalId: input.goalId,
+        actionId: input.actionId,
+        pp: input.pp,
+        day: input.day,
+        note: input.note,
+        createdAt: new Date().toISOString(),
+        value: input.value,
+        title: null,
+        ref: input.ref,
+      });
+    }
+    write(snapshot);
+    return 'recorded';
+  }
+
+  async deleteRefCheckin(ref: string) {
+    const snapshot = read();
+    snapshot.checkins = snapshot.checkins.filter((c) => c.ref !== ref);
+    write(snapshot);
+  }
+
 
   async listAchievements(): Promise<UnlockedAchievement[]> {
     return read().achievements.slice();

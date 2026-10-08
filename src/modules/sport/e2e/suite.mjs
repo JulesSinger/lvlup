@@ -238,6 +238,48 @@ export async function run({ browser, check, BASE }) {
   await modal.getByRole('button', { name: 'Fermer' }).click();
   await page.getByRole('button', { name: /^Journal/ }).click();
 
+  // --- Les liens (étape 7) : Objectifs, puis Calendar ---------------------------------------------
+  // Un objectif posé dans les données d'Objectifs, comme la suite de Calendar le fait pour ses
+  // calques : le lien entre modules est l'objet même de l'étape. Et une coche faite à la main
+  // aujourd'hui, que Sport ne doit pas toucher.
+  await page.evaluate((today) => {
+    const blob = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+    const at = '2000-01-01T12:00:00.000Z';
+    blob.goals = [...(blob.goals ?? []), { id: 'g-mara', title: 'Courir un marathon', description: '', emoji: '🏃', position: 0, archived: false, createdAt: at, tiers: [] }];
+    blob.actions = [...(blob.actions ?? []), { id: 'a-run', goalId: 'g-mara', title: 'Sortie course', pp: 20, position: 0, archived: false, createdAt: at, unit: 'km', defaultValue: null, isMeasure: false }];
+    blob.checkins = [...(blob.checkins ?? []), { id: 'c-hand', goalId: 'g-mara', actionId: 'a-run', pp: 20, day: today, note: '', createdAt: at, value: 5, title: null }];
+    localStorage.setItem('palier.v1', JSON.stringify(blob));
+  }, localDay(0));
+  await page.reload();
+  await page.getByRole('button', { name: /^Tableau de bord/ }).click();
+  await page.waitForSelector('#sport-objectifs-action');
+  await page.locator('#sport-objectifs-action').selectOption({ label: 'Courir un marathon — Sortie course (km)' });
+  await page.waitForFunction(() => document.querySelector('.sport-objectifs')?.textContent?.includes('Dernière mise à jour'));
+  const goalCheckins = () => page.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') || '{}').checkins ?? []);
+  let held = await goalCheckins();
+  const bySport = held.filter((c) => c.ref?.startsWith('sport:jour:'));
+  const runDays = await page.evaluate(() => [...new Set((JSON.parse(localStorage.getItem('palier.v1') || '{}').sportRuns ?? []).map((r) => r.day))]);
+  check('Chaque jour couru coche l’action choisie, une fois, avec ses km', bySport.length === runDays.length - 1 && bySport.every((c) => c.actionId === 'a-run' && c.value > 0 && c.pp === 20), JSON.stringify(bySport.map((c) => [c.day, c.value])));
+  check('La coche faite à la main aujourd’hui n’est pas touchée', held.some((c) => c.id === 'c-hand' && c.value === 5 && !c.ref) && !bySport.some((c) => c.day === localDay(0)));
+  check('Sport le dit', (await text(page.locator('.sport-objectifs'))).includes('déjà coché à la main'), await text(page.locator('.sport-objectifs')));
+
+  // Le calque de Sport dans Calendar : la sortie du jour, à son heure.
+  await page.evaluate(() => (location.hash = '#/calendrier'));
+  await page.waitForSelector('.fc-event', { timeout: 20_000 });
+  await page.waitForTimeout(500);
+  const calendarText = await text(page.locator('.fc'));
+  check('Calendar montre la sortie du jour, au calque de Sport', /✓ [^✓]*? · \d+,\d km/.test(calendarText), calendarText.slice(0, 300));
+  check('Et la semaine du plan, le lundi', calendarText.includes('🏃 Semaine 1 ·'));
+  await page.evaluate(() => (location.hash = '#/sport'));
+  await page.waitForSelector('#sport-objectifs-action');
+
+  // Défaire le lien retire les coches de Sport, jamais celle faite à la main.
+  await page.locator('#sport-objectifs-action').selectOption({ label: 'Aucune' });
+  await page.waitForTimeout(400);
+  held = await goalCheckins();
+  check('Ne plus cocher retire les coches de Sport, et elles seules', !held.some((c) => c.ref) && held.some((c) => c.id === 'c-hand'));
+  await page.getByRole('button', { name: /^Journal/ }).click();
+
   // --- Relier l'Apple Watch (étape 5) ---------------------------------------------------------
   await page.getByRole('button', { name: '⌚ Apple Watch' }).click();
   await page.waitForSelector('.sport-shortcut-intro');

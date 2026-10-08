@@ -55,6 +55,8 @@ interface CheckinRow {
   created_at: string;
   value: number | string | null;
   title: string | null;
+  /** Absente tant que la migration 2026-10-08-checkins-ref.sql n'est pas appliquée. */
+  ref?: string | null;
 }
 
 /** Postgres renvoie `numeric` en texte pour préserver la précision. */
@@ -76,6 +78,7 @@ function toCheckin(row: CheckinRow): Checkin {
     createdAt: row.created_at,
     value: toNumber(row.value),
     title: row.title ?? null,
+    ref: row.ref ?? null,
   };
 }
 
@@ -483,6 +486,32 @@ export class SupabaseGoals implements GoalsStore {
     if (error) throw new Error(error.message);
   }
 
+  async saveRefCheckin(input: { ref: string; goalId: string; actionId: string; day: string; pp: number; value: number | null; note: string }) {
+    const userId = await this.requireUserId();
+    const sameDay = unwrap(
+      await this.client.from('checkins').select('id, ref').eq('action_id', input.actionId).eq('day', input.day),
+    ) as { id: string; ref: string | null }[];
+    const other = sameDay.find((c) => c.ref !== input.ref);
+    if (other) return 'taken';
+    const fields = { goal_id: input.goalId, action_id: input.actionId, day: input.day, value: input.value, note: input.note };
+    const mine = unwrap(await this.client.from('checkins').select('id').eq('ref', input.ref)) as { id: string }[];
+    if (mine.length > 0) {
+      const { error } = await this.client.from('checkins').update(fields).eq('id', mine[0].id);
+      if (error) throw new Error(error.message);
+    } else {
+      // La contrainte unique (compte, référence) empêche un doublon si deux
+      // appareils posent la même coche au même instant.
+      const { error } = await this.client.from('checkins').insert({ ...fields, user_id: userId, pp: input.pp, ref: input.ref });
+      if (error) throw new Error(error.message);
+    }
+    return 'recorded';
+  }
+
+  async deleteRefCheckin(ref: string) {
+    const { error } = await this.client.from('checkins').delete().eq('ref', ref);
+    if (error) throw new Error(error.message);
+  }
+
 
   async listAchievements(): Promise<UnlockedAchievement[]> {
     const rows = unwrap(
@@ -607,6 +636,7 @@ export class SupabaseGoals implements GoalsStore {
           note: c.note ?? '',
           value: c.value ?? null,
           title: c.title ?? null,
+          ...(c.ref ? { ref: c.ref } : {}),
           created_at: c.createdAt,
         })),
       );

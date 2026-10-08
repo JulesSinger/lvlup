@@ -81,6 +81,23 @@ export interface GoalsStore {
   /** Ajoute ou modifie la note libre, ou la quantité relevée. */
   updateCheckin(id: string, patch: { note?: string; value?: number | null }): Promise<void>;
   deleteCheckin(id: string): Promise<void>;
+  /**
+   * Une coche tenue par un autre module, par sa référence (service
+   * `checkins`, Sport) : posée, ou mise à jour si la référence existe. `taken`
+   * quand l'action est déjà cochée ce jour-là sans référence — à la main —
+   * et rien n'est écrit.
+   */
+  saveRefCheckin(input: {
+    ref: string;
+    goalId: string;
+    actionId: string;
+    day: string;
+    pp: number;
+    value: number | null;
+    note: string;
+  }): Promise<'recorded' | 'taken'>;
+  /** Retire la coche portant cette référence ; sans effet si elle n'existe pas. */
+  deleteRefCheckin(ref: string): Promise<void>;
 
   listAchievements(): Promise<UnlockedAchievement[]>;
   /** Idempotent : les ids déjà débloqués sont ignorés. */

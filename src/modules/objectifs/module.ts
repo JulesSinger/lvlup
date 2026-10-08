@@ -1,6 +1,7 @@
 import type { AtlasModule } from '../../core/lib/module';
 import { goalsStore } from './data';
 import { createCalendarSource } from './data/calendarSource';
+import { createCheckinService } from './data/checkinService';
 import type { GoalsBackup } from './data/goalsStore';
 import { ZenithLandingPreview } from './components/ZenithLandingPreview';
 import { ZenithScreen } from './ZenithScreen';
@@ -22,7 +23,7 @@ export const objectifsModule: AtlasModule = {
   SettingsSection: ZenithSettingsSection,
   LandingPreview: ZenithLandingPreview,
   // Les réalisations de chaque jour, en calque dans le calendrier (Éclipse).
-  provides: { calendarSources: [createCalendarSource(goalsStore)] },
+  provides: { calendarSources: [createCalendarSource(goalsStore)], checkins: createCheckinService(goalsStore) },
 
   fromLegacyBackup(raw) {
     // Avant la v5, les objectifs occupaient la racine du fichier. Les

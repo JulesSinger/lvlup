@@ -533,6 +533,12 @@ export function ZenithScreen({
   }
 
   function unlogAction(checkin: Checkin) {
+    // Une coche tenue par un autre module (Sport : un jour couru) reviendrait
+    // à sa prochaine ouverture : c'est là-bas qu'elle se retire.
+    if (checkin.ref) {
+      onError(checkin.ref.startsWith('sport:') ? 'Cochée par Sport d’après tes sorties : supprime la sortie, ou détache l’action dans Sport.' : 'Cette coche est tenue par un autre module.');
+      return;
+    }
     setCheckins((prev) => prev.filter((c) => c.id !== checkin.id));
     if (checkin.id.startsWith(PENDING_PREFIX)) {
       // Cochée puis décochée hors ligne : les deux opérations s'annulent.

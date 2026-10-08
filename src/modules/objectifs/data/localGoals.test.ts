@@ -42,3 +42,37 @@ describe('LocalGoals — l’ordre des objectifs', () => {
     expect((await store.listGoals()).map((g) => g.id)).toEqual([a.id]);
   });
 });
+
+describe('LocalGoals — les coches tenues par un autre module (Sport)', () => {
+  let store: LocalGoals;
+
+  beforeEach(() => {
+    memory.clear();
+    store = new LocalGoals();
+  });
+
+  it('une coche par référence : posée, mise à jour, retirée', async () => {
+    const g = await store.createGoal(goal('Marathon'), []);
+    const a = await store.createAction(g.id, { title: 'Sortie course', pp: 20, unit: 'km' });
+    const input = { ref: 'sport:jour:2026-10-07', goalId: g.id, actionId: a.id, day: '2026-10-07', pp: 20, value: 10.2, note: '1 sortie' };
+    expect(await store.saveRefCheckin(input)).toBe('recorded');
+    expect(await store.saveRefCheckin({ ...input, value: 18.4, note: '2 sorties' })).toBe('recorded');
+    const all = await store.listCheckins();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ ref: 'sport:jour:2026-10-07', value: 18.4, note: '2 sorties', pp: 20 });
+    await store.deleteRefCheckin('sport:jour:2026-10-07');
+    expect(await store.listCheckins()).toEqual([]);
+  });
+
+  it('ne réécrit jamais une coche faite à la main', async () => {
+    const g = await store.createGoal(goal('Marathon'), []);
+    const a = await store.createAction(g.id, { title: 'Sortie course', pp: 20, unit: 'km' });
+    await store.addCheckin(g.id, '2026-10-07', a.id, 20, 8);
+    const r = await store.saveRefCheckin({ ref: 'sport:jour:2026-10-07', goalId: g.id, actionId: a.id, day: '2026-10-07', pp: 20, value: 10.2, note: '' });
+    expect(r).toBe('taken');
+    const all = await store.listCheckins();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ value: 8 });
+    expect(all[0].ref ?? null).toBeNull();
+  });
+});

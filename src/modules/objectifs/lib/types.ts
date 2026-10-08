@@ -209,6 +209,13 @@ export interface Checkin {
    * la seconde garde ses droits acquis.
    */
   title: string | null;
+  /**
+   * Référence posée par un autre module qui tient cette coche (« sport:jour:
+   * 2026-10-07 », docs/etude-sport.md §18) ; absente pour une coche faite dans
+   * Objectifs. Une coche tenue par Sport se retire en supprimant la sortie,
+   * pas d'un geste ici : sinon elle reviendrait à la prochaine ouverture.
+   */
+  ref?: string | null;
 }
 
 /**

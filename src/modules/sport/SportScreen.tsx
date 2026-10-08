@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { dayString } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
@@ -9,12 +9,15 @@ import { Journal } from './components/Journal';
 import { RunEditor } from './components/RunEditor';
 import { RunSheet } from './components/RunSheet';
 import { PlanCreator } from './components/PlanCreator';
+import { ObjectifsLink } from './components/ObjectifsLink';
 import { PlanView } from './components/PlanView';
 import { Progress } from './components/Progress';
 import { RaceDateEditor } from './components/RaceDateEditor';
 import { SessionEditor } from './components/SessionEditor';
 import { newId } from '../../core/data/coreStore';
 import { importEndpoint, sportStore as store } from './data';
+import { syncObjectifs, type LinkResult } from './data/syncObjectifs';
+import { syncReminders } from './data/syncReminders';
 import { planDrafts, weekOfPlan, type PlanWeek } from './lib/plan';
 import { assignRuns, planWeeks, reschedule } from './lib/planView';
 import { longestRecent, recentWeeklyAverage } from './lib/stats';
@@ -56,7 +59,7 @@ function savedView(): View {
  * Toute la logique est dans les bibliothèques pures (`lib/`) : cet écran ne
  * fait qu'appeler le contrat de stockage et afficher.
  */
-export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji }: ModuleScreenProps) {
+export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji, services, intent }: ModuleScreenProps) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [settings, setSettings] = useState<SportSettings>({ ...DEFAULT_SPORT_SETTINGS });
   const [loaded, setLoaded] = useState(false);
@@ -85,6 +88,8 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
       setPlans(nextPlans);
       setSessions(nextSessions);
       onError('');
+      // Les rappels suivent le plan et les sorties ; un échec ne gêne jamais l'écran.
+      void syncReminders().catch(() => {});
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Chargement impossible.');
     } finally {
@@ -95,6 +100,56 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
   useEffect(() => {
     void refresh();
   }, [refresh, reloadToken]);
+
+  /**
+   * Les coches d'Objectifs suivent les sorties (docs/etude-sport.md §18) :
+   * recalculées à chaque changement des sorties ou de l'action choisie. Une
+   * seule mise à jour à la fois ; celle qui arrive pendant reprend après.
+   */
+  const checkins = services.checkins;
+  const linkedAction = settings.objectifsActionId;
+  const [linkStatus, setLinkStatus] = useState<LinkResult | string | null>(null);
+  const syncing = useRef<Promise<void> | null>(null);
+  useEffect(() => {
+    if (!loaded || !checkins || !linkedAction) return;
+    const run = async () => {
+      await syncing.current;
+      try {
+        setLinkStatus(await syncObjectifs(checkins, runs, linkedAction));
+      } catch (err) {
+        setLinkStatus(err instanceof Error ? err.message : 'Objectifs ne répond pas.');
+      }
+    };
+    syncing.current = run();
+  }, [loaded, checkins, linkedAction, runs]);
+
+  async function chooseAction(actionId: string | null) {
+    await store.updateSettings({ objectifsActionId: actionId });
+    if (!actionId && checkins) setLinkStatus(await syncObjectifs(checkins, runs, null));
+    setSettings((s) => ({ ...s, objectifsActionId: actionId }));
+  }
+
+  /**
+   * Ouvert depuis Calendar sur un élément (`onOpenModule('sport', …)`) :
+   * « run:<id> » la fiche d'une sortie, « session:<id> » la séance, « plan »
+   * le plan. Une seule fois par intention.
+   */
+  const intentDone = useRef<string | null>(null);
+  useEffect(() => {
+    if (!loaded || !intent || intentDone.current === intent) return;
+    intentDone.current = intent;
+    if (intent.startsWith('run:')) {
+      setOpenId(intent.slice(4));
+    } else if (intent.startsWith('session:')) {
+      const session = sessions.find((s) => s.id === intent.slice(8));
+      setView('plan');
+      if (session) setEditingSession(session);
+    } else if (intent === 'plan') {
+      setView('plan');
+    }
+    // setView est stable dans les faits (il n'écrit qu'un état et l'appareil).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, intent, sessions]);
 
   function setView(next: View) {
     setViewState(next);
@@ -307,7 +362,9 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
             onSaveHr={saveHr}
             plan={plan ? { plan, weeks, onOpen: () => setView('plan') } : null}
             onCreatePlan={() => setCreatingPlan(true)}
-          />
+          >
+            {checkins && <ObjectifsLink service={checkins} actionId={linkedAction} status={linkStatus} onChoose={chooseAction} />}
+          </Dashboard>
         ) : view === 'progress' ? (
           <Progress runs={runs} settings={settings} today={today} targetS={plan?.targetS ?? null} onOpen={(r) => setOpenId(r.id)} />
         ) : (

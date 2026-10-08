@@ -2,6 +2,7 @@ import { mondayOf } from '../../../core/lib/day';
 import { formatDuration, formatKm, formatPace, formatTime } from '../lib/format';
 import { paceOf, riegel } from '../lib/pace';
 import { bestEfforts, recentReference, weeklyVolumes } from '../lib/stats';
+import type { ReactNode } from 'react';
 import { HALF_MARATHON_M, MARATHON_M, type Run, type SportSettings } from '../lib/types';
 import { suggestedHrMax } from '../lib/zones';
 import { HeartRateCard } from './HeartRateCard';
@@ -17,7 +18,7 @@ const DISTANCE_LABELS: Record<number, string> = { 1000: '1 km', 5000: '5 km', 10
  * des douze dernières, la dernière sortie, les records, une prédiction pour le
  * marathon, et la fréquence cardiaque. Le plan en cours en tête (étape 4).
  */
-export function Dashboard({ runs, settings, today, onOpen, onSaveHr, plan, onCreatePlan }: {
+export function Dashboard({ runs, settings, today, onOpen, onSaveHr, plan, onCreatePlan, children }: {
   runs: Run[];
   settings: SportSettings;
   today: string;
@@ -26,6 +27,8 @@ export function Dashboard({ runs, settings, today, onOpen, onSaveHr, plan, onCre
   /** Le plan en cours, en tête du tableau de bord (étape 4). */
   plan: { plan: Plan; weeks: WeekStatus[]; onOpen: () => void } | null;
   onCreatePlan: () => void;
+  /** Les panneaux des liens avec les autres modules (Objectifs), en bas. */
+  children?: ReactNode;
 }) {
   const weeks = weeklyVolumes(runs, today, 12);
   const week = weeks[weeks.length - 1];
@@ -115,6 +118,7 @@ export function Dashboard({ runs, settings, today, onOpen, onSaveHr, plan, onCre
       </section>
 
       <HeartRateCard settings={settings} suggestedMax={suggestedHrMax(runs)} onSave={onSaveHr} />
+      {children}
     </div>
   );
 }
