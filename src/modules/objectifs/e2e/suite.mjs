@@ -940,6 +940,36 @@ export async function run({ browser, check, BASE }) {
   );
   await stripCtx.close();
 
+  // Le plus petit iPhone (SE, 320 px) avec un long titre et une longue action :
+  // l'écran prenait la largeur de son plus long contenu insécable (signalé par
+  // Jules le 08/10/2026, une règle du socle retirée par mégarde le 25/08).
+  {
+    const smallCtx = await browser.newContext({ viewport: { width: 320, height: 700 } });
+    const at = new Date().toISOString();
+    await smallCtx.addInitScript((at) => {
+      if (localStorage.getItem('palier.v1')) return;
+      localStorage.setItem('zenith.onboarded', '1');
+      localStorage.setItem('palier.v1', JSON.stringify({
+        goals: [{ id: 'g-long', title: 'Courir le marathon d’Annecy en moins de quatre heures cette année', description: '', emoji: '🏃', position: 0, archived: false, createdAt: at, tiers: [] }],
+        actions: [{ id: 'a-long', goalId: 'g-long', title: 'Sortie course longue du dimanche matin au bord du lac', pp: 20, position: 0, archived: false, createdAt: at, unit: 'km', defaultValue: 10, isMeasure: false }],
+        checkins: [],
+      }));
+    }, at);
+    const small = await smallCtx.newPage();
+    await gotoZenith(small, BASE);
+    await small.waitForSelector('.hub');
+    const fits = () => small.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+    const atHome = await fits();
+    const views = [];
+    for (const name of ['Objectifs', 'Historique', 'Trophées']) {
+      await small.locator('.sidebar .nav-item', { hasText: name }).first().click();
+      await small.waitForTimeout(300);
+      views.push(`${name} ${await fits()}`);
+    }
+    check('Sur un iPhone SE (320 px), aucun écran ne déborde, même avec de longs titres', atHome && views.every((v) => v.endsWith('true')), `accueil ${atHome}, ${views.join(', ')}`);
+    await smallCtx.close();
+  }
+
   const mobile = await page.context().newPage();
   await mobile.setViewportSize({ width: 390, height: 844 });
   await gotoZenith(mobile, BASE);

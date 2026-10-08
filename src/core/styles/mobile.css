@@ -80,8 +80,22 @@
   }
 
   .main {
+    /* Indispensable : centré par `margin: 0 auto` dans une colonne, l'écran
+       prend sinon la largeur de son plus long contenu insécable (un titre
+       d'objectif, une pastille d'action) et se fait défiler de côté. Retirée
+       par mégarde le 25/08/2026, remise le 08/10/2026 (signalé par Jules). */
+    width: 100%;
     padding: 16px 14px 110px;
     max-width: none;
+  }
+
+  /* Le titre de l'écran cède la place aux boutons plutôt que de les pousser
+     hors de l'écran (« Historique » sur un iPhone SE, 320 px). */
+  .page-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .hub-columns {
@@ -161,3 +175,9 @@
   }
 }
 
+@media (max-width: 360px) {
+  .page-title {
+    font-size: 18px;
+    letter-spacing: 0.02em;
+  }
+}
