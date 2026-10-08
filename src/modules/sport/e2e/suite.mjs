@@ -70,7 +70,7 @@ export async function run({ browser, check, BASE }) {
   check('La carte Sport apparaît sur l’écran de choix', await card.isVisible());
   await card.click();
   await page.waitForSelector('.sport-empty');
-  check('Sans sortie, Sport propose de reprendre l’historique ou de noter une sortie', (await page.locator('.sport-empty button').count()) === 2);
+  check('Sans sortie, Sport propose de reprendre l’historique, de relier la montre ou de noter une sortie', (await page.locator('.sport-empty button').count()) === 3);
   check('L’adresse dit le module ouvert', page.url().endsWith('#/sport'));
 
   const modal = page.locator('.sport-modal');
@@ -218,6 +218,13 @@ export async function run({ browser, check, BASE }) {
   const summary = await text(page.locator('.sport-plan-summary'));
   check('Le tableau de bord commence par le plan et sa prochaine séance', summary.includes('J-207') && summary.includes('Prochaine séance'), summary);
   await page.getByRole('button', { name: /^Journal/ }).click();
+
+  // --- Relier l'Apple Watch (étape 5) ---------------------------------------------------------
+  await page.getByRole('button', { name: '⌚ Apple Watch' }).click();
+  await page.waitForSelector('.sport-shortcut-intro');
+  check('Sans compte, la fenêtre dit qu’il en faut un pour le raccourci', (await text(page.locator('.sport-shortcut-local'))).includes('connecté avec un compte'));
+  check('Sans compte, aucun jeton ne se crée (il ne servirait à rien)', (await page.locator('.sport-token-new').count()) === 0);
+  await modal.getByRole('button', { name: 'Fermer' }).click();
 
   // --- Rechargement, puis téléphone ----------------------------------------------------------
   await page.reload();

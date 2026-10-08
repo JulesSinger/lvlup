@@ -3,6 +3,7 @@ import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { dayString } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { ArchiveImport } from './components/ArchiveImport';
+import { ShortcutSetup } from './components/ShortcutSetup';
 import { Dashboard } from './components/Dashboard';
 import { Journal } from './components/Journal';
 import { RunEditor } from './components/RunEditor';
@@ -12,7 +13,7 @@ import { PlanView } from './components/PlanView';
 import { RaceDateEditor } from './components/RaceDateEditor';
 import { SessionEditor } from './components/SessionEditor';
 import { newId } from '../../core/data/coreStore';
-import { sportStore as store } from './data';
+import { importEndpoint, sportStore as store } from './data';
 import { planDrafts, weekOfPlan, type PlanWeek } from './lib/plan';
 import { assignRuns, planWeeks, reschedule } from './lib/planView';
 import { longestRecent, recentWeeklyAverage } from './lib/stats';
@@ -62,6 +63,7 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
   const [openId, setOpenId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Run | 'new' | null>(null);
   const [importing, setImporting] = useState(false);
+  const [linkingWatch, setLinkingWatch] = useState(false);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [sessions, setSessions] = useState<PlanSession[]>([]);
   const [creatingPlan, setCreatingPlan] = useState(false);
@@ -242,6 +244,9 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
             </button>
           ))}
           <span className="sport-spacer" />
+          <button type="button" className="btn btn-sm" onClick={() => setLinkingWatch(true)}>
+            ⌚ Apple Watch
+          </button>
           <button type="button" className="btn btn-sm" onClick={() => setImporting(true)}>
             Reprendre l’historique Strava
           </button>
@@ -282,6 +287,9 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
             <div className="sport-empty-actions">
               <button className="btn btn-primary" onClick={() => setImporting(true)}>
                 Reprendre l’historique Strava
+              </button>
+              <button className="btn" onClick={() => setLinkingWatch(true)}>
+                Relier l’Apple Watch
               </button>
               <button className="btn" onClick={() => setEditing('new')}>
                 Noter une sortie
@@ -332,7 +340,8 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
 
         {changingDate && plan && <RaceDateEditor plan={plan} today={today} onClose={() => setChangingDate(false)} onSave={changeRaceDay} />}
 
-        {importing && <ArchiveImport knownRefs={knownRefs} onImport={importRuns} onClose={() => setImporting(false)} />}
+        {linkingWatch && <ShortcutSetup store={store} endpoint={importEndpoint} onClose={() => { setLinkingWatch(false); void refresh(); }} />}
+        {importing && <ArchiveImport knownRefs={knownRefs} existing={runs} onImport={importRuns} onClose={() => setImporting(false)} />}
       </main>
     </div>
   );

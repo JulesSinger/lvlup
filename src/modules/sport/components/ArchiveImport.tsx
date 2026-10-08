@@ -19,8 +19,10 @@ type Step =
  * l'appareil ; un aperçu dit ce qui sera ajouté avant d'écrire quoi que ce
  * soit, et un second import n'ajoute rien de ce qui est déjà là.
  */
-export function ArchiveImport({ knownRefs, onImport, onClose }: {
+export function ArchiveImport({ knownRefs, existing, onImport, onClose }: {
   knownRefs: ReadonlySet<string>;
+  /** Les sorties déjà là : celles venues du raccourci ne doivent pas revenir par l'archive. */
+  existing: readonly { startedAt: string; distanceM: number }[];
   onImport: (runs: RunImport[]) => Promise<number>;
   onClose: () => void;
 }) {
@@ -45,7 +47,7 @@ export function ArchiveImport({ knownRefs, onImport, onClose }: {
       if (data) tracks.set(r.file!, await summarizeFile(r.file!, data));
       if (i % 20 === 19) setStep({ kind: 'reading', done: i + 1, total: wanted.length });
     }
-    setStep({ kind: 'preview', plan: planArchiveImport(opened.reading, knownRefs, tracks, newId) });
+    setStep({ kind: 'preview', plan: planArchiveImport(opened.reading, knownRefs, tracks, newId, existing) });
   }
 
   async function save(plan: ArchivePlan) {

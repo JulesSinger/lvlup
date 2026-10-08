@@ -9,12 +9,16 @@
  */
 import { markLongRuns, type ArchiveReading } from './stravaArchive';
 import type { TrackSummary } from './track';
+import { sameRun } from './sameRun';
 import type { RunImport } from './types';
 
 export interface ArchivePlan {
   /** Les sorties à ranger, avec leur identifiant. */
   runs: RunImport[];
-  /** Déjà rangées (même référence) : un second import n'ajoute rien. */
+  /**
+   * Déjà rangées : même référence (un second import n'ajoute rien), ou la même
+   * sortie venue par un autre chemin (le raccourci, une saisie à la main).
+   */
   alreadyKnown: number;
   /** Complétées par leur fichier (temps au kilomètre). */
   withTrack: number;
@@ -43,10 +47,11 @@ export function planArchiveImport(
   knownRefs: ReadonlySet<string>,
   tracks: ReadonlyMap<string, TrackSummary | null>,
   newId: () => string,
+  existing: readonly { startedAt: string; distanceM: number }[] = [],
 ): ArchivePlan {
   let withTrack = 0;
   let fitSkipped = 0;
-  const fresh = reading.runs.filter((r) => !knownRefs.has(r.sourceRef));
+  const fresh = reading.runs.filter((r) => !knownRefs.has(r.sourceRef) && !existing.some((e) => sameRun(e, r)));
   const runs = fresh.map(({ file, ...run }) => {
     const track = file ? tracks.get(file) : undefined;
     if (file && isFit(file)) fitSkipped += 1;

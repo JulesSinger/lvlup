@@ -67,6 +67,13 @@ describe('préparer l’import de l’archive', () => {
     expect(plan).toMatchObject({ otherActivities: 3, unreadable: 1 });
   });
 
+  it('ne reprend pas une sortie déjà venue du raccourci', () => {
+    const fromWatch = { startedAt: '2026-10-05T07:04:00.000Z', distanceM: 9150 };
+    const plan = planArchiveImport(archiveRunsFixture, new Set(), new Map(), () => 'x', [fromWatch]);
+    expect(plan.runs.map((r) => r.sourceRef)).not.toContain('strava:2');
+    expect(plan.alreadyKnown).toBe(1);
+  });
+
   it('sait quels fichiers lire', () => {
     expect(readableTrack('activities/1.gpx')).toBe(true);
     expect(readableTrack('activities/1.tcx.gz')).toBe(true);

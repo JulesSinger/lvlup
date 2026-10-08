@@ -609,3 +609,41 @@ longues, allures — avant de s'y fier.
 
 1456 → **1465** tests unitaires ; suite de Sport 28 → **44** ; **1118/1118** en local et en
 mode comptes.
+
+## 16. Étape 5 : l'import automatique (08/10/2026)
+
+- **La fonction `sport-import`** (`supabase/functions/sport-import/`), première fonction d'Atlas
+  qui **reçoit** des données de l'extérieur. Elle n'accepte qu'un POST avec un jeton d'import
+  (`Authorization: Bearer spt_…`), cherché par son **empreinte SHA-256** : le jeton n'est
+  jamais rangé. Corps limité à 64 Ko et 50 séances. `{ "test": true }` vérifie le jeton sans
+  rien écrire ; sans jeton, `{ "ping": true }` dit la version. La réponse porte un `message`
+  en français que le raccourci affiche (« Sortie ajoutée à Sport : 10,2 km en 52 min. »).
+- **Lecture stricte** (`payload.ts`, pur, testé par Vitest comme `moduleReminders.ts`) : une
+  séance ou `{ workouts: […] }` (les sept derniers jours) ; distance avec ou sans unité
+  (« 10,23 km », « 10230 m », un nombre seul en km jusqu'à 200), durée en « 52:30 », en
+  secondes ou « 52,5 min », ou déduite de la fin ; **départ en ISO 8601 avec son décalage**,
+  qui dit le jour vécu par l'iPhone — une date sans fuseau est refusée plutôt que rangée au
+  mauvais jour près de minuit. Bornes de la base vérifiées avant l'écriture, chaque refus
+  dit sa raison. Seule la sortie longue se devine (18 km et plus).
+- **Jamais de doublon** : la référence est l'identifiant de Santé s'il est envoyé, sinon le
+  départ à la minute (`sante:…`) ; et une séance déjà dans Sport par un autre chemin (même
+  départ à dix minutes près, distance à 10 % près, `sameRun`) n'est pas ajoutée. **Le même
+  critère vaut dans l'autre sens** : l'archive Strava ne reprend plus une sortie déjà venue du
+  raccourci ou notée à la main. Le critère vit à deux endroits (fonction et app), un test
+  vérifie qu'ils s'accordent.
+- **Dans Sport** : « ⌚ Apple Watch » (et « Relier l'Apple Watch » sur l'écran vide) ouvre
+  `ShortcutSetup` — créer un jeton (tiré sur l'appareil, `lib/importToken.ts`, montré une
+  seule fois, avec « Copier » et « Essayer »), la liste des jetons (créé le, servi le,
+  « Révoquer »), l'adresse de la fonction, et le raccourci à construire en cinq actions. Sans
+  compte, la fenêtre dit qu'il en faut un : aucun jeton ne se crée pour rien.
+
+Aucune migration : `sport_import_tokens` existe depuis l'étape 1.
+
+**À faire par Jules** : déployer la fonction (`supabase functions deploy sport-import
+--no-verify-jwt`), créer un jeton, construire le raccourci et faire une vraie course. **Ce que
+Santé expose à Raccourcis n'a pas pu être vérifié d'ici** : si l'action « Rechercher des
+échantillons de santé » n'offre pas les entraînements ou leur distance, la notification le
+dira (« Refusée : distance manquante ») — à me rapporter, la fonction s'adaptera.
+
+1465 → **1482** tests unitaires ; suite de Sport 44 → **46** ; **1120/1120** en local et en
+mode comptes.
