@@ -373,3 +373,36 @@ technique `recettes`. Couleur : une teinte encore libre de la palette (pêche ou
 6. **Vers Courses, à la demande** : le service rendu par Courses, la liste à relire (ingrédients
    « toujours là » décochés d'office), depuis une recette ou depuis le menu.
 7. **Le mode cuisine** (si Jules le veut) ; **Nutrition** reste hors du découpage, pour plus tard.
+
+**Mode cuisine (réponse de Jules, 08/10/2026)** : oui, **facultatif, dans l'app** — un écran qu'on
+ouvre depuis une recette, jamais imposé.
+
+## 13. Étape 1 : le module existe (08/10/2026)
+
+- **Migration** `supabase/2026-10-08-recettes-tables.sql` : `recettes_recipes` (ingrédients et
+  étapes en `jsonb`, chaque ingrédient gardé tel qu'il est écrit, avec son groupe),
+  `recettes_photos` (**une par recette**, contrainte unique, bucket privé `recettes`, JPEG,
+  5 Mo, chaque compte dans son dossier), `recettes_cooked` (« je l'ai faite », note de 1 à 5),
+  `recettes_plan` (le menu : jour, midi ou soir, une recette **ou** un simple titre comme
+  « Restes », plusieurs par case), `recettes_settings` (les ingrédients « toujours là »). RLS
+  complet, quatre politiques par table.
+- **Contrat** `RecettesStore` et ses deux implémentations : `LocalRecettes` (photos dans
+  IndexedDB) et `SupabaseRecettes` (recettes et historique lus par paquets, `fetchAll`).
+  Identifiants choisis par l'app, créations rejouables.
+- **Règles déjà là** : supprimer une recette emporte sa photo (fichiers compris), son historique
+  et ses places au menu ; poser une nouvelle photo remplace l'ancienne d'un coup (une seule
+  ligne, `upsert` sur la recette), puis efface ses fichiers ; les fichiers avant la ligne à
+  l'ajout, la ligne avant les fichiers au retrait (même ordre que Hauts faits et Projets). La
+  sauvegarde garde la liste des photos, pas leur contenu.
+- **Validation** (`lib/validation.ts`) : les bornes de la base dites en clair, et un lien de
+  source qui doit commencer par `http(s)://`.
+- Module signet, aperçu d'accueil (un menu d'exemple), couleur **`--orange`**, la dernière
+  teinte chaude encore libre.
+- Deux identifiants de stockage sur l'appareil, ajoutés à CLAUDE.md §4 : `atlas-recettes`
+  (IndexedDB) et `recettes-photos-v1` (Cache API).
+
+La suite de Projets cliquait un bouton « Recettes » (sa vue du livre des recettes) qui n'était
+plus unique : le bouton « Ouvrir Recettes » de la barre des modules le contenait. Recherche
+exacte, comme pour « Sport » dans Hauts faits.
+
+**Migration à appliquer par Jules** avant de pousser.

@@ -354,7 +354,7 @@ export async function run({ browser, check, BASE }) {
   check('Une piste n’est pas un projet actif du tableau de bord', (await page.locator('.projets-card').count()) === 1);
 
   // --- Le livre des recettes ---------------------------------------------------
-  await page.getByRole('button', { name: 'Recettes' }).click();
+  await page.getByRole('button', { name: 'Recettes', exact: true }).click();
   await page.waitForSelector('.projets-receipts');
   check('Le livre des recettes liste l’encaissement de l’année', (await page.locator('.projets-table tbody tr').count()) === 1 && (await text(page.locator('.projets-table tbody tr'))).includes('Fleurs de Lou'));
   check('Avec le total de l’année', (await text(page.locator('.projets-receipts-total'))).includes('270 €'));

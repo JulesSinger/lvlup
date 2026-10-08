@@ -90,3 +90,6 @@
 
 /* --- Sport : la course à pied (étape 1) --------------------------- */
 @import './modules/sport/styles/sport.css';
+
+/* --- Recettes : le carnet de recettes (étape 1) ------------------ */
+@import './modules/recettes/styles/recettes.css';
