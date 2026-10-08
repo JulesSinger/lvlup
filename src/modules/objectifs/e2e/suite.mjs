@@ -986,6 +986,16 @@ export async function run({ browser, check, BASE }) {
   // Seule la flamme du streak a le droit de tourner en permanence : un transform
   // sur un élément, composité par le GPU. Tout le reste doit être coupé.
   {
+    // Une animation qui ne joue qu'une fois (le « +PP » qui s'envole, 0,9 s) n'est pas
+    // permanente : on la laisse finir. Celles qui tournent sans fin restent, elles, attrapées.
+    await mobile.evaluate(() =>
+      Promise.all(
+        document
+          .getAnimations()
+          .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+          .map((a) => a.finished.catch(() => undefined)),
+      ),
+    );
     const running = await mobile.evaluate(() =>
       document
         .getAnimations()

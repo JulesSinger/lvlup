@@ -72,6 +72,7 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.sport-empty');
   check('Sans sortie, Sport propose de reprendre l’historique, de relier la montre ou de noter une sortie', (await page.locator('.sport-empty button').count()) === 3);
   check('L’adresse dit le module ouvert', page.url().endsWith('#/sport'));
+  check('Le lien avec Objectifs se choisit dès l’écran vide', await page.locator('.sport-empty .sport-objectifs').isVisible());
 
   const modal = page.locator('.sport-modal');
 

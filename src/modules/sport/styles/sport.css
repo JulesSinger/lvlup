@@ -1091,3 +1091,9 @@
     display: none;
   }
 }
+
+.sport-empty-link {
+  width: min(480px, 100%);
+  margin-top: 22px;
+  text-align: left;
+}

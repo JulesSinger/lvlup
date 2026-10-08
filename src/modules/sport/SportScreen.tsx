@@ -352,6 +352,12 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
                 Noter une sortie
               </button>
             </div>
+            {/* Le lien se choisit avant la première sortie : sinon on ne le trouvait nulle part. */}
+            {checkins && (
+              <div className="sport-empty-link">
+                <ObjectifsLink service={checkins} actionId={linkedAction} status={linkStatus} onChoose={chooseAction} />
+              </div>
+            )}
           </div>
         ) : view === 'dash' ? (
           <Dashboard

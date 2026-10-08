@@ -719,3 +719,12 @@ l'action dans Sport. Envoi réel des rappels à essayer.
 
 1492 → **1504** tests unitaires ; suite de Sport 53 → **59** ; **1133/1133** en local et en mode
 comptes. **Le découpage de l'étude est terminé.**
+
+## 19. Premier essai du raccourci sur l'iPhone (08/10/2026)
+
+Jules ne trouve **pas « Entraînements »** parmi les types de « Rechercher des échantillons de
+santé ». Ce que l'étude craignait (§8) : Raccourcis ne donne pas accès aux entraînements de
+Santé sur son iPhone, donc ni leur distance, ni leur durée, ni leur départ. La fonction
+`sport-import` est prête, mais rien ne peut encore lui envoyer une séance automatiquement.
+Pistes en cours d'examen avec Jules : additionner les échantillons de distance et de fréquence
+cardiaque de la dernière heure (approximatif), ou reprendre l'archive Strava régulièrement.
