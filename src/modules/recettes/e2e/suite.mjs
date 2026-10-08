@@ -235,6 +235,34 @@ export async function run({ browser, check, BASE }) {
   check('Ce qui est déjà sur la liste est complété, pas dédoublé', (await text(page.locator('.notice.info'))).includes('déjà sur la liste, quantité complétée'));
   await page.getByRole('button', { name: /^Carnet/ }).click();
 
+  // --- Le mode cuisine (étape 7) ---------------------------------------------------------------------
+  await page.locator('.recettes-card', { hasText: 'Lasagnes' }).click();
+  await sheet.getByRole('button', { name: '👩‍🍳 Cuisiner' }).click();
+  const cook = page.locator('.recettes-cook');
+  await page.waitForSelector('.recettes-cook');
+  check('Le mode cuisine s’ouvre sur les ingrédients à réunir', (await text(cook.locator('.recettes-cook-label'))) === 'Réunir les ingrédients' && (await cook.locator('.recettes-cook-gather li').count()) === 5);
+  check('Il dit si l’écran reste allumé', /L’écran (reste allumé|peut se mettre en veille)/.test(await text(cook.locator('.recettes-cook-sub'))));
+  await cook.locator('.recettes-cook-gather input').first().check();
+  check('Un ingrédient réuni se coche', (await cook.locator('.recettes-cook-gather label.done').count()) === 1);
+  await cook.getByRole('button', { name: 'Commencer ›' }).click();
+  check('Une étape à la fois, en grand', (await text(cook.locator('.recettes-cook-label'))) === 'Étape 1 / 2' && (await text(cook.locator('.recettes-cook-step'))) === 'Faire revenir les oignons.');
+  check('Avec les ingrédients dont elle parle', (await text(cook.locator('.recettes-cook-used'))).includes('3 oignons'));
+  await page.keyboard.press('ArrowRight');
+  check('Les flèches du clavier passent d’une étape à l’autre', (await text(cook.locator('.recettes-cook-label'))) === 'Étape 2 / 2');
+  await cook.getByRole('button', { name: '⏱ Lancer 20:00' }).click();
+  await page.waitForTimeout(1300);
+  const clock = await text(cook.locator('.recettes-cook-clock'));
+  check('« Cuire 20 minutes » donne un minuteur, qui tourne', /^19:5\d$/.test(clock), clock);
+  await cook.getByRole('button', { name: 'Pause' }).click();
+  const paused = await text(cook.locator('.recettes-cook-clock'));
+  await page.waitForTimeout(1200);
+  check('Un minuteur se met en pause', (await text(cook.locator('.recettes-cook-clock'))) === paused && (await cook.getByRole('button', { name: 'Reprendre' }).isVisible()));
+  await page.keyboard.press('ArrowLeft');
+  check('Il continue quand on change d’étape', (await cook.locator('.recettes-cook-running li').count()) === 1);
+  await page.keyboard.press('Escape');
+  check('Échap quitte le mode cuisine', (await page.locator('.recettes-cook').count()) === 0);
+  await sheet.getByRole('button', { name: '← Carnet' }).click();
+
   // --- Téléphone ----------------------------------------------------------------------------------
   const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   for (const width of [390, 320]) {
@@ -244,6 +272,10 @@ export async function run({ browser, check, BASE }) {
     await page.locator('.recettes-card').first().click();
     await page.waitForSelector('.recettes-sheet');
     const sheetFits = await fits();
+    await sheet.getByRole('button', { name: '👩‍🍳 Cuisiner' }).click();
+    await page.getByRole('button', { name: 'Commencer ›' }).click();
+    const cookFits = await fits();
+    await page.getByRole('button', { name: 'Quitter le mode cuisine' }).click();
     await page.getByRole('button', { name: 'Nouvelle recette' }).click();
     const editorFits = await fits();
     await modal.getByRole('button', { name: 'Annuler' }).click();
@@ -252,7 +284,7 @@ export async function run({ browser, check, BASE }) {
     await page.waitForSelector('.recettes-menu');
     const menuFits = await fits();
     await page.getByRole('button', { name: /^Carnet/ }).click();
-    check(`Rien ne déborde sur téléphone (${width} px) : carnet, fiche, fenêtre, menu`, notebook && sheetFits && editorFits && menuFits, `${notebook} ${sheetFits} ${editorFits} ${menuFits}`);
+    check(`Rien ne déborde sur téléphone (${width} px) : carnet, fiche, cuisine, fenêtre, menu`, notebook && sheetFits && cookFits && editorFits && menuFits, `${notebook} ${sheetFits} ${cookFits} ${editorFits} ${menuFits}`);
   }
 
   await page.getByRole('button', { name: 'Changer de module — Recettes' }).click();

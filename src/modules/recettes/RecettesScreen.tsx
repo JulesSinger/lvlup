@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
+import { isRemote } from '../../core/data';
 import { prepareImage } from '../../core/data/images/prepareImage';
+import { isNetworkError } from '../../core/data/outbox';
 import { dayString, shiftDay } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import type { ShoppingRequest } from '../../core/lib/services';
+import { CookMode } from './components/CookMode';
 import { CookedDialog } from './components/CookedDialog';
 import { MenuView } from './components/MenuView';
 import { ShoppingDialog } from './components/ShoppingDialog';
@@ -14,6 +17,7 @@ import { forgetPhoto } from './components/RecipePhotoImg';
 import { RecipeSheet } from './components/RecipeSheet';
 import { recettesStore as store } from './data';
 import { canImportFromLink, importFromLink } from './data/importFromLink';
+import { readOfflineCopy, saveOfflineCopy } from './data/offlineCopy';
 import { MEAL_LABELS } from './lib/calendarMarks';
 import { weekdayLabel } from './lib/format';
 import { nextPosition, shoppingLines, weekDays, type ShoppingLine } from './lib/menu';
@@ -50,6 +54,9 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
   const [servings, setServings] = useState<number | null>(null);
   const [editing, setEditing] = useState<Recipe | 'new' | null>(null);
   const [cooking, setCooking] = useState(false);
+  const [cookMode, setCookMode] = useState(false);
+  /** Hors ligne : le moment de la copie affichée. */
+  const [offline, setOffline] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const [sentToCourses, setSentToCourses] = useState(false);
   const [shopping, setShopping] = useState<{ title: string; lines: ShoppingLine[] } | null>(null);
@@ -74,10 +81,24 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
       setCooked(nextCooked);
       setSettings(nextSettings);
       // Les photos à part : un bucket ou une table manquante n'empêche pas le carnet.
-      setPhotos(await store.listPhotos().catch(() => []));
+      const nextPhotos = await store.listPhotos().catch(() => []);
+      setPhotos(nextPhotos);
+      setOffline(null);
       onError('');
+      if (isRemote) saveOfflineCopy({ recipes: nextRecipes, photos: nextPhotos, cooked: nextCooked, plan: nextPlan });
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'Chargement impossible.');
+      // Sans réseau : la dernière copie, en lecture (étape 7).
+      const copy = isRemote && isNetworkError(err) ? readOfflineCopy() : null;
+      if (copy) {
+        setRecipes(copy.recipes);
+        setPhotos(copy.photos);
+        setCooked(copy.cooked);
+        setPlan(copy.plan);
+        setOffline(copy.savedAt);
+        onError('');
+      } else {
+        onError(err instanceof Error ? err.message : 'Chargement impossible.');
+      }
     } finally {
       setLoaded(true);
     }
@@ -242,6 +263,14 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
             </button>
           </div>
         )}
+        {offline && (
+          <div className="notice info" role="status">
+            Hors ligne : la copie de ton carnet du {new Date(offline).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}, en lecture.{' '}
+            <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => void refresh()}>
+              Réessayer
+            </button>
+          </div>
+        )}
         {notice && (
           <div className="notice info" role="status">
             {notice}
@@ -292,6 +321,11 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
             onDeleteCooked={(c) => void write(() => store.deleteCooked(c.id))}
             actions={
               <>
+                {open.steps.length > 0 && (
+                  <button type="button" className="btn btn-sm btn-primary" onClick={() => setCookMode(true)}>
+                    👩‍🍳 Cuisiner
+                  </button>
+                )}
                 <button type="button" className="btn btn-sm" onClick={() => setPicking('recipe')}>
                   📅 Au menu
                 </button>
@@ -346,6 +380,14 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
             onSave={save}
             onClose={() => setEditing(null)}
             onImportLink={canImportFromLink ? importFromLink : null}
+          />
+        )}
+        {cookMode && open && (
+          <CookMode
+            recipe={open}
+            servings={servings}
+            factor={open.servings && servings ? servings / open.servings : 1}
+            onClose={() => setCookMode(false)}
           />
         )}
         {shopping && (

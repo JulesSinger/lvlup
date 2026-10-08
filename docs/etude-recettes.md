@@ -548,3 +548,32 @@ d'abord « Ouvrir Courses », comme celui de la barre des modules : renommé.
 
 1625 → **1628** tests unitaires ; suite de Recettes 41 → **49** ; **1184/1184** en local et en
 mode comptes.
+
+## 19. Étape 7 : le mode cuisine, et la lecture hors ligne — découpage terminé (08/10/2026)
+
+- **Le mode cuisine** (`CookMode`, « 👩‍🍳 Cuisiner » sur une fiche qui a des étapes) —
+  facultatif, dans l'app, comme Jules l'a voulu. Plein écran : d'abord **les ingrédients à
+  réunir**, à cocher ; puis **une étape par écran, en grand**, avec **les ingrédients dont elle
+  parle** rappelés aux quantités de la fiche (`stepIngredients` : le mot principal du nom, sans
+  accents, ligatures ni pluriel — « bœuf » retrouve « boeuf haché », « l'ail » retrouve « 2
+  gousses d'ail » ; « eau », « sel » trop vagues pour être devinés). **Minuteurs** tirés du texte
+  (« ⏱ Lancer 20:00 »), plusieurs à la fois, avec pause, qui **comptent contre l'horloge** : ils
+  restent justes si le téléphone met l'app en veille ; à zéro, trois bips et une vibration.
+  **L'écran reste allumé** (`navigator.wakeLock`, redemandé au retour sur l'app) ; sinon l'écran
+  le dit et explique le réglage « Verrouillage automatique ». Flèches du clavier, glisser du doigt,
+  Échap ou ✕ pour sortir.
+- **Lire sans réseau** (`data/offlineCopy.ts`) : avec un compte, la dernière copie du carnet
+  (recettes, photos déjà vues, historique, menu) est gardée sur l'appareil ; sans réseau, Atlas
+  l'affiche, **en lecture**, avec « Hors ligne : la copie de ton carnet du… » et « Réessayer ».
+  Identifiant de stockage ajouté à CLAUDE.md §4 (`recettes.offline.v1`, rien de grave s'il se
+  perd).
+
+**Le découpage de l'étude est terminé.** Reste hors découpage : Nutrition (les kcal d'une part,
+« j'en ai mangé une part »), quand Jules s'en servira.
+
+**À faire par Jules** : appliquer `supabase/2026-10-08-recettes-tables.sql`, déployer
+`supabase functions deploy recettes-import --no-verify-jwt`, puis essayer sur l'iPhone l'import
+d'un lien Marmiton, l'écran qui reste allumé en mode cuisine, et la lecture en mode avion.
+
+1628 → **1633** tests unitaires ; suite de Recettes 49 → **59** ; **1194/1194** en local et en
+mode comptes.
