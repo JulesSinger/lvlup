@@ -203,6 +203,38 @@ export async function run({ browser, check, BASE }) {
   await sheet.getByRole('button', { name: '← Carnet' }).click();
   await page.getByRole('button', { name: /^Carnet/ }).click();
 
+  // --- Vers Courses, à la demande (étape 6) ------------------------------------------------------------
+  await page.locator('.recettes-card', { hasText: 'Lasagnes' }).click();
+  await sheet.getByRole('button', { name: '🛒 Ajouter aux courses' }).click();
+  await page.waitForSelector('.recettes-shopping');
+  const line = (name) => modal.locator('.recettes-shopping-line', { hasText: name });
+  check('La liste à relire reprend les ingrédients de la fiche', (await modal.locator('.recettes-shopping-line').count()) === 5);
+  check('« sel », toujours là, est décoché d’office', !(await line('sel').locator('input[type="checkbox"]').isChecked()));
+  check('Les quantités suivent le nombre de personnes de la fiche', (await line('boeuf').locator('.recettes-shopping-qty').inputValue()) === '600 g');
+  await line('oignons').getByRole('button', { name: '+ toujours là' }).click();
+  await page.waitForTimeout(200);
+  check('Un ingrédient devient « toujours là » d’un toucher, et se décoche', !(await line('oignons').locator('input[type="checkbox"]').isChecked()));
+  await line('lait').locator('.recettes-shopping-qty').fill('2 l');
+  await modal.getByRole('button', { name: /^Ajouter 3 articles aux courses/ }).click();
+  await page.waitForSelector('.notice.info');
+  check('Atlas dit ce qui est parti vers Courses', (await text(page.locator('.notice.info'))).includes('3 articles envoyés à Courses'));
+  await page.getByRole('button', { name: 'Voir la liste de courses' }).click();
+  await page.waitForFunction(() => location.hash === '#/courses');
+  await page.waitForTimeout(500);
+  const courses = await text(page.locator('main'));
+  check('Les articles sont sur la liste de Courses, quantités comprises', courses.includes('boeuf haché') && courses.includes('2 l') && courses.includes('600 g') && !courses.includes('oignons'), courses.slice(0, 300));
+  await page.evaluate(() => (location.hash = '#/recettes'));
+  await page.waitForSelector('.recettes-sheet, .recettes-grid, .recettes-menu');
+  if (await page.locator('.recettes-sheet').count()) await sheet.getByRole('button', { name: '← Carnet' }).click();
+  await page.getByRole('button', { name: /^Menu de la semaine/ }).click();
+  await page.getByRole('button', { name: '🛒 Courses de la semaine' }).click();
+  await page.waitForSelector('.recettes-shopping');
+  check('« Oignons » reste « toujours là » la fois suivante', !(await line('oignons').locator('input[type="checkbox"]').isChecked()));
+  await modal.getByRole('button', { name: /^Ajouter \d+ articles? aux courses/ }).click();
+  await page.waitForSelector('.notice.info');
+  check('Ce qui est déjà sur la liste est complété, pas dédoublé', (await text(page.locator('.notice.info'))).includes('déjà sur la liste, quantité complétée'));
+  await page.getByRole('button', { name: /^Carnet/ }).click();
+
   // --- Téléphone ----------------------------------------------------------------------------------
   const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   for (const width of [390, 320]) {

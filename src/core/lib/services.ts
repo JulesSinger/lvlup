@@ -217,12 +217,36 @@ export interface CheckinService {
   list(prefix: string): Promise<RecordedCheckin[]>;
 }
 
+/**
+ * Une ligne qu'un module demande d'ajouter à la liste de courses (Recettes,
+ * 08/10/2026, docs/etude-recettes.md §6.1, §18) — toujours après un geste
+ * voulu de Jules, jamais d'office.
+ */
+export interface ShoppingRequest {
+  name: string;
+  /** « 500 g », « 3 », « 2 gousses » ; vide si la recette ne dit pas combien. */
+  quantity: string;
+  /** Pour quoi : « Lasagnes, Curry ». */
+  note: string;
+}
+
+export interface ShoppingService {
+  /**
+   * Ajoute les lignes à la liste. Un article déjà connu est retrouvé par son
+   * nom ; déjà sur la liste, sa quantité est complétée (« 1 kg + 500 g »)
+   * plutôt que dédoublée — une ligne par article, comme partout dans Courses.
+   */
+  add(lines: ShoppingRequest[]): Promise<{ added: number; merged: number }>;
+}
+
 /** Tout ce que les modules peuvent se rendre les uns aux autres. */
 export interface AtlasServices {
   /** Fourni par le module budget (Astra). */
   expenses?: ExpenseService;
   /** Fourni par le module objectifs : cocher une action depuis un autre module (Sport). */
   checkins?: CheckinService;
+  /** Fourni par le module courses : ajouter des articles à la liste (Recettes). */
+  shopping?: ShoppingService;
   /** Fournis par tout module qui a quelque chose à montrer dans le calendrier — plusieurs à la fois. */
   calendarSources?: CalendarSource[];
 }

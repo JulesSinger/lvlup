@@ -3,8 +3,10 @@ import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { prepareImage } from '../../core/data/images/prepareImage';
 import { dayString, shiftDay } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
+import type { ShoppingRequest } from '../../core/lib/services';
 import { CookedDialog } from './components/CookedDialog';
 import { MenuView } from './components/MenuView';
+import { ShoppingDialog } from './components/ShoppingDialog';
 import { PlanPicker } from './components/PlanPicker';
 import { Notebook } from './components/Notebook';
 import { RecipeEditor, type PhotoChange } from './components/RecipeEditor';
@@ -14,7 +16,7 @@ import { recettesStore as store } from './data';
 import { canImportFromLink, importFromLink } from './data/importFromLink';
 import { MEAL_LABELS } from './lib/calendarMarks';
 import { weekdayLabel } from './lib/format';
-import { nextPosition, weekDays } from './lib/menu';
+import { nextPosition, shoppingLines, weekDays, type ShoppingLine } from './lib/menu';
 import { DEFAULT_RECETTES_SETTINGS, type Cooked, type CookedInput, type Meal, type PlanEntry, type PlanEntryInput, type Recipe, type RecipeInput, type RecipePhoto, type RecettesSettings } from './lib/types';
 
 /** Une photo réduite dans le navigateur avant tout envoi : 1 600 px et une vignette (étude §12). */
@@ -38,7 +40,7 @@ function savedView(): View {
  * Écran racine de Recettes (docs/etude-recettes.md §5, §15, §17) : le carnet,
  * le menu de la semaine, la fiche d'une recette, la fenêtre pour en ajouter.
  */
-export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji, intent }: ModuleScreenProps) {
+export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule, onOpenModule, reloadToken, label, emoji, intent, services }: ModuleScreenProps) {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [photos, setPhotos] = useState<RecipePhoto[]>([]);
   const [cooked, setCooked] = useState<Cooked[]>([]);
@@ -49,6 +51,9 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
   const [editing, setEditing] = useState<Recipe | 'new' | null>(null);
   const [cooking, setCooking] = useState(false);
   const [notice, setNotice] = useState('');
+  const [sentToCourses, setSentToCourses] = useState(false);
+  const [shopping, setShopping] = useState<{ title: string; lines: ShoppingLine[] } | null>(null);
+  const shoppingService = services.shopping;
   const [view, setViewState] = useState<View>(savedView);
   const [menuDay, setMenuDay] = useState(dayString());
   const [plan, setPlan] = useState<PlanEntry[]>([]);
@@ -118,6 +123,7 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
     const sameDay = await store.listPlan(input.day, input.day);
     await store.addPlanEntry({ ...input, position: nextPosition(sameDay, input.day, input.meal) }, crypto.randomUUID());
     setPicking(null);
+    setSentToCourses(false);
     if (input.day < week[0] || input.day > week[6]) setMenuDay(input.day);
     const what = input.recipeId ? (recipes.find((r) => r.id === input.recipeId)?.title ?? '') : input.title;
     setNotice(`Au menu : ${what}, ${MEAL_LABELS[input.meal].toLowerCase()} du ${weekdayLabel(input.day)}.`);
@@ -174,6 +180,35 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
     }
   }
 
+  /** Les courses d'une recette, ou de la semaine affichée (à partir d'aujourd'hui) : une liste à relire. */
+  function openShopping(items: { recipe: Recipe; servings: number | null }[], title: string) {
+    setShopping({ title, lines: shoppingLines(items, settings.pantry) });
+  }
+
+  function weekShopping() {
+    const byId = new Map(recipes.map((r) => [r.id, r]));
+    const items = plan
+      .filter((e) => e.day >= today && e.recipeId && byId.has(e.recipeId))
+      .map((e) => ({ recipe: byId.get(e.recipeId!)!, servings: e.servings }));
+    openShopping(items, 'le menu de la semaine');
+  }
+
+  async function sendToCourses(requests: ShoppingRequest[]) {
+    if (!shoppingService) return;
+    const { added, merged } = await shoppingService.add(requests);
+    setShopping(null);
+    const total = added + merged;
+    setNotice(
+      `${total} article${total > 1 ? 's' : ''} envoyé${total > 1 ? 's' : ''} à Courses${merged > 0 ? ` (${merged} déjà sur la liste, quantité complétée)` : ''}.`,
+    );
+    setSentToCourses(true);
+  }
+
+  async function savePantry(pantry: string[]) {
+    await store.updateSettings({ pantry });
+    setSettings((s) => ({ ...s, pantry }));
+  }
+
   async function addCooked(input: CookedInput) {
     await store.addCooked(input, crypto.randomUUID());
     setCooking(false);
@@ -210,6 +245,11 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
         {notice && (
           <div className="notice info" role="status">
             {notice}
+            {sentToCourses && (
+              <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => onOpenModule('courses')}>
+                Voir la liste de courses
+              </button>
+            )}
           </div>
         )}
 
@@ -251,9 +291,16 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
             onCooked={() => setCooking(true)}
             onDeleteCooked={(c) => void write(() => store.deleteCooked(c.id))}
             actions={
-              <button type="button" className="btn btn-sm" onClick={() => setPicking('recipe')}>
-                📅 Au menu
-              </button>
+              <>
+                <button type="button" className="btn btn-sm" onClick={() => setPicking('recipe')}>
+                  📅 Au menu
+                </button>
+                {shoppingService && (
+                  <button type="button" className="btn btn-sm" onClick={() => openShopping([{ recipe: open, servings }], open.title)}>
+                    🛒 Ajouter aux courses
+                  </button>
+                )}
+              </>
             }
           />
         ) : view === 'menu' ? (
@@ -267,6 +314,13 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
             onAdd={(day, meal) => setPicking({ day, meal })}
             onOpen={openRecipe}
             onRemove={(e) => void write(() => store.deletePlanEntry(e.id))}
+            toolbar={
+              shoppingService && (
+                <button type="button" className="btn btn-sm" onClick={weekShopping} disabled={!plan.some((e) => e.recipeId && e.day >= today)}>
+                  🛒 Courses de la semaine
+                </button>
+              )
+            }
           />
         ) : recipes.length === 0 ? (
           <div className="recettes-empty">
@@ -292,6 +346,16 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
             onSave={save}
             onClose={() => setEditing(null)}
             onImportLink={canImportFromLink ? importFromLink : null}
+          />
+        )}
+        {shopping && (
+          <ShoppingDialog
+            title={shopping.title}
+            lines={shopping.lines}
+            pantry={settings.pantry}
+            onPantry={savePantry}
+            onSend={sendToCourses}
+            onClose={() => setShopping(null)}
           />
         )}
         {picking && (

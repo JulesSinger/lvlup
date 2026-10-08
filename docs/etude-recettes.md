@@ -522,3 +522,29 @@ Rien ne part vers Courses depuis le menu : c'est l'étape suivante, et toujours 
 
 1622 → **1625** tests unitaires ; suite de Recettes 33 → **41** (le calque vu dans Calendar
 compris) ; **1176/1176** en local et en mode comptes.
+
+## 18. Étape 6 : vers Courses, à la demande (08/10/2026)
+
+- **Un nouveau service du socle, `shopping`** (`core/lib/services.ts`), **rendu par Courses**
+  (`courses/data/shoppingService.ts`) : `add(lignes)`. Courses range avec ses règles : l'article
+  retrouvé par son nom **au pluriel près** (`findItemLoosely` : « oignons jaunes » retrouve
+  « Oignon jaune ») ou créé dans son rayon deviné ; **une seule ligne par article** — déjà sur la
+  liste, sa quantité est complétée (« 1 l + 90 cl ») et la ligne décochée (il en faut encore) ;
+  trop longue pour la colonne (30 caractères), l'ajout part dans la note, jamais perdu. La note dit
+  pour quelles recettes.
+- **Toujours un geste voulu** (décision de Jules) : « 🛒 Ajouter aux courses » sur une fiche (au
+  nombre de personnes choisi) et « 🛒 Courses de la semaine » sur le menu (les repas à partir
+  d'aujourd'hui, chacun à son nombre de personnes) ouvrent **une liste à relire**
+  (`ShoppingDialog`) : cocher, décocher, corriger une quantité ; les ingrédients « toujours là »
+  décochés d'office, et **« + toujours là »** d'un toucher pour qu'un ingrédient le reste les
+  fois suivantes (réglage rangé, `recettes_settings.pantry`). Rien ne part sans le bouton
+  « Ajouter N articles aux courses ». Un message dit ce qui est parti, avec « Voir la liste de
+  courses ».
+- Sans Courses dans Atlas (module retiré), les boutons n'apparaissent pas.
+
+Vérifié de bout en bout jusque dans l'écran de Courses : les articles y sont, quantités
+comprises ; un second envoi complète au lieu de dédoubler. Le bouton du message s'appelait
+d'abord « Ouvrir Courses », comme celui de la barre des modules : renommé.
+
+1625 → **1628** tests unitaires ; suite de Recettes 41 → **49** ; **1184/1184** en local et en
+mode comptes.

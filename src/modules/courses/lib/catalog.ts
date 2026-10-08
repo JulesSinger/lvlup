@@ -15,6 +15,24 @@ export function findItemByName(items: readonly Item[], name: string): Item | nul
 }
 
 /**
+ * Le même article, au pluriel près : « oignons jaunes » retrouve « Oignon
+ * jaune ». Pour les lignes qui viennent d'une recette (service `shopping`),
+ * écrites autrement que dans le catalogue. Le nom exact passe d'abord.
+ */
+export function findItemLoosely(items: readonly Item[], name: string): Item | null {
+  const exact = findItemByName(items, name);
+  if (exact) return exact;
+  const singular = (text: string) =>
+    normalize(text)
+      .split(' ')
+      .map((w) => (w.length > 3 && /[sx]$/.test(w) ? w.slice(0, -1) : w))
+      .join(' ');
+  const key = singular(name);
+  if (!key) return null;
+  return items.find((i) => singular(i.name) === key) ?? null;
+}
+
+/**
  * Les articles connus à proposer pendant la frappe : ceux qui ne sont pas
  * déjà sur la liste, dont un mot commence par chaque mot tapé. Sans rien
  * taper : les habituels dus d'abord, puis les autres. Les habituels passent
