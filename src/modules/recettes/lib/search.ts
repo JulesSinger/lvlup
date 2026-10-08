@@ -55,16 +55,18 @@ export interface HaveMatch {
  * d'ingrédients trouvés, puis par ce qui manque. Pas de stock à tenir.
  */
 export function withWhatIHave(recipes: Recipe[], text: string, pantry: string[] = []): HaveMatch[] {
-  const wanted = text
+  // Chaque mot tel qu'il est tapé (pour le dire) et replié (pour comparer).
+  const typed = text
     .split(/[,;\n]+|\s+et\s+/)
-    .map((w) => ingredientKey(w))
-    .filter(Boolean);
+    .map((w) => ({ label: w.trim(), key: ingredientKey(w) }))
+    .filter((w) => w.key);
+  const wanted = typed.map((w) => w.key);
   if (wanted.length === 0) return [];
   const always = new Set(pantry.map(ingredientKey));
   const out: HaveMatch[] = [];
   for (const recipe of recipes) {
     const keys = recipe.ingredients.filter((i) => !isSectionHeading(i.text)).map((i) => parseIngredient(i.text).key);
-    const found = wanted.filter((w) => keys.some((k) => k === w || k.split(' ').includes(w) || k.startsWith(`${w} `)));
+    const found = typed.filter(({ key: w }) => keys.some((k) => k === w || k.split(' ').includes(w) || k.startsWith(`${w} `))).map((w) => w.label);
     if (found.length === 0) continue;
     const missing = keys.filter((k) => !always.has(k) && !wanted.some((w) => k === w || k.split(' ').includes(w) || k.startsWith(`${w} `))).length;
     out.push({ recipe, found, missing });

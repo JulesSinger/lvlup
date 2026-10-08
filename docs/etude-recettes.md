@@ -446,5 +446,30 @@ exacte, comme pour « Sport » dans Hauts faits.
   « Préparation » glissé dans les ingrédients n'est pas un groupe. Essayé sur les 12 pages réelles
   relevées : toutes lues.
 
-1529 → **1613** tests unitaires (84 pour le module). Aucun écran : les suites de bout en bout ne
-changent pas.
+1529 → **1598** tests unitaires. Aucun écran : les suites de bout en bout ne changent pas.
+
+## 15. Étape 3 : la V1 (08/10/2026)
+
+- **Le carnet** (`Notebook`) : les recettes en cartes (photo ou emblème de la catégorie, temps
+  total, note moyenne, « jamais faite », ★ des favoris), recherche, filtres (catégorie,
+  « 30 min ou moins », favoris, jamais faites), et **« 🧺 Avec ce que j'ai »**, qui dit sur
+  chaque carte ce qui a été trouvé et combien d'ingrédients manquent.
+- **La fiche** (`RecipeSheet`) : photo, temps, source (lien), étiquettes, « faite N fois, la
+  dernière le… », ma note, **ingrédients groupés et ajustés au nombre de personnes** (− 4 +,
+  « Quantités ajustées pour 6 personnes »), étapes numérotées, historique, favori, modifier,
+  supprimer après confirmation.
+- **La fenêtre d'une recette** (`RecipeEditor`) : **Saisir** (titre, catégorie, personnes et ce
+  qu'elles comptent, temps en « 25 », « 45 min » ou « 1 h 30 », ingrédients une ligne chacun —
+  une ligne qui finit par « : » ouvre un groupe —, étapes une ligne chacune, photo, puis source,
+  étiquettes, description et note repliées) ou **Coller un texte**, lu en brouillon qu'on relit
+  avant d'enregistrer (`lib/editorText.ts`).
+- **La photo** : réduite dans le navigateur (1 600 px et une vignette de 600), posée **après** la
+  recette — une photo qui échoue ne fait jamais perdre la recette, un message le dit.
+- **« Je l'ai faite »** (`CookedDialog`) : le jour, pour combien, une note en étoiles, un mot pour
+  la prochaine fois.
+
+Vu sur captures : sans photo, la couverture prenait un demi-écran de téléphone — ramenée à une
+bande. « Avec ce que j'ai » montrait les mots repliés (« oeuf ») : ils sont dits tels que tapés.
+
+1598 → **1603** tests unitaires ; suite de Recettes 5 → **31** (une vraie photo JPEG, le
+rechargement, 390 et 320 px) ; **1166/1166** en local et en mode comptes.
