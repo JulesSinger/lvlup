@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
+import { fetchAll, getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
 import {
   DEFAULT_CALENDAR_SETTINGS,
   deviceTimezone,
@@ -109,7 +109,11 @@ export class SupabaseCalendar implements CalendarStore {
   }
 
   async listEvents(): Promise<CalendarEvent[]> {
-    return (unwrap(await this.client.from('calendar_events').select('*')) as EventRow[]).map(toEvent);
+    return (
+      await fetchAll<EventRow>((first, last) =>
+        this.client.from('calendar_events').select('*').order('id').range(first, last),
+      )
+    ).map(toEvent);
   }
 
   async createEvent(input: EventInput): Promise<CalendarEvent> {
@@ -134,7 +138,11 @@ export class SupabaseCalendar implements CalendarStore {
   }
 
   async listExceptions(): Promise<EventException[]> {
-    return (unwrap(await this.client.from('calendar_exceptions').select('*')) as ExceptionRow[]).map(toException);
+    return (
+      await fetchAll<ExceptionRow>((first, last) =>
+        this.client.from('calendar_exceptions').select('*').order('id').range(first, last),
+      )
+    ).map(toException);
   }
 
   async setException(eventId: string, occurrenceDay: string, kind: ExceptionKind, override?: EventOverride) {

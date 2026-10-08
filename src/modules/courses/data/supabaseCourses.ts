@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
+import { fetchAll, getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
 import type {
   Aisle,
   ClosePlan,
@@ -139,7 +139,11 @@ export class SupabaseCourses implements CoursesStore {
   }
 
   async listItems(): Promise<Item[]> {
-    return (unwrap(await this.client.from('courses_items').select('*')) as ItemRow[]).map(toItem);
+    return (
+      await fetchAll<ItemRow>((first, last) =>
+        this.client.from('courses_items').select('*').order('id').range(first, last),
+      )
+    ).map(toItem);
   }
 
   async createItem(input: ItemInput): Promise<Item> {
@@ -165,7 +169,11 @@ export class SupabaseCourses implements CoursesStore {
   }
 
   async listStores(): Promise<Store[]> {
-    return (unwrap(await this.client.from('courses_stores').select('*')) as StoreRow[]).map(toStore);
+    return (
+      await fetchAll<StoreRow>((first, last) =>
+        this.client.from('courses_stores').select('*').order('id').range(first, last),
+      )
+    ).map(toStore);
   }
 
   async createStore(name: string): Promise<Store> {
@@ -185,7 +193,11 @@ export class SupabaseCourses implements CoursesStore {
   }
 
   async listEntries(): Promise<ListEntry[]> {
-    return (unwrap(await this.client.from('courses_list').select('*')) as EntryRow[]).map(toEntry);
+    return (
+      await fetchAll<EntryRow>((first, last) =>
+        this.client.from('courses_list').select('*').order('id').range(first, last),
+      )
+    ).map(toEntry);
   }
 
   async addEntry(itemId: string, quantity = '', note = ''): Promise<ListEntry> {
@@ -209,14 +221,18 @@ export class SupabaseCourses implements CoursesStore {
   }
 
   async listTrips(): Promise<Trip[]> {
-    const rows = unwrap(
-      await this.client.from('courses_trips').select('*').order('number', { ascending: false }),
-    ) as TripRow[];
+    const rows = await fetchAll<TripRow>((first, last) =>
+      this.client.from('courses_trips').select('*').order('number', { ascending: false }).order('id').range(first, last),
+    );
     return rows.map(toTrip);
   }
 
   async listTripItems(): Promise<TripItem[]> {
-    return (unwrap(await this.client.from('courses_trip_items').select('*')) as TripItemRow[]).map(toTripItem);
+    return (
+      await fetchAll<TripItemRow>((first, last) =>
+        this.client.from('courses_trip_items').select('*').order('id').range(first, last),
+      )
+    ).map(toTripItem);
   }
 
   /**

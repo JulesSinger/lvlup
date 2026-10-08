@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
+import { fetchAll, getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
 import type { Entry, EntryInput, Food, FoodInput, Meal, FoodSource, Target, TargetInput } from '../lib/types';
 import type { NutritionBackup, NutritionStore } from './nutritionStore';
 
@@ -135,7 +135,9 @@ export class SupabaseNutrition implements NutritionStore {
   }
 
   async listFoods(): Promise<Food[]> {
-    const rows = unwrap(await this.client.from('nutrition_foods').select('*')) as FoodRow[];
+    const rows = await fetchAll<FoodRow>((first, last) =>
+      this.client.from('nutrition_foods').select('*').order('id').range(first, last),
+    );
     return rows.map(toFood);
   }
 
@@ -163,14 +165,9 @@ export class SupabaseNutrition implements NutritionStore {
   }
 
   async listEntries(from: string, to: string): Promise<Entry[]> {
-    const rows = unwrap(
-      await this.client
-        .from('nutrition_entries')
-        .select('*')
-        .gte('day', from)
-        .lte('day', to)
-        .order('created_at', { ascending: true }),
-    ) as EntryRow[];
+    const rows = await fetchAll<EntryRow>((first, last) =>
+      this.client.from('nutrition_entries').select('*').gte('day', from).lte('day', to).order('created_at', { ascending: true }).order('id').range(first, last),
+    );
     return rows.map(toEntry);
   }
 
@@ -209,12 +206,9 @@ export class SupabaseNutrition implements NutritionStore {
   }
 
   async listTargets(): Promise<Target[]> {
-    const rows = unwrap(
-      await this.client
-        .from('nutrition_targets')
-        .select('*')
-        .order('effective_from', { ascending: true }),
-    ) as TargetRow[];
+    const rows = await fetchAll<TargetRow>((first, last) =>
+      this.client.from('nutrition_targets').select('*').order('effective_from', { ascending: true }).order('id').range(first, last),
+    );
     return rows.map(toTarget);
   }
 
@@ -247,7 +241,9 @@ export class SupabaseNutrition implements NutritionStore {
   }
 
   async exportData(): Promise<NutritionBackup> {
-    const entries = unwrap(await this.client.from('nutrition_entries').select('*')) as EntryRow[];
+    const entries = await fetchAll<EntryRow>((first, last) =>
+      this.client.from('nutrition_entries').select('*').order('id').range(first, last),
+    );
     return {
       foods: await this.listFoods(),
       entries: entries.map(toEntry),

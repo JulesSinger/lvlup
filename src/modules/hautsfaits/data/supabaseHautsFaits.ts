@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
+import { fetchAll, getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
 import {
   DEFAULT_HAUTSFAITS_SETTINGS,
   type DatePrecision,
@@ -116,7 +116,11 @@ export class SupabaseHautsFaits implements HautsFaitsStore {
   }
 
   async listFeats(): Promise<Feat[]> {
-    return (unwrap(await this.client.from('hautsfaits_feats').select('*').order('date_start', { ascending: false })) as FeatRow[]).map(toFeat);
+    return (
+      await fetchAll<FeatRow>((first, last) =>
+        this.client.from('hautsfaits_feats').select('*').order('date_start', { ascending: false }).order('id').range(first, last),
+      )
+    ).map(toFeat);
   }
 
   async createFeat(input: FeatInput, id?: string): Promise<Feat> {
@@ -166,7 +170,11 @@ export class SupabaseHautsFaits implements HautsFaitsStore {
   }
 
   async listPhotos(): Promise<FeatPhoto[]> {
-    return (unwrap(await this.client.from('hautsfaits_photos').select('*').order('position')) as PhotoRow[]).map(toPhoto);
+    return (
+      await fetchAll<PhotoRow>((first, last) =>
+        this.client.from('hautsfaits_photos').select('*').order('position').order('id').range(first, last),
+      )
+    ).map(toPhoto);
   }
 
   async addPhoto(featId: string, photo: PreparedPhoto, position: number, id: string = crypto.randomUUID()): Promise<FeatPhoto> {

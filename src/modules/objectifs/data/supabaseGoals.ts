@@ -12,7 +12,7 @@ import type {
 } from '../lib/types';
 import { DEFAULT_ACTIONS, JALON } from '../lib/types';
 
-import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
+import { fetchAll, getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
 import type { GoalsBackup, GoalsStore, UnlockedAchievement } from './goalsStore';
 
 interface GoalRow {
@@ -200,12 +200,12 @@ export class SupabaseGoals implements GoalsStore {
 
 
   async listGoals(): Promise<Goal[]> {
-    const goals = unwrap(
-      await this.client.from('goals').select('*').order('position', { ascending: true }),
-    ) as GoalRow[];
-    const tiers = unwrap(
-      await this.client.from('tiers').select('*').order('position', { ascending: true }),
-    ) as TierRow[];
+    const goals = await fetchAll<GoalRow>((first, last) =>
+      this.client.from('goals').select('*').order('position', { ascending: true }).order('id').range(first, last),
+    );
+    const tiers = await fetchAll<TierRow>((first, last) =>
+      this.client.from('tiers').select('*').order('position', { ascending: true }).order('id').range(first, last),
+    );
     return goals.map((g) => toGoal(g, tiers));
   }
 
@@ -359,13 +359,9 @@ export class SupabaseGoals implements GoalsStore {
 
 
   async listActions(): Promise<Action[]> {
-    const rows = unwrap(
-      await this.client
-        .from('actions')
-        .select('*')
-        .eq('archived', false)
-        .order('position', { ascending: true }),
-    ) as ActionRow[];
+    const rows = await fetchAll<ActionRow>((first, last) =>
+      this.client.from('actions').select('*').eq('archived', false).order('position', { ascending: true }).order('id').range(first, last),
+    );
     return rows.map(toAction);
   }
 
@@ -418,9 +414,9 @@ export class SupabaseGoals implements GoalsStore {
 
 
   async listCheckins(): Promise<Checkin[]> {
-    const rows = unwrap(
-      await this.client.from('checkins').select('*').order('day', { ascending: true }),
-    ) as CheckinRow[];
+    const rows = await fetchAll<CheckinRow>((first, last) =>
+      this.client.from('checkins').select('*').order('day', { ascending: true }).order('id').range(first, last),
+    );
     return rows.map(toCheckin);
   }
 
@@ -514,9 +510,9 @@ export class SupabaseGoals implements GoalsStore {
 
 
   async listAchievements(): Promise<UnlockedAchievement[]> {
-    const rows = unwrap(
-      await this.client.from('achievements').select('achievement_id, unlocked_at'),
-    ) as { achievement_id: string; unlocked_at: string }[];
+    const rows = await fetchAll<{ achievement_id: string; unlocked_at: string }>((first, last) =>
+      this.client.from('achievements').select('achievement_id, unlocked_at').order('achievement_id').range(first, last),
+    );
     return rows.map((r) => ({ id: r.achievement_id, unlockedAt: r.unlocked_at }));
   }
 
@@ -532,9 +528,9 @@ export class SupabaseGoals implements GoalsStore {
   }
 
   async listFreezePurchases(): Promise<FreezePurchase[]> {
-    const rows = unwrap(
-      await this.client.from('freeze_purchases').select('id, day, cost, created_at').order('day'),
-    ) as { id: string; day: string; cost: number; created_at: string }[];
+    const rows = await fetchAll<{ id: string; day: string; cost: number; created_at: string }>((first, last) =>
+      this.client.from('freeze_purchases').select('id, day, cost, created_at').order('day').order('id').range(first, last),
+    );
     return rows.map((r) => ({ id: r.id, day: r.day, cost: r.cost, createdAt: r.created_at }));
   }
 

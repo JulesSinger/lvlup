@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
+import { fetchAll, getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
 import type { ImageSize, PreparedImage } from '../../../core/lib/images';
 import type {
   Client,
@@ -370,7 +370,11 @@ export class SupabaseProjets implements ProjetsStore {
   }
 
   async listClients(): Promise<Client[]> {
-    return (unwrap(await this.client.from('projets_clients').select('*').order('name')) as ClientRow[]).map(toClient);
+    return (
+      await fetchAll<ClientRow>((first, last) =>
+        this.client.from('projets_clients').select('*').order('name').order('id').range(first, last),
+      )
+    ).map(toClient);
   }
 
   async createClient(input: ClientInput, id?: string): Promise<Client> {
@@ -391,7 +395,11 @@ export class SupabaseProjets implements ProjetsStore {
   }
 
   async listProjects(): Promise<Project[]> {
-    return (unwrap(await this.client.from('projets_projects').select('*').order('number')) as ProjectRow[]).map(toProject);
+    return (
+      await fetchAll<ProjectRow>((first, last) =>
+        this.client.from('projets_projects').select('*').order('number').order('id').range(first, last),
+      )
+    ).map(toProject);
   }
 
   async createProject(input: ProjectInput, id?: string): Promise<Project> {
@@ -440,7 +448,11 @@ export class SupabaseProjets implements ProjetsStore {
   }
 
   async listWorkstreams(): Promise<Workstream[]> {
-    return (unwrap(await this.client.from('projets_workstreams').select('*').order('position')) as WorkstreamRow[]).map(toWorkstream);
+    return (
+      await fetchAll<WorkstreamRow>((first, last) =>
+        this.client.from('projets_workstreams').select('*').order('position').order('id').range(first, last),
+      )
+    ).map(toWorkstream);
   }
 
   async createWorkstream(input: WorkstreamInput, id?: string): Promise<Workstream> {
@@ -457,7 +469,11 @@ export class SupabaseProjets implements ProjetsStore {
   }
 
   async listTasks(): Promise<ProjectTask[]> {
-    return (unwrap(await this.client.from('projets_tasks').select('*').order('position')) as TaskRow[]).map(toTask);
+    return (
+      await fetchAll<TaskRow>((first, last) =>
+        this.client.from('projets_tasks').select('*').order('position').order('id').range(first, last),
+      )
+    ).map(toTask);
   }
 
   async createTask(input: ProjectTaskInput, id?: string): Promise<ProjectTask> {
@@ -487,7 +503,11 @@ export class SupabaseProjets implements ProjetsStore {
   }
 
   async listNotes(): Promise<ProjectNote[]> {
-    return (unwrap(await this.client.from('projets_notes').select('*').order('day')) as NoteRow[]).map(toNote);
+    return (
+      await fetchAll<NoteRow>((first, last) =>
+        this.client.from('projets_notes').select('*').order('day').order('id').range(first, last),
+      )
+    ).map(toNote);
   }
 
   async createNote(input: ProjectNoteInput, id?: string): Promise<ProjectNote> {
@@ -505,7 +525,11 @@ export class SupabaseProjets implements ProjetsStore {
   }
 
   async listLinks(): Promise<ProjectLink[]> {
-    return (unwrap(await this.client.from('projets_links').select('*').order('position')) as LinkRow[]).map(toLink);
+    return (
+      await fetchAll<LinkRow>((first, last) =>
+        this.client.from('projets_links').select('*').order('position').order('id').range(first, last),
+      )
+    ).map(toLink);
   }
 
   async createLink(input: ProjectLinkInput, id?: string): Promise<ProjectLink> {
@@ -522,7 +546,11 @@ export class SupabaseProjets implements ProjetsStore {
   }
 
   async listPayments(): Promise<Payment[]> {
-    return (unwrap(await this.client.from('projets_payments').select('*').order('position')) as PaymentRow[]).map(toPayment);
+    return (
+      await fetchAll<PaymentRow>((first, last) =>
+        this.client.from('projets_payments').select('*').order('position').order('id').range(first, last),
+      )
+    ).map(toPayment);
   }
 
   async createPayment(input: PaymentInput, id?: string): Promise<Payment> {
@@ -548,7 +576,11 @@ export class SupabaseProjets implements ProjetsStore {
   }
 
   async listTime(): Promise<TimeEntry[]> {
-    return (unwrap(await this.client.from('projets_time').select('*').order('day')) as TimeRow[]).map(toTime);
+    return (
+      await fetchAll<TimeRow>((first, last) =>
+        this.client.from('projets_time').select('*').order('day').order('id').range(first, last),
+      )
+    ).map(toTime);
   }
 
   async createTime(input: TimeEntryInput, id?: string): Promise<TimeEntry> {
@@ -569,7 +601,11 @@ export class SupabaseProjets implements ProjetsStore {
   }
 
   async listImages(): Promise<ProjectImage[]> {
-    return (unwrap(await this.client.from('projets_images').select('*').order('position')) as ImageRow[]).map(toImage);
+    return (
+      await fetchAll<ImageRow>((first, last) =>
+        this.client.from('projets_images').select('*').order('position').order('id').range(first, last),
+      )
+    ).map(toImage);
   }
 
   async addImage(projectId: string, kind: ProjectImageKind, image: PreparedImage, position: number, id: string = crypto.randomUUID()): Promise<ProjectImage> {

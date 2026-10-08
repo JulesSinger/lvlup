@@ -277,7 +277,9 @@ export class SupabaseSport implements SportStore {
   }
 
   async listPlans(): Promise<Plan[]> {
-    return (unwrap(await this.client.from('sport_plans').select('*').order('race_day')) as PlanRow[]).map(toPlan);
+    return (
+      await fetchAll<PlanRow>((first, last) => this.client.from('sport_plans').select('*').order('race_day').order('id').range(first, last))
+    ).map(toPlan);
   }
 
   async createPlan(input: PlanInput, id?: string): Promise<Plan> {
@@ -343,9 +345,9 @@ export class SupabaseSport implements SportStore {
   }
 
   async listTokens(): Promise<ImportToken[]> {
-    const rows = unwrap(
-      await this.client.from('sport_import_tokens').select('id, label, created_at, last_used_at').order('created_at'),
-    ) as TokenRow[];
+    const rows = await fetchAll<TokenRow>((first, last) =>
+      this.client.from('sport_import_tokens').select('id, label, created_at, last_used_at').order('created_at').order('id').range(first, last),
+    );
     return rows.map(toToken);
   }
 

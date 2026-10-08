@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
+import { fetchAll, getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
 import { dayString } from '../lib/day';
 import type { Card, CardInput, Deck, DeckInput, Review } from '../lib/types';
 import type { FlashcardsBackup, FlashcardsStore } from './flashcardsStore';
@@ -79,9 +79,9 @@ export class SupabaseFlashcards implements FlashcardsStore {
   }
 
   async listDecks(): Promise<Deck[]> {
-    const rows = unwrap(
-      await this.client.from('flashcards_decks').select('*').order('position', { ascending: true }),
-    ) as DeckRow[];
+    const rows = await fetchAll<DeckRow>((first, last) =>
+      this.client.from('flashcards_decks').select('*').order('position', { ascending: true }).order('id').range(first, last),
+    );
     return rows.map(toDeck);
   }
 
@@ -121,7 +121,9 @@ export class SupabaseFlashcards implements FlashcardsStore {
   }
 
   async listCards(): Promise<Card[]> {
-    const rows = unwrap(await this.client.from('flashcards_cards').select('*')) as CardRow[];
+    const rows = await fetchAll<CardRow>((first, last) =>
+      this.client.from('flashcards_cards').select('*').order('id').range(first, last),
+    );
     return rows.map(toCard);
   }
 
@@ -176,7 +178,9 @@ export class SupabaseFlashcards implements FlashcardsStore {
   }
 
   async listReviews(): Promise<Review[]> {
-    const rows = unwrap(await this.client.from('flashcards_reviews').select('*')) as ReviewRow[];
+    const rows = await fetchAll<ReviewRow>((first, last) =>
+      this.client.from('flashcards_reviews').select('*').order('id').range(first, last),
+    );
     return rows.map(toReview);
   }
 

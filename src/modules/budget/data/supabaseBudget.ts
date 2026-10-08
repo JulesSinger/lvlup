@@ -171,19 +171,18 @@ export class SupabaseBudget implements BudgetStore {
   }
 
   async listCategories(): Promise<BudgetCategory[]> {
-    const rows = unwrap(
-      await this.client
-        .from('budget_categories')
-        .select('*')
-        .order('position', { ascending: true }),
-    ) as CategoryRow[];
+    const rows = await fetchAll<CategoryRow>((first, last) =>
+      this.client.from('budget_categories').select('*').order('position', { ascending: true }).order('id').range(first, last),
+    );
     return rows.map(toCategory);
   }
 
   async createCategory(input: BudgetCategoryInput): Promise<BudgetCategory> {
     const userId = await this.requireUserId();
     const parentId = input.parentId ?? null;
-    const existing = unwrap(await this.client.from('budget_categories').select('*')) as CategoryRow[];
+    const existing = await fetchAll<CategoryRow>((first, last) =>
+      this.client.from('budget_categories').select('*').order('id').range(first, last),
+    );
     const categories = existing.map(toCategory);
     if (parentId !== null && !isValidParent(categories, parentId)) {
       throw new Error('Une sous-catégorie ne peut pas elle-même être parente.');
@@ -221,9 +220,9 @@ export class SupabaseBudget implements BudgetStore {
     if (patch.parentId !== undefined) {
       row.parent_id = patch.parentId;
       if (patch.parentId !== null) {
-        const existing = unwrap(
-          await this.client.from('budget_categories').select('*'),
-        ) as CategoryRow[];
+        const existing = await fetchAll<CategoryRow>((first, last) =>
+          this.client.from('budget_categories').select('*').order('id').range(first, last),
+        );
         const categories = existing.map(toCategory);
         if (!isValidParent(categories, patch.parentId)) {
           throw new Error('Une sous-catégorie ne peut pas elle-même être parente.');
@@ -401,12 +400,9 @@ export class SupabaseBudget implements BudgetStore {
   }
 
   async listEnvelopes(): Promise<BudgetEnvelope[]> {
-    const rows = unwrap(
-      await this.client
-        .from('budget_envelopes')
-        .select('*')
-        .order('position', { ascending: true }),
-    ) as EnvelopeRow[];
+    const rows = await fetchAll<EnvelopeRow>((first, last) =>
+      this.client.from('budget_envelopes').select('*').order('position', { ascending: true }).order('id').range(first, last),
+    );
     return rows.map(toEnvelope);
   }
 
@@ -482,7 +478,9 @@ export class SupabaseBudget implements BudgetStore {
   }
 
   async listSubscriptions(): Promise<BudgetSubscription[]> {
-    const rows = unwrap(await this.client.from('budget_subscriptions').select('*').order('next_day')) as SubscriptionRow[];
+    const rows = await fetchAll<SubscriptionRow>((first, last) =>
+      this.client.from('budget_subscriptions').select('*').order('next_day').order('id').range(first, last),
+    );
     return rows.map(toSubscription);
   }
 
@@ -509,11 +507,13 @@ export class SupabaseBudget implements BudgetStore {
   }
 
   async listIgnoredRecurring(): Promise<IgnoredRecurring[]> {
-    const rows = unwrap(await this.client.from('budget_recurring_ignored').select('key, label, created_at')) as {
+    const rows = await fetchAll<{
       key: string;
       label: string;
       created_at: string;
-    }[];
+    }>((first, last) =>
+      this.client.from('budget_recurring_ignored').select('key, label, created_at').order('id').range(first, last),
+    );
     return rows.map((r) => ({ key: r.key, label: r.label, createdAt: r.created_at }));
   }
 

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
+import { fetchAll, getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
 import {
   DEFAULT_TACHES_SETTINGS,
   type ListColor,
@@ -115,7 +115,11 @@ export class SupabaseTaches implements TachesStore {
   }
 
   async listLists(): Promise<TaskList[]> {
-    return (unwrap(await this.client.from('taches_lists').select('*').order('position')) as ListRow[]).map(toList);
+    return (
+      await fetchAll<ListRow>((first, last) =>
+        this.client.from('taches_lists').select('*').order('position').order('id').range(first, last),
+      )
+    ).map(toList);
   }
 
   async createList(input: ListInput): Promise<TaskList> {
@@ -141,7 +145,11 @@ export class SupabaseTaches implements TachesStore {
   }
 
   async listTasks(): Promise<Task[]> {
-    return (unwrap(await this.client.from('taches_tasks').select('*')) as TaskRow[]).map(toTask);
+    return (
+      await fetchAll<TaskRow>((first, last) =>
+        this.client.from('taches_tasks').select('*').order('id').range(first, last),
+      )
+    ).map(toTask);
   }
 
   async createTask(input: TaskInput, id?: string): Promise<Task> {

@@ -244,3 +244,42 @@ describe('thèmes clair et sombre', () => {
     expect([...clair].filter((n) => !sombre.has(n)), 'variables sans valeur en sombre').toEqual([]);
   });
 });
+
+/**
+ * Supabase ne rend jamais plus de 1 000 lignes par lecture, **sans prévenir**
+ * (constat du 2026-10-07 sur le budget). Toute lecture d'une table entière
+ * passe donc par `fetchAll` (`core/data/supabaseClient.ts`), qui lit par
+ * paquets. Seules restent permises les lectures d'une ligne (`single`,
+ * `maybeSingle`, par `id`), celles qui écrivent (`insert`… `.select()`),
+ * comptent, ou se limitent aux lignes d'un seul parent (`feat_id`,
+ * `recipe_id`, `project_id`, `action_id`, `ref`, `in(…)`).
+ */
+describe('lectures par paquets', () => {
+  const allowed = /\.(single|maybeSingle|range|limit|in|insert|upsert|update|delete)\(|count:|\.eq\('(id|feat_id|recipe_id|project_id|action_id|ref)'/;
+
+  for (const id of ids) {
+    const dataDir = join(MODULES_DIR, id, 'data');
+    const files = existsSync(dataDir) ? readdirSync(dataDir).filter((f) => /^supabase.*\.ts$/.test(f) && !f.endsWith('.test.ts')) : [];
+    for (const file of files) {
+      it(`${id}/${file} ne lit jamais une table entière d'un seul coup`, () => {
+        const source = readFileSync(join(dataDir, file), 'utf8');
+        const offenders: string[] = [];
+        for (const m of source.matchAll(/unwrap\(\s*await this\.client\s*\.from\('([a-z_]+)'\)/g)) {
+          // La chaîne jusqu'à la fin de l'appel à `unwrap(`.
+          let depth = 0;
+          let end = m.index!;
+          for (let k = m.index! + 'unwrap'.length; k < source.length; k++) {
+            if (source[k] === '(') depth++;
+            else if (source[k] === ')' && --depth === 0) {
+              end = k;
+              break;
+            }
+          }
+          const chain = source.slice(m.index!, end);
+          if (chain.includes('.select(') && !allowed.test(chain)) offenders.push(m[1]);
+        }
+        expect(offenders, 'lire par fetchAll (core/data/supabaseClient.ts)').toEqual([]);
+      });
+    }
+  }
+});

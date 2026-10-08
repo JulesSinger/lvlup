@@ -252,7 +252,11 @@ export class SupabaseRecettes implements RecettesStore {
   }
 
   async listPhotos(): Promise<RecipePhoto[]> {
-    return (unwrap(await this.client.from('recettes_photos').select('*')) as PhotoRow[]).map(toPhoto);
+    return (
+      await fetchAll<PhotoRow>((first, last) =>
+        this.client.from('recettes_photos').select('*').order('id').range(first, last),
+      )
+    ).map(toPhoto);
   }
 
   async setPhoto(recipeId: string, image: PreparedImage, id: string = crypto.randomUUID()): Promise<RecipePhoto> {
@@ -328,9 +332,9 @@ export class SupabaseRecettes implements RecettesStore {
   }
 
   async listPlan(from: string, to: string): Promise<PlanEntry[]> {
-    const rows = unwrap(
-      await this.client.from('recettes_plan').select('*').gte('day', from).lte('day', to).order('day').order('meal').order('position'),
-    ) as PlanRow[];
+    const rows = await fetchAll<PlanRow>((first, last) =>
+      this.client.from('recettes_plan').select('*').gte('day', from).lte('day', to).order('day').order('meal').order('position').order('id').range(first, last),
+    );
     // « midi » avant « soir » : l'ordre alphabétique le donne déjà, on le dit quand même.
     return rows.map(toPlan).sort((a, b) => a.day.localeCompare(b.day) || (a.meal === b.meal ? a.position - b.position : a.meal === 'midi' ? -1 : 1));
   }
