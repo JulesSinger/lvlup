@@ -1320,3 +1320,11 @@
     font-size: 28px;
   }
 }
+
+/* Étape 6 : l'archive des photos, dans les réglages. */
+.hautsfaits-archive {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  margin: 6px 0 14px;
+}

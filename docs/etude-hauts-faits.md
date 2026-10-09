@@ -623,3 +623,37 @@ le chiffre clé s'il y en a un, sinon la date.
 Vérifié sur captures (ordinateur en sombre et en clair, téléphone) ; première version des points
 trop petits à toucher sur téléphone, agrandis. `1646` → `1651` tests unitaires (+5,
 `lifeWeeks.test.ts`), suite du module 48 → **61** (+13).
+
+---
+
+## 19. Étape 6 : les liens, découpage terminé (09/10/2026)
+
+Trois liens, tous par les mécanismes existants — **aucune migration** (la colonne
+`on_this_day_reminder` existe depuis l'étape 1), aucun changement du socle :
+
+- **Le calque des anniversaires dans Calendar** (`lib/anniversaries.ts`,
+  `data/calendarSource.ts`, `provides.calendarSources`) : une marque d'une journée, « Premier
+  appartement · 3 ans », pour chaque haut fait **daté au jour** — au mois, on ne saurait pas
+  quel jour le marquer (le bandeau « Ce jour-là » le rappelle tout le mois) ; à l'année, encore
+  moins. Un 29 février revient le 28. **Masqué d'office**, comme Budget. Lecture seule ; toucher
+  la marque puis « Modifier dans Hauts faits » ouvre sa fiche (`intent` `feat:<id>`).
+- **Le rappel « Ce jour-là »** (`plannedReminders`, `data/syncReminders.ts`) : coupé par défaut,
+  un interrupteur dans les réglages du module (avec un compte seulement, comme Tâches), une
+  notification à 9 h le jour anniversaire, déclarée au socle pour les trente prochains jours
+  (`scheduleReminders('hautsfaits', …)`) après chaque chargement de l'écran et chaque réglage.
+  Couper le réglage déclare une liste vide, ce qui retire ce qui était prévu.
+- **« Télécharger toutes mes photos (.zip) »** (`data/photoArchive.ts`, `lib/archive.ts`), dans
+  les réglages du module, sous la place prise : la copie des images que la sauvegarde JSON ne
+  contient pas (§5.6). Un dossier par haut fait, nommé par sa date aussi précise qu'on la
+  connaît puis son titre (« 2023-06-17 Mariage de Léa », « 2014 Brevet »), deux homonymes du
+  même jour numérotés, les photos dans leur ordre (`01.jpg`…), en grande version. Écrite dans
+  le navigateur par `fflate` (déjà là pour Sport, chargé au clic), les JPEG rangés sans
+  recompression. Une photo introuvable est laissée de côté et comptée, sans arrêter les autres.
+  Tout passe en mémoire : quelques centaines de photos tiennent, des milliers demanderaient un
+  zip écrit en flux.
+
+La suite du module vérifie le calque de bout en bout (masqué d'office, allumé, l'anniversaire du
+jour, la fiche ouverte depuis Calendar) et l'archive (fichier téléchargé, relu : trois vrais
+JPEG dans le dossier du haut fait). **L'envoi réel du rappel reste à essayer avec un compte.**
+`1651` → `1656` tests unitaires (+5 : `anniversaries.test.ts` 3, `archive.test.ts` 2), suite du
+module 61 → **66**.

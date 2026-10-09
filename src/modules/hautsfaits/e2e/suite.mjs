@@ -244,6 +244,24 @@ export async function run({ browser, check, BASE }) {
   check('… et l’ouvre en un toucher', (await text(page.locator('#hautsfaits-sheet-title'))) === 'Premier appartement');
   await closeSheet(page);
 
+  // --- Le calque des anniversaires dans Calendar (étape 6) ---------------------------------------
+  await page.getByRole('button', { name: 'Tous les modules' }).click();
+  await page.waitForSelector('.hub-picker-card');
+  await page.locator('.hub-picker-card', { hasText: 'Calendar' }).click();
+  const featChip = page.locator('.calendrier-layer-chip', { hasText: 'Hauts faits' });
+  await featChip.waitFor();
+  check('Calendar a un calque « Hauts faits », masqué d’office', (await featChip.getAttribute('aria-pressed')) === 'false');
+  await featChip.click();
+  const anniversary = page.locator('.calendrier-layer', { hasText: 'Premier appartement · 3 ans' }).first();
+  await anniversary.waitFor({ timeout: 10000 }).catch(() => {});
+  check('Allumé, il montre l’anniversaire du jour', (await anniversary.count()) === 1);
+  await anniversary.click();
+  await page.locator('.calendrier-mark-dialog').waitFor();
+  await page.getByRole('button', { name: 'Modifier dans Hauts faits' }).click();
+  await page.waitForSelector('.hautsfaits-sheet');
+  check('… et l’anniversaire ouvre la fiche du haut fait', (await text(page.locator('#hautsfaits-sheet-title'))) === 'Premier appartement');
+  await closeSheet(page);
+
   // --- Filtrer -----------------------------------------------------------------------------------
   await page.getByRole('group', { name: 'Filtrer par catégorie' }).getByRole('button', { name: /Études/ }).click();
   check('Filtrer ne garde que la catégorie choisie', JSON.stringify(await frise(page)) === JSON.stringify(['2017', 'Baccalauréat']));
@@ -335,6 +353,26 @@ export async function run({ browser, check, BASE }) {
   await page.waitForSelector('.hautsfaits-sheet', { state: 'detached' });
   check('… puis supprime', (await page.locator('.hautsfaits-line', { hasText: 'Premier appartement' }).count()) === 0 && (await page.locator('.hautsfaits-memory').count()) === 0);
   check('Supprimer un haut fait emporte les fichiers de ses photos, pas ceux des autres', beforeDelete === 8 && (await storedImages(page)) === 6, `${beforeDelete} → ${await storedImages(page)}`);
+
+  // --- L'archive des photos (étape 6) ------------------------------------------------------------
+  await page.getByRole('button', { name: 'Réglages', exact: true }).click();
+  const archiveButton = page.getByRole('button', { name: 'Télécharger toutes mes photos (.zip)' });
+  await archiveButton.waitFor();
+  check('En local, le rappel « Ce jour-là » dit qu’il demande un compte', (await text(page.locator('.hautsfaits-settings'))).includes('Les rappels demandent un compte'));
+  const [download] = await Promise.all([page.waitForEvent('download'), archiveButton.click()]);
+  const { unzipSync } = await import('fflate');
+  const { readFile } = await import('node:fs/promises');
+  const zipped = unzipSync(new Uint8Array(await readFile(await download.path())));
+  const names = Object.keys(zipped).sort();
+  check(
+    'L’archive range les photos par haut fait, nommé par sa date, en vrais JPEG',
+    download.suggestedFilename().startsWith('hauts-faits-photos-') &&
+      names.length === 3 &&
+      names.every((n) => n.startsWith('Hauts faits/2023-06-17 Mariage de Léa/')) &&
+      names.every((n) => zipped[n][0] === 0xff && zipped[n][1] === 0xd8),
+    names.join(' | '),
+  );
+  await page.locator('.modal-foot').getByRole('button', { name: 'Fermer' }).click();
 
   // --- Tout survit à un rechargement -------------------------------------------------------------
   await openModule(page, BASE);

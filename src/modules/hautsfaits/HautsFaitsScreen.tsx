@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { newId } from '../../core/data/coreStore';
 import { dayString } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
@@ -12,6 +12,7 @@ import { forgetPhoto } from './components/PhotoImg';
 import { hautsFaitsStore } from './data';
 import { preparePhoto } from './data/preparePhoto';
 import { onSettingsChange } from './data/settingsSignal';
+import { syncReminders } from './data/syncReminders';
 import { CATEGORY_INFO } from './lib/categories';
 import { featYear } from './lib/dates';
 import { draftFromFeat, emptyDraft, type FeatDraft } from './lib/editorDraft';
@@ -66,7 +67,7 @@ function writeKey(key: string, value: string) {
  * 29/09/2026). Depuis l'étape 5, deux autres vues : une vie en semaines et
  * la vitrine.
  */
-export function HautsFaitsScreen({ label, emoji, error, onError, onOpenSettings, onSwitchModule, reloadToken }: ModuleScreenProps) {
+export function HautsFaitsScreen({ label, emoji, error, onError, onOpenSettings, onSwitchModule, reloadToken, intent }: ModuleScreenProps) {
   const [feats, setFeats] = useState<Feat[] | null>(null);
   const [settings, setSettings] = useState<HautsFaitsSettings>(DEFAULT_HAUTSFAITS_SETTINGS);
   const [category, setCategory] = useState<FeatCategory | null>(null);
@@ -102,6 +103,8 @@ export function HautsFaitsScreen({ label, emoji, error, onError, onOpenSettings,
       const [list, loaded] = await Promise.all([hautsFaitsStore.listFeats(), hautsFaitsStore.getSettings()]);
       setFeats(list);
       setSettings(loaded);
+      // Le rappel « Ce jour-là » suit les hauts faits ; son échec ne gêne pas l'écran.
+      syncReminders().catch(() => undefined);
     } catch (err) {
       setFeats((current) => current ?? []);
       onError(err instanceof Error ? err.message : 'Chargement impossible.');
@@ -112,6 +115,15 @@ export function HautsFaitsScreen({ label, emoji, error, onError, onOpenSettings,
     void refresh();
     void refreshPhotos();
   }, [refresh, refreshPhotos, reloadToken]);
+
+  // Ouvert depuis Calendar sur un anniversaire (`feat:<id>`) : la fiche du haut fait, une seule fois.
+  const intentDone = useRef<string | null>(null);
+  useEffect(() => {
+    if (!feats || !intent || intentDone.current === intent || !intent.startsWith('feat:')) return;
+    intentDone.current = intent;
+    const id = intent.slice(5);
+    if (feats.some((f) => f.id === id)) setOpenId(id);
+  }, [feats, intent]);
 
   // La date de naissance se règle dans le panneau commun, l'écran restant ouvert derrière.
   useEffect(() => onSettingsChange(setSettings), []);
