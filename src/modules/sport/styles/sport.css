@@ -1091,9 +1091,78 @@
     display: none;
   }
 }
+@media (min-width: 521px) {
+  .sport-nav-short {
+    display: none;
+  }
+}
 
 .sport-empty-link {
   width: min(480px, 100%);
   margin-top: 22px;
   text-align: left;
+}
+
+/* --- Relier Strava (docs/etude-sport.md §21) ------------------------------- */
+
+.sport-strava-news {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 8px 8px 8px 14px;
+  font-size: 13.5px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--orange) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--orange) 35%, transparent);
+  border-radius: var(--radius-sm);
+}
+.sport-strava-local {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+.sport-strava-connect {
+  color: var(--on-color);
+  background: var(--orange);
+  border-color: var(--orange);
+  font-weight: 650;
+}
+.sport-strava-connect:hover {
+  background: color-mix(in srgb, var(--orange) 85%, var(--black));
+}
+.sport-strava-off,
+.sport-strava-on {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.sport-strava-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-weight: 600;
+}
+.sport-strava-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--green);
+}
+.sport-strava-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sport-strava-note {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+.sport-strava-other {
+  margin-top: 16px;
 }

@@ -281,8 +281,12 @@ export async function run({ browser, check, BASE }) {
   check('Ne plus cocher retire les coches de Sport, et elles seules', !held.some((c) => c.ref) && held.some((c) => c.id === 'c-hand'));
   await page.getByRole('button', { name: /^Journal/ }).click();
 
-  // --- Relier l'Apple Watch (étape 5) ---------------------------------------------------------
-  await page.getByRole('button', { name: '⌚ Apple Watch' }).click();
+  // --- Relier Strava (§21), puis l'Apple Watch (étape 5) -------------------------------------
+  await page.getByRole('button', { name: 'Relier Strava' }).click();
+  await page.waitForSelector('.sport-strava-intro');
+  check('Sans compte, « Relier Strava » dit qu’il en faut un', (await text(page.locator('.sport-strava-local'))).includes('connecté avec un compte'));
+  check('Sans compte, aucun bouton ne part chez Strava', (await page.locator('.sport-strava-connect').count()) === 0);
+  await page.getByRole('button', { name: 'Relier l’Apple Watch par un raccourci' }).click();
   await page.waitForSelector('.sport-shortcut-intro');
   check('Sans compte, la fenêtre dit qu’il en faut un pour le raccourci', (await text(page.locator('.sport-shortcut-local'))).includes('connecté avec un compte'));
   check('Sans compte, aucun jeton ne se crée (il ne servirait à rien)', (await page.locator('.sport-token-new').count()) === 0);

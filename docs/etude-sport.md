@@ -756,3 +756,57 @@ supposait :
 
 Les colonnes « Type », « Compétition » et « Sortie longue » sont vides : la nature d'une sortie
 reste déduite (la plus longue de sa semaine au-delà de 15 km devient une sortie longue).
+
+## 21. Le lien avec l'API de Strava (09/10/2026)
+
+Jules est abonné à Strava : l'API, écartée au §3.1 faute d'abonnement, devient le **chemin
+automatique** des sorties. Le raccourci iPhone reste accessible (« Relier l'Apple Watch par un
+raccourci », dans la fenêtre de Strava) mais n'est plus mis en avant.
+
+**Le principe.** Une autorisation donnée une fois chez Strava (OAuth, permission
+`read,activity:read_all` : lire, jamais écrire). Ensuite, **à chaque ouverture de Sport**, la
+fonction demande à Strava les activités depuis la dernière vue (trois jours de marge ; la première
+fois, quatre-vingt-dix jours), garde les courses (`Run`, `TrailRun`, `VirtualRun`), écarte celles
+déjà dans Sport, lit le détail des nouvelles pour leurs temps au kilomètre, et les range. L'écran
+relit alors ses sorties, et les coches d'Objectifs suivent comme pour toute sortie (§18). Pas de
+webhook : il faudrait déclarer un abonnement aux événements chez Strava pour un gain nul, puisque
+les coches d'Objectifs ne se font de toute façon qu'à l'ouverture de Sport.
+
+**Sans doublon.** Une activité devient `strava:<id>`, **la même référence que l'archive** : une
+course déjà reprise de l'archive n'est jamais ajoutée deux fois (contrainte unique). Une sortie
+venue par un autre chemin (saisie, raccourci) est reconnue par `sameRun`, importé tel quel de
+`sport-import`. Deux synchronisations à moins de deux minutes n'en font qu'une, sauf « Synchroniser
+maintenant ». Au plus trente détails lus par passage (Strava : 100 appels par quart d'heure).
+
+**Ce qu'on prend à Strava** (`supabase/functions/sport-strava/strava.ts`, pur, testé par
+`lib/stravaApi.test.ts`) : départ en UTC, **jour de l'heure locale du départ** (celui vécu), distance,
+**temps en mouvement**, dénivelé, FC moyenne et max si la montre en donne, titre ; sorte d'après
+Strava (« course » = compétition, « sortie longue ») sinon d'après la distance (18 km, comme le
+raccourci) ; temps au kilomètre depuis `splits_metric`, sans le dernier morceau incomplet. Une
+activité qui ne tient pas dans les règles de la base est écartée plutôt que tordue.
+
+**Les jetons ne quittent jamais le serveur.** Table `sport_strava_links` (migration
+`2026-10-09-sport-strava.sql`) : RLS et ses quatre politiques par convention, **mais aucun droit
+pour le navigateur** (`revoke all … from anon, authenticated`) ; seule la fonction y touche, avec la
+clé de service. Le jeton se renouvelle seul avant d'expirer. Une autorisation retirée chez Strava
+(réponse 401) efface le lien ; « Déconnecter » la retire chez Strava aussi. Les sorties déjà reçues
+restent.
+
+**La connexion, sans table d'attente.** Le paramètre `state` d'OAuth porte le compte Atlas et
+l'origine où revenir, **signé par HMAC** (clé dérivée du secret Strava) et valable un quart d'heure :
+il ne se fabrique ni ne se modifie. Le retour de Strava arrive à la fonction elle-même (le domaine
+de rappel déclaré chez Strava est celui de Supabase), qui range les jetons puis renvoie vers
+`#/sport/strava-ok` (ou `-refus`, `-sans-activites`, `-erreur`) ; l'écran le dit puis remet
+l'adresse à `#/sport`. L'origine de retour est limitée à `https:` (ou `http://localhost`).
+
+**À l'écran.** Dans la barre de Sport, « Relier Strava » (« ✓ Strava » une fois relié) ouvre la
+fenêtre : se connecter, l'état du lien et la dernière synchronisation, « Synchroniser maintenant »,
+« Déconnecter » en deux touchers. Un bandeau dit « 2 sorties reçues de Strava ». Sur téléphone,
+le bouton de l'archive devient « Archive ». Sans compte, la fenêtre explique qu'il en faut un.
+
+**À faire par Jules, une fois** : déclarer l'application sur strava.com/settings/api (domaine de
+rappel `beddtzjoyvdrqxmtmkkr.supabase.co`), poser les deux secrets, appliquer la migration,
+déployer la fonction (`supabase functions deploy sport-strava --no-verify-jwt`). **Non vérifiable
+automatiquement** (vrai compte Strava) : la suite vérifie l'écran sans compte ; la fonction est
+vérifiée par ses tests et par le typage avec des doublures de Deno. Une application Strava nouvelle
+est limitée à un seul athlète, son propriétaire : c'est le cas ici.

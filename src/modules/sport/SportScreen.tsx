@@ -4,6 +4,7 @@ import { dayString } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { ArchiveImport } from './components/ArchiveImport';
 import { ShortcutSetup } from './components/ShortcutSetup';
+import { StravaLink } from './components/StravaLink';
 import { Dashboard } from './components/Dashboard';
 import { Journal } from './components/Journal';
 import { RunEditor } from './components/RunEditor';
@@ -18,6 +19,7 @@ import { newId } from '../../core/data/coreStore';
 import { importEndpoint, sportStore as store } from './data';
 import { syncObjectifs, type LinkResult } from './data/syncObjectifs';
 import { syncReminders } from './data/syncReminders';
+import { stravaAvailable, stravaReturn, stravaStatus, syncStrava } from './data/strava';
 import { planDrafts, weekOfPlan, type PlanWeek } from './lib/plan';
 import { assignRuns, planWeeks, reschedule } from './lib/planView';
 import { longestRecent, recentWeeklyAverage } from './lib/stats';
@@ -68,6 +70,9 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
   const [editing, setEditing] = useState<Run | 'new' | null>(null);
   const [importing, setImporting] = useState(false);
   const [linkingWatch, setLinkingWatch] = useState(false);
+  const [linkingStrava, setLinkingStrava] = useState(false);
+  const [stravaConnected, setStravaConnected] = useState(false);
+  const [stravaNews, setStravaNews] = useState('');
   const [plans, setPlans] = useState<Plan[]>([]);
   const [sessions, setSessions] = useState<PlanSession[]>([]);
   const [creatingPlan, setCreatingPlan] = useState(false);
@@ -99,6 +104,41 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
 
   useEffect(() => {
     void refresh();
+  }, [refresh, reloadToken]);
+
+  /**
+   * Strava (docs/etude-sport.md §21) : au retour de l'autorisation, l'adresse
+   * dit comment ça s'est passé ; à chaque ouverture, les nouvelles courses
+   * sont demandées à Strava, puis l'écran relit ses sorties. Un échec ne gêne
+   * jamais l'écran : il se dit dans la fenêtre « Relier Strava ».
+   */
+  useEffect(() => {
+    if (!stravaAvailable) return;
+    const back = stravaReturn(window.location.hash);
+    if (back) {
+      setStravaNews(back);
+      history.replaceState(null, '', '#/sport');
+    }
+    let alive = true;
+    void (async () => {
+      try {
+        const status = await stravaStatus();
+        if (!alive) return;
+        setStravaConnected(status.connected);
+        if (!status.connected) return;
+        const result = await syncStrava();
+        if (!alive) return;
+        if (result.added > 0) {
+          setStravaNews(result.message);
+          await refresh();
+        }
+      } catch {
+        // Fonction pas encore déployée, Strava muet : la fenêtre le dira si on l'ouvre.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, [refresh, reloadToken]);
 
   /**
@@ -301,13 +341,23 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
             </button>
           ))}
           <span className="sport-spacer" />
-          <button type="button" className="btn btn-sm" onClick={() => setLinkingWatch(true)}>
-            ⌚ Apple Watch
+          <button type="button" className="btn btn-sm" onClick={() => setLinkingStrava(true)}>
+            {stravaConnected ? '✓ Strava' : 'Relier Strava'}
           </button>
           <button type="button" className="btn btn-sm" onClick={() => setImporting(true)} aria-label="Reprendre l’historique Strava">
-            <span className="sport-nav-long">Reprendre l’historique </span>Strava
+            <span className="sport-nav-long">Reprendre l’historique Strava</span>
+            <span className="sport-nav-short">Archive</span>
           </button>
         </nav>
+
+        {stravaNews && (
+          <p className="sport-strava-news" role="status">
+            {stravaNews}{' '}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStravaNews('')} aria-label="Masquer">
+              ✕
+            </button>
+          </p>
+        )}
 
         {!loaded ? null : view === 'plan' ? (
           plan ? (
@@ -340,13 +390,13 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
               {emoji}
             </span>
             <h1 className="sport-empty-title">Aucune sortie pour l’instant</h1>
-            <p className="sport-hint">Reprends ton historique Strava d’un coup, ou note ta prochaine sortie à la main.</p>
+            <p className="sport-hint">Reprends ton historique Strava d’un coup, relie Strava pour recevoir les prochaines, ou note une sortie à la main.</p>
             <div className="sport-empty-actions">
               <button className="btn btn-primary" onClick={() => setImporting(true)}>
                 Reprendre l’historique Strava
               </button>
-              <button className="btn" onClick={() => setLinkingWatch(true)}>
-                Relier l’Apple Watch
+              <button className="btn" onClick={() => setLinkingStrava(true)}>
+                Relier Strava
               </button>
               <button className="btn" onClick={() => setEditing('new')}>
                 Noter une sortie
@@ -407,6 +457,19 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
 
         {changingDate && plan && <RaceDateEditor plan={plan} today={today} onClose={() => setChangingDate(false)} onSave={changeRaceDay} />}
 
+        {linkingStrava && (
+          <StravaLink
+            onClose={() => {
+              setLinkingStrava(false);
+              if (stravaAvailable) stravaStatus().then((s) => setStravaConnected(s.connected), () => undefined);
+            }}
+            onSynced={() => void refresh()}
+            onOpenShortcut={() => {
+              setLinkingStrava(false);
+              setLinkingWatch(true);
+            }}
+          />
+        )}
         {linkingWatch && <ShortcutSetup store={store} endpoint={importEndpoint} onClose={() => { setLinkingWatch(false); void refresh(); }} />}
         {importing && <ArchiveImport knownRefs={knownRefs} existing={runs} onImport={importRuns} onClose={() => setImporting(false)} />}
       </main>
