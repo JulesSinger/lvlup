@@ -100,6 +100,16 @@ export function bestEfforts(runs: Run[]): Effort[] {
  * 4 h 35 quand le 10 km de la veille dit 3 h 35 (vu sur l'écran de
  * progression, étape 6).
  */
+/**
+ * La meilleure forme : la même règle que `recentReference`, sur tout
+ * l'historique. Elle n'entre ni dans le plan ni dans la prédiction du jour —
+ * elle dit seulement l'écart à combler (demande de Jules, 09/10/2026 : un semi
+ * de mars prédisait 3 h 47, la forme de septembre 4 h 34).
+ */
+export function bestReference(runs: Run[], today: string): { distanceM: number; timeS: number; day: string } | null {
+  return recentReference(runs, today, 365 * 100);
+}
+
 export function recentReference(runs: Run[], today: string, days = 90): { distanceM: number; timeS: number; day: string } | null {
   const since = shiftDay(today, -days);
   const efforts = bestEfforts(runs.filter((r) => r.day >= since && r.day <= today)).filter((e) =>

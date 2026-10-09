@@ -1,7 +1,7 @@
 import { mondayOf } from '../../../core/lib/day';
 import { formatDuration, formatKm, formatPace, formatTime } from '../lib/format';
 import { paceOf, riegel } from '../lib/pace';
-import { bestEfforts, recentReference, weeklyVolumes } from '../lib/stats';
+import { bestEfforts, bestReference, recentReference, weeklyVolumes } from '../lib/stats';
 import type { ReactNode } from 'react';
 import { HALF_MARATHON_M, MARATHON_M, type Run, type SportSettings } from '../lib/types';
 import { suggestedHrMax } from '../lib/zones';
@@ -36,6 +36,14 @@ export function Dashboard({ runs, settings, today, onOpen, onSaveHr, plan, onCre
   const last = runs.reduce<Run | null>((a, r) => (!a || r.startedAt > a.startedAt ? r : a), null);
   const records = bestEfforts(runs);
   const reference = recentReference(runs, today);
+  const best = bestReference(runs, today);
+  const marathon = (r: { distanceM: number; timeS: number }) => riegel(r.distanceM, r.timeS, MARATHON_M);
+  // La meilleure forme ne se montre que si elle dit autre chose que la forme du jour (une minute d'écart au moins).
+  const gapLabel = (s: number) => {
+    const m = Math.round(s / 60);
+    return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
+  };
+  const showBest = best !== null && (!reference || marathon(reference) - marathon(best) >= 60);
 
   return (
     <div className="sport-dash">
@@ -111,8 +119,15 @@ export function Dashboard({ runs, settings, today, onOpen, onSaveHr, plan, onCre
         {reference && (
           <p className="sport-prediction">
             Au marathon : <b>≈ {formatTime(riegel(reference.distanceM, reference.timeS, MARATHON_M))}</b>, d’après ton{' '}
-            {DISTANCE_LABELS[reference.distanceM]} du {shortDay(reference.day)} (formule de Riegel). Une estimation, souvent
+            {DISTANCE_LABELS[reference.distanceM].toLowerCase()} du {shortDay(reference.day)} (formule de Riegel). Une estimation, souvent
             optimiste sur le marathon : l’entraînement dira le reste.
+          </p>
+        )}
+        {best && showBest && (
+          <p className="sport-prediction sport-prediction-best">
+            {reference ? 'Ta meilleure forme' : 'Rien sur 5 km, 10 km ou semi ces 90 derniers jours. Ta meilleure forme'} :{' '}
+            <b>≈ {formatTime(marathon(best))}</b>, d’après ton {DISTANCE_LABELS[best.distanceM].toLowerCase()} du {shortDay(best.day)}
+            {reference ? ` — ${gapLabel(marathon(reference) - marathon(best))} d’écart à reprendre.` : '.'}
           </p>
         )}
       </section>

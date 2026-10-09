@@ -146,7 +146,7 @@ export async function run({ browser, check, BASE }) {
   // --- Le tableau de bord et les records -------------------------------------------------
   const records = await text(page.locator('.sport-records'));
   check('Le 10 km de l’archive devient un record', records.includes('10 km') && records.includes('50:00'), records);
-  const prediction = await text(page.locator('.sport-prediction'));
+  const prediction = await text(page.locator('.sport-prediction').first());
   check('Une prédiction au marathon, dite comme une estimation', /≈ 3:5\d:\d\d/.test(prediction) && prediction.includes('estimation'), prediction);
 
   // --- Le journal -------------------------------------------------------------------------

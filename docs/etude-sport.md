@@ -810,3 +810,14 @@ déployer la fonction (`supabase functions deploy sport-strava --no-verify-jwt`)
 automatiquement** (vrai compte Strava) : la suite vérifie l'écran sans compte ; la fonction est
 vérifiée par ses tests et par le typage avec des doublures de Deno. Une application Strava nouvelle
 est limitée à un seul athlète, son propriétaire : c'est le cas ici.
+
+## 22. La meilleure forme, à côté de la prédiction du jour (09/10/2026)
+
+Question de Jules : la prédiction disait 4 h 34 « d'après ton 10 km du 17 sept. » alors que son
+archive contient un semi en 1 h 48 min 51 (29 mars). Elle se recalcule bien à chaque ouverture,
+mais **sur les 90 derniers jours** (`recentReference`) : elle dit ce qu'il pourrait courir
+aujourd'hui, et le semi de mars est plus ancien. Choix de Jules : garder la prédiction du jour et
+montrer **sa meilleure forme** à côté — `bestReference`, la même règle sur tout l'historique —
+avec l'écart à reprendre : « Ta meilleure forme : ≈ 3:46:56, d'après ton semi du 29 mars — 47 min
+d'écart à reprendre ». Elle ne se montre que si elle diffère d'au moins une minute ; sans effort de
+référence récent, elle le dit. Le plan et la prédiction du jour n'en tiennent pas compte.

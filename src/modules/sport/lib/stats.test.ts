@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bestEfforts, longestRecent, recentReference, recentWeeklyAverage, weeklyVolumes } from './stats';
+import { bestEfforts, bestReference, longestRecent, recentReference, recentWeeklyAverage, weeklyVolumes } from './stats';
 import { HALF_MARATHON_M, type Run } from './types';
 
 let n = 0;
@@ -62,6 +62,13 @@ describe('les records', () => {
     const runs = [run('2026-09-20', 5, 24), run('2026-09-27', 10, 51), run('2026-03-01', 21.1, 110)];
     expect(recentReference(runs, today)).toEqual({ distanceM: 10_000, timeS: 3060, day: '2026-09-27' });
     expect(recentReference([], today)).toBeNull();
+  });
+
+  it('la meilleure forme : la même règle, sur tout l’historique', () => {
+    const runs = [run('2026-09-20', 5, 24), run('2026-09-27', 10, 51), run('2026-03-01', 21.1, 110)];
+    expect(bestReference(runs, today)).toMatchObject({ day: '2026-03-01', timeS: expect.any(Number) });
+    expect(bestReference(runs, today)?.distanceM).toBeGreaterThan(21_000);
+    expect(bestReference([], today)).toBeNull();
   });
 
   it('un semi couru en sortie longue ne fait pas référence face à un vrai 10 km', () => {
