@@ -5,6 +5,8 @@ import type { ModuleScreenProps } from '../../core/lib/module';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { FeatEditor } from './components/FeatEditor';
 import { FeatSheet } from './components/FeatSheet';
+import { LifeWeeksView } from './components/LifeWeeksView';
+import { Showcase } from './components/Showcase';
 import { Timeline } from './components/Timeline';
 import { forgetPhoto } from './components/PhotoImg';
 import { hautsFaitsStore } from './data';
@@ -13,6 +15,7 @@ import { onSettingsChange } from './data/settingsSignal';
 import { CATEGORY_INFO } from './lib/categories';
 import { featYear } from './lib/dates';
 import { draftFromFeat, emptyDraft, type FeatDraft } from './lib/editorDraft';
+import type { LifeHorizon } from './lib/lifeWeeks';
 import { onThisDay, onThisDayLabel } from './lib/onThisDay';
 import { coverPositions, photosByFeat } from './lib/photos';
 import { remainingSuggestions, type Suggestion } from './lib/suggestions';
@@ -31,10 +34,37 @@ import {
 
 type Editing = { feat: Feat | null; draft: FeatDraft };
 
+/** Les trois façons de regarder sa vie (étape 5) ; la dernière choisie est retenue sur l'appareil. */
+type View = 'frise' | 'semaines' | 'vitrine';
+const VIEWS: { id: View; label: string }[] = [
+  { id: 'frise', label: 'Frise' },
+  { id: 'semaines', label: 'Semaines' },
+  { id: 'vitrine', label: 'Vitrine' },
+];
+const VIEW_KEY = 'hautsfaits.view.v1';
+const HORIZON_KEY = 'hautsfaits.weeks.v1';
+
+function readKey<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  try {
+    const v = localStorage.getItem(key);
+    return allowed.includes(v as T) ? (v as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function writeKey(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Préférence de confort : sans stockage, on la redemandera.
+  }
+}
+
 /**
  * Écran racine de Hauts faits : la frise (étape 3, docs/etude-hauts-faits.md
  * §4), avec ses photos depuis l'étape 4. Le plus récent en haut (décision du
- * 29/09/2026). La vie en semaines et la vitrine viendront à l'étape 5.
+ * 29/09/2026). Depuis l'étape 5, deux autres vues : une vie en semaines et
+ * la vitrine.
  */
 export function HautsFaitsScreen({ label, emoji, error, onError, onOpenSettings, onSwitchModule, reloadToken }: ModuleScreenProps) {
   const [feats, setFeats] = useState<Feat[] | null>(null);
@@ -45,6 +75,16 @@ export function HautsFaitsScreen({ label, emoji, error, onError, onOpenSettings,
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [photos, setPhotos] = useState<FeatPhoto[]>([]);
   const [upload, setUpload] = useState<{ done: number; total: number } | null>(null);
+  const [view, setViewState] = useState<View>(() => readKey(VIEW_KEY, ['frise', 'semaines', 'vitrine'], 'frise'));
+  const [horizon, setHorizonState] = useState<LifeHorizon>(() => readKey(HORIZON_KEY, ['today', 'life'], 'today'));
+  const setView = (v: View) => {
+    setViewState(v);
+    writeKey(VIEW_KEY, v);
+  };
+  const setHorizon = (h: LifeHorizon) => {
+    setHorizonState(h);
+    writeKey(HORIZON_KEY, h);
+  };
   const today = dayString();
 
   // Les photos se chargent à part : si elles échouent (migration pas encore
@@ -111,6 +151,7 @@ export function HautsFaitsScreen({ label, emoji, error, onError, onOpenSettings,
     // Le haut fait d'abord, enregistré et montré ; ses photos partent ensuite.
     const created = await hautsFaitsStore.createFeat(input, newId());
     setCategory(null);
+    setView('frise');
     setJustAdded(created.id);
     setEditing(null);
     await refresh();
@@ -257,7 +298,15 @@ export function HautsFaitsScreen({ label, emoji, error, onError, onOpenSettings,
               </button>
             )}
 
-            {presentCategories.length > 1 && (
+            <div className="hautsfaits-views" role="group" aria-label="Vue">
+              {VIEWS.map((v) => (
+                <button key={v.id} className={`hautsfaits-view${view === v.id ? ' on' : ''}`} aria-pressed={view === v.id} onClick={() => setView(v.id)}>
+                  {v.label}
+                </button>
+              ))}
+            </div>
+
+            {view === 'frise' && presentCategories.length > 1 && (
               <div className="hautsfaits-filters" role="group" aria-label="Filtrer par catégorie">
                 <button className={`hautsfaits-chip${shownCategory === null ? ' on' : ''}`} aria-pressed={shownCategory === null} onClick={() => setCategory(null)}>
                   Tout
@@ -276,7 +325,21 @@ export function HautsFaitsScreen({ label, emoji, error, onError, onOpenSettings,
               </div>
             )}
 
-            <Timeline rows={rows} photos={byFeat} birthDate={settings.birthDate} justAdded={justAdded} onOpen={(f) => setOpenId(f.id)} />
+            {view === 'frise' && (
+              <Timeline rows={rows} photos={byFeat} birthDate={settings.birthDate} justAdded={justAdded} onOpen={(f) => setOpenId(f.id)} />
+            )}
+            {view === 'semaines' && (
+              <LifeWeeksView
+                feats={list}
+                birthDate={settings.birthDate}
+                today={today}
+                horizon={horizon}
+                onHorizon={setHorizon}
+                onOpen={(f) => setOpenId(f.id)}
+                onAddBirthDate={onOpenSettings}
+              />
+            )}
+            {view === 'vitrine' && <Showcase feats={list} photos={byFeat} onOpen={(f) => setOpenId(f.id)} />}
           </>
         )}
       </main>

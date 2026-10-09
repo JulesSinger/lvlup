@@ -589,3 +589,37 @@ l'appareil) — la suite tourne en local. **À essayer pour de vrai avec un comp
 `1121/1121` → `1134/1134` tests unitaires (+13 : `photos.test.ts` 8 dont le lecteur EXIF,
 `localHautsFaits.test.ts` +5), 809 → 828 vérifications en local et 828 → 847 en mode comptes
 (+19, avec de vrais JPEG fabriqués dans le navigateur), **828/828** et **847/847**.
+
+---
+
+## 18. Étape 5 : une vie en semaines, la vitrine (09/10/2026)
+
+« Ce jour-là » existait déjà depuis l'étape 3 (le bandeau) ; l'étape ajoute les deux autres
+façons de regarder. **Trois vues en tête de l'écran** : Frise, Semaines, Vitrine, la dernière
+choisie retenue sur l'appareil (`hautsfaits.view.v1`). Le filtre par catégorie ne vaut que pour
+la frise : la vitrine range déjà par catégorie. Graver un haut fait ramène à la frise, où se
+joue la cérémonie.
+
+**Une vie en semaines** (`lib/lifeWeeks.ts`, `LifeWeeksView`) : une ligne par année de vie,
+52 cases. **Chaque ligne commence pile à un anniversaire** : la semaine se compte depuis
+l'anniversaire de l'année, et les un ou deux jours qui dépassent 52 semaines tombent dans la
+dernière case — la grille ne dérive jamais. Né un 29 février, la ligne suivante commence le 28.
+Les semaines vécues sont pleines, celle-ci dorée (et qui respire, sauf `prefers-reduced-motion`),
+les périodes en bandes de leur couleur, les hauts faits en points (plus gros pour les grands),
+**posés au début de leur période** comme dans la frise — « 2014 » dans la case du 1er janvier.
+Plusieurs hauts faits la même semaine : un point, qui les nomme tous et ouvre le plus récent.
+Rien d'avant la naissance ; une période commencée avant est coupée à la naissance. La bascule
+**« Jusqu'à 90 ans »** (décision du 29/09/2026) dessine les semaines à venir en creux et dit
+« … sur 4 680 », retenue sur l'appareil (`hautsfaits.weeks.v1`). Sans date de naissance, la vue
+explique pourquoi et mène aux réglages. Un seul SVG, chaque sorte de case en **un seul chemin**
+(4 680 cases à 90 ans) ; seuls les points sont des éléments à part, avec une zone de toucher
+plus large que le point (la grille est réduite de moitié sur téléphone).
+
+**La vitrine** (`lib/showcase.ts`, `Showcase`) : une étagère par catégorie présente, dans
+l'ordre fixe des catégories, un médaillon par haut fait (sa photo de couverture, sinon l'emblème
+de la catégorie), le plus récent d'abord ; les grands ont un **anneau doré** ; sous le médaillon,
+le chiffre clé s'il y en a un, sinon la date.
+
+Vérifié sur captures (ordinateur en sombre et en clair, téléphone) ; première version des points
+trop petits à toucher sur téléphone, agrandis. `1646` → `1651` tests unitaires (+5,
+`lifeWeeks.test.ts`), suite du module 48 → **61** (+13).

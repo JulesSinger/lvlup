@@ -33,7 +33,8 @@ async function openModule(page, BASE) {
   await toHub(page);
   await page.waitForSelector('.hub-picker-card');
   await page.getByRole('button', { name: /Hauts faits/ }).click();
-  await page.waitForSelector('.hautsfaits-empty, .hautsfaits-timeline');
+  // L'écran rouvre sur la dernière vue choisie (étape 5).
+  await page.waitForSelector('.hautsfaits-empty, .hautsfaits-timeline, .hautsfaits-weeks, .hautsfaits-weeks-empty, .hautsfaits-showcase');
 }
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -346,6 +347,31 @@ export async function run({ browser, check, BASE }) {
   );
   await page.locator('.hautsfaits-card', { hasText: 'Mariage de Léa' }).locator('.hautsfaits-cover.has-photo img').waitFor();
   check('… et les photos aussi', (await page.locator('.hautsfaits-card', { hasText: 'Mariage de Léa' }).locator('.hautsfaits-cover img').evaluate((img) => img.naturalWidth)) > 0);
+
+  // --- Une vie en semaines et la vitrine (étape 5) -----------------------------------------------
+  await page.getByRole('button', { name: 'Semaines', exact: true }).click();
+  await page.locator('.hautsfaits-weeks-grid').waitFor();
+  check('Une vie en semaines : les semaines vécues comptées', /^[\d ]+ semaines vécues$/.test(await text(page.locator('.hautsfaits-weeks-count'))), await text(page.locator('.hautsfaits-weeks-count')));
+  check('… un point par haut fait, une bande pour la période', (await page.locator('.hautsfaits-week-dot').count()) === 4 && (await page.locator('.hautsfaits-week-band').count()) === 1);
+  await page.getByRole('button', { name: /^Semi-marathon de Paris 2025/ }).click();
+  await page.waitForSelector('.hautsfaits-sheet');
+  check('Toucher un point ouvre son haut fait', (await text(page.locator('#hautsfaits-sheet-title'))) === 'Semi-marathon de Paris 2025');
+  await closeSheet(page);
+  await page.getByRole('button', { name: 'Jusqu’à 90 ans' }).click();
+  check('« Jusqu’à 90 ans » montre les semaines à venir', (await text(page.locator('.hautsfaits-weeks-count'))).endsWith('sur 4 680'));
+  await openModule(page, BASE);
+  check('La vue et la bascule sont retenues sur l’appareil', (await page.locator('.hautsfaits-weeks-grid').count()) === 1 && (await text(page.locator('.hautsfaits-weeks-count'))).endsWith('sur 4 680'));
+  await page.getByRole('button', { name: 'Vitrine', exact: true }).click();
+  const shelves = await page.locator('.hautsfaits-shelf-title').evaluateAll((els) => els.map((el) => el.textContent.replace(/\s+/g, ' ').trim()));
+  check('La vitrine range un médaillon par haut fait, par catégorie', shelves.length >= 2 && (await page.locator('.hautsfaits-medal').count()) === 4, shelves.join(' | '));
+  check('… les grands avec un anneau doré', (await page.locator('.hautsfaits-medal.major', { hasText: 'Baccalauréat' }).count()) === 1);
+  const medalPhoto = await page.locator('.hautsfaits-medal', { hasText: 'Mariage de Léa' }).locator('img').waitFor({ timeout: 5000 }).then(() => true, () => false);
+  check('… et la photo de couverture dans son médaillon', medalPhoto);
+  await page.locator('.hautsfaits-medal', { hasText: 'Six mois à Madrid' }).click();
+  await page.waitForSelector('.hautsfaits-sheet');
+  check('Toucher un médaillon ouvre son haut fait', (await text(page.locator('#hautsfaits-sheet-title'))) === 'Six mois à Madrid');
+  await closeSheet(page);
+  await page.getByRole('button', { name: 'Frise', exact: true }).click();
   check('Aucune erreur JavaScript sur ordinateur', errors.length === 0, errors.join(' | '));
   await context.close();
 
@@ -369,6 +395,11 @@ export async function run({ browser, check, BASE }) {
   await mobile.waitForSelector('.hautsfaits-sheet');
   const sheetBox = await mobile.locator('.hautsfaits-sheet').boundingBox();
   check('Sur téléphone, la fiche prend tout l’écran', sheetBox !== null && sheetBox.width >= 389 && (await noOverflow()));
+  await closeSheet(mobile);
+  await mobile.getByRole('button', { name: 'Semaines', exact: true }).click();
+  check('Sur téléphone, sans date de naissance, la vie en semaines dit pourquoi', (await text(mobile.locator('.hautsfaits-weeks-empty'))).includes('Ajouter ma date de naissance') && (await noOverflow()));
+  await mobile.getByRole('button', { name: 'Vitrine', exact: true }).click();
+  check('Sur téléphone, la vitrine ne déborde pas', (await mobile.locator('.hautsfaits-medal').count()) === 1 && (await noOverflow()));
   check('Aucune erreur JavaScript sur téléphone', mobileErrors.length === 0, mobileErrors.join(' | '));
   await phone.close();
 }
