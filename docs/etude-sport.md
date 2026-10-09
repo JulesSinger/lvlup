@@ -733,3 +733,26 @@ cardiaque de la dernière heure (approximatif), ou reprendre l'archive Strava r�
 au §3.1 seulement faute d'abonnement, redevient le chemin automatique : à reprendre une fois
 l'abonnement actif (application déclarée sur developers.strava.com, connexion OAuth, fonction
 qui reçoit les nouvelles activités). Le raccourci iPhone est mis de côté.
+
+## 20. L'archive réelle de Jules (09/10/2026)
+
+Jules a reçu son export Strava (89 activités, dont 67 courses, du 11/11/2025 au 04/10/2026). Lu
+sur l'appareil, sans rien en garder dans le dépôt, il a montré trois écarts avec ce que l'étape 3
+supposait :
+
+- **Les en-têtes sont en français**, et la durée en mouvement s'y appelle « Durée de
+  déplacement » : elle n'était pas reconnue, la sortie prenait donc le temps écoulé (pauses
+  comprises). Ajoutée, avec « Fréquence cardiaque max. » (point final).
+- **43 des 67 courses n'ont qu'un fichier FIT.** Lecteur maison `lib/fit.ts` (points :
+  instant, distance, FC, altitude, position ; résumé de séance : FC moyenne et max, dénivelé),
+  plutôt que `fit-file-parser`, qui attend le `Buffer` de Node. Essayé sur les 43 fichiers :
+  tous lus, distance et durée identiques au CSV à quelques mètres près, temps au kilomètre
+  calculés. Le résumé de séance l'emporte sur le calcul depuis les points quand il existe.
+  `fitSkipped` disparaît de l'aperçu.
+- **Aucune fréquence cardiaque nulle part** : colonnes du CSV vides pour les 67 courses, et ni
+  les GPX ni les FIT n'en contiennent. Strava ne l'a donc jamais reçue de Santé ; à vérifier
+  sur l'iPhone (Réglages → Santé → Accès aux données et appareils → Strava → Fréquence
+  cardiaque). Rien à corriger côté Atlas : la FC apparaîtra dès que les sorties en auront.
+
+Les colonnes « Type », « Compétition » et « Sortie longue » sont vides : la nature d'une sortie
+reste déduite (la plus longue de sa semaine au-delà de 15 km devient une sortie longue).

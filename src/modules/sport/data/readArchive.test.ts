@@ -38,7 +38,7 @@ describe('ouvrir l’archive de Strava', () => {
     await expect(openArchive('autre.zip', zipSync({ 'photo.txt': strToU8('x') }))).rejects.toThrow(/activities\.csv/);
   });
 
-  it('un fichier abîmé ou FIT ne se lit pas, sans rien casser', async () => {
+  it('un fichier abîmé (GPX ou FIT) ne se lit pas, sans rien casser', async () => {
     expect(await summarizeFile('activities/9.gpx.gz', strToU8('pas du gzip'))).toBeNull();
     expect(await summarizeFile('activities/9.fit.gz', new Uint8Array([1, 2]))).toBeNull();
   });

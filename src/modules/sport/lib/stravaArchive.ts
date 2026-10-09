@@ -87,9 +87,10 @@ export function readStravaActivities(csv: string): ArchiveReading {
   const type = first('activity type', 'type d’activité', "type d'activité");
   const distances = cols('distance');
   const elapsed = cols('elapsed time', 'temps écoulé');
-  const moving = first('moving time', 'temps de déplacement');
+  // L'archive française de Jules dit « Durée de déplacement » (09/10/2026).
+  const moving = first('moving time', 'temps de déplacement', 'durée de déplacement');
   const avgHr = first('average heart rate', 'fréquence cardiaque moyenne');
-  const maxHr = first('max heart rate', 'fréquence cardiaque max', 'fréquence cardiaque maximale');
+  const maxHr = first('max heart rate', 'fréquence cardiaque max', 'fréquence cardiaque max.', 'fréquence cardiaque maximale');
   const elevation = first('elevation gain', 'dénivelé positif');
   const workout = first('workout type', 'type d’entraînement', "type d'entraînement");
   const file = first('filename', 'nom du fichier');

@@ -22,15 +22,13 @@ export interface ArchivePlan {
   alreadyKnown: number;
   /** Complétées par leur fichier (temps au kilomètre). */
   withTrack: number;
-  /** Fichiers FIT, pas encore lus (docs/etude-sport.md §13). */
-  fitSkipped: number;
   otherActivities: number;
   unreadable: number;
 }
 
-/** Les fichiers qu'on sait lire : GPX et TCX, compressés ou non. */
+/** Les fichiers qu'on sait lire : GPX, TCX et FIT (depuis le 09/10/2026), compressés ou non. */
 export function readableTrack(path: string): boolean {
-  return /\.(gpx|tcx)(\.gz)?$/i.test(path);
+  return /\.(gpx|tcx|fit)(\.gz)?$/i.test(path);
 }
 
 export function isFit(path: string): boolean {
@@ -50,11 +48,9 @@ export function planArchiveImport(
   existing: readonly { startedAt: string; distanceM: number }[] = [],
 ): ArchivePlan {
   let withTrack = 0;
-  let fitSkipped = 0;
   const fresh = reading.runs.filter((r) => !knownRefs.has(r.sourceRef) && !existing.some((e) => sameRun(e, r)));
   const runs = fresh.map(({ file, ...run }) => {
     const track = file ? tracks.get(file) : undefined;
-    if (file && isFit(file)) fitSkipped += 1;
     if (!track) return run;
     withTrack += 1;
     return {
@@ -69,7 +65,6 @@ export function planArchiveImport(
     runs: markLongRuns(runs).map((r) => ({ ...r, id: newId() })),
     alreadyKnown: reading.runs.length - fresh.length,
     withTrack,
-    fitSkipped,
     otherActivities: reading.otherActivities,
     unreadable: reading.unreadable,
   };

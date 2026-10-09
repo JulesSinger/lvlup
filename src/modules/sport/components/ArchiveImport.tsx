@@ -108,7 +108,6 @@ export function ArchiveImport({ knownRefs, existing, onImport, onClose }: {
           <ul className="sport-import-facts">
             {step.plan.alreadyKnown > 0 && <li>{step.plan.alreadyKnown} déjà dans Sport, ignorée{step.plan.alreadyKnown > 1 ? 's' : ''}</li>}
             {step.plan.withTrack > 0 && <li>{step.plan.withTrack} avec leurs temps au kilomètre</li>}
-            {step.plan.fitSkipped > 0 && <li>{step.plan.fitSkipped} fichier{step.plan.fitSkipped > 1 ? 's' : ''} FIT pas encore lu{step.plan.fitSkipped > 1 ? 's' : ''} (la sortie est reprise, sans ses temps au kilomètre)</li>}
             {step.plan.otherActivities > 0 && <li>{step.plan.otherActivities} autre{step.plan.otherActivities > 1 ? 's' : ''} activité{step.plan.otherActivities > 1 ? 's' : ''} (vélo, marche…) laissée{step.plan.otherActivities > 1 ? 's' : ''} de côté</li>}
             {step.plan.unreadable > 0 && <li>{step.plan.unreadable} course{step.plan.unreadable > 1 ? 's' : ''} illisible{step.plan.unreadable > 1 ? 's' : ''} (date ou distance manquante)</li>}
           </ul>

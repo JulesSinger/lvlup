@@ -9,6 +9,7 @@
  */
 import { isFit, readableTrack } from '../lib/archiveImport';
 import { readStravaActivities, type ArchiveReading } from '../lib/stravaArchive';
+import { parseFit } from '../lib/fit';
 import { parseGpx, parseTcx, summarizeTrack, type TrackSummary } from '../lib/track';
 
 export interface OpenedArchive {
@@ -38,12 +39,24 @@ export async function openArchive(name: string, bytes: Uint8Array): Promise<Open
 
 /** Le résumé d'un fichier d'activité, ou `null` s'il ne se lit pas (format inconnu, fichier abîmé). */
 export async function summarizeFile(path: string, data: Uint8Array): Promise<TrackSummary | null> {
-  if (!readableTrack(path) || isFit(path)) return null;
+  if (!readableTrack(path)) return null;
   try {
     let bytes = data;
     if (/\.gz$/i.test(path)) {
       const { gunzipSync } = await import('fflate');
       bytes = gunzipSync(data);
+    }
+    if (isFit(path)) {
+      // Le résumé de séance du FIT, quand il y en a un, l'emporte pour la FC et le dénivelé.
+      const fit = parseFit(bytes);
+      const summary = summarizeTrack(fit.points);
+      if (!summary) return null;
+      return {
+        ...summary,
+        avgHr: fit.session?.avgHr ?? summary.avgHr,
+        maxHr: fit.session?.maxHr ?? summary.maxHr,
+        elevationM: fit.session?.ascentM ?? summary.elevationM,
+      };
     }
     const xml = new TextDecoder().decode(bytes);
     return summarizeTrack(/\.tcx/i.test(path) ? parseTcx(xml) : parseGpx(xml));

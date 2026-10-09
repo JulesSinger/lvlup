@@ -61,7 +61,6 @@ describe('préparer l’import de l’archive', () => {
     expect(plan.runs[0]).toMatchObject({ id: 'id0', splitsS: [300, 310], avgHr: 140, maxHr: 170, elevationM: 40 });
     expect(plan.runs[0]).not.toHaveProperty('file');
     expect(plan.withTrack).toBe(1);
-    expect(plan.fitSkipped).toBe(1);
     // La plus longue de sa semaine, 18 km : une sortie longue.
     expect(plan.runs[2].kind).toBe('longue');
     expect(plan).toMatchObject({ otherActivities: 3, unreadable: 1 });
@@ -77,6 +76,7 @@ describe('préparer l’import de l’archive', () => {
   it('sait quels fichiers lire', () => {
     expect(readableTrack('activities/1.gpx')).toBe(true);
     expect(readableTrack('activities/1.tcx.gz')).toBe(true);
-    expect(readableTrack('activities/1.fit.gz')).toBe(false);
+    expect(readableTrack('activities/1.fit.gz')).toBe(true);
+    expect(readableTrack('activities/1.json')).toBe(false);
   });
 });
