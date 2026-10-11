@@ -22,12 +22,17 @@ const toHub = async (page) => {
 
 const text = async (locator) => ((await locator.textContent()) ?? '').replace(/\s/g, ' ');
 
-async function openTâches(page, BASE) {
+/**
+ * Ouvre Tâches — toujours sur « À faire » depuis le 11/10/2026 — puis, si
+ * demandé, la vue `view` (le nom de son bouton : « Aujourd’hui », une liste).
+ */
+async function openTâches(page, BASE, view = null) {
   await page.goto(BASE);
   await toHub(page);
   await page.waitForSelector('.hub-picker-card');
   await page.getByRole('button', { name: /Tâches/ }).click();
   await page.waitForSelector('.taches-quickadd');
+  if (view) await page.getByRole('button', { name: new RegExp(`^${view}`) }).click();
 }
 
 async function type(page, value) {
@@ -74,7 +79,8 @@ export async function run({ browser, check, BASE }) {
   check('La carte Tâches dit ce que fait le module', (await card.textContent())?.includes('À faire') ?? false);
   await card.click();
   await page.waitForSelector('.taches-quickadd');
-  check('Tâches s’ouvre sur Aujourd’hui', (await text(page.locator('.taches-title'))).startsWith('Aujourd’hui'));
+  check('Tâches s’ouvre sur « À faire » (11/10/2026)', (await text(page.locator('.taches-title'))).startsWith('À faire'));
+  await page.getByRole('button', { name: /^Aujourd’hui/ }).click();
   check('Aujourd’hui vide explique comment ajouter', (await text(page.locator('.taches-empty'))).includes('Rien de prévu'));
 
   // --- L'ajout rapide : ce qui a été compris, avant d'enregistrer ---------------------------
@@ -139,7 +145,25 @@ export async function run({ browser, check, BASE }) {
   await row(page, 'Impôts').locator('.taches-row-title').click({ clickCount: 3 });
   check('Toucher le texte d’une tâche n’ouvre pas sa fenêtre…', (await page.locator('.taches-editor').count()) === 0);
   check('… et le texte se sélectionne, pour le copier', (await page.evaluate(() => window.getSelection()?.toString() ?? '')).includes('Impôts'));
+  const editedBySelecting = await page.locator('.taches-row-title-input').waitFor({ timeout: 700 }).then(() => true, () => false);
+  check('… sans passer en modification (triple clic)', !editedBySelecting);
   await page.evaluate(() => window.getSelection()?.removeAllRanges());
+
+  // --- Modifier le titre sur place, d'un toucher (11/10/2026) ------------------------------------
+  await row(page, 'Réunion de lundi').locator('.taches-row-title').click();
+  const titleInput = page.locator('.taches-row-title-input');
+  await titleInput.waitFor();
+  check('Toucher le titre le rend modifiable, sur place', (await titleInput.inputValue()) === 'Réunion de lundi' && (await page.locator('.taches-editor').count()) === 0);
+  await titleInput.press('End');
+  await titleInput.pressSequentially(' matin');
+  await titleInput.press('Enter');
+  await row(page, 'Réunion de lundi matin').waitFor();
+  check('Entrée enregistre le nouveau titre', (await page.locator('.taches-row-title-input').count()) === 0);
+  await row(page, 'Réunion de lundi matin').locator('.taches-row-title').click();
+  await titleInput.waitFor();
+  await titleInput.fill('Autre chose');
+  await titleInput.press('Escape');
+  check('Échap annule', (await row(page, 'Réunion de lundi matin').count()) === 1 && (await row(page, 'Autre chose').count()) === 0);
   await row(page, 'Impôts').getByRole('button', { name: /^Modifier « / }).click();
   await page.waitForSelector('.taches-editor');
   check('Toucher une tâche l’ouvre, échéance déjà affichée', (await page.locator('#taches-due').inputValue()) !== '');
@@ -167,7 +191,7 @@ export async function run({ browser, check, BASE }) {
   // --- Après un rechargement ------------------------------------------------------------------------
   await page.getByRole('button', { name: 'À venir' }).click();
   await openTâches(page, BASE);
-  check('La dernière vue est retenue', (await text(page.locator('.taches-title'))).startsWith('À venir'));
+  check('Tâches rouvre toujours sur « À faire », quelle que soit la dernière vue', (await text(page.locator('.taches-title'))).startsWith('À faire'));
   await page.getByRole('button', { name: /^Aujourd’hui/ }).click();
   check(
     'Tâches, liste et sous-tâches sont toujours là',
@@ -207,7 +231,7 @@ export async function run({ browser, check, BASE }) {
   const errors4 = [];
   p4.on('pageerror', (e) => errors4.push(e.message));
   p4.on('dialog', (d) => d.accept());
-  await openTâches(p4, BASE);
+  await openTâches(p4, BASE, 'Aujourd’hui');
 
   await add(p4, 'Arroser les plantes');
   await row(p4, 'Arroser les plantes').waitFor();
@@ -275,7 +299,7 @@ export async function run({ browser, check, BASE }) {
   }
   await p4.waitForFunction(() => document.querySelector('.taches-row-title')?.textContent === 'Œufs', null, { timeout: 3000 }).catch(() => {});
   check('Glisser la poignée remonte la tâche en tête', JSON.stringify(await titles(p4)) === JSON.stringify(['Œufs', 'Lait', 'Pain']), (await titles(p4)).join(', '));
-  await openTâches(p4, BASE);
+  await openTâches(p4, BASE, 'Courses');
   await row(p4, 'Œufs').waitFor();
   check('Le nouvel ordre est gardé après un rechargement', JSON.stringify(await titles(p4)) === JSON.stringify(['Œufs', 'Lait', 'Pain']));
 
@@ -335,7 +359,7 @@ export async function run({ browser, check, BASE }) {
       JSON.stringify([{ id: 'op1', at: Date.now(), kind: 'create', taskId: 'hors-ligne-1', input: { title: 'Notée dans le métro', plannedDay: today } }]),
     );
   }, day(0));
-  await openTâches(p7, BASE);
+  await openTâches(p7, BASE, 'Aujourd’hui');
   await row(p7, 'Notée dans le métro').waitFor();
   await p7.waitForFunction(() => localStorage.getItem('taches.outbox.v1') === null);
   check('Une tâche restée en file hors ligne part à l’ouverture, et s’affiche', await row(p7, 'Notée dans le métro').isVisible());
@@ -413,7 +437,7 @@ export async function run({ browser, check, BASE }) {
   const mobile = await phone.newPage();
   const mobileErrors = [];
   mobile.on('pageerror', (e) => mobileErrors.push(e.message));
-  await openTâches(mobile, BASE);
+  await openTâches(mobile, BASE, 'Aujourd’hui');
   for (const t of ['Appeler le garage à 9h !', 'Un titre de tâche assez long pour tenir sur plusieurs lignes à l’écran avant le 30']) await add(mobile, t);
   await mobile.getByRole('button', { name: '+ Liste' }).click();
   await mobile.locator('#taches-list-name').fill('Papiers administratifs');

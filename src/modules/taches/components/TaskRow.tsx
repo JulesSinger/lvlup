@@ -1,6 +1,6 @@
-import { useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
 import { dayLabel, dueLabel, timeRangeLabel } from '../lib/format';
-import type { Task } from '../lib/types';
+import { TASK_TITLE_MAX, type Task } from '../lib/types';
 import { dueStatus } from '../lib/views';
 
 interface Props {
@@ -17,6 +17,8 @@ interface Props {
   waiting?: boolean;
   onToggle: (task: Task) => void;
   onOpen: (task: Task) => void;
+  /** Renommer sur place, en touchant le titre (une tâche ou une sous-tâche). */
+  onRename?: (task: Task, title: string) => Promise<void>;
   /** Dans une liste : la poignée pour réordonner, au doigt, à la souris ou au clavier (flèches). */
   handle?: {
     dragging: boolean;
@@ -33,9 +35,10 @@ interface Props {
  * Le texte est du texte : il se sélectionne et se copie. La fenêtre de la
  * tâche s'ouvre par le bouton ✎ du bout de la ligne (demande de Jules,
  * 28/09/2026 : toute la ligne ouvrait la fenêtre, on ne pouvait rien
- * sélectionner).
+ * sélectionner). Depuis le 11/10/2026, **toucher le titre le modifie sur
+ * place** (`InlineTitle`) — sans rien ôter à la sélection.
  */
-export function TaskRow({ task, subtasks, today, listName, showDay, pending, waiting, onToggle, onOpen, handle }: Props) {
+export function TaskRow({ task, subtasks, today, listName, showDay, pending, waiting, onToggle, onOpen, onRename, handle }: Props) {
   const [open, setOpen] = useState(false);
   const done = subtasks.filter((s) => s.completedAt).length;
   const due = dueStatus(task, today);
@@ -69,7 +72,7 @@ export function TaskRow({ task, subtasks, today, listName, showDay, pending, wai
           <span aria-hidden="true">{checked ? '✓' : ''}</span>
         </button>
         <div className="taches-row-body">
-          <span className="taches-row-title">{task.title}</span>
+          <InlineTitle task={task} className="taches-row-title" disabled={pending} onRename={onRename} />
           <span className="taches-row-meta">
             {task.priority !== 'normale' && (
               <span className={`taches-flag ${task.priority}`}>{task.priority === 'urgente' ? '!! Urgente' : '! Importante'}</span>
@@ -116,11 +119,109 @@ export function TaskRow({ task, subtasks, today, listName, showDay, pending, wai
               >
                 <span aria-hidden="true">{s.completedAt ? '✓' : ''}</span>
               </button>
-              <span className="taches-subtask-title">{s.title}</span>
+              <InlineTitle task={s} className="taches-subtask-title" disabled={false} onRename={onRename} />
             </li>
           ))}
         </ul>
       )}
     </li>
+  );
+}
+
+/** Le délai d'un double-clic : un toucher seul attend ce temps avant de passer en modification. */
+const DOUBLE_CLICK_MS = 260;
+
+/**
+ * Le titre d'une tâche, modifiable sur place (demande de Jules, 11/10/2026),
+ * sans rien ôter à la sélection (demande du 28/09/2026) :
+ *  · un **clic simple** ouvre la modification, le curseur là où l'on a
+ *    touché — après le délai d'un double-clic, pour ne pas le confondre ;
+ *  · un **double ou triple clic** sélectionne un mot ou la ligne, comme
+ *    avant ; **glisser** sélectionne aussi : rien ne s'ouvre quand du texte
+ *    est sélectionné ;
+ *  · **Entrée** ou quitter le champ enregistre ; **Échap** annule ; un titre
+ *    vidé n'est pas enregistré (on supprime par la fenêtre ✎).
+ */
+function InlineTitle({
+  task,
+  className,
+  disabled,
+  onRename,
+}: {
+  task: Task;
+  className: string;
+  disabled: boolean;
+  onRename?: (task: Task, title: string) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [caret, setCaret] = useState<number | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  const input = useRef<HTMLInputElement>(null);
+  const done = useRef(false);
+
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  useEffect(() => {
+    if (draft === null || !input.current) return;
+    input.current.focus();
+    const at = caret ?? draft.length;
+    input.current.setSelectionRange(at, at);
+    // Seulement à l'ouverture : ensuite, le curseur est à l'utilisateur.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft === null]);
+
+  if (!onRename) return <span className={className}>{task.title}</span>;
+
+  function click(e: MouseEvent<HTMLSpanElement>) {
+    window.clearTimeout(timer.current);
+    if (disabled || e.detail > 1) return; // double ou triple clic : on sélectionne
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim()) return; // un glisser a sélectionné
+    const at = selection && selection.anchorNode && e.currentTarget.contains(selection.anchorNode) ? selection.anchorOffset : null;
+    timer.current = window.setTimeout(() => {
+      const now = window.getSelection();
+      if (now && !now.isCollapsed && now.toString().trim()) return;
+      done.current = false;
+      setCaret(at);
+      setDraft(task.title);
+    }, DOUBLE_CLICK_MS);
+  }
+
+  async function finish(save: boolean) {
+    if (done.current || draft === null) return;
+    done.current = true;
+    const title = draft.trim();
+    setDraft(null);
+    if (!save || !title || title === task.title) return;
+    await onRename?.(task, title).catch(() => undefined);
+  }
+
+  if (draft !== null) {
+    return (
+      <input
+        ref={input}
+        className={`${className} taches-row-title-input`}
+        value={draft}
+        maxLength={TASK_TITLE_MAX}
+        aria-label={`Modifier le titre de « ${task.title} »`}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            void finish(true);
+          } else if (e.key === 'Escape') {
+            // Échap ferme le champ, pas une fenêtre ouverte derrière.
+            e.preventDefault();
+            e.stopPropagation();
+            void finish(false);
+          }
+        }}
+        onBlur={() => void finish(true)}
+      />
+    );
+  }
+  return (
+    <span className={`${className} taches-row-title-editable`} onClick={click} title="Toucher pour modifier">
+      {task.title}
+    </span>
   );
 }

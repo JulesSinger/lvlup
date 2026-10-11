@@ -886,3 +886,22 @@
 .taches-inline-add:hover .taches-inline-hint {
   opacity: 1;
 }
+
+/* Le titre modifiable sur place (11/10/2026). Deux classes : `input:focus` du socle l'emporte sinon. */
+.taches-row-title-editable {
+  cursor: text;
+}
+.taches-row-title.taches-row-title-input,
+.taches-subtask-title.taches-row-title-input {
+  width: 100%;
+  min-width: 0;
+  padding: 1px 4px;
+  margin: -2px -5px;
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}

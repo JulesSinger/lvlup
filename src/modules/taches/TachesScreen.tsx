@@ -28,18 +28,13 @@ import { doneView, inboxView, listView, subtasksOf, todayView, upcomingView } fr
 /** La vue ouverte : Aujourd'hui, À venir, la boîte de réception, les terminées, ou une liste. */
 type View = 'today' | 'upcoming' | 'inbox' | 'done' | `list:${string}`;
 
-/** La dernière vue ouverte, retenue sur cet appareil — un confort, pas une donnée. */
-const VIEW_KEY = 'taches.view.v1';
-
-function savedView(): View {
-  try {
-    const v = localStorage.getItem(VIEW_KEY);
-    if (v === 'today' || v === 'upcoming' || v === 'inbox' || v === 'done' || v?.startsWith('list:')) return v as View;
-  } catch {
-    // Stockage refusé : Aujourd'hui suffit.
-  }
-  return 'today';
-}
+/**
+ * La vue ouverte en arrivant : toujours « À faire » (demande de Jules,
+ * 11/10/2026 — « qu'on arrive sur À faire par défaut, pas Aujourd'hui »).
+ * La dernière vue n'est plus retenue (`taches.view.v1`, plus lue ni écrite) :
+ * on se retrouvait sur Aujourd'hui, l'ancienne vue par défaut.
+ */
+const START_VIEW: View = 'inbox';
 
 const LONG_DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const LONG_MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
@@ -77,7 +72,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
   // Le rappel par défaut, montré dans la fenêtre d'une tâche qui n'a pas choisi les siens.
   const [settings, setSettings] = useState<TachesSettings>(DEFAULT_TACHES_SETTINGS);
   const [loaded, setLoaded] = useState(false);
-  const [view, setViewState] = useState<View>(savedView);
+  const [view, setViewState] = useState<View>(START_VIEW);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [listEditing, setListEditing] = useState<TaskList | 'new' | null>(null);
   const [pending, setPending] = useState<Set<string>>(new Set());
@@ -178,14 +173,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
-  function setView(next: View) {
-    setViewState(next);
-    try {
-      localStorage.setItem(VIEW_KEY, next);
-    } catch {
-      // Sans stockage, la vue n'est simplement pas retenue.
-    }
-  }
+  const setView = (next: View) => setViewState(next);
 
   function showToast(next: Toast) {
     window.clearTimeout(toastTimer.current);
@@ -206,9 +194,9 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
 
   const activeLists = useMemo(() => lists.filter((l) => !l.archived).sort((a, b) => a.position - b.position), [lists]);
   const currentList = view.startsWith('list:') ? lists.find((l) => `list:${l.id}` === view) : undefined;
-  // Une liste supprimée entre-temps : retour à Aujourd'hui.
+  // Une liste supprimée entre-temps : retour à « À faire ».
   useEffect(() => {
-    if (loaded && view.startsWith('list:') && !currentList) setView('today');
+    if (loaded && view.startsWith('list:') && !currentList) setView(START_VIEW);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, view, currentList]);
 
@@ -447,6 +435,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
       waiting={waiting.has(task.id)}
       onToggle={(t) => void toggle(t)}
       onOpen={(t) => setEditingId(t.id)}
+      onRename={(t, title) => write(() => taskWriter.updateTask(t.id, { title }))}
       handle={handle}
     />
   );

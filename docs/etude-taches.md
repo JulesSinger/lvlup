@@ -642,3 +642,24 @@ objectif), les rappels d'Éclipse sur le mécanisme commun.
   analyseurs français : [src/locales/fr/parsers](https://github.com/wanasit/chrono/tree/master/src/locales/fr/parsers)
 - Rappels, pg_cron et offre gratuite de Supabase : `docs/rappels-mise-en-place.md`
 - Calques et services entre modules : `docs/etude-calendrier.md` §6 et §17, `core/lib/services.ts`
+
+## 20. « À faire » à l’arrivée, et le titre modifiable d'un toucher (11/10/2026)
+
+Deux demandes de Jules.
+
+**On arrive sur « À faire »**, plus sur Aujourd'hui. La dernière vue n'est plus retenue
+(`taches.view.v1` n'est plus lue ni écrite) : retenue, elle ramenait presque toujours sur
+Aujourd'hui, l'ancienne vue par défaut. Une liste supprimée pendant qu'on la regarde ramène aussi
+à « À faire ».
+
+**Toucher le titre d'une tâche le modifie sur place** (`InlineTitle`, dans `TaskRow`), sous-tâches
+comprises — sans rien ôter à la sélection, demandée le 28/09/2026 :
+- un **clic simple** ouvre la modification, le curseur là où l'on a touché, après le délai d'un
+  double-clic (260 ms) pour ne pas le confondre avec lui ;
+- un **double ou triple clic** sélectionne un mot ou la ligne, comme avant ; **glisser**
+  sélectionne aussi ; rien ne s'ouvre quand du texte est sélectionné ;
+- **Entrée** ou quitter le champ enregistre (par le même chemin que la fenêtre, file hors ligne
+  comprise) ; **Échap** annule ; un titre vidé n'est pas enregistré — on supprime par la fenêtre ✎,
+  qui reste là pour tout le reste.
+
+Le titre tapé est pris tel quel : l'ajout rapide (« demain 9h ») ne s'applique qu'à la création.
