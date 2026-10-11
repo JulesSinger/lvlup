@@ -2,15 +2,18 @@ import { useRef, useState } from 'react';
 import { budgetStore } from '../data';
 import { formatCents } from '../lib/amount';
 import { buildImportPreview, parseBoursobankCsv } from '../lib/boursobankImport';
-import type { BoursobankParseError, ImportPreviewRow } from '../lib/boursobankImport';
+import type { BoursobankParseError, ImportPreview, ImportPreviewRow } from '../lib/boursobankImport';
 import type { BudgetCategory } from '../lib/types';
 
 interface Preview {
   fileName: string;
   nouvelles: ImportPreviewRow[];
   connuesCount: number;
+  dejaParModule: ImportPreview['dejaParModule'];
   parseErrors: BoursobankParseError[];
 }
+
+const shortDay = (day: string) => new Date(`${day}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 
 interface Result {
   written: number;
@@ -41,7 +44,7 @@ export function ImportScreen({ categories, onError }: { categories: BudgetCatego
       const { rows, errors } = parseBoursobankCsv(text);
       const [entries, rules] = await Promise.all([budgetStore.listEntries(), budgetStore.listRules()]);
       const existingKeys = new Set(entries.map((e) => e.importKey).filter((k): k is string => k !== null));
-      const { nouvelles, connuesCount } = buildImportPreview(rows, existingKeys, categories, rules);
+      const { nouvelles, connuesCount, dejaParModule } = buildImportPreview(rows, existingKeys, categories, rules, entries);
 
       const initialChoices: Record<string, string> = {};
       nouvelles.forEach((p) => {
@@ -49,7 +52,7 @@ export function ImportScreen({ categories, onError }: { categories: BudgetCatego
       });
       setCategoryChoice(initialChoices);
       setCreateRule({});
-      setPreview({ fileName: file.name, nouvelles, connuesCount, parseErrors: errors });
+      setPreview({ fileName: file.name, nouvelles, connuesCount, dejaParModule, parseErrors: errors });
       onError('');
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Fichier illisible.');
@@ -134,6 +137,30 @@ export function ImportScreen({ categories, onError }: { categories: BudgetCatego
             {preview.nouvelles.length > 1 ? 's' : ''}, <span data-count="connues">{preview.connuesCount}</span> déjà connue
             {preview.connuesCount > 1 ? 's' : ''}, <span data-count="a-classer">{aClasser.length}</span> à classer
           </p>
+
+          {preview.dejaParModule.length > 0 && (
+            <section className="budget-import-group budget-import-matched">
+              <h3 className="budget-group-title">
+                Déjà dans Budget (<span data-count="deja-module">{preview.dejaParModule.length}</span>)
+              </h3>
+              <p className="field-hint">
+                Ces paiements sont déjà là, enregistrés par un autre module (une course terminée, un paiement de Projets) : ils ne sont pas
+                importés une seconde fois.
+              </p>
+              <ul className="budget-import-matched-list">
+                {preview.dejaParModule.map(({ row, entry }) => (
+                  <li key={row.importKey}>
+                    <span>
+                      {shortDay(row.day)} · {row.displayLabel}
+                    </span>
+                    <span>
+                      {formatCents(row.amountCents)} = {entry.label} du {shortDay(entry.day)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {preview.parseErrors.length > 0 && (
             <div className="notice error">

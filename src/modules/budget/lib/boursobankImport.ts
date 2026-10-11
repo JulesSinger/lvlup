@@ -1,6 +1,7 @@
 import { parseSignedAmountToCents } from './amount';
 import { parseCsvRecords } from '../../../core/lib/csv';
-import type { BudgetCategory, BudgetRule } from './types';
+import { matchModuleEntries } from './moduleMatch';
+import type { BudgetCategory, BudgetEntry, BudgetRule } from './types';
 
 /** Sépare les fragments d'une empreinte de dédoublonnage — un caractère qu'un libellé bancaire ne contiendra jamais. */
 const UNIT_SEPARATOR = '';
@@ -174,6 +175,12 @@ export interface ImportPreview {
   nouvelles: ImportPreviewRow[];
   /** Nombre de lignes dont l'empreinte est déjà connue — réimporter le même relevé ne crée rien (§4). */
   connuesCount: number;
+  /**
+   * Lignes déjà dans Budget par un autre module (une course, un paiement de
+   * Projets) : même montant, quelques jours d'écart (`moduleMatch.ts`). Elles
+   * ne sont pas importées une seconde fois.
+   */
+  dejaParModule: { row: BoursobankRow; entry: BudgetEntry }[];
 }
 
 /** Sépare les lignes déjà connues (par empreinte) des nouvelles, et suggère une catégorie pour ces dernières. */
@@ -182,15 +189,21 @@ export function buildImportPreview(
   existingImportKeys: ReadonlySet<string>,
   categories: BudgetCategory[],
   rules: BudgetRule[],
+  existingEntries: readonly BudgetEntry[] = [],
 ): ImportPreview {
   const nouvelles: ImportPreviewRow[] = [];
+  const dejaParModule: ImportPreview['dejaParModule'] = [];
   let connuesCount = 0;
-  for (const row of rows) {
-    if (existingImportKeys.has(row.importKey)) {
-      connuesCount++;
-      continue;
-    }
-    nouvelles.push({ row, suggestedCategoryId: suggestCategoryId(row, categories, rules) });
+  const fresh = rows.filter((row) => {
+    if (!existingImportKeys.has(row.importKey)) return true;
+    connuesCount++;
+    return false;
+  });
+  const fromModules = matchModuleEntries(fresh, existingEntries);
+  for (const row of fresh) {
+    const match = fromModules.get(row.importKey);
+    if (match) dejaParModule.push({ row, entry: match.entry });
+    else nouvelles.push({ row, suggestedCategoryId: suggestCategoryId(row, categories, rules) });
   }
-  return { nouvelles, connuesCount };
+  return { nouvelles, connuesCount, dejaParModule };
 }

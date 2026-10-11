@@ -717,3 +717,25 @@ l'a pas choisie).
   catégorie) ; vérifié sur capture, sans débordement à 390 px.
 
 1351 → **1360** tests unitaires, suite de Budget +13 vérifications, 500/500 sur les suites liées.
+
+
+## 16. Le relevé ne compte plus deux fois une course (11/10/2026)
+
+Une course terminée crée sa dépense dans Budget (Courses, depuis le 26/09/2026 ; et depuis le
+11/10/2026, une course enregistrée par Claude d'après un ticket de caisse). Le relevé bancaire
+importé en fin de mois apportait ensuite le même paiement : **il comptait deux fois**. C'était
+assumé (« au pire j'enlève la ligne »), mais avec des tickets enregistrés en un geste, ça devenait
+systématique ; Jules a demandé la correction.
+
+`lib/moduleMatch.ts` (pur, testé) : une ligne du relevé est la même opération qu'une écriture
+**venue d'un module** (sa référence est « module:chose:numéro », jamais une empreinte bancaire) si
+elle a **le même montant au centime** et tombe **de deux jours avant à cinq jours après** le jour
+noté — un paiement par carte apparaît un à trois jours plus tard ; un virement reçu (Projets) peut
+être noté le jour où on l'apprend. Une écriture ne sert qu'une fois ; à plusieurs candidates, la
+plus proche en date l'emporte. L'aperçu de l'import les met à part, « Déjà dans Budget », avec la
+course ou le paiement auquel chacune correspond, et ne les importe pas. Vaut aussi pour les
+paiements reçus de Projets. Réimporter le même relevé redonne le même rapprochement ; supprimer la
+course rend la ligne importable.
+
+Ce qui n'est pas couvert : un ticket payé en deux fois (carte et titres-restaurant) ne correspond
+au centime à aucune ligne — il reste alors deux lignes, à départager à la main, comme avant.

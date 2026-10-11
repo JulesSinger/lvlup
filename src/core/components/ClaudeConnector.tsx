@@ -5,20 +5,40 @@ import { hashToken, newSecretToken } from '../lib/secretToken';
 
 const dateFr = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 
-/** L'adresse du connecteur : la fonction `atlas-mcp`, suivie du jeton. */
-export const connectorUrl = (token: string) =>
-  supabaseConfig ? `${supabaseConfig.url.replace(/\/$/, '')}/functions/v1/atlas-mcp/${token}` : '';
+/**
+ * L'adresse du connecteur, sans rien de secret : la clé voyage dans un en-tête
+ * (depuis le 11/10/2026), que Claude garde à l'abri et n'affiche plus.
+ */
+export const connectorUrl = supabaseConfig ? `${supabaseConfig.url.replace(/\/$/, '')}/functions/v1/atlas-mcp` : '';
+
+function Copy({ text, label }: { text: string; label: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      className="btn btn-sm"
+      onClick={() =>
+        void navigator.clipboard?.writeText(text).then(
+          () => setDone(true),
+          () => undefined,
+        )
+      }
+    >
+      {done ? 'Copié ✓' : label}
+    </button>
+  );
+}
 
 /**
- * Le connecteur de Claude (docs/connecteur-claude.md) : une adresse secrète à
- * coller dans Claude (Réglages → Connecteurs → connecteur personnalisé). Elle
- * porte un jeton tiré ici, montré une fois ; seule son empreinte part en base,
- * comme le jeton du raccourci de Sport. Révoquer un jeton coupe Claude aussitôt.
+ * Le connecteur de Claude (docs/connecteur-claude.md) : une adresse et une
+ * clé à coller dans Claude (Réglages → Connecteurs → connecteur personnalisé,
+ * clé dans un en-tête de requête). La clé est tirée ici, montrée une fois ;
+ * seule son empreinte part en base, comme le jeton du raccourci de Sport.
+ * Révoquer une clé coupe Claude aussitôt.
  */
 export function ClaudeConnector({ remote }: { remote: boolean }) {
   const [tokens, setTokens] = useState<McpToken[]>([]);
   const [fresh, setFresh] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [problem, setProblem] = useState('');
 
@@ -54,8 +74,8 @@ export function ClaudeConnector({ remote }: { remote: boolean }) {
     <section className="settings-block claude-connector">
       <h3 className="settings-title">Claude</h3>
       <p className="settings-hint">
-        Un connecteur pour demander à Claude — sur le site, l’app iPhone ou l’ordinateur — d’ajouter, de modifier ou de supprimer tes
-        recettes, et de tenir ton menu. Les autres modules viendront ensuite.
+        Un connecteur pour demander à Claude — sur le site, l’app iPhone ou l’ordinateur — de tenir tes recettes et ton menu, ta liste de
+        courses, et d’enregistrer une course d’après la photo du ticket de caisse. Les autres modules viendront ensuite.
       </p>
       {!remote ? (
         <p className="settings-hint claude-connector-local" role="note">
@@ -65,34 +85,31 @@ export function ClaudeConnector({ remote }: { remote: boolean }) {
         <>
           {fresh ? (
             <div className="claude-connector-fresh" role="status">
-              <code className="claude-connector-url">{connectorUrl(fresh)}</code>
+              <p className="claude-connector-label">Adresse</p>
+              <code className="claude-connector-url">{connectorUrl}</code>
+              <p className="claude-connector-label">En-tête de requête : nom</p>
+              <code className="claude-connector-url">Authorization</code>
+              <p className="claude-connector-label">En-tête de requête : valeur (la clé, à garder secrète)</p>
+              <code className="claude-connector-url claude-connector-key">Bearer {fresh}</code>
               <div className="settings-actions">
-                <button
-                  type="button"
-                  className="btn btn-sm btn-primary"
-                  onClick={() =>
-                    void navigator.clipboard?.writeText(connectorUrl(fresh)).then(
-                      () => setCopied(true),
-                      () => undefined,
-                    )
-                  }
-                >
-                  {copied ? 'Copiée ✓' : 'Copier l’adresse'}
-                </button>
+                <Copy text={connectorUrl} label="Copier l’adresse" />
+                <Copy text={`Bearer ${fresh}`} label="Copier la valeur" />
               </div>
               <ol className="claude-connector-steps">
                 <li>Dans Claude : Réglages → Connecteurs → Ajouter un connecteur personnalisé.</li>
-                <li>Nom : « Atlas » ; adresse : celle-ci. Rien d’autre à remplir.</li>
-                <li>Dans une conversation, active le connecteur Atlas, puis demande : « ajoute cette recette… ».</li>
+                <li>Nom : « Atlas » ; adresse : celle-ci.</li>
+                <li>Authentification : « Aucune connexion » ; dans « En-têtes de requête », le nom et la valeur ci-dessus.</li>
+                <li>Dans une conversation, active le connecteur Atlas, puis : « ajoute cette recette… », « enregistre ce ticket ».</li>
               </ol>
               <p className="settings-hint">
-                Elle ne s’affichera plus : garde-la pour toi. Qui l’a peut modifier tes recettes ; si elle t’échappe, révoque-la ici.
+                La clé ne s’affichera plus : Claude la garde à l’abri. Qui l’a peut agir sur tes recettes et tes courses ; si elle t’échappe,
+                révoque-la ici et crée-en une autre.
               </p>
             </div>
           ) : (
             <div className="settings-actions">
               <button type="button" className="btn btn-sm" onClick={() => void create()}>
-                Créer l’adresse du connecteur
+                Créer une clé pour Claude
               </button>
             </div>
           )}
@@ -101,7 +118,7 @@ export function ClaudeConnector({ remote }: { remote: boolean }) {
               {tokens.map((t) => (
                 <li key={t.id}>
                   <span>
-                    Adresse créée le {dateFr(t.createdAt)}
+                    Clé créée le {dateFr(t.createdAt)}
                     {t.lastUsedAt ? ` · utilisée le ${dateFr(t.lastUsedAt)}` : ' · pas encore utilisée'}
                   </span>
                   {revoking === t.id ? (

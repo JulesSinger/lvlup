@@ -1482,4 +1482,38 @@ export async function run({ browser, check, BASE }) {
     check('Aucune erreur JavaScript (mobile)', mobileErrors.length === 0, mobileErrors.join(' | '));
     await phone.close();
   }
+
+  // --- Un paiement déjà enregistré par Courses n'est pas réimporté (§16) ------
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const mp = await ctx.newPage();
+    const matchErrors = [];
+    mp.on('pageerror', (e) => matchErrors.push(e.message));
+    await enterBudget(mp, BASE);
+    await mp.waitForSelector('.budget-tab');
+    await mp.evaluate(() => {
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      // La dépense qu'une course terminée le 1er avril a créée (référence « comete:course:7 »).
+      snap.budgetEntries = [
+        { id: 'm1', day: '2026-04-01', label: 'Courses — Lidl', amountCents: -2345, categoryId: null, source: 'manuelle', importKey: 'comete:course:7', note: 'Courses, course n° 7', createdAt: '2026-04-01' },
+      ];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await reloadBudget(mp);
+    await mp.getByRole('button', { name: 'Importer', exact: true }).click();
+    const csv = [
+      'dateOp;dateVal;label;suggestedLabel;category;categoryParent;amount;comment;accountNum;accountLabel;accountbalance;mark',
+      '2026-04-03;2026-04-03;"CARTE 01/04/26 LIDL CB*0000";Lidl;Alimentation;"Vie quotidienne";-23,45;;00000000000;BoursoBank;100.00;Non',
+      '2026-04-03;2026-04-03;"CARTE 02/04/26 BOULANGERIE CB*0000";Boulangerie;Alimentation;"Vie quotidienne";-4,20;;00000000000;BoursoBank;95.80;Non',
+    ].join('\n');
+    await mp.locator('input[aria-label="Choisir le fichier du relevé"]').setInputFiles({ name: 'releve.csv', mimeType: 'text/csv', buffer: Buffer.from(csv, 'utf8') });
+    await mp.waitForSelector('.budget-import-summary');
+    check(
+      'Un paiement du relevé déjà enregistré par une course est reconnu, pas réimporté',
+      (await mp.locator('[data-count="deja-module"]').textContent()) === '1' && (await mp.locator('[data-count="nouvelles"]').textContent()) === '1',
+    );
+    check('… et l’aperçu dit à quelle course il correspond', ((await mp.locator('.budget-import-matched').textContent()) ?? '').includes('Courses — Lidl'));
+    check('Aucune erreur JavaScript (rapprochement)', matchErrors.length === 0, matchErrors.join(' | '));
+    await ctx.close();
+  }
 }

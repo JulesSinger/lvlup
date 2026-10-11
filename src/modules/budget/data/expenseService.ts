@@ -14,9 +14,10 @@ import type { BudgetStore } from './budgetStore';
  * migration. Les empreintes bancaires ne portent jamais de préfixe
  * « module: », les deux ne peuvent pas se confondre.
  *
- * Si le relevé bancaire importé amène ensuite le même paiement, il apparaît
- * une seconde fois : c'est assumé (décision de Jules du 26/09/2026, il
- * supprime alors l'une des deux lignes).
+ * Si le relevé bancaire importé amène ensuite le même paiement, l'import le
+ * reconnaît (même montant, quelques jours d'écart : `lib/moduleMatch.ts`) et
+ * ne l'écrit pas une seconde fois — depuis le 11/10/2026 ; avant, le doublon
+ * était assumé (décision du 26/09/2026).
  */
 
 /** Le nom d'une catégorie, comparé sans casse ni accents. */

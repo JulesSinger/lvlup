@@ -23,7 +23,7 @@ export function normalize(text: string): string {
  * rayons les plus précis d'abord (« lait de coco » est de l'épicerie, pas
  * de la crèmerie ; « eau de javel » de l'entretien, pas une boisson).
  */
-const KEYWORDS: [Aisle, string[]][] = [
+export const AISLE_KEYWORDS: [Aisle, string[]][] = [
   ['bebe', ['couche', 'lingette bebe', 'petit pot', 'lait infantile', 'biberon']],
   ['animaux', ['croquette', 'litiere', 'patee', 'chat', 'chien']],
   ['entretien', ['javel', 'lessive', 'liquide vaisselle', 'eponge', 'sac poubelle', 'essuie tout', 'papier toilette', 'nettoyant', 'adoucissant', 'pastille lave']],
@@ -57,7 +57,7 @@ const singular = (text: string) =>
 export function guessAisle(name: string): Aisle {
   const text = ` ${singular(normalize(name))} `;
   let best: { aisle: Aisle; length: number } | null = null;
-  for (const [aisle, words] of KEYWORDS) {
+  for (const [aisle, words] of AISLE_KEYWORDS) {
     for (const word of words) {
       if (text.includes(` ${word} `) && (!best || word.length > best.length)) {
         best = { aisle, length: word.length };

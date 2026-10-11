@@ -4,12 +4,13 @@
  *
  * Claude (le site, l'app iPhone ou l'app d'ordinateur) s'y connecte comme à un
  * « connecteur personnalisé » : il lit la liste des outils, puis les appelle
- * quand on le lui demande (« ajoute cette recette », « mets le curry au menu
- * de jeudi soir »). Pour commencer, seulement Recettes, en entier
- * (`recettes.ts`) ; les autres modules viendront un à un.
+ * quand on le lui demande (« ajoute cette recette », « enregistre ce ticket de
+ * caisse »). Recettes (`recettes.ts`) et Courses (`courses.ts`) ; les autres
+ * modules viendront un à un.
  *
- * **Qui parle ?** L'adresse du connecteur porte un jeton personnel :
- *   https://<projet>.supabase.co/functions/v1/atlas-mcp/<jeton>
+ * **Qui parle ?** Une clé personnelle, envoyée par Claude dans l'en-tête
+ *   Authorization: Bearer atl_…   (adresse : https://<projet>.supabase.co/functions/v1/atlas-mcp)
+ * — ou, première façon gardée, en fin d'adresse : …/atlas-mcp/atl_…
  * créé dans Atlas (Réglages → Claude), montré une fois ; seule son empreinte
  * SHA-256 est rangée (`mcp_tokens`), comme le jeton du raccourci iPhone. Le
  * guide de Supabase pour les serveurs MCP ne prévoit pas encore de connexion
@@ -25,10 +26,11 @@
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { handleBody, type ServerInfo } from './mcp.ts';
+import { handleBody, type ServerInfo, type Tool } from './mcp.ts';
+import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type StoreRow, type TripItemRow, type TripRow } from './courses.ts';
 import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from './recettes.ts';
 
-const VERSION = '2026-10-11.1';
+const VERSION = '2026-10-11.2';
 /** Le fuseau de Jules : « aujourd'hui » et la semaine en cours se comptent ici. */
 const TIME_ZONE = 'Europe/Paris';
 /** Une requête plus grosse est refusée avant d'être lue (une recette tient en quelques Ko). */
@@ -60,6 +62,22 @@ async function accountOf(token: string): Promise<{ tokenId: string; userId: stri
   const { data, error } = await admin.from('mcp_tokens').select('id, user_id').eq('token_hash', await sha256Hex(token)).maybeSingle();
   if (error || !data) return null;
   return { tokenId: data.id as string, userId: data.user_id as string };
+}
+
+/**
+ * La clé, d'où qu'elle vienne : l'en-tête `Authorization: Bearer atl_…`
+ * (depuis le 11/10/2026, la bonne façon : Claude la garde secrète, et elle ne
+ * paraît ni dans l'adresse ni dans les journaux), ou `X-Atlas-Key`, ou encore
+ * — la première façon, gardée pour une adresse déjà collée dans Claude — le
+ * dernier morceau de l'adresse, `…/atlas-mcp/atl_…`.
+ */
+function tokenOf(request: Request): string | null {
+  const bearer = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+  if (bearer.startsWith('atl_')) return bearer;
+  const header = (request.headers.get('X-Atlas-Key') ?? '').trim();
+  if (header.startsWith('atl_')) return header;
+  const last = new URL(request.url).pathname.split('/').filter(Boolean).pop() ?? '';
+  return last.startsWith('atl_') ? last : null;
 }
 
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -140,13 +158,109 @@ function recettesData(userId: string): RecettesData {
   };
 }
 
+/** Le nom d'une catégorie, comparé sans casse ni accents (comme `expenseService` de Budget). */
+const categoryKey = (name: string) =>
+  name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
+/** Les données de Courses d'un seul compte : chaque requête porte `user_id`. */
+function coursesData(userId: string): CoursesData {
+  const t = (table: string) => admin.from(table);
+  const insert = async <R>(table: string, row: Record<string, unknown>) =>
+    check(await t(table).insert({ ...row, user_id: userId }).select('*').single()) as R;
+  const update = async <R>(table: string, id: string, row: Record<string, unknown>) =>
+    (check(await t(table).update(row).eq('user_id', userId).eq('id', id).select('*').maybeSingle()) as R | null) ?? null;
+  const remove = async (table: string, id: string) =>
+    (check(await t(table).delete().eq('user_id', userId).eq('id', id).select('id')) as unknown[]).length > 0;
+  type Page<R> = PromiseLike<{ data: R[] | null; error: { message: string } | null }>;
+  // Des colonnes choisies : le client ne sait pas typer une liste écrite en texte, on le lui dit.
+  const all = <R>(table: string, columns = '*') =>
+    fetchAll<R>((first, last) => t(table).select(columns).eq('user_id', userId).order('id').range(first, last) as unknown as Page<R>);
+  const budgetWith = async (refs: string[]) =>
+    refs.length === 0
+      ? []
+      : (check(await t('budget_entries').select('id, import_key').eq('user_id', userId).in('import_key', refs)) as { id: string; import_key: string }[]);
+
+  return {
+    listItems: () => all<ItemRow>('courses_items', 'id, name, aisle, recurrence, default_quantity, last_trip_number'),
+    listStores: () => all<StoreRow>('courses_stores', 'id, name'),
+    listEntries: () => all<EntryRow>('courses_list', 'id, item_id, quantity, note, checked, price_cents'),
+    listTrips: () => all<TripRow>('courses_trips', 'id, number, day, store_id, store_name, total_cents, note'),
+    async listTripItems(tripIds) {
+      if (tripIds.length === 0) return [];
+      return fetchAll<TripItemRow>(
+        (first, last) =>
+          t('courses_trip_items')
+            .select('id, trip_id, item_id, name, aisle, quantity, price_cents')
+            .eq('user_id', userId)
+            .in('trip_id', tripIds)
+            .order('id')
+            .range(first, last) as unknown as Page<TripItemRow>,
+      );
+    },
+    insertItem: (row) => insert<ItemRow>('courses_items', row),
+    updateItem: (id, row) => update<ItemRow>('courses_items', id, row),
+    insertEntry: (row) => insert<EntryRow>('courses_list', row),
+    updateEntry: (id, row) => update<EntryRow>('courses_list', id, row),
+    deleteEntry: (id) => remove('courses_list', id),
+    async closeTrip(plan) {
+      // Le compte est passé en paramètre : la fonction SQL n'est appelable qu'avec la clé de service.
+      const trip = check(await admin.rpc('courses_close_trip_for', { p_user: userId, plan })) as TripRow;
+      return trip;
+    },
+    deleteTrip: (id) => remove('courses_trips', id),
+    async recordExpense(request) {
+      if ((await budgetWith([request.ref])).length > 0) return; // déjà là : rejouer ne double rien
+      const categories = check(await t('budget_categories').select('id, name').eq('user_id', userId)) as { id: string; name: string }[];
+      const category = categories.find((c) => categoryKey(c.name) === categoryKey(request.categoryName));
+      check(
+        await t('budget_entries').insert({
+          user_id: userId,
+          day: request.day,
+          label: request.label,
+          amount_cents: -Math.abs(Math.round(request.amountCents)),
+          category_id: category?.id ?? null,
+          source: 'manuelle',
+          import_key: request.ref,
+          note: request.note,
+        }),
+      );
+    },
+    async removeExpense(ref) {
+      check(await t('budget_entries').delete().eq('user_id', userId).eq('import_key', ref));
+    },
+    async expenseRefs(refs) {
+      return new Set((await budgetWith(refs)).map((e) => e.import_key));
+    },
+  };
+}
+
+interface AtlasContext {
+  today: string;
+  recettes: RecettesData;
+  courses: CoursesData;
+}
+
+/** Les outils de chaque module, chacun avec sa part du contexte. */
+const tools: Tool<AtlasContext>[] = [
+  ...recettesTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.recettes, today: c.today }) })),
+  ...coursesTools.map((tool) => ({
+    ...tool,
+    run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.courses, today: c.today, newId: () => crypto.randomUUID() }),
+  })),
+];
+
 function serverInfo(day: string): ServerInfo {
   return {
     name: 'atlas',
     title: 'Atlas',
     version: VERSION,
     instructions: [
-      'Atlas est l’application personnelle de Jules. Ce connecteur donne accès à son module Recettes : le carnet de recettes, le menu de la semaine (midi et soir), les recettes faites et les ingrédients « toujours là ».',
+      'Atlas est l’application personnelle de Jules. Ce connecteur donne accès à deux de ses modules : Recettes (le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là ») et Courses (la liste, le catalogue des articles, l’historique des courses, et l’enregistrement d’un ticket de caisse).',
+      'Une photo de ticket de caisse : lis-la, puis courses_catalogue, puis courses_enregistrer_ticket.',
       `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ.`,
       'Avant de modifier, supprimer ou mettre au menu une recette, retrouve son identifiant avec recettes_lister. Une recette importée d’un site : écris les ingrédients un par ligne, quantité en tête, comme sur la page, et les étapes dans l’ordre.',
       'Demande confirmation avant toute suppression.',
@@ -157,11 +271,9 @@ function serverInfo(day: string): ServerInfo {
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
-  // Le jeton est le dernier morceau de l'adresse : …/atlas-mcp/<jeton>.
-  const parts = new URL(request.url).pathname.split('/').filter(Boolean);
-  const token = parts[parts.length - 1] ?? '';
-  const account = token.startsWith('atl_') ? await accountOf(token) : null;
-  if (!account) return json({ error: 'Adresse de connecteur inconnue ou révoquée : recrée-la dans Atlas → Réglages → Claude.' }, 401);
+  const token = tokenOf(request);
+  const account = token ? await accountOf(token) : null;
+  if (!account) return json({ error: 'Clé du connecteur absente, inconnue ou révoquée : recrée-la dans Atlas → Réglages → Claude.' }, 401);
 
   // Pas de flux d'événements ni de session : seul POST sert (Streamable HTTP, sans état).
   if (request.method !== 'POST') return json({ error: 'Ce connecteur ne répond qu’en POST.' }, 405);
@@ -180,7 +292,8 @@ Deno.serve(async (request) => {
   await admin.from('mcp_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', account.tokenId);
   const day = today();
   try {
-    const answer = await handleBody(body, recettesTools, serverInfo(day), { data: recettesData(account.userId), today: day });
+    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId) };
+    const answer = await handleBody(body, tools, serverInfo(day), context);
     if (answer === null) return new Response(null, { status: 202, headers: CORS });
     return json(answer);
   } catch (err) {

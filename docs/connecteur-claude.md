@@ -19,7 +19,16 @@ le forfait gratuit (centre d'aide d'Anthropic, octobre 2026) ; l'abonnement de J
 n'est pas une dépense d'Atlas. **Avec un compte seulement** : Claude se connecte depuis les
 serveurs d'Anthropic, il lui faut un serveur à joindre.
 
-## 2. Qui parle : une adresse secrète
+## 2. Qui parle : une clé personnelle
+
+> **Depuis le 11/10/2026 (soir)**, la clé voyage dans un **en-tête de requête**
+> (`Authorization: Bearer atl_…`), que Claude garde à l'abri et n'affiche plus ; l'adresse,
+> `…/functions/v1/atlas-mcp`, ne porte plus rien de secret. La première façon, ci-dessous (la clé
+> en fin d'adresse), reste acceptée pour un connecteur déjà réglé — elle se voyait partout où
+> l'adresse passait, jusque dans une conversation. Décision de Jules, après avoir collé une
+> adresse dans une conversation.
+
+### La première façon : une adresse secrète
 
 L'adresse du connecteur porte un **jeton personnel** :
 
@@ -90,18 +99,61 @@ premier essai de Jules.
 
 ## 6. Mise en route (Jules, une fois)
 
-1. Appliquer `supabase/2026-10-11-mcp-tokens.sql` dans Supabase Studio.
+1. Appliquer `supabase/2026-10-11-mcp-tokens.sql` et `supabase/2026-10-11-courses-close-trip-for.sql`
+   dans Supabase Studio.
 2. Déployer : `supabase functions deploy atlas-mcp --no-verify-jwt`.
-3. Pousser (`git push`), ouvrir Atlas connecté : **Réglages → Claude → Créer l'adresse du
-   connecteur**, la copier.
+3. Pousser (`git push`), ouvrir Atlas connecté : **Réglages → Claude → Créer une clé pour
+   Claude** ; la fenêtre montre l'adresse et l'en-tête à copier.
 4. Dans Claude : **Réglages → Connecteurs → Ajouter un connecteur personnalisé**, nom « Atlas »,
-   l'adresse ; rien d'autre.
+   l'adresse ; authentification « Aucune connexion » ; en-tête de requête `Authorization`, valeur
+   `Bearer atl_…`.
 5. Dans une conversation, activer le connecteur Atlas (menu des outils), puis : « Liste mes
    recettes », « Ajoute cette recette : … ».
 
+## 8. Courses, et les tickets de caisse (11/10/2026)
+
+Demande de Jules : « donner mon ticket de caisse à Claude et que tout soit rempli dans les courses
+que j'ai faites ». **C'est Claude qui lit la photo** : Atlas ne paie aucun service de lecture ; le
+connecteur reçoit des données déjà propres. Ses décisions : le ticket **coche la liste** ; la
+**dépense est créée dans Budget** ; la clé passe dans un en-tête (§2).
+
+`supabase/functions/atlas-mcp/courses.ts`, testé par `src/modules/courses/lib/mcpTools.test.ts` :
+
+| Outil | Ce qu'il fait |
+|---|---|
+| `courses_enregistrer_ticket` | magasin, jour, total payé, articles (nom au propre, quantité, prix remises déduites) → la course, comme « Terminer la course » |
+| `courses_catalogue` | les articles connus (rayon, récurrence, sur la liste, dernier prix) et les magasins — à lire avant un ticket, pour reprendre les noms |
+| `courses_liste`, `courses_liste_ajouter`, `_modifier`, `_retirer` | la liste en cours ; un article déjà sur la liste n'y est jamais deux fois |
+| `courses_article_modifier` | renommer un article, son rayon, sa quantité habituelle, sa récurrence |
+| `courses_historique` | les dernières courses, leurs articles et prix, et si la dépense est dans Budget |
+| `courses_supprimer_course` | une course enregistrée par erreur, et sa dépense — **marqué destructeur** |
+
+**Le ticket, comme « Terminer la course »** (`ticketPlan`, comparé par un test à `buildClosePlan`
+du module sur le même cas) : chaque ligne retrouve son article du catalogue (par `item_id`, ou par
+son nom à la casse, aux accents et au pluriel près) ; **une ligne de la liste dont l'article est
+sur le ticket est retirée**, cochée ou non ; le reste de la liste reste ; les articles habituels
+reviennent quand c'est leur tour. Deux nouveautés par rapport à l'app : un article encore inconnu
+**entre au catalogue** (ponctuel, rayon donné par Claude ou deviné), et un magasin inconnu est
+créé. Le total est celui du ticket ; si la somme des lignes en diffère, le résultat le dit à Claude
+(remise globale, sac, ligne mal lue), qui le signale. Les règles recopiées (rayons, catalogue,
+récurrence, dépense) sont comparées à celles du module par le test.
+
+**Une transaction, sans session** : la clôture de l'app (`courses_close_trip`) écrit pour
+`auth.uid()`, que la fonction n'a pas. Variante `courses_close_trip_for(p_user, plan)` (migration
+`2026-10-11-courses-close-trip-for.sql`), qui crée aussi le magasin et les articles nouveaux dans
+la même transaction — **appelable seulement avec la clé de service** (`revoke` pour `anon` et
+`authenticated`), sans quoi un compte pourrait écrire chez un autre.
+
+**La dépense** : la même que l'app (`comete:course:<numéro>`, « Courses — Lidl », catégorie
+« Courses » trouvée par son nom, sinon à classer), écrite directement dans `budget_entries` par la
+fonction ; rejouer ne double rien. Un échec de Budget n'empêche pas la course (« Ajouter au
+budget » reste dans l'historique de l'app). **Et le relevé bancaire ne la compte plus deux fois** :
+l'import de Budget reconnaît désormais un paiement déjà enregistré par un module
+(`docs/etude-astra.md` §16).
+
 ## 7. La suite
 
-Un module à la fois, chacun avec son fichier d'outils à côté de `recettes.ts` et son test qui
-compare ses bornes à celles du module : Courses (ajouter à la liste), Objectifs (créer un objectif,
-cocher), Tâches (l'ajout rapide en français), Budget, Sport. À trancher pour chacun : ce qui peut
+Un module à la fois, chacun avec son fichier d'outils à côté de `recettes.ts` et `courses.ts`, et
+son test qui compare ses règles à celles du module : Objectifs (créer un objectif, cocher), Tâches
+(l'ajout rapide en français), Budget, Sport. À trancher pour chacun : ce qui peut
 se supprimer depuis Claude.

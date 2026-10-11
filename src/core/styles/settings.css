@@ -334,3 +334,10 @@
   display: flex;
   gap: 6px;
 }
+
+.claude-connector-label {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}

@@ -95,7 +95,7 @@ export async function run({ browser, check, BASE }) {
     check(
       'Les réglages présentent le connecteur de Claude, qui demande un compte',
       ((await claude.textContent()) ?? '').includes('demande un compte') &&
-        (await claude.getByRole('button', { name: 'Créer l’adresse du connecteur' }).count()) === 0,
+        (await claude.getByRole('button', { name: 'Créer une clé pour Claude' }).count()) === 0,
     );
     await page.keyboard.press('Escape');
   }
