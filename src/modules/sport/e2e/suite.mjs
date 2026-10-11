@@ -195,12 +195,15 @@ export async function run({ browser, check, BASE }) {
   await page.locator('#sport-session-pacemin').fill('6:10');
   await page.locator('#sport-session-pacemax').fill('6:40');
   await modal.getByRole('button', { name: 'Enregistrer' }).click();
-  await page.waitForTimeout(300);
-  const edited = await text(page.locator('.sport-session-next'));
+  // Visée par son titre : la séance modifiée peut avoir pris une sortie de la semaine (un dimanche,
+  // toutes les sorties d'exemple y tombent) et n'être alors plus « la prochaine ».
+  const editedSession = page.locator('.sport-plan-current .sport-session', { hasText: 'Footing du lac' });
+  await editedSession.waitFor();
+  const edited = await text(editedSession);
   check('La séance modifiée se voit dans la semaine', ['Footing du lac', '7,5 km', '6:10–6:40 /km'].every((t) => edited.includes(t)), edited);
 
   // La fiche d'une sortie dit sa séance, et permet d'en choisir une autre.
-  await page.locator('.sport-plan-current .sport-session-run').click();
+  await page.locator('.sport-plan-current .sport-session-run').first().click();
   await page.waitForSelector('#sport-run-session');
   check('La fiche d’une sortie propose sa séance du plan', (await text(page.locator('#sport-run-session option').first())).startsWith('Automatique ('));
   await modal.getByRole('button', { name: 'Fermer' }).click();

@@ -3,13 +3,14 @@ import type { AppUser } from '../lib/types';
 import {
   DEFAULT_SETTINGS,
   type CoreStore,
+  type McpToken,
   type PushDevice,
   type PushDeviceInput,
   type PushDiagnostic,
   type ReminderInput,
   type Settings,
 } from './coreStore';
-import { getClient, requireUserId, unwrap } from './supabaseClient';
+import { fetchAll, getClient, requireUserId, unwrap } from './supabaseClient';
 
 function check(error: { message: string } | null) {
   if (error) throw new Error(error.message);
@@ -247,4 +248,36 @@ export class SupabaseCore implements CoreStore {
         'et déployée avec l’option --no-verify-jwt.',
     );
   }
+
+  async listMcpTokens(): Promise<McpToken[]> {
+    const rows = await fetchAll<McpTokenRow>((first, last) =>
+      this.client.from('mcp_tokens').select('id, label, created_at, last_used_at').order('created_at').order('id').range(first, last),
+    );
+    return rows.map(toMcpToken);
+  }
+
+  async createMcpToken(tokenHash: string, label: string): Promise<McpToken> {
+    const userId = await this.requireUserId();
+    const row = unwrap(
+      await this.client
+        .from('mcp_tokens')
+        .insert({ user_id: userId, token_hash: tokenHash, label })
+        .select('id, label, created_at, last_used_at')
+        .single(),
+    ) as McpTokenRow;
+    return toMcpToken(row);
+  }
+
+  async deleteMcpToken(id: string) {
+    unwrap(await this.client.from('mcp_tokens').delete().eq('id', id));
+  }
 }
+
+interface McpTokenRow {
+  id: string;
+  label: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+const toMcpToken = (r: McpTokenRow): McpToken => ({ id: r.id, label: r.label, createdAt: r.created_at, lastUsedAt: r.last_used_at });

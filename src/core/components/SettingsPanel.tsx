@@ -6,6 +6,7 @@ import { THEME_CHOICES, applyTheme, readThemeChoice, saveThemeChoice } from '../
 import type { ThemeChoice } from '../lib/theme';
 import type { AppUser } from '../lib/types';
 import AtlasMark from './AtlasMark';
+import { ClaudeConnector } from './ClaudeConnector';
 
 const THEME_LABELS: Record<ThemeChoice, string> = {
   dark: 'Sombre',
@@ -161,6 +162,8 @@ export function SettingsPanel({
               </button>
             </div>
           </section>
+
+          <ClaudeConnector remote={Boolean(user && !user.isLocal)} />
 
           {user && !user.isLocal && (
             <section className="settings-block">

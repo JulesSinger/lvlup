@@ -289,3 +289,48 @@
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
+
+/* Le connecteur de Claude (docs/connecteur-claude.md). */
+.claude-connector-fresh {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.claude-connector-url {
+  display: block;
+  padding: 8px 10px;
+  font-size: 12px;
+  word-break: break-all;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  user-select: all;
+}
+.claude-connector-steps {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.claude-connector-tokens {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.claude-connector-tokens li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.claude-connector-confirm {
+  display: flex;
+  gap: 6px;
+}

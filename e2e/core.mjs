@@ -89,6 +89,14 @@ export async function run({ browser, check, BASE }) {
 
     await group.getByRole('button', { name: 'Sombre' }).click();
     check('« Sombre » ramène le thème d’origine', (await theme()) === 'dark', await theme());
+
+    // Le connecteur de Claude (docs/connecteur-claude.md) : sans compte, il dit qu'il en faut un.
+    const claude = page.locator('.claude-connector');
+    check(
+      'Les réglages présentent le connecteur de Claude, qui demande un compte',
+      ((await claude.textContent()) ?? '').includes('demande un compte') &&
+        (await claude.getByRole('button', { name: 'Créer l’adresse du connecteur' }).count()) === 0,
+    );
     await page.keyboard.press('Escape');
   }
 

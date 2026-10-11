@@ -31,6 +31,17 @@ export interface PushDevice {
   createdAt: string;
 }
 
+/**
+ * Un jeton du connecteur de Claude (`mcp_tokens`, docs/connecteur-claude.md) :
+ * jamais le jeton lui-même, seulement de quoi le reconnaître et le révoquer.
+ */
+export interface McpToken {
+  id: string;
+  label: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
 export interface PushDeviceInput {
   endpoint: string;
   p256dh: string;
@@ -125,6 +136,13 @@ export interface CoreStore {
    * local : sans serveur, rien ne peut partir.
    */
   scheduleReminders(module: string, reminders: readonly ReminderInput[]): Promise<void>;
+
+  // --- Le connecteur de Claude ---
+  /** Les jetons du connecteur ; vide en mode local, où il n'y a pas de serveur à joindre. */
+  listMcpTokens(): Promise<McpToken[]>;
+  /** Range l'empreinte d'un jeton tiré sur l'appareil (le jeton, lui, n'est jamais envoyé). */
+  createMcpToken(tokenHash: string, label: string): Promise<McpToken>;
+  deleteMcpToken(id: string): Promise<void>;
 }
 
 export function newId(): string {

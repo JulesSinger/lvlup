@@ -1,5 +1,5 @@
 import type { AppUser } from '../lib/types';
-import { DEFAULT_SETTINGS, type CoreStore, type PushDiagnostic, type Settings } from './coreStore';
+import { DEFAULT_SETTINGS, type CoreStore, type McpToken, type PushDiagnostic, type Settings } from './coreStore';
 import { readRaw, writeRaw } from './localSnapshot';
 
 const LOCAL_USER: AppUser = { id: 'local', email: 'Mode local', isLocal: true };
@@ -81,4 +81,15 @@ export class LocalCore implements CoreStore {
 
   /** Sans serveur, aucune notification ne peut partir : rien à garder. */
   async scheduleReminders() {}
+
+  /** Claude se connecte à un serveur : sans compte, il n'y en a pas. */
+  async listMcpTokens(): Promise<McpToken[]> {
+    return [];
+  }
+
+  async createMcpToken(): Promise<McpToken> {
+    throw new Error('Le connecteur de Claude demande un compte : connecte-toi pour le créer.');
+  }
+
+  async deleteMcpToken() {}
 }
