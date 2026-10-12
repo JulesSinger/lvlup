@@ -75,7 +75,8 @@ export function ClaudeConnector({ remote }: { remote: boolean }) {
       <h3 className="settings-title">Claude</h3>
       <p className="settings-hint">
         Un connecteur pour demander à Claude — sur le site, l’app iPhone ou l’ordinateur — de tenir tes recettes et ton menu, ta liste de
-        courses, et d’enregistrer une course d’après la photo du ticket de caisse. Les autres modules viendront ensuite.
+        courses — une course d’après la photo du ticket de caisse —, et ton plan marathon : un coach dans Claude y programme tes séances.
+        Les autres modules viendront ensuite.
       </p>
       {!remote ? (
         <p className="settings-hint claude-connector-local" role="note">

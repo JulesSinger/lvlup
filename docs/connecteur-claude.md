@@ -151,9 +151,41 @@ budget » reste dans l'historique de l'app). **Et le relevé bancaire ne la comp
 l'import de Budget reconnaît désormais un paiement déjà enregistré par un module
 (`docs/etude-astra.md` §16).
 
+## 9. Sport, et le coach marathon (12/10/2026)
+
+Demande de Jules : une conversation de Claude lui sert de **coach pour le marathon d'Annecy** —
+elle a tout le contexte et lui donne les séances de la semaine. Il veut que ces séances arrivent
+**dans le plan de Sport**, « et tout le reste dans ce module ». Une conversation ne peut pas en lire
+une autre : c'est le connecteur, activé dans la conversation du coach, qui fait le lien.
+
+`supabase/functions/atlas-mcp/sport.ts`, testé par `src/modules/sport/lib/mcpTools.test.ts` :
+
+| Outil | Ce qu'il fait |
+|---|---|
+| `sport_resume` | à lire en premier : le plan (course, date, objectif et allure visée, semaine actuelle sur le total, jours restants), les séances de cette semaine et de la suivante, les km des 8 dernières semaines, les sorties des 14 derniers jours, FC et zones |
+| `sport_semaine_programmer` | **le geste du coach** : les séances d'une semaine, qui **remplacent** celles prévues (du générateur ou d'une version précédente) |
+| `sport_seance_ajouter` / `_modifier` / `_supprimer` | une séance à la fois ; changer son jour peut la faire changer de semaine |
+| `sport_plan_lire` | les séances semaine par semaine, avec les sorties faites ces semaines-là pour comparer |
+| `sport_plan_creer` / `sport_plan_modifier` | un plan vide vers une course (les séances se programment ensuite), ou la date, sa confirmation, l'objectif, l'état |
+| `sport_sorties_lister` | les sorties, avec allure, FC, dénivelé, ressenti, note et temps au km |
+| `sport_sortie_ajouter` / `_modifier` / `_supprimer` | une sortie sans montre ; la sorte, la note, le ressenti, la séance faite |
+| `sport_reglages` | FC max et de repos, zones de Karvonen |
+
+**Une séance a un jour, ou au moins une semaine du plan** (`week`, comme celles du générateur) :
+le jour donne la semaine, calculée comme le module (`weekOfPlan`, du lundi de la semaine du début).
+Allures écrites comme un coach (« 5:30 » par km), durées en minutes ou « 1:05:00 ». Seulement de la
+course à pied : un renforcement va dans les consignes d'une séance. Remplacer une semaine écrit les
+nouvelles séances **avant** de retirer les anciennes : une coupure laisse au pire un doublon, jamais
+une semaine vide. Une sortie notée à l'heure de Paris (décalage d'été ou d'hiver lu pour ce jour).
+
+Ce que le connecteur ne fait pas : la synchronisation de Strava (l'app la fait à l'ouverture de
+Sport), les coches d'Objectifs (idem), recaler les semaines quand la date de la course change
+(l'app le propose), supprimer un plan. Les règles recopiées (semaines, allures, zones, bornes)
+sont comparées à celles du module par le test.
+
 ## 7. La suite
 
-Un module à la fois, chacun avec son fichier d'outils à côté de `recettes.ts` et `courses.ts`, et
-son test qui compare ses règles à celles du module : Objectifs (créer un objectif, cocher), Tâches
-(l'ajout rapide en français), Budget, Sport. À trancher pour chacun : ce qui peut
+Un module à la fois, chacun avec son fichier d'outils à côté de `recettes.ts`, `courses.ts` et
+`sport.ts`, et son test qui compare ses règles à celles du module : Tâches et un bilan transversal
+d'abord, puis Budget, Calendar, Objectifs, Flashcards (l'ordre proposé le 11/10/2026). À trancher pour chacun : ce qui peut
 se supprimer depuis Claude.

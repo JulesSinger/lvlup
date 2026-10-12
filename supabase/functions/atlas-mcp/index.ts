@@ -5,7 +5,7 @@
  * Claude (le site, l'app iPhone ou l'app d'ordinateur) s'y connecte comme à un
  * « connecteur personnalisé » : il lit la liste des outils, puis les appelle
  * quand on le lui demande (« ajoute cette recette », « enregistre ce ticket de
- * caisse »). Recettes (`recettes.ts`) et Courses (`courses.ts`) ; les autres
+ * caisse »). Recettes (`recettes.ts`), Courses (`courses.ts`) et Sport (`sport.ts`) ; les autres
  * modules viendront un à un.
  *
  * **Qui parle ?** Une clé personnelle, envoyée par Claude dans l'en-tête
@@ -28,9 +28,10 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { handleBody, type ServerInfo, type Tool } from './mcp.ts';
 import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type StoreRow, type TripItemRow, type TripRow } from './courses.ts';
+import { sportTools, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
 import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from './recettes.ts';
 
-const VERSION = '2026-10-11.2';
+const VERSION = '2026-10-11.3';
 /** Le fuseau de Jules : « aujourd'hui » et la semaine en cours se comptent ici. */
 const TIME_ZONE = 'Europe/Paris';
 /** Une requête plus grosse est refusée avant d'être lue (une recette tient en quelques Ko). */
@@ -238,10 +239,55 @@ function coursesData(userId: string): CoursesData {
   };
 }
 
+/** Les données de Sport d'un seul compte : chaque requête porte `user_id`. */
+function sportData(userId: string): SportData {
+  const t = (table: string) => admin.from(table);
+  const SESSION = 'id, plan_id, week, position, kind, title, distance_m, duration_s, pace_min_s, pace_max_s, hr_zone, instructions, day';
+  const RUN = 'id, started_at, day, distance_m, duration_s, elevation_m, avg_hr, max_hr, kind, effort, title, note, source, session_id, splits_s';
+  type Page<R> = PromiseLike<{ data: R[] | null; error: { message: string } | null }>;
+  return {
+    listPlans: () =>
+      fetchAll<SportPlanRow>((first, last) => t('sport_plans').select('*').eq('user_id', userId).order('created_at').order('id').range(first, last)),
+    insertPlan: async (row) => check(await t('sport_plans').insert({ ...row, user_id: userId }).select('*').single()) as SportPlanRow,
+    updatePlan: async (id, row) =>
+      (check(await t('sport_plans').update(row).eq('user_id', userId).eq('id', id).select('*').maybeSingle()) as SportPlanRow | null) ?? null,
+    listSessions: (planId) =>
+      fetchAll<SessionRow>(
+        (first, last) =>
+          t('sport_plan_sessions').select(SESSION).eq('user_id', userId).eq('plan_id', planId).order('week').order('position').order('id').range(first, last) as unknown as Page<SessionRow>,
+      ),
+    async insertSessions(rows) {
+      if (rows.length === 0) return [];
+      return check(await t('sport_plan_sessions').insert(rows.map((r) => ({ ...r, user_id: userId }))).select(SESSION)) as unknown as SessionRow[];
+    },
+    updateSession: async (id, row) =>
+      (check(await t('sport_plan_sessions').update(row).eq('user_id', userId).eq('id', id).select(SESSION).maybeSingle()) as unknown as SessionRow | null) ?? null,
+    async deleteSessions(ids) {
+      if (ids.length === 0) return 0;
+      return (check(await t('sport_plan_sessions').delete().eq('user_id', userId).in('id', ids).select('id')) as unknown[]).length;
+    },
+    listRuns: (from, to) =>
+      fetchAll<RunRow>(
+        (first, last) =>
+          t('sport_runs').select(RUN).eq('user_id', userId).gte('day', from).lte('day', to).order('started_at').order('id').range(first, last) as unknown as Page<RunRow>,
+      ),
+    getRun: async (id) => (check(await t('sport_runs').select(RUN).eq('user_id', userId).eq('id', id).maybeSingle()) as unknown as RunRow | null) ?? null,
+    insertRun: async (row) => check(await t('sport_runs').insert({ ...row, user_id: userId }).select(RUN).single()) as unknown as RunRow,
+    updateRun: async (id, row) =>
+      (check(await t('sport_runs').update(row).eq('user_id', userId).eq('id', id).select(RUN).maybeSingle()) as unknown as RunRow | null) ?? null,
+    deleteRun: async (id) => (check(await t('sport_runs').delete().eq('user_id', userId).eq('id', id).select('id')) as unknown[]).length > 0,
+    getSettings: async () => (check(await t('sport_settings').select('hr_max, hr_rest').eq('user_id', userId).maybeSingle()) as SettingsRow | null) ?? null,
+    async saveSettings(row) {
+      check(await t('sport_settings').upsert({ ...row, user_id: userId, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }));
+    },
+  };
+}
+
 interface AtlasContext {
   today: string;
   recettes: RecettesData;
   courses: CoursesData;
+  sport: SportData;
 }
 
 /** Les outils de chaque module, chacun avec sa part du contexte. */
@@ -251,6 +297,7 @@ const tools: Tool<AtlasContext>[] = [
     ...tool,
     run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.courses, today: c.today, newId: () => crypto.randomUUID() }),
   })),
+  ...sportTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.sport, today: c.today }) })),
 ];
 
 function serverInfo(day: string): ServerInfo {
@@ -259,8 +306,9 @@ function serverInfo(day: string): ServerInfo {
     title: 'Atlas',
     version: VERSION,
     instructions: [
-      'Atlas est l’application personnelle de Jules. Ce connecteur donne accès à deux de ses modules : Recettes (le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là ») et Courses (la liste, le catalogue des articles, l’historique des courses, et l’enregistrement d’un ticket de caisse).',
+      'Atlas est l’application personnelle de Jules. Ce connecteur donne accès à trois de ses modules : Recettes (le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là »), Courses (la liste, le catalogue des articles, l’historique des courses, et l’enregistrement d’un ticket de caisse) et Sport (les sorties, le plan marathon et ses séances, la FC).',
       'Une photo de ticket de caisse : lis-la, puis courses_catalogue, puis courses_enregistrer_ticket.',
+      'Sport : la course à pied de Jules et son plan marathon. Commence par sport_resume. Pour donner les séances d’une semaine, sport_semaine_programmer (elles remplacent celles de la semaine).',
       `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ.`,
       'Avant de modifier, supprimer ou mettre au menu une recette, retrouve son identifiant avec recettes_lister. Une recette importée d’un site : écris les ingrédients un par ligne, quantité en tête, comme sur la page, et les étapes dans l’ordre.',
       'Demande confirmation avant toute suppression.',
@@ -292,7 +340,7 @@ Deno.serve(async (request) => {
   await admin.from('mcp_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', account.tokenId);
   const day = today();
   try {
-    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId) };
+    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId) };
     const answer = await handleBody(body, tools, serverInfo(day), context);
     if (answer === null) return new Response(null, { status: 202, headers: CORS });
     return json(answer);
