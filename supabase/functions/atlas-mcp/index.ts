@@ -30,6 +30,7 @@ import { handleBody, type ServerInfo, type Tool } from './mcp.ts';
 import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type StoreRow, type TripItemRow, type TripRow } from './courses.ts';
 import { sportTools, type ActivityRow, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
 import { tachesTools, type ListRow as TachesListRow, type TachesData, type TaskRow } from './taches.ts';
+import { objectifsTools, type ObjectifsData, type Checkin as GoalCheckin } from './objectifs.ts';
 import { calendarTools, type CalendarData, type CalendarEvent, type EventInput as CalendarEventInput, type EventException } from './calendar.ts';
 import { budgetTools, type BudgetData, type CategoryRow as BudgetCategoryRow, type EntryRow as BudgetEntryRow, type RuleRow as BudgetRuleRow } from './budget.ts';
 import { bilanTools, type BilanData } from './bilan.ts';
@@ -509,6 +510,73 @@ function calendarData(userId: string): CalendarData {
   };
 }
 
+/** Les données d'Objectifs d'un seul compte (tables historiques : `goals`, `tiers`, `actions`, `checkins`). */
+function objectifsData(userId: string): ObjectifsData {
+  const t = (table: string) => admin.from(table);
+  const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+  const toCheckin = (r: Record<string, any>): GoalCheckin => ({
+    id: r.id,
+    goalId: r.goal_id,
+    actionId: r.action_id,
+    pp: r.pp ?? 0,
+    day: r.day,
+    note: r.note ?? '',
+    createdAt: r.created_at,
+    value: num(r.value),
+    title: r.title ?? null,
+    ref: r.ref ?? null,
+  });
+  const rows = (table: string, order: string) =>
+    fetchAll<Record<string, any>>((first, last) => t(table).select('*').eq('user_id', userId).order(order).order('id').range(first, last));
+  return {
+    listGoals: async () => {
+      const [goals, tiers] = await Promise.all([rows('goals', 'position'), rows('tiers', 'position')]);
+      return goals.map((g) => ({
+        id: g.id,
+        title: g.title,
+        emoji: g.emoji ?? '🎯',
+        archived: g.archived,
+        createdAt: g.created_at,
+        tiers: tiers
+          .filter((x) => x.goal_id === g.id)
+          .map((x) => ({
+            id: x.id,
+            goalId: x.goal_id,
+            title: x.title,
+            rank: x.rank,
+            position: x.position,
+            completedAt: x.completed_at,
+            kind: x.kind ?? 'jalon',
+            target: num(x.target),
+            unit: x.unit ?? '',
+            direction: x.direction ?? 'hausse',
+            mode: x.mode ?? 'absolu',
+            sources: x.sources ?? [],
+          })),
+      }));
+    },
+    listActions: async () =>
+      (await rows('actions', 'position')).map((a) => ({
+        id: a.id,
+        goalId: a.goal_id,
+        title: a.title,
+        pp: a.pp,
+        archived: a.archived,
+        unit: a.unit ?? '',
+        defaultValue: num(a.default_value),
+        isMeasure: a.is_measure ?? false,
+      })),
+    listCheckins: async () => (await rows('checkins', 'day')).map(toCheckin),
+    insertCheckin: async (row) => toCheckin(check(await t('checkins').insert({ ...row, user_id: userId }).select('*').single()) as Record<string, any>),
+    updateCheckin: async (id, row) => {
+      check(await t('checkins').update(row).eq('user_id', userId).eq('id', id));
+    },
+    deleteCheckin: async (id) => {
+      check(await t('checkins').delete().eq('user_id', userId).eq('id', id));
+    },
+  };
+}
+
 interface AtlasContext {
   today: string;
   recettes: RecettesData;
@@ -518,6 +586,7 @@ interface AtlasContext {
   bilan: BilanData;
   budget: BudgetData;
   calendar: CalendarData;
+  objectifs: ObjectifsData;
 }
 
 /** Les outils de chaque module, chacun avec sa part du contexte. */
@@ -528,6 +597,7 @@ const tools: Tool<AtlasContext>[] = [
     run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.courses, today: c.today, newId: () => crypto.randomUUID() }),
   })),
   ...bilanTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.bilan, today: c.today }) })),
+  ...objectifsTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.objectifs, today: c.today }) })),
   ...calendarTools.map((tool) => ({
     ...tool,
     run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.calendar, today: c.today, now: new Date(), timezone: TIME_ZONE }),
@@ -553,6 +623,7 @@ function serverInfo(day: string): ServerInfo {
       '- Sport (sport_*) : la course à pied, le plan marathon, le renforcement et le vélo. Commence par sport_resume ; pour les séances d’une semaine, sport_semaine_programmer (elles remplacent celles de la semaine).',
       '- Tâches (taches_*) : la to-do list. Lis toi-même les dates (« demain 9 h » → planned_day et planned_time).',
       '- Calendar (calendrier_*) : les rendez-vous et événements. Une série répétée se modifie ou se supprime pour cet événement, les suivants ou tous : demande si ce n’est pas clair.',
+      '- Objectifs (objectifs_*) : ses habitudes et leurs paliers (rangs Fer → Challenger). « J’ai lu 30 pages » : objectifs_cocher avec la quantité. Un palier atteint est validé par l’app à son ouverture.',
       '- Budget (budget_*) : les opérations et leurs catégories. Pour les « à classer » : budget_ecritures (a_classer), budget_classer, puis une règle pour les suivantes.',
       '- atlas_bilan : le bilan d’une semaine ou d’un mois, tous modules d’un coup.',
       `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ, les heures HH:MM.`,
@@ -585,7 +656,7 @@ Deno.serve(async (request) => {
   await admin.from('mcp_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', account.tokenId);
   const day = today();
   try {
-    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId), bilan: bilanData(account.userId), budget: budgetData(account.userId), calendar: calendarData(account.userId) };
+    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId), bilan: bilanData(account.userId), budget: budgetData(account.userId), calendar: calendarData(account.userId), objectifs: objectifsData(account.userId) };
     const answer = await handleBody(body, tools, serverInfo(day), context);
     if (answer === null) return new Response(null, { status: 202, headers: CORS });
     return json(answer);
