@@ -15,6 +15,7 @@
  * ouverte. Colonnes : `2026-09-27-taches-tables.sql` et suivantes.
  */
 import type { Tool, ToolResult } from './mcp.ts';
+import { zonedDay, zonedInstant } from './zone.ts';
 import { daysBetween, describeRecurrence, maxDay, ruleDays, shiftDay, validateRecurrence, FREQUENCIES, type Recurrence } from './recurrence.ts';
 
 export const TASK_TITLE_MAX = 1000;
@@ -66,6 +67,22 @@ export interface TachesData {
   listLists(): Promise<ListRow[]>;
   insertList(row: Record<string, unknown>): Promise<ListRow>;
   updateList(id: string, row: Record<string, unknown>): Promise<ListRow | null>;
+  getSettings(): Promise<TachesSettings>;
+  /** Remplace les rappels à venir de Tâches (`coreStore.scheduleReminders('taches', …)`). */
+  scheduleReminders(reminders: ReminderInput[]): Promise<void>;
+}
+
+export interface TachesSettings {
+  taskReminders: boolean;
+  morningEnabled: boolean;
+  morningTime: string;
+}
+
+export interface ReminderInput {
+  ref: string;
+  fireAt: string;
+  title: string;
+  body: string;
 }
 
 export interface TachesContext {
@@ -75,6 +92,8 @@ export interface TachesContext {
   /** Maintenant, ISO. */
   now: string;
   newId: () => string;
+  /** Le fuseau de Jules : celui où tombent les heures des tâches. */
+  timezone: string;
 }
 
 // --- Les règles du module, recopiées (le test les compare) ------------------------------------
@@ -201,6 +220,97 @@ function timeOrNull(v: unknown): string | null {
 }
 
 /** Une répétition donnée par Claude → la règle du moteur commun. */
+// --- Les rappels (copie de `lib/reminders.ts`, l'heure lue dans le fuseau de Jules) -----------
+//
+// Recalculés après chaque écriture, comme l'écran à chaque chargement : une tâche notée à 9 h
+// par Claude prévient même si l'app n'est pas rouverte.
+
+export const REMINDER_HORIZON_DAYS = 7;
+const REMINDER_TEXT_MAX = 1000;
+const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
+const clip = (text: string, max: number) => (text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`);
+
+function shortDate(day: string, today: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  const text = `${d === 1 ? '1er' : d} ${MONTHS[m - 1]}`;
+  return y === Number(today.slice(0, 4)) ? text : `${text} ${y}`;
+}
+
+function timeLabel(time: string): string {
+  const [h, m] = time.split(':').map(Number);
+  return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`;
+}
+
+function dueLabel(day: string, today: string): string {
+  const diff = daysBetween(today, day);
+  if (diff < 0) return `échéance dépassée (${shortDate(day, today)})`;
+  if (diff === 0) return 'à faire aujourd’hui';
+  if (diff === 1) return 'à faire d’ici demain';
+  return `avant le ${shortDate(day, today)}`;
+}
+
+function effectiveTaskReminders(task: Pick<TaskRow, 'reminders'>, settings: Pick<TachesSettings, 'taskReminders'>): number[] {
+  if (task.reminders === null || task.reminders === undefined) return settings.taskReminders ? [0] : [];
+  return [...new Set(task.reminders.filter((r) => (TASK_REMINDERS as readonly number[]).includes(r)))];
+}
+
+/** Les rappels à venir de Tâches, comme `plannedReminders` du module. */
+export function plannedTaskReminders(tasks: readonly TaskRow[], settings: TachesSettings, now: Date, timeZone: string): ReminderInput[] {
+  const horizonDays = REMINDER_HORIZON_DAYS;
+  const today = zonedDay(now, timeZone);
+  const last = shiftDay(today, horizonDays - 1);
+  const reminders: ReminderInput[] = [];
+
+  for (const task of tasks) {
+    if (task.completed_at || task.parent_id || !task.planned_day || !task.planned_time) continue;
+    if (task.planned_day > last) continue;
+    const start = zonedInstant(task.planned_day, task.planned_time, timeZone);
+    for (const offset of effectiveTaskReminders(task, settings)) {
+      const at = new Date(start.getTime() - offset * 60_000);
+      if (at <= now) continue;
+      reminders.push({
+        ref: offset === 0 ? `task:${task.id}:${task.planned_day}` : `task:${task.id}:${task.planned_day}:${offset}`,
+        fireAt: at.toISOString(),
+        title: clip(task.title, REMINDER_TEXT_MAX),
+        body: `Prévue à ${timeLabel(task.planned_time)}${task.due_day ? ` · ${dueLabel(task.due_day, task.planned_day)}` : ''}`,
+      });
+    }
+  }
+
+  if (settings.morningEnabled) {
+    for (let i = 0; i < horizonDays; i++) {
+      const day = shiftDay(today, i);
+      const at = zonedInstant(day, settings.morningTime, timeZone);
+      if (at <= now) continue;
+      const view = todayView(tasks, day);
+      const all = [...view.overdue, ...view.today];
+      if (all.length === 0) continue;
+      const urgent = all.filter((t) => t.priority === 'urgente').length;
+      const shown = all.slice(0, 3).map((t) => clip(t.title, 80));
+      reminders.push({
+        ref: `morning:${day}`,
+        fireAt: at.toISOString(),
+        title: `☀️ ${plural(all.length, 'tâche')} aujourd’hui${urgent > 0 ? `, dont ${urgent} urgente${urgent > 1 ? 's' : ''}` : ''}`,
+        body: `${shown.join(' · ')}${all.length > 3 ? ` et ${plural(all.length - 3, 'autre')}` : ''}`,
+      });
+    }
+  }
+
+  return reminders.sort((a, b) => a.fireAt.localeCompare(b.fireAt));
+}
+
+/** Après une écriture : un échec n'annule pas l'écriture, il est dit. */
+async function resync(ctx: TachesContext): Promise<string | null> {
+  try {
+    const [tasks, settings] = await Promise.all([ctx.data.listTasks(), ctx.data.getSettings()]);
+    await ctx.data.scheduleReminders(plannedTaskReminders(tasks, settings, new Date(ctx.now), ctx.timezone));
+    return null;
+  } catch (err) {
+    return `Les rappels n’ont pas pu être recalculés (${err instanceof Error ? err.message : 'erreur'}) : ils le seront à la prochaine ouverture de Tâches.`;
+  }
+}
+
 export function readRecurrence(v: unknown, plannedDay: string | null): Recurrence | null {
   if (v === null) return null;
   if (typeof v !== 'object') throw new Refused('repeat : un objet { freq, interval, … }, ou null.');
@@ -319,7 +429,7 @@ const TASK_FIELDS = {
   repeat_from: { type: 'string', enum: [...REPEAT_FROM], description: 'schedule : à date fixe ; completion : N jours/semaines… après l’avoir faite.' },
 };
 
-export const tachesTools: Tool<TachesContext>[] = [
+const baseTools: Tool<TachesContext>[] = [
   {
     name: 'taches_lister',
     title: 'Lire les tâches',
@@ -547,3 +657,19 @@ export const tachesTools: Tool<TachesContext>[] = [
     },
   },
 ];
+
+/** Les écritures qui changent ce qui doit sonner. */
+const CHANGES_REMINDERS = new Set(['taches_ajouter', 'taches_modifier', 'taches_cocher', 'taches_supprimer']);
+
+export const tachesTools: Tool<TachesContext>[] = baseTools.map((tool) =>
+  CHANGES_REMINDERS.has(tool.name)
+    ? {
+        ...tool,
+        async run(args, ctx) {
+          const result = await tool.run(args, ctx);
+          const warning = await resync(ctx);
+          return warning ? { ...result, text: `${result.text}\n\n⚠ ${warning}` } : result;
+        },
+      }
+    : tool,
+);

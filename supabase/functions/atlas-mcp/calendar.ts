@@ -17,6 +17,7 @@
  * ici : chacun a ses propres outils.
  */
 import type { Tool, ToolResult } from './mcp.ts';
+import { zonedDay, zonedInstant } from './zone.ts';
 import { daysBetween, describeRecurrence, ruleDays, shiftDay, splitSeries, validateRecurrence, FREQUENCIES, type Recurrence } from './recurrence.ts';
 
 export const EVENT_COLORS = ['bleu', 'vert', 'orange', 'rose', 'violet', 'gris'] as const;
@@ -321,36 +322,10 @@ export function planDelete(event: CalendarEvent, exceptions: readonly EventExcep
 
 // --- Rappels (copie de `lib/reminders.ts`, l'heure lue dans le fuseau de l'événement) --
 
+export { zonedDay, zonedInstant };
+
 const TEXT_MAX = 1000;
 const clip = (text: string) => (text.length <= TEXT_MAX ? text : `${text.slice(0, TEXT_MAX - 1).trimEnd()}…`);
-
-/** L'écart (minutes) entre l'heure d'un fuseau et l'UTC, à un instant donné. */
-function zoneOffset(ms: number, timeZone: string): number {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-      .formatToParts(new Date(ms))
-      .map((p) => [p.type, p.value]),
-  );
-  const local = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute));
-  return Math.round((local - Math.floor(ms / 60_000) * 60_000) / 60_000);
-}
-
-/** L'instant d'une heure locale d'un jour, dans un fuseau : ce que `new Date(y, m, d, h, min)` fait sur l'appareil. */
-export function zonedInstant(day: string, time: string, timeZone: string): Date {
-  const [y, m, d] = day.split('-').map(Number);
-  const [h, min] = time.split(':').map(Number);
-  const guess = Date.UTC(y, m - 1, d, h, min);
-  const first = zoneOffset(guess, timeZone);
-  let t = guess - first * 60_000;
-  const second = zoneOffset(t, timeZone);
-  if (second !== first) t = guess - second * 60_000;
-  return new Date(t);
-}
-
-/** Le jour d'un instant dans un fuseau. */
-export function zonedDay(at: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at);
-}
 
 export function hourLabel(time: string): string {
   const [h, m] = time.split(':').map(Number);

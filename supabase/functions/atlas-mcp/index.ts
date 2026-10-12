@@ -317,7 +317,32 @@ function tachesData(userId: string): TachesData {
     insertList: async (row) => check(await t('taches_lists').insert({ ...row, user_id: userId }).select('*').single()) as TachesListRow,
     updateList: async (id, row) =>
       (check(await t('taches_lists').update(row).eq('user_id', userId).eq('id', id).select('*').maybeSingle()) as TachesListRow | null) ?? null,
+    getSettings: async () => {
+      const row = check(await t('taches_settings').select('task_reminders, morning_enabled, morning_time').eq('user_id', userId).maybeSingle()) as
+        | { task_reminders: boolean; morning_enabled: boolean; morning_time: string }
+        | null;
+      // Sans ligne : le défaut du module (`DEFAULT_TACHES_SETTINGS`).
+      return row
+        ? { taskReminders: row.task_reminders, morningEnabled: row.morning_enabled, morningTime: row.morning_time }
+        : { taskReminders: true, morningEnabled: false, morningTime: '08:00' };
+    },
+    scheduleReminders: (reminders) => replaceReminders(userId, 'taches', reminders),
   };
+}
+
+/**
+ * Comme `coreStore.scheduleReminders(module, …)` : les rappels du module pas
+ * encore partis sont remplacés ; la clé unique empêche de reposer un rappel déjà envoyé.
+ */
+async function replaceReminders(userId: string, module: string, reminders: { ref: string; fireAt: string; title: string; body: string; url?: string }[]) {
+  check(await admin.from('reminders').delete().eq('user_id', userId).eq('module', module).is('sent_at', null));
+  if (reminders.length === 0) return;
+  check(
+    await admin.from('reminders').upsert(
+      reminders.map((r) => ({ user_id: userId, module, ref: r.ref, fire_at: r.fireAt, title: r.title, body: r.body, url: r.url ?? '/' })),
+      { onConflict: 'user_id,module,ref,fire_at', ignoreDuplicates: true },
+    ),
+  );
 }
 
 /**
@@ -480,17 +505,7 @@ function calendarData(userId: string): CalendarData {
     deleteException: async (id) => {
       check(await t('calendar_exceptions').delete().eq('user_id', userId).eq('id', id));
     },
-    // Comme `coreStore.scheduleReminders('calendrier', …)` : les rappels pas encore partis sont remplacés.
-    scheduleReminders: async (reminders) => {
-      check(await t('reminders').delete().eq('user_id', userId).eq('module', 'calendrier').is('sent_at', null));
-      if (reminders.length === 0) return;
-      check(
-        await t('reminders').upsert(
-          reminders.map((r) => ({ user_id: userId, module: 'calendrier', ref: r.ref, fire_at: r.fireAt, title: r.title, body: r.body, url: r.url ?? '/' })),
-          { onConflict: 'user_id,module,ref,fire_at', ignoreDuplicates: true },
-        ),
-      );
-    },
+    scheduleReminders: (reminders) => replaceReminders(userId, 'calendrier', reminders),
   };
 }
 
@@ -521,7 +536,7 @@ const tools: Tool<AtlasContext>[] = [
   ...tachesTools.map((tool) => ({
     ...tool,
     run: (args: Record<string, unknown>, c: AtlasContext) =>
-      tool.run(args, { data: c.taches, today: c.today, now: new Date().toISOString(), newId: () => crypto.randomUUID() }),
+      tool.run(args, { data: c.taches, today: c.today, now: new Date().toISOString(), newId: () => crypto.randomUUID(), timezone: TIME_ZONE }),
   })),
   ...sportTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.sport, today: c.today }) })),
 ];

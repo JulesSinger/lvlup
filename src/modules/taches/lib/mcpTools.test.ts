@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as server from '../../../../supabase/functions/atlas-mcp/taches.ts';
 import { tachesTools, type ListRow, type TachesData, type TaskRow } from '../../../../supabase/functions/atlas-mcp/taches.ts';
+import { plannedReminders } from './reminders';
 import { nextOccurrence } from './repeat';
 import * as types from './types';
 import { todayView } from './views';
@@ -75,6 +76,26 @@ describe('les règles de Tâches recopiées dans le connecteur', () => {
     }
   });
 
+  it('posent les mêmes rappels, l’heure lue dans le fuseau de Jules', () => {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const tasks = [
+      row({ title: 'garage', planned_day: '2026-10-13', planned_time: '09:00' }),
+      row({ title: 'dentiste', planned_day: '2026-10-14', planned_time: '14:30', reminders: [15, 1440], due_day: '2026-10-16' }),
+      row({ title: 'muette', planned_day: '2026-10-14', planned_time: '18:00', reminders: [] }),
+      row({ title: 'sans heure', planned_day: '2026-10-15', priority: 'urgente' }),
+      row({ title: 'retard', planned_day: '2026-10-10' }),
+      row({ title: 'trop loin', planned_day: '2026-10-30', planned_time: '08:00' }),
+      row({ title: 'après le changement d’heure', planned_day: '2026-10-26', planned_time: '07:00' }),
+    ];
+    const now = new Date('2026-10-13T05:00:00Z');
+    for (const settings of [
+      { taskReminders: true, morningEnabled: true, morningTime: '08:00' },
+      { taskReminders: false, morningEnabled: false, morningTime: '08:00' },
+    ]) {
+      expect(server.plannedTaskReminders(tasks, settings, now, zone)).toEqual(plannedReminders(tasks.map(toTask), settings, now));
+    }
+  });
+
   it('font la même vue Aujourd’hui', () => {
     const tasks = [
       row({ title: 'retard', planned_day: '2026-10-10' }),
@@ -121,14 +142,19 @@ function memory() {
       const l = db.lists.find((x) => x.id === id);
       return l ? Object.assign(l, r) : null;
     },
+    getSettings: async () => ({ taskReminders: true, morningEnabled: false, morningTime: '08:00' }),
+    scheduleReminders: async (r) => {
+      scheduled.splice(0, scheduled.length, ...r);
+    },
   };
-  return { db, data, uuid };
+  const scheduled: server.ReminderInput[] = [];
+  return { db, data, uuid, scheduled };
 }
 
 async function use(m: ReturnType<typeof memory>, name: string, args: Record<string, unknown> = {}) {
   const tool = tachesTools.find((t) => t.name === name)!;
   try {
-    const result = await tool.run(args, { data: m.data, today: '2026-10-13', now: '2026-10-13T10:00:00.000Z', newId: m.uuid });
+    const result = await tool.run(args, { data: m.data, today: '2026-10-13', now: '2026-10-13T10:00:00.000Z', newId: m.uuid, timezone: 'Europe/Paris' });
     let value = null;
     try {
       value = JSON.parse(result.text);
@@ -147,6 +173,8 @@ describe('les outils de Tâches pour Claude', () => {
     await use(m, 'taches_liste_creer', { name: 'Maison', color: 'vert' });
     const garage = await use(m, 'taches_ajouter', { title: 'Appeler le garage', planned_day: '2026-10-14', planned_time: '9h', priority: 'importante' });
     expect(garage.value.task).toMatchObject({ planned_time: '09:00', list: null, priority: 'importante' });
+    // Le rappel « à l'heure » est posé aussitôt, à 9 h de Paris.
+    expect(m.scheduled).toEqual([expect.objectContaining({ fireAt: '2026-10-14T07:00:00.000Z', title: 'Appeler le garage', body: 'Prévue à 9 h' })]);
     const vitres = await use(m, 'taches_ajouter', { title: 'Laver les vitres', list: 'maison', subtasks: ['Salon', 'Chambre'] });
     expect(vitres.value.task).toMatchObject({ list: 'Maison', subtasks: [{ title: 'Salon' }, { title: 'Chambre' }] });
     expect((await use(m, 'taches_ajouter', { title: 'X', list: 'Bureau' })).text).toMatch(/Aucune liste « Bureau »/);
@@ -162,6 +190,7 @@ describe('les outils de Tâches pour Claude', () => {
     const id = garage.value.task.id;
     await use(m, 'taches_modifier', { id, planned_time: null });
     expect(m.db.tasks.find((t) => t.id === id)).toMatchObject({ planned_time: null, planned_day: '2026-10-14' });
+    expect(m.scheduled).toEqual([]);
   });
 
   it('cochent : une tâche simple, puis une tâche répétée qui avance et garde sa trace', async () => {
