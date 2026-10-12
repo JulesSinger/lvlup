@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { buildImportPreview, parseBoursobankCsv, suggestCategoryId } from './boursobankImport';
+import { buildImportPreview, canonicalHeaders, parseBoursobankCsv, suggestCategoryId } from './boursobankImport';
 import type { BudgetCategory, BudgetRule } from './types';
 
 /**
@@ -73,6 +73,42 @@ describe('parseBoursobankCsv (sur le relevé d’exemple)', () => {
   it('le remboursement (AVOIR) reste une ligne distincte, montant positif', () => {
     const avoir = rows.find((r) => r.rawLabel.startsWith('AVOIR'));
     expect(avoir?.amountCents).toBe(4500);
+  });
+});
+
+/**
+ * L'export d'octobre 2026 : mêmes colonnes dans le même ordre, en-têtes en
+ * français, et « Solde » deux fois (le montant, puis le solde du compte).
+ * Recopié de l'en-tête réel, octet pour octet.
+ */
+const FRENCH_HEADER =
+  '"Date Opération";"Date Valeur";Libellé;"Libellé Suggéré";Catégorie;"Catégorie Parente";Solde;Commentaire;"Numéro Compte";"Libellé Compte";Solde;Pointage';
+
+function withFrenchHeader(csv: string): string {
+  const body = csv.charCodeAt(0) === 0xfeff ? csv.slice(1) : csv;
+  return '\uFEFF' + FRENCH_HEADER + body.slice(body.indexOf('\n'));
+}
+
+describe('parseBoursobankCsv (export à en-têtes français, octobre 2026)', () => {
+  it('ramène les en-têtes français aux anciens noms, le premier « Solde » étant le montant', () => {
+    expect(canonicalHeaders(FRENCH_HEADER.replace(/"/g, '').split(';'))).toEqual([
+      'dateOp', 'dateVal', 'label', 'suggestedLabel', 'category', 'categoryParent',
+      'amount', 'comment', 'accountNum', 'accountLabel', 'accountbalance', 'mark',
+    ]);
+  });
+
+  it('lit le relevé sans erreur, avec exactement les mêmes lignes et empreintes que l’ancien export', () => {
+    const before = parseBoursobankCsv(FIXTURE_CSV);
+    const after = parseBoursobankCsv(withFrenchHeader(FIXTURE_CSV));
+    expect(after.errors).toEqual([]);
+    expect(after.rows).toEqual(before.rows);
+  });
+
+  it('prend le montant dans le premier « Solde », jamais le solde du compte', () => {
+    const csv = `\uFEFF${FRENCH_HEADER}\n2026-09-29;2026-09-29;"PRLV SEPA ICR";Icr;"Non catégorisé";"Non catégorisé";"-1 173,48";;00000000000;BoursoBank;386.79;Non\n`;
+    const { rows, errors } = parseBoursobankCsv(csv);
+    expect(errors).toEqual([]);
+    expect(rows[0].amountCents).toBe(-117348);
   });
 });
 

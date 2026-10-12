@@ -1,5 +1,5 @@
 import { parseSignedAmountToCents } from './amount';
-import { parseCsvRecords } from '../../../core/lib/csv';
+import { parseCsvRows } from '../../../core/lib/csv';
 import { matchModuleEntries } from './moduleMatch';
 import type { BudgetCategory, BudgetEntry, BudgetRule } from './types';
 
@@ -8,6 +8,62 @@ const UNIT_SEPARATOR = '';
 
 /** Colonnes exigées de l'export (docs/astra-import-boursobank.md §1-2). */
 const REQUIRED_COLUMNS = ['dateOp', 'label', 'suggestedLabel', 'category', 'categoryParent', 'amount'] as const;
+
+/**
+ * Les en-têtes en français de l'export d'octobre 2026 (docs/astra-import-boursobank.md §1 bis) :
+ * mêmes colonnes, dans le même ordre, mais nommées autrement. Lus sans accents ni casse.
+ * « Solde » y apparaît **deux fois** : la première est le montant de l'opération (virgule
+ * décimale), la seconde le solde du compte (point décimal) — d'où `SOLDE_COLUMNS`.
+ */
+const FRENCH_HEADERS: Record<string, string> = {
+  'date operation': 'dateOp',
+  'date valeur': 'dateVal',
+  libelle: 'label',
+  'libelle suggere': 'suggestedLabel',
+  categorie: 'category',
+  'categorie parente': 'categoryParent',
+  montant: 'amount',
+  commentaire: 'comment',
+  'numero compte': 'accountNum',
+  'libelle compte': 'accountLabel',
+  pointage: 'mark',
+};
+const SOLDE_COLUMNS = ['amount', 'accountbalance'];
+
+function headerKey(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+/** Le nom de chaque colonne, ramené à celui de l'ancien export (`dateOp`, `amount`…). */
+export function canonicalHeaders(header: readonly string[]): string[] {
+  let soldes = 0;
+  return header.map((name) => {
+    const key = headerKey(name);
+    if (key === 'solde') return SOLDE_COLUMNS[soldes++] ?? 'solde';
+    return FRENCH_HEADERS[key] ?? name.trim();
+  });
+}
+
+/** Les lignes du fichier en objets `{ colonne: valeur }`, quel que soit l'en-tête de l'export. */
+function readRecords(text: string): Record<string, string>[] {
+  const rows = parseCsvRows(text);
+  if (rows.length === 0) return [];
+  const [header, ...rest] = rows;
+  const columns = canonicalHeaders(header);
+  return rest.map((row) => {
+    const record: Record<string, string> = {};
+    // Le premier nom l'emporte : une colonne en double ne doit jamais écraser la précédente.
+    columns.forEach((column, i) => {
+      if (!(column in record)) record[column] = row[i] ?? '';
+    });
+    return record;
+  });
+}
 
 export interface BoursobankRow {
   day: string;
@@ -43,7 +99,7 @@ export interface BoursobankParseResult {
  * s'en rendre compte.
  */
 export function parseBoursobankCsv(text: string): BoursobankParseResult {
-  const records = parseCsvRecords(text);
+  const records = readRecords(text);
   const errors: BoursobankParseError[] = [];
   const rows: BoursobankRow[] = [];
   const occurrenceByKey = new Map<string, number>();
