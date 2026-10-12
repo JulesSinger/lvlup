@@ -30,6 +30,7 @@ import { handleBody, type ServerInfo, type Tool } from './mcp.ts';
 import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type StoreRow, type TripItemRow, type TripRow } from './courses.ts';
 import { sportTools, type ActivityRow, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
 import { tachesTools, type ListRow as TachesListRow, type TachesData, type TaskRow } from './taches.ts';
+import { budgetTools, type BudgetData, type CategoryRow as BudgetCategoryRow, type EntryRow as BudgetEntryRow, type RuleRow as BudgetRuleRow } from './budget.ts';
 import { bilanTools, type BilanData } from './bilan.ts';
 import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from './recettes.ts';
 
@@ -391,6 +392,27 @@ function bilanData(userId: string): BilanData {
   };
 }
 
+/** Les données de Budget d'un seul compte : chaque requête porte `user_id`. */
+function budgetData(userId: string): BudgetData {
+  const t = (table: string) => admin.from(table);
+  return {
+    listEntries: (from, to) =>
+      fetchAll<BudgetEntryRow>((first, last) =>
+        t('budget_entries').select('*').eq('user_id', userId).gte('day', from).lte('day', to).order('day').order('id').range(first, last),
+      ),
+    getEntry: async (id) => (check(await t('budget_entries').select('*').eq('user_id', userId).eq('id', id).maybeSingle()) as BudgetEntryRow | null) ?? null,
+    insertEntry: async (row) => check(await t('budget_entries').insert({ ...row, user_id: userId }).select('*').single()) as BudgetEntryRow,
+    updateEntry: async (id, row) =>
+      (check(await t('budget_entries').update(row).eq('user_id', userId).eq('id', id).select('*').maybeSingle()) as BudgetEntryRow | null) ?? null,
+    deleteEntry: async (id) => (check(await t('budget_entries').delete().eq('user_id', userId).eq('id', id).select('id')) as unknown[]).length > 0,
+    listCategories: () =>
+      fetchAll<BudgetCategoryRow>((first, last) => t('budget_categories').select('*').eq('user_id', userId).order('position').order('id').range(first, last)),
+    listRules: () => fetchAll<BudgetRuleRow>((first, last) => t('budget_rules').select('*').eq('user_id', userId).order('priority').order('id').range(first, last)),
+    insertRule: async (row) => check(await t('budget_rules').insert({ ...row, user_id: userId }).select('*').single()) as BudgetRuleRow,
+    deleteRule: async (id) => (check(await t('budget_rules').delete().eq('user_id', userId).eq('id', id).select('id')) as unknown[]).length > 0,
+  };
+}
+
 interface AtlasContext {
   today: string;
   recettes: RecettesData;
@@ -398,6 +420,7 @@ interface AtlasContext {
   sport: SportData;
   taches: TachesData;
   bilan: BilanData;
+  budget: BudgetData;
 }
 
 /** Les outils de chaque module, chacun avec sa part du contexte. */
@@ -408,6 +431,7 @@ const tools: Tool<AtlasContext>[] = [
     run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.courses, today: c.today, newId: () => crypto.randomUUID() }),
   })),
   ...bilanTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.bilan, today: c.today }) })),
+  ...budgetTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.budget, today: c.today }) })),
   ...tachesTools.map((tool) => ({
     ...tool,
     run: (args: Record<string, unknown>, c: AtlasContext) =>
@@ -422,9 +446,10 @@ function serverInfo(day: string): ServerInfo {
     title: 'Atlas',
     version: VERSION,
     instructions: [
-      'Atlas est l’application personnelle de Jules. Ce connecteur donne accès à ses modules : Recettes (le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là »), Courses (la liste, le catalogue des articles, l’historique des courses, et l’enregistrement d’un ticket de caisse), Sport (les sorties, le plan marathon et ses séances, la FC) et Tâches (les tâches, leurs listes, leurs répétitions).',
+      'Atlas est l’application personnelle de Jules. Ce connecteur donne accès à ses modules : Recettes (le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là »), Courses (la liste, le catalogue des articles, l’historique des courses, et l’enregistrement d’un ticket de caisse), Sport (les sorties, le plan marathon et ses séances, la FC) Tâches (les tâches, leurs listes, leurs répétitions) et Budget (les opérations, leurs catégories, les règles de classement).',
       'Une photo de ticket de caisse : lis-la, puis courses_catalogue, puis courses_enregistrer_ticket.',
       'Pour « fais le bilan de ma semaine / de mon mois », atlas_bilan : tous les modules d’un coup.',
+      'Budget : ses comptes. Pour classer les « à classer », budget_ecritures (a_classer) puis budget_classer, et une règle pour les suivantes.',
       'Tâches : sa to-do list. Lis toi-même les dates (« demain 9 h » → planned_day et planned_time) ; « Aujourd’hui » avec taches_lister.',
       'Sport : la course à pied de Jules et son plan marathon, avec les séances de renforcement et de vélo. Commence par sport_resume. Pour donner les séances d’une semaine, sport_semaine_programmer (elles remplacent celles de la semaine).',
       `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ.`,
@@ -458,7 +483,7 @@ Deno.serve(async (request) => {
   await admin.from('mcp_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', account.tokenId);
   const day = today();
   try {
-    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId), bilan: bilanData(account.userId) };
+    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId), bilan: bilanData(account.userId), budget: budgetData(account.userId) };
     const answer = await handleBody(body, tools, serverInfo(day), context);
     if (answer === null) return new Response(null, { status: 202, headers: CORS });
     return json(answer);
