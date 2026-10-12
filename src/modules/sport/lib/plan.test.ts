@@ -129,7 +129,7 @@ describe('le plan marathon', () => {
 describe('rattacher une sortie à sa séance', () => {
   const session = (id: string, week: number, kind: PlanSession['kind'], km: number, day: string | null = null): PlanSession => ({
     id, planId: 'p', week, position: 0, kind, title: kind, distanceM: km * 1000, durationS: null,
-    paceMinS: null, paceMaxS: null, hrZone: null, instructions: '', day, createdAt: '',
+    paceMinS: null, paceMaxS: null, hrZone: null, instructions: '', day, doneAt: null, createdAt: '',
   });
   const sessions = [
     session('f1', 1, 'footing', 8),

@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { KIND_LABELS } from '../lib/kinds';
-import { paceInput, parseKm, parsePace } from '../lib/runForm';
-import { SESSION_KINDS, SESSION_TITLE_MAX, type PlanSession, type PlanSessionPatch, type SessionKind } from '../lib/types';
+import { sessionKindLabel } from '../lib/kinds';
+import { paceInput, parseDuration, parseKm, parsePace } from '../lib/runForm';
+import { isRunningSession, SESSION_KINDS, SESSION_TITLE_MAX, type PlanSession, type PlanSessionPatch, type SessionKind } from '../lib/types';
 import { ZONE_LABELS } from '../lib/zones';
 import { Modal } from './Modal';
 
 /**
- * Modifier une séance du plan : sa sorte, sa distance, son allure, sa zone,
- * sa consigne, un jour si on veut la fixer. Changer une séance ne recalcule
- * pas le reste du plan.
+ * Modifier une séance du plan : sa sorte, sa distance, sa durée, son allure,
+ * sa zone, sa consigne, un jour si on veut la fixer. Changer une séance ne
+ * recalcule pas le reste du plan. Un renforcement ou du vélo (12/10/2026) n'a
+ * pas d'allure de course, et se coche « faite » ici ou dans le plan.
  */
 export function SessionEditor({ session, onClose, onSave, onDelete }: {
   session: PlanSession;
@@ -19,6 +20,9 @@ export function SessionEditor({ session, onClose, onSave, onDelete }: {
   const [title, setTitle] = useState(session.title);
   const [kind, setKind] = useState<SessionKind>(session.kind);
   const [km, setKm] = useState(session.distanceM === null ? '' : String(session.distanceM / 1000).replace('.', ','));
+  const [duration, setDuration] = useState(session.durationS === null ? '' : String(Math.round(session.durationS / 60)));
+  const [done, setDone] = useState(session.doneAt !== null);
+  const running = isRunningSession(kind);
   const [paceMin, setPaceMin] = useState(paceInput(session.paceMinS));
   const [paceMax, setPaceMax] = useState(paceInput(session.paceMaxS));
   const [zone, setZone] = useState(session.hrZone === null ? '' : String(session.hrZone));
@@ -30,16 +34,21 @@ export function SessionEditor({ session, onClose, onSave, onDelete }: {
     if (!title.trim() || title.trim().length > SESSION_TITLE_MAX) return setError('Donne un nom à la séance.');
     const distanceM = km.trim() ? parseKm(km) : null;
     if (km.trim() && distanceM === null) return setError('La distance se tape en kilomètres (« 8,5 »).');
-    const min = paceMin.trim() ? parsePace(paceMin) : null;
-    const max = paceMax.trim() ? parsePace(paceMax) : null;
-    if ((paceMin.trim() && min === null) || (paceMax.trim() && max === null)) return setError('Une allure se tape « 5:20 ».');
+    const durationS = duration.trim() ? parseDuration(duration) : null;
+    if (duration.trim() && (durationS === null || durationS < 60)) return setError('La durée se tape en minutes (« 45 ») ou « 1:05:00 ».');
+    const min = running && paceMin.trim() ? parsePace(paceMin) : null;
+    const max = running && paceMax.trim() ? parsePace(paceMax) : null;
+    if (running && ((paceMin.trim() && min === null) || (paceMax.trim() && max === null))) return setError('Une allure se tape « 5:20 ».');
     if (min !== null && max !== null && min > max) return setError('La première allure est la plus rapide (« 5:10 » à « 5:30 »).');
     setError('');
     try {
       await onSave({
         title: title.trim(),
         kind,
-        distanceM,
+        distanceM: kind === 'renfo' ? null : distanceM,
+        durationS,
+        // Une séance de course est faite par une sortie ; seules les séances d'à côté se cochent.
+        doneAt: running ? null : done ? (session.doneAt ?? new Date().toISOString()) : null,
         paceMinS: min ?? max,
         paceMaxS: max ?? min,
         hrZone: zone ? Number(zone) : null,
@@ -80,26 +89,41 @@ export function SessionEditor({ session, onClose, onSave, onDelete }: {
           <select id="sport-session-kind" value={kind} onChange={(e) => setKind(e.target.value as SessionKind)}>
             {SESSION_KINDS.map((k) => (
               <option key={k} value={k}>
-                {KIND_LABELS[k]}
+                {sessionKindLabel(k)}
               </option>
             ))}
           </select>
         </div>
       </div>
       <div className="sport-field-row">
+        {kind !== 'renfo' && (
+          <div className="field">
+            <label htmlFor="sport-session-km">Distance (km)</label>
+            <input id="sport-session-km" inputMode="decimal" value={km} onChange={(e) => setKm(e.target.value)} />
+          </div>
+        )}
         <div className="field">
-          <label htmlFor="sport-session-km">Distance (km)</label>
-          <input id="sport-session-km" inputMode="decimal" value={km} onChange={(e) => setKm(e.target.value)} />
+          <label htmlFor="sport-session-duration">Durée (min)</label>
+          <input id="sport-session-duration" inputMode="numeric" placeholder="45" value={duration} onChange={(e) => setDuration(e.target.value)} />
         </div>
-        <div className="field">
-          <label htmlFor="sport-session-pacemin">Allure de</label>
-          <input id="sport-session-pacemin" placeholder="5:10" value={paceMin} onChange={(e) => setPaceMin(e.target.value)} />
-        </div>
-        <div className="field">
-          <label htmlFor="sport-session-pacemax">à</label>
-          <input id="sport-session-pacemax" placeholder="5:30" value={paceMax} onChange={(e) => setPaceMax(e.target.value)} />
-        </div>
+        {running && (
+          <>
+            <div className="field">
+              <label htmlFor="sport-session-pacemin">Allure de</label>
+              <input id="sport-session-pacemin" placeholder="5:10" value={paceMin} onChange={(e) => setPaceMin(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="sport-session-pacemax">à</label>
+              <input id="sport-session-pacemax" placeholder="5:30" value={paceMax} onChange={(e) => setPaceMax(e.target.value)} />
+            </div>
+          </>
+        )}
       </div>
+      {!running && (
+        <label className="sport-session-done-field">
+          <input type="checkbox" checked={done} onChange={(e) => setDone(e.target.checked)} /> Faite
+        </label>
+      )}
       <div className="sport-field-row">
         <div className="field">
           <label htmlFor="sport-session-zone">Zone cardiaque</label>

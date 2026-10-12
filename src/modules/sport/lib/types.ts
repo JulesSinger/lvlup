@@ -14,9 +14,24 @@
 export const RUN_KINDS = ['footing', 'fractionne', 'seuil', 'longue', 'allure', 'course', 'autre'] as const;
 export type RunKind = (typeof RUN_KINDS)[number];
 
-/** Les sortes de séance d'un plan : les mêmes, sans `autre` — une séance prévue sait ce qu'elle est. */
-export const SESSION_KINDS = ['footing', 'fractionne', 'seuil', 'longue', 'allure', 'course'] as const;
+/** Les séances de course d'un plan : les sortes de sortie, sans `autre` — une séance prévue sait ce qu'elle est. */
+export const RUNNING_SESSION_KINDS = ['footing', 'fractionne', 'seuil', 'longue', 'allure', 'course'] as const;
+export type RunningSessionKind = (typeof RUNNING_SESSION_KINDS)[number];
+
+/**
+ * Les séances d'à côté (demande de Jules, 12/10/2026 : son coach programme
+ * aussi du renforcement et du vélo). Elles ne comptent pas dans les
+ * kilomètres de course, aucune sortie ne les fait : on les coche à la main
+ * (`PlanSession.doneAt`).
+ */
+export const CROSS_SESSION_KINDS = ['renfo', 'velo'] as const;
+export type CrossSessionKind = (typeof CROSS_SESSION_KINDS)[number];
+
+export const SESSION_KINDS = [...RUNNING_SESSION_KINDS, ...CROSS_SESSION_KINDS] as const;
 export type SessionKind = (typeof SESSION_KINDS)[number];
+
+/** Une séance de course (faite par une sortie), ou d'à côté (cochée à la main). */
+export const isRunningSession = (kind: SessionKind): kind is RunningSessionKind => (RUNNING_SESSION_KINDS as readonly string[]).includes(kind);
 
 /** D'où vient une sortie (§3) : la main, le raccourci iPhone, l'archive Strava, un fichier. */
 export const RUN_SOURCES = ['manuel', 'raccourci', 'strava', 'gpx', 'tcx', 'fit'] as const;
@@ -148,12 +163,14 @@ export interface PlanSession {
   hrZone: number | null;
   instructions: string;
   day: string | null;
+  /** Une séance d'à côté cochée : quand. Une séance de course est faite par une sortie, jamais par ce champ. */
+  doneAt: string | null;
   createdAt: string;
 }
 
-export type PlanSessionDraft = Omit<PlanSession, 'createdAt'>;
+export type PlanSessionDraft = Omit<PlanSession, 'createdAt' | 'doneAt'>;
 
-export type PlanSessionPatch = Partial<Omit<PlanSessionDraft, 'id' | 'planId'>>;
+export type PlanSessionPatch = Partial<Omit<PlanSession, 'id' | 'planId' | 'createdAt'>>;
 
 /** Les réglages du compte : la fréquence cardiaque et le lien avec Objectifs. */
 export interface SportSettings {

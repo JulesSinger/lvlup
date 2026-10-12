@@ -1,4 +1,4 @@
-import type { RunKind, RunSource } from './types';
+import type { CrossSessionKind, RunKind, RunSource, SessionKind } from './types';
 
 /** Les sortes de sortie, dites en français. */
 export const KIND_LABELS: Record<RunKind, string> = {
@@ -10,6 +10,15 @@ export const KIND_LABELS: Record<RunKind, string> = {
   course: 'Course',
   autre: 'Autre',
 };
+
+/** Les séances d'à côté, dites en français. */
+export const CROSS_LABELS: Record<CrossSessionKind, string> = {
+  renfo: 'Renforcement',
+  velo: 'Vélo',
+};
+
+/** Le nom d'une sorte de séance, de course ou d'à côté. */
+export const sessionKindLabel = (kind: SessionKind): string => (kind in CROSS_LABELS ? CROSS_LABELS[kind as CrossSessionKind] : KIND_LABELS[kind as RunKind]);
 
 /** Les séances qui fatiguent : jamais deux d'affilée dans une semaine du plan. */
 export const HARD_KINDS: readonly RunKind[] = ['fractionne', 'seuil', 'allure', 'longue', 'course'];

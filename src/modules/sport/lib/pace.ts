@@ -4,7 +4,7 @@
  * Une allure est toujours CALCULÉE depuis la distance et la durée, jamais
  * rangée : elle ne peut pas les contredire.
  */
-import { HALF_MARATHON_M, MARATHON_M, type SessionKind } from './types';
+import { HALF_MARATHON_M, MARATHON_M, type RunningSessionKind } from './types';
 
 /** L'allure d'une sortie, en secondes par kilomètre ; `null` sous 100 m (rien à dire). */
 export function paceOf(distanceM: number, durationS: number): number | null {
@@ -42,7 +42,7 @@ export interface PaceRange {
  * - fractionné : l'allure du 5 km, à ± 5 s.
  * Des repères connus de la préparation marathon, simples à expliquer.
  */
-export function trainingPaces(ref: Reference): Record<Exclude<SessionKind, 'course'>, PaceRange> {
+export function trainingPaces(ref: Reference): Record<Exclude<RunningSessionKind, 'course'>, PaceRange> {
   const per = (meters: number) => riegel(ref.distanceM, ref.timeS, meters) / (meters / 1000);
   const marathon = per(MARATHON_M);
   const half = per(HALF_MARATHON_M);

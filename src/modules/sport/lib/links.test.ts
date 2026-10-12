@@ -25,7 +25,7 @@ const sessions: PlanSession[] = planDrafts(
   'p',
   generatePlan({ reference: { distanceM: 10_000, timeS: 3000 }, currentWeeklyM: 25_000, longestRecentM: 12_000, startDay: PLAN.startDay, raceDay: PLAN.raceDay, raceTitle: PLAN.title, sessionsPerWeek: 4 }),
   () => `s${n++}`,
-).map((d) => ({ ...d, createdAt: '' }));
+).map((d) => ({ ...d, doneAt: null, createdAt: '' }));
 
 let r = 0;
 const run = (day: string, km: number, minutes: number, extra: Partial<Run> = {}): Run => ({

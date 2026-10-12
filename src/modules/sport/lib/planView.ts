@@ -18,7 +18,7 @@ import {
   type PlanOptions,
   type PlanPhase,
 } from './plan';
-import type { Plan, PlanSession, PlanSessionDraft, Run } from './types';
+import { isRunningSession, type Plan, type PlanSession, type PlanSessionDraft, type Run } from './types';
 
 /** Quelle sortie a fait quelle séance : `Map<séance, sortie>`. */
 export function assignRuns(plan: Plan, sessions: PlanSession[], runs: Run[]): Map<string, Run> {
@@ -77,11 +77,13 @@ export function planWeeks(plan: Plan, sessions: PlanSession[], runs: Run[], toda
       monday,
       ...weekPhase(week, total),
       when,
-      plannedM: inWeek.reduce((sum, s) => sum + (s.distanceM ?? 0), 0),
+      // Les kilomètres de course seulement : le vélo n'en fait pas partie.
+      plannedM: inWeek.filter((s) => isRunningSession(s.kind)).reduce((sum, s) => sum + (s.distanceM ?? 0), 0),
       doneM: runs.filter((r) => r.day >= monday && r.day < end).reduce((sum, r) => sum + r.distanceM, 0),
       sessions: inWeek.map((session) => {
         const run = done.get(session.id) ?? null;
-        const state: SessionState = run ? 'faite' : when === 'passee' ? 'manquee' : when === 'en-cours' ? 'a-faire' : 'a-venir';
+        const ticked = !isRunningSession(session.kind) && session.doneAt !== null;
+        const state: SessionState = run || ticked ? 'faite' : when === 'passee' ? 'manquee' : when === 'en-cours' ? 'a-faire' : 'a-venir';
         return { session, run, state };
       }),
     });

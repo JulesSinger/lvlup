@@ -165,6 +165,7 @@ une autre : c'est le connecteur, activé dans la conversation du coach, qui fait
 | `sport_resume` | à lire en premier : le plan (course, date, objectif et allure visée, semaine actuelle sur le total, jours restants), les séances de cette semaine et de la suivante, les km des 8 dernières semaines, les sorties des 14 derniers jours, FC et zones |
 | `sport_semaine_programmer` | **le geste du coach** : les séances d'une semaine, qui **remplacent** celles prévues (du générateur ou d'une version précédente) |
 | `sport_seance_ajouter` / `_modifier` / `_supprimer` | une séance à la fois ; changer son jour peut la faire changer de semaine |
+| `sport_seance_cocher` | marquer faite une séance de renforcement ou de vélo (depuis le 12/10/2026, `docs/etude-sport.md` §23) |
 | `sport_plan_lire` | les séances semaine par semaine, avec les sorties faites ces semaines-là pour comparer |
 | `sport_plan_creer` / `sport_plan_modifier` | un plan vide vers une course (les séances se programment ensuite), ou la date, sa confirmation, l'objectif, l'état |
 | `sport_sorties_lister` | les sorties, avec allure, FC, dénivelé, ressenti, note et temps au km |
@@ -173,8 +174,9 @@ une autre : c'est le connecteur, activé dans la conversation du coach, qui fait
 
 **Une séance a un jour, ou au moins une semaine du plan** (`week`, comme celles du générateur) :
 le jour donne la semaine, calculée comme le module (`weekOfPlan`, du lundi de la semaine du début).
-Allures écrites comme un coach (« 5:30 » par km), durées en minutes ou « 1:05:00 ». Seulement de la
-course à pied : un renforcement va dans les consignes d'une séance. Remplacer une semaine écrit les
+Allures écrites comme un coach (« 5:30 » par km), durées en minutes ou « 1:05:00 ». Course à pied,
+et depuis le 12/10/2026 **renforcement** (`renfo`) et **vélo** (`velo`), sans allure, cochés à la
+main. Remplacer une semaine écrit les
 nouvelles séances **avant** de retirer les anciennes : une coupure laisse au pire un doublon, jamais
 une semaine vide. Une sortie notée à l'heure de Paris (décalage d'été ou d'hiver lu pour ce jour).
 

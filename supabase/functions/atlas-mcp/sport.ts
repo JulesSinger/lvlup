@@ -20,7 +20,11 @@ import type { Tool, ToolResult } from './mcp.ts';
 
 // --- Les bornes et règles du module, recopiées (le test les compare) ---------------------------
 
-export const SESSION_KINDS = ['footing', 'fractionne', 'seuil', 'longue', 'allure', 'course'] as const;
+export const RUNNING_SESSION_KINDS = ['footing', 'fractionne', 'seuil', 'longue', 'allure', 'course'] as const;
+/** Les séances d'à côté (12/10/2026) : cochées à la main, hors des kilomètres de course. */
+export const CROSS_SESSION_KINDS = ['renfo', 'velo'] as const;
+export const SESSION_KINDS = [...RUNNING_SESSION_KINDS, ...CROSS_SESSION_KINDS] as const;
+const isRunning = (kind: string) => (RUNNING_SESSION_KINDS as readonly string[]).includes(kind);
 export const RUN_KINDS = ['footing', 'fractionne', 'seuil', 'longue', 'allure', 'course', 'autre'] as const;
 export const PLAN_STATUSES = ['actif', 'termine', 'abandonne'] as const;
 export type SessionKind = (typeof SESSION_KINDS)[number];
@@ -92,6 +96,7 @@ export interface SessionRow {
   hr_zone: number | null;
   instructions: string;
   day: string | null;
+  done_at: string | null;
 }
 
 export interface RunRow {
@@ -226,6 +231,7 @@ async function requirePlan(data: SportData): Promise<PlanRow> {
 
 const sessionOut = (s: SessionRow, plan: PlanRow) => ({
   id: s.id,
+  ...(isRunning(s.kind) ? {} : { done: s.done_at !== null }),
   week: s.week,
   week_monday: mondayOfWeek(plan.start_day, s.week),
   day: s.day,
@@ -280,11 +286,13 @@ export function sessionColumns(raw: unknown, plan: PlanRow, i: number): Record<s
   if (week < 1) throw new Refused(`${what} : le ${d} tombe avant le début du plan (${mondayOf(plan.start_day)}).`);
   if (week > total) throw new Refused(`${what} : après la course (${plan.race_day}).`);
   if (!(SESSION_KINDS as readonly string[]).includes(String(o.kind))) {
-    throw new Refused(`${what} : la sorte est l’une de ${SESSION_KINDS.join(', ')} (un renforcement ou du vélo n’entre pas dans le plan de course : mets-le dans les consignes d’une séance, ou dans Tâches).`);
+    throw new Refused(`${what} : la sorte est l’une de ${SESSION_KINDS.join(', ')}.`);
   }
-  const distance = number(o.distance_km, `${what} : la distance (km)`, 0.1, 500);
-  const paceMin = readPace(o.pace_min, `${what} : l’allure la plus rapide`);
-  const paceMax = readPace(o.pace_max, `${what} : l’allure la plus lente`);
+  const running = isRunning(String(o.kind));
+  const distance = o.kind === 'renfo' ? null : number(o.distance_km, `${what} : la distance (km)`, 0.1, 500);
+  // Une allure de course n'a pas de sens pour un renforcement ou du vélo.
+  const paceMin = running ? readPace(o.pace_min, `${what} : l’allure la plus rapide`) : null;
+  const paceMax = running ? readPace(o.pace_max, `${what} : l’allure la plus lente`) : null;
   if (paceMin !== null && paceMax !== null && paceMin > paceMax) throw new Refused(`${what} : pace_min est l’allure la plus RAPIDE (le plus petit nombre).`);
   const zone = number(o.hr_zone, `${what} : la zone de FC`, 1, 5);
   return {
@@ -314,7 +322,12 @@ const SESSION_SCHEMA = {
   properties: {
     day: { type: 'string', description: 'Le jour prévu, AAAA-MM-JJ. Sans jour : donner « week ».' },
     week: { type: 'integer', minimum: 1, maximum: PLAN_WEEKS_MAX, description: 'La semaine du plan, si la séance n’a pas de jour fixe.' },
-    kind: { type: 'string', enum: [...SESSION_KINDS], description: 'footing (endurance), fractionne, seuil, longue (sortie longue), allure (allure marathon), course (une compétition).' },
+    kind: {
+      type: 'string',
+      enum: [...SESSION_KINDS],
+      description:
+        'Course : footing (endurance), fractionne, seuil, longue (sortie longue), allure (allure marathon), course (une compétition). À côté : renfo (renforcement, gainage, PPG — une durée et les exercices dans les consignes), velo (une durée, une distance si tu veux). Renfo et vélo ne comptent pas dans les km de course et se cochent à la main (sport_seance_cocher).',
+    },
     title: { type: 'string', maxLength: SESSION_TITLE_MAX, description: '« Footing en aisance », « 6 × 1 000 m », « Sortie longue 24 km dont 8 à allure marathon ».' },
     distance_km: { type: 'number', minimum: 0.1 },
     duration: { type: ['number', 'string'], description: 'En minutes (45), ou « 1:05:00 ».' },
@@ -419,7 +432,7 @@ export const sportTools: Tool<SportContext>[] = [
     description: [
       'Met dans le plan de Sport les séances que tu as préparées pour une semaine : elles REMPLACENT celles déjà prévues cette semaine-là (celles du générateur, ou une version précédente).',
       'Donne n’importe quel jour de la semaine visée (week_of) et les séances, chacune avec son jour, sa sorte, un titre court, et ce que tu sais : distance, durée, allures, zone de FC, consignes détaillées.',
-      'Seulement des séances de course à pied ; un renforcement va dans les consignes d’une séance.',
+      'Course à pied, renforcement (renfo) et vélo (velo) : mets toute la semaine, les séances d’à côté comprises.',
     ].join(' '),
     inputSchema: {
       type: 'object',
@@ -516,6 +529,23 @@ export const sportTools: Tool<SportContext>[] = [
       if (unknown.length) throw new Refused(`${unknown.length} identifiant(s) ne sont pas des séances du plan en cours.`);
       const gone = await data.deleteSessions(ids);
       return { text: `${gone} séance${gone > 1 ? 's' : ''} retirée${gone > 1 ? 's' : ''} du plan.` };
+    },
+  },
+  {
+    name: 'sport_seance_cocher',
+    title: 'Cocher une séance de renforcement ou de vélo',
+    description:
+      'Marque faite (ou pas faite) une séance de renforcement ou de vélo : aucune sortie ne la fait. Les séances de course, elles, sont faites par les sorties (Strava), rattachées toutes seules.',
+    inputSchema: { type: 'object', properties: { id: S.id, done: { type: 'boolean', description: 'Faite (par défaut), ou false pour décocher.' } }, required: ['id'] },
+    annotations: { idempotentHint: true },
+    async run(args, { data }) {
+      const plan = await requirePlan(data);
+      const session = (await data.listSessions(plan.id)).find((s) => s.id === id(args.id));
+      if (!session) throw new Refused('Aucune séance du plan en cours avec cet identifiant : relis le plan.');
+      if (isRunning(session.kind)) throw new Refused('Une séance de course est faite par une sortie : note la sortie (sport_sortie_ajouter) ou laisse Strava l’apporter.');
+      const done = args.done !== false;
+      const updated = await data.updateSession(session.id, { done_at: done ? (session.done_at ?? new Date().toISOString()) : null });
+      return json({ message: `« ${session.title} » ${done ? 'faite' : 'à faire'}.`, session: updated && sessionOut(updated, plan) });
     },
   },
   {

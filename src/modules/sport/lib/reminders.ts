@@ -11,10 +11,10 @@
  */
 import type { ReminderInput } from '../../../core/data/coreStore';
 import { dayString, shiftDay } from '../../../core/lib/day';
-import { formatKm, formatPaceRange } from './format';
+import { formatDuration, formatKm, formatPaceRange } from './format';
 import { PHASE_LABELS } from './plan';
 import { planWeeks } from './planView';
-import type { Plan, PlanSession, Run } from './types';
+import { isRunningSession, type Plan, type PlanSession, type Run } from './types';
 
 export const REMINDER_HORIZON_DAYS = 7;
 export const MORNING = '07:30';
@@ -30,12 +30,16 @@ function sessionLine(s: PlanSession): string {
   return [
     s.title,
     s.distanceM !== null ? formatKm(s.distanceM) : null,
+    s.durationS !== null ? formatDuration(s.durationS) : null,
     s.paceMinS !== null && s.paceMaxS !== null ? formatPaceRange(s.paceMinS, s.paceMaxS) : null,
     s.hrZone !== null ? `zone ${s.hrZone}` : null,
   ]
     .filter(Boolean)
     .join(' · ');
 }
+
+/** L'emoji du rappel d'une séance : la course, le renforcement, le vélo. */
+const sessionEmoji = (s: PlanSession) => (s.kind === 'renfo' ? '💪' : s.kind === 'velo' ? '🚴' : '🏃');
 
 export function plannedReminders(data: { runs: Run[]; plans: Plan[]; sessions: PlanSession[] }, now: Date, horizonDays = REMINDER_HORIZON_DAYS): ReminderInput[] {
   const plan = data.plans.find((p) => p.status === 'actif');
@@ -54,7 +58,7 @@ export function plannedReminders(data: { runs: Run[]; plans: Plan[]; sessions: P
     const open = week.sessions.filter((s) => s.state !== 'faite' && s.session.kind !== 'course').map((s) => s.session);
     const undated = open.filter((s) => !s.day);
     if (undated.length > 0) {
-      const km = undated.reduce((s, x) => s + (x.distanceM ?? 0), 0);
+      const km = undated.filter((x) => isRunningSession(x.kind)).reduce((s, x) => s + (x.distanceM ?? 0), 0);
       push(
         `week:${plan.id}:${week.week}`,
         week.monday,
@@ -64,7 +68,7 @@ export function plannedReminders(data: { runs: Run[]; plans: Plan[]; sessions: P
       );
     }
     for (const s of open.filter((x) => x.day)) {
-      push(`session:${s.id}:${s.day}`, s.day!, MORNING, `🏃 Aujourd’hui : ${s.title}`, [sessionLine(s), s.instructions].filter(Boolean).join('. '));
+      push(`session:${s.id}:${s.day}`, s.day!, MORNING, `${sessionEmoji(s)} Aujourd’hui : ${s.title}`, [sessionLine(s), s.instructions].filter(Boolean).join('. '));
     }
   }
   push(`race:${plan.id}:${plan.raceDay}`, shiftDay(plan.raceDay, -1), RACE_EVE, `🏁 Demain : ${plan.title}`, plan.raceDayConfirmed ? 'Bonne course !' : 'Bonne course ! (la date était encore « à confirmer » dans Sport)');

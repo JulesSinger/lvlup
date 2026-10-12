@@ -73,6 +73,7 @@ interface SessionRow {
   hr_zone: number | null;
   instructions: string;
   day: string | null;
+  done_at: string | null;
   created_at: string;
 }
 
@@ -138,6 +139,7 @@ const toSession = (r: SessionRow): PlanSession => ({
   hrZone: r.hr_zone,
   instructions: r.instructions,
   day: r.day,
+  doneAt: r.done_at ?? null,
   createdAt: r.created_at,
 });
 
@@ -193,6 +195,7 @@ function sessionColumns(p: PlanSessionPatch & { planId?: string }): Record<strin
   if (p.hrZone !== undefined) row.hr_zone = p.hrZone;
   if (p.instructions !== undefined) row.instructions = p.instructions;
   if (p.day !== undefined) row.day = p.day;
+  if (p.doneAt !== undefined) row.done_at = p.doneAt;
   return row;
 }
 

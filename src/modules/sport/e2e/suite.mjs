@@ -295,6 +295,23 @@ export async function run({ browser, check, BASE }) {
   check('Sans compte, aucun jeton ne se crée (il ne servirait à rien)', (await page.locator('.sport-token-new').count()) === 0);
   await modal.getByRole('button', { name: 'Fermer' }).click();
 
+  // --- Renforcement et vélo dans le plan (12/10/2026) ----------------------------------------
+  await page.getByRole('button', { name: /^Plan/ }).click();
+  await page.locator('.sport-plan-current .sport-session-a-faire .sport-session-body').first().click();
+  await page.waitForSelector('#sport-session-kind');
+  await page.locator('#sport-session-kind').selectOption('renfo');
+  check('Un renforcement n’a ni allure ni distance, mais une durée', (await page.locator('#sport-session-pacemin').count()) === 0 && (await page.locator('#sport-session-km').count()) === 0 && (await page.locator('#sport-session-duration').count()) === 1);
+  await page.locator('#sport-session-title').fill('Gainage');
+  await page.locator('#sport-session-duration').fill('30');
+  await modal.getByRole('button', { name: 'Enregistrer' }).click();
+  const renfo = page.locator('.sport-plan-current .sport-session', { hasText: 'Gainage' });
+  await renfo.waitFor();
+  check('Le renforcement se voit dans la semaine, avec sa sorte et sa durée', (await text(renfo)).includes('Renforcement') && (await text(renfo)).includes('30 min'), await text(renfo));
+  await renfo.getByRole('checkbox', { name: 'Cocher « Gainage »' }).click();
+  await renfo.getByRole('checkbox', { name: 'Décocher « Gainage »' }).waitFor();
+  check('Il se coche à la main, et compte comme fait', ((await renfo.getAttribute('class')) ?? '').includes('sport-session-faite'));
+  await page.getByRole('button', { name: /^Journal/ }).click();
+
   // --- Rechargement, puis téléphone ----------------------------------------------------------
   await page.reload();
   await page.waitForSelector('.sport-journal');

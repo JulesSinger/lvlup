@@ -1,7 +1,8 @@
 import { formatDuration, formatKm, formatPaceRange } from '../lib/format';
 import { PHASE_LABELS } from '../lib/plan';
 import { daysToRace, nextSession, type SessionStatus, type WeekStatus } from '../lib/planView';
-import type { Plan, PlanSession, Run } from '../lib/types';
+import { sessionKindLabel } from '../lib/kinds';
+import { isRunningSession, type Plan, type PlanSession, type Run } from '../lib/types';
 import { shortDay } from './Journal';
 
 const STATE_MARKS: Record<SessionStatus['state'], string> = {
@@ -19,22 +20,40 @@ const STATE_LABELS: Record<SessionStatus['state'], string> = {
 };
 
 /** Une séance du plan : ce qu'elle demande, et ce qui a été couru pour elle. */
-export function SessionLine({ status, next, onEdit, onOpenRun }: {
+export function SessionLine({ status, next, onEdit, onOpenRun, onToggleDone }: {
   status: SessionStatus;
   next: boolean;
   onEdit: (session: PlanSession) => void;
   onOpenRun: (run: Run) => void;
+  /** Cocher un renforcement ou du vélo : aucune sortie ne le fait. */
+  onToggleDone?: (session: PlanSession) => void;
 }) {
   const { session, run, state } = status;
+  const cross = !isRunningSession(session.kind);
   return (
-    <li className={`sport-session sport-session-${state}${next ? ' sport-session-next' : ''}`}>
-      <span className="sport-session-mark" title={STATE_LABELS[state]} aria-label={STATE_LABELS[state]}>
-        {STATE_MARKS[state]}
-      </span>
+    <li className={`sport-session sport-session-${state}${next ? ' sport-session-next' : ''}${cross ? ' sport-session-cross' : ''}`}>
+      {cross && onToggleDone ? (
+        <button
+          type="button"
+          className={`sport-session-mark sport-session-check${state === 'faite' ? ' on' : ''}`}
+          role="checkbox"
+          aria-checked={state === 'faite'}
+          aria-label={`${state === 'faite' ? 'Décocher' : 'Cocher'} « ${session.title} »`}
+          onClick={() => onToggleDone(session)}
+        >
+          {state === 'faite' ? '✓' : ''}
+        </button>
+      ) : (
+        <span className="sport-session-mark" title={STATE_LABELS[state]} aria-label={STATE_LABELS[state]}>
+          {STATE_MARKS[state]}
+        </span>
+      )}
       <button type="button" className="sport-session-body" onClick={() => onEdit(session)} aria-label={`Modifier la séance ${session.title}`}>
         <span className="sport-session-head">
           <span className="sport-session-title">{session.title}</span>
+          {cross && <span className="sport-session-kind">{sessionKindLabel(session.kind)}</span>}
           {session.distanceM !== null && <b>{formatKm(session.distanceM)}</b>}
+          {session.durationS !== null && <span>{formatDuration(session.durationS)}</span>}
           {session.paceMinS !== null && session.paceMaxS !== null && <span>{formatPaceRange(session.paceMinS, session.paceMaxS)}</span>}
           {session.hrZone !== null && <span className="sport-session-zone">Z{session.hrZone}</span>}
           {session.day && <span>{shortDay(session.day)}</span>}
@@ -56,11 +75,13 @@ export function SessionLine({ status, next, onEdit, onOpenRun }: {
  * rebours, la semaine en cours avec la séance suivante, puis toutes les
  * semaines, la passée repliée. Toucher une séance la modifie.
  */
-export function PlanView({ plan, weeks, today, onEditSession, onOpenRun, onChangeDate, onDelete }: {
+export function PlanView({ plan, weeks, today, onEditSession, onToggleDone, onOpenRun, onChangeDate, onDelete }: {
   plan: Plan;
   weeks: WeekStatus[];
   today: string;
   onEditSession: (session: PlanSession) => void;
+  /** Cocher une séance de renforcement ou de vélo. */
+  onToggleDone: (session: PlanSession) => void;
   onOpenRun: (run: Run) => void;
   onChangeDate: () => void;
   onDelete: () => void;
@@ -71,7 +92,7 @@ export function PlanView({ plan, weeks, today, onEditSession, onOpenRun, onChang
   const raceLabel = new Date(`${plan.raceDay}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   const line = (s: SessionStatus) => (
-    <SessionLine key={s.session.id} status={s} next={next?.session.id === s.session.id} onEdit={onEditSession} onOpenRun={onOpenRun} />
+    <SessionLine key={s.session.id} status={s} next={next?.session.id === s.session.id} onEdit={onEditSession} onOpenRun={onOpenRun} onToggleDone={onToggleDone} />
   );
 
   return (

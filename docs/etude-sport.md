@@ -821,3 +821,27 @@ montrer **sa meilleure forme** à côté — `bestReference`, la même règle su
 avec l'écart à reprendre : « Ta meilleure forme : ≈ 3:46:56, d'après ton semi du 29 mars — 47 min
 d'écart à reprendre ». Elle ne se montre que si elle diffère d'au moins une minute ; sans effort de
 référence récent, elle le dit. Le plan et la prédiction du jour n'en tiennent pas compte.
+
+
+## 23. Des séances de renforcement et de vélo (12/10/2026)
+
+Demande de Jules : son coach (une conversation de Claude, reliée par le connecteur) programme
+aussi du renforcement et du vélo, que le plan refusait — Sport était conçu pour la seule course à
+pied. Deux sortes de séance de plus, **`renfo`** et **`velo`** (`CROSS_SESSION_KINDS`, à côté de
+`RUNNING_SESSION_KINDS`), migration `2026-10-12-sport-renfo-velo.sql` (la contrainte des sortes, et
+la colonne `done_at`).
+
+- **Aucune sortie ne les fait** : `matchSession` les écarte. Elles se **cochent à la main**, d'un
+  rond dans la semaine du plan ou d'une case dans la fenêtre de la séance (`PlanSession.doneAt`).
+  Une séance de course, elle, reste faite par une sortie, jamais par ce champ.
+- **Hors des kilomètres de course** : le volume prévu de la semaine, le calque de Calendar et le
+  résumé du lundi ne comptent que les séances de course ; le vélo garde sa distance pour lui.
+- **Une durée**, désormais saisissable pour toute séance ; pas d'allure pour un renforcement ni
+  pour le vélo, pas de distance pour un renforcement ; les exercices vont dans les consignes.
+- Les rappels du jour prennent 💪 ou 🚴 ; le générateur de plan, lui, ne fait toujours que de la
+  course (son type le dit : `SessionBody.kind` est une sorte de course).
+- Le connecteur les accepte (`sport_semaine_programmer` avec toute la semaine), et
+  `sport_seance_cocher` les marque faites.
+
+Les activités Strava de musculation ou de vélo ne sont toujours pas reprises : seule la course
+l'est. À ajouter si Jules les enregistre.

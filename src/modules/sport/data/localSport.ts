@@ -36,7 +36,8 @@ function read(): Snapshot {
   return {
     runs: arrayOf<Run>(raw.sportRuns),
     plans: arrayOf<Plan>(raw.sportPlans),
-    sessions: arrayOf<PlanSession>(raw.sportSessions),
+    // Une séance rangée avant le 12/10/2026 n'a pas de `doneAt` : jamais cochée.
+    sessions: arrayOf<PlanSession>(raw.sportSessions).map((x) => ({ ...x, doneAt: x.doneAt ?? null })),
     settings: { ...DEFAULT_SPORT_SETTINGS, ...(raw.sportSettings as Partial<SportSettings> | undefined) },
     tokens: arrayOf<LocalToken>(raw.sportTokens),
   };
@@ -196,7 +197,7 @@ export class LocalSport implements SportStore {
     for (const draft of sessions) {
       if (known.has(draft.id)) continue;
       if (!s.plans.some((p) => p.id === draft.planId)) throw new Error('Plan introuvable.');
-      s.sessions.push({ ...draft, createdAt: now });
+      s.sessions.push({ ...draft, doneAt: null, createdAt: now });
       known.add(draft.id);
     }
     write(s);

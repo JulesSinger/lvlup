@@ -10,17 +10,19 @@
 import type { CalendarMark } from '../../../core/lib/services';
 import { shiftDay } from '../../../core/lib/day';
 import { formatDuration, formatKm, formatPace, formatPaceRange } from './format';
-import { KIND_LABELS } from './kinds';
+import { KIND_LABELS, sessionKindLabel } from './kinds';
 import { paceOf } from './pace';
 import { PHASE_LABELS } from './plan';
 import { planWeeks } from './planView';
-import type { Plan, PlanSession, Run } from './types';
+import { isRunningSession, type Plan, type PlanSession, type Run } from './types';
 
 const two = (n: number) => String(n).padStart(2, '0');
 
 function sessionText(s: PlanSession): string {
   return [
+    isRunningSession(s.kind) ? null : sessionKindLabel(s.kind),
     s.distanceM !== null ? formatKm(s.distanceM) : null,
+    s.durationS !== null ? formatDuration(s.durationS) : null,
     s.paceMinS !== null && s.paceMaxS !== null ? formatPaceRange(s.paceMinS, s.paceMaxS) : null,
     s.hrZone !== null ? `zone ${s.hrZone}` : null,
   ]
@@ -79,7 +81,8 @@ export function sportMarks(data: SportCalendarData, from: string, to: string, to
     }
     const undated = open.filter((s) => !s.session.day && s.session.kind !== 'course');
     if (undated.length > 0 && week.monday >= from && week.monday <= to) {
-      const km = undated.reduce((s, x) => s + (x.session.distanceM ?? 0), 0);
+      // Les kilomètres de course : ceux du vélo n'en sont pas.
+      const km = undated.filter((x) => isRunningSession(x.session.kind)).reduce((s, x) => s + (x.session.distanceM ?? 0), 0);
       marks.push({
         id: `week:${plan.id}:${week.week}`,
         day: week.monday,

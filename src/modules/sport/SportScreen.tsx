@@ -366,6 +366,7 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
               weeks={weeks}
               today={today}
               onEditSession={setEditingSession}
+              onToggleDone={(session) => void write(() => store.updateSession(session.id, { doneAt: session.doneAt ? null : new Date().toISOString() }))}
               onOpenRun={(r) => setOpenId(r.id)}
               onChangeDate={() => setChangingDate(true)}
               onDelete={() => void write(() => store.deletePlan(plan.id))}

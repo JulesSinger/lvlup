@@ -24,7 +24,7 @@
  */
 import { daysBetween, mondayOf, shiftDay } from '../../../core/lib/day';
 import { trainingPaces, type PaceRange, type Reference } from './pace';
-import { MARATHON_M, type PlanSession, type PlanSessionDraft, type Run, type SessionKind } from './types';
+import { isRunningSession, MARATHON_M, type PlanSession, type PlanSessionDraft, type Run, type RunningSessionKind, type SessionKind } from './types';
 
 export type PlanPhase = 'base' | 'specifique' | 'affutage' | 'course';
 
@@ -49,7 +49,8 @@ export interface PlanOptions {
 }
 
 /** Une séance générée, sans identifiant ni plan. */
-export type SessionBody = Omit<PlanSessionDraft, 'id' | 'planId' | 'week' | 'position' | 'day'> & { day: string | null };
+/** Le générateur ne fait que des séances de course : renforcement et vélo viennent d'un coach, à la main. */
+export type SessionBody = Omit<PlanSessionDraft, 'id' | 'planId' | 'week' | 'position' | 'day' | 'kind'> & { kind: RunningSessionKind; day: string | null };
 
 export interface PlanWeek {
   week: number;
@@ -119,12 +120,12 @@ const THRESHOLD = ['3 × 8 min', '3 × 10 min', '2 × 15 min', '4 × 8 min', '3 
 /** Le fractionné, à l'allure du 5 km. */
 const INTERVALS = ['8 × 400 m', '6 × 800 m', '5 × 1 000 m', '10 × 400 m', '4 × 1 200 m', '6 × 1 000 m', '3 × 2 000 m'];
 
-function paceFor(paces: ReturnType<typeof trainingPaces> | null, kind: Exclude<SessionKind, 'course'>): PaceRange | null {
+function paceFor(paces: ReturnType<typeof trainingPaces> | null, kind: Exclude<RunningSessionKind, 'course'>): PaceRange | null {
   return paces ? paces[kind] : null;
 }
 
 function session(
-  kind: SessionKind,
+  kind: RunningSessionKind,
   title: string,
   distanceM: number | null,
   pace: PaceRange | null,
@@ -293,6 +294,8 @@ export function matchSession(
   let best: { id: string; score: number } | null = null;
   for (const s of sessions) {
     if (s.week !== week || takenIds.has(s.id)) continue;
+    // Un renforcement ou du vélo ne se fait pas en courant : on le coche à la main.
+    if (!isRunningSession(s.kind)) continue;
     // Une séance datée (la course) ne se fait que ce jour-là.
     if (s.day && s.day !== run.day) continue;
     const target = s.distanceM ?? run.distanceM;

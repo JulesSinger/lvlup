@@ -1173,3 +1173,40 @@
   padding-top: 0;
   border-top: 0;
 }
+
+/* Les séances de renforcement et de vélo (12/10/2026) : un rond à cocher, leur sorte en clair. */
+.sport-session-check {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--on-color);
+  background: transparent;
+  border: 2px solid var(--border-strong);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.sport-session-check.on {
+  background: var(--green);
+  border-color: var(--green);
+}
+.sport-session-kind {
+  padding: 1px 7px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.sport-session-done-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+  font-size: 14px;
+}
+.sport-session-done-field input {
+  width: auto;
+}

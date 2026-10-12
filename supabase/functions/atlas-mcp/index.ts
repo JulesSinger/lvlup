@@ -31,7 +31,7 @@ import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type Store
 import { sportTools, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
 import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from './recettes.ts';
 
-const VERSION = '2026-10-11.3';
+const VERSION = '2026-10-12.1';
 /** Le fuseau de Jules : « aujourd'hui » et la semaine en cours se comptent ici. */
 const TIME_ZONE = 'Europe/Paris';
 /** Une requête plus grosse est refusée avant d'être lue (une recette tient en quelques Ko). */
@@ -242,7 +242,7 @@ function coursesData(userId: string): CoursesData {
 /** Les données de Sport d'un seul compte : chaque requête porte `user_id`. */
 function sportData(userId: string): SportData {
   const t = (table: string) => admin.from(table);
-  const SESSION = 'id, plan_id, week, position, kind, title, distance_m, duration_s, pace_min_s, pace_max_s, hr_zone, instructions, day';
+  const SESSION = 'id, plan_id, week, position, kind, title, distance_m, duration_s, pace_min_s, pace_max_s, hr_zone, instructions, day, done_at';
   const RUN = 'id, started_at, day, distance_m, duration_s, elevation_m, avg_hr, max_hr, kind, effort, title, note, source, session_id, splits_s';
   type Page<R> = PromiseLike<{ data: R[] | null; error: { message: string } | null }>;
   return {
@@ -308,7 +308,7 @@ function serverInfo(day: string): ServerInfo {
     instructions: [
       'Atlas est l’application personnelle de Jules. Ce connecteur donne accès à trois de ses modules : Recettes (le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là »), Courses (la liste, le catalogue des articles, l’historique des courses, et l’enregistrement d’un ticket de caisse) et Sport (les sorties, le plan marathon et ses séances, la FC).',
       'Une photo de ticket de caisse : lis-la, puis courses_catalogue, puis courses_enregistrer_ticket.',
-      'Sport : la course à pied de Jules et son plan marathon. Commence par sport_resume. Pour donner les séances d’une semaine, sport_semaine_programmer (elles remplacent celles de la semaine).',
+      'Sport : la course à pied de Jules et son plan marathon, avec les séances de renforcement et de vélo. Commence par sport_resume. Pour donner les séances d’une semaine, sport_semaine_programmer (elles remplacent celles de la semaine).',
       `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ.`,
       'Avant de modifier, supprimer ou mettre au menu une recette, retrouve son identifiant avec recettes_lister. Une recette importée d’un site : écris les ingrédients un par ligne, quantité en tête, comme sur la page, et les étapes dans l’ordre.',
       'Demande confirmation avant toute suppression.',

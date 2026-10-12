@@ -10,6 +10,8 @@ import { hrZones } from './zones';
 describe('les règles de Sport recopiées dans le connecteur', () => {
   it('sont celles du module', () => {
     expect(server.SESSION_KINDS).toEqual(types.SESSION_KINDS);
+    expect(server.RUNNING_SESSION_KINDS).toEqual(types.RUNNING_SESSION_KINDS);
+    expect(server.CROSS_SESSION_KINDS).toEqual(types.CROSS_SESSION_KINDS);
     expect(server.RUN_KINDS).toEqual(types.RUN_KINDS);
     expect(server.PLAN_STATUSES).toEqual(types.PLAN_STATUSES);
     expect([server.PLAN_TITLE_MAX, server.RUN_TITLE_MAX, server.RUN_NOTE_MAX, server.SESSIONS_PER_WEEK_MIN, server.SESSIONS_PER_WEEK_MAX, server.MARATHON_M]).toEqual([
@@ -61,7 +63,7 @@ function memory() {
     },
     listSessions: async (planId) => db.sessions.filter((s) => s.plan_id === planId),
     insertSessions: async (rows) => {
-      const created = rows.map((r) => ({ id: uuid(), position: 0, ...r }) as SessionRow);
+      const created = rows.map((r) => ({ id: uuid(), position: 0, done_at: null, ...r }) as SessionRow);
       db.sessions.push(...created);
       return created;
     },
@@ -152,12 +154,37 @@ describe('les outils de Sport pour Claude, en coach', () => {
     expect(resume.plan.next_week).toHaveLength(2);
   });
 
+  it('programment aussi le renforcement et le vélo, cochés à la main', async () => {
+    const { db, data } = memory();
+    await use(data, 'sport_plan_creer', { title: 'Marathon', race_day: '2027-04-25' });
+    const week = await use(data, 'sport_semaine_programmer', {
+      week_of: '2026-10-12',
+      sessions: [
+        COACH_WEEK[0],
+        { day: '2026-10-14', kind: 'renfo', title: 'Gainage et squats', duration: 30, distance_km: 5, pace_min: '5:00', instructions: '3 × (1 min gainage, 15 squats, 10 fentes)' },
+        { day: '2026-10-16', kind: 'velo', title: 'Vélo en aisance', duration: '1:00:00', distance_km: 25 },
+      ],
+    });
+    expect(week.value.message).toMatch(/3 séances programmées/);
+    const renfo = db.sessions.find((s) => s.kind === 'renfo')!;
+    // Ni distance ni allure de course pour un renforcement, pas d'allure pour le vélo.
+    expect(renfo).toMatchObject({ duration_s: 1800, distance_m: null, pace_min_s: null, instructions: '3 × (1 min gainage, 15 squats, 10 fentes)' });
+    expect(db.sessions.find((s) => s.kind === 'velo')).toMatchObject({ duration_s: 3600, distance_m: 25_000 });
+    expect(week.value.sessions[1]).toMatchObject({ kind: 'renfo', done: false });
+
+    expect((await use(data, 'sport_seance_cocher', { id: renfo.id })).value.session.done).toBe(true);
+    expect(renfo.done_at).not.toBeNull();
+    expect((await use(data, 'sport_seance_cocher', { id: renfo.id, done: false })).value.session.done).toBe(false);
+    const footing = db.sessions.find((s) => s.kind === 'footing')!;
+    expect((await use(data, 'sport_seance_cocher', { id: footing.id })).text).toMatch(/faite par une sortie/);
+  });
+
   it('refusent une semaine mal faite, sans rien écrire', async () => {
     const { db, data } = memory();
     await use(data, 'sport_plan_creer', { title: 'Marathon', race_day: '2027-04-25' });
     const bad = (sessions: unknown[]) => use(data, 'sport_semaine_programmer', { week_of: '2026-10-12', sessions });
     expect((await bad([{ day: '2026-10-20', kind: 'footing', title: 'A' }])).text).toMatch(/pas dans la semaine/);
-    expect((await bad([{ day: '2026-10-13', kind: 'renfo', title: 'Gainage' }])).text).toMatch(/renforcement/);
+    expect((await bad([{ day: '2026-10-13', kind: 'yoga', title: 'Yoga' }])).text).toMatch(/la sorte est l’une de/);
     expect((await bad([{ day: '2026-10-13', kind: 'seuil', title: 'Seuil', pace_min: '5:00', pace_max: '4:30' }])).text).toMatch(/la plus RAPIDE/);
     expect((await bad([{ day: '13/10', kind: 'footing', title: 'A' }])).text).toMatch(/AAAA-MM-JJ/);
     expect((await use(data, 'sport_semaine_programmer', { week_of: '2027-06-01', sessions: COACH_WEEK })).text).toMatch(/hors du plan/);
