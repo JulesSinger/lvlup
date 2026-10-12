@@ -30,6 +30,8 @@ import { handleBody, type ServerInfo, type Tool } from './mcp.ts';
 import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type StoreRow, type TripItemRow, type TripRow } from './courses.ts';
 import { sportTools, type ActivityRow, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
 import { tachesTools, type ListRow as TachesListRow, type TachesData, type TaskRow } from './taches.ts';
+import ciqualTable from './ciqual.json' with { type: 'json' };
+import { nutritionTools, type CiqualRow, type EntryRow as NutritionEntryRow, type FoodRow as NutritionFoodRow, type NutritionData, type TargetRow as NutritionTargetRow } from './nutrition.ts';
 import { flashcardsTools, type CardRow as FlashCardRow, type DeckRow as FlashDeckRow, type FlashcardsData } from './flashcards.ts';
 import { objectifsTools, type ObjectifsData, type Checkin as GoalCheckin } from './objectifs.ts';
 import { calendarTools, type CalendarData, type CalendarEvent, type EventInput as CalendarEventInput, type EventException } from './calendar.ts';
@@ -597,6 +599,26 @@ function flashcardsData(userId: string): FlashcardsData {
   };
 }
 
+/** Les données de Nutrition d'un seul compte ; la table CIQUAL est embarquée (la même que l'app). */
+function nutritionData(userId: string): NutritionData {
+  const t = (table: string) => admin.from(table);
+  return {
+    ciqual: () => ciqualTable.foods as CiqualRow[],
+    listEntries: (from, to) =>
+      fetchAll<NutritionEntryRow>((first, last) =>
+        t('nutrition_entries').select('*').eq('user_id', userId).gte('day', from).lte('day', to).order('day').order('created_at').order('id').range(first, last),
+      ),
+    getEntry: async (id) => (check(await t('nutrition_entries').select('*').eq('user_id', userId).eq('id', id).maybeSingle()) as NutritionEntryRow | null) ?? null,
+    insertEntries: async (rows) => check(await t('nutrition_entries').insert(rows.map((r) => ({ ...r, user_id: userId }))).select('*')) as NutritionEntryRow[],
+    updateEntry: async (id, row) =>
+      (check(await t('nutrition_entries').update(row).eq('user_id', userId).eq('id', id).select('*').maybeSingle()) as NutritionEntryRow | null) ?? null,
+    deleteEntry: async (id) => (check(await t('nutrition_entries').delete().eq('user_id', userId).eq('id', id).select('id')) as unknown[]).length > 0,
+    listFoods: () => fetchAll<NutritionFoodRow>((first, last) => t('nutrition_foods').select('*').eq('user_id', userId).order('name').order('id').range(first, last)),
+    listTargets: () =>
+      fetchAll<NutritionTargetRow>((first, last) => t('nutrition_targets').select('*').eq('user_id', userId).order('effective_from').order('id').range(first, last)),
+  };
+}
+
 interface AtlasContext {
   today: string;
   recettes: RecettesData;
@@ -608,6 +630,7 @@ interface AtlasContext {
   calendar: CalendarData;
   objectifs: ObjectifsData;
   flashcards: FlashcardsData;
+  nutrition: NutritionData;
 }
 
 /** Les outils de chaque module, chacun avec sa part du contexte. */
@@ -618,6 +641,7 @@ const tools: Tool<AtlasContext>[] = [
     run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.courses, today: c.today, newId: () => crypto.randomUUID() }),
   })),
   ...bilanTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.bilan, today: c.today }) })),
+  ...nutritionTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.nutrition, today: c.today }) })),
   ...flashcardsTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.flashcards, today: c.today }) })),
   ...objectifsTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.objectifs, today: c.today }) })),
   ...calendarTools.map((tool) => ({
@@ -647,6 +671,7 @@ function serverInfo(day: string): ServerInfo {
       '- Calendar (calendrier_*) : les rendez-vous et événements. Une série répétée se modifie ou se supprime pour cet événement, les suivants ou tous : demande si ce n’est pas clair.',
       '- Objectifs (objectifs_*) : ses habitudes et leurs paliers (rangs Fer → Challenger). « J’ai lu 30 pages » : objectifs_cocher avec la quantité. Un palier atteint est validé par l’app à son ouverture.',
       '- Flashcards (flashcards_*) : des paquets de cartes à réviser. « Fais-moi des cartes sur ce cours » : une idée par carte, recto court, verso précis, puis flashcards_cartes_ajouter.',
+      '- Nutrition (nutrition_*) : le journal des repas, calories et macros. Cherche chaque aliment (nutrition_chercher) avant de l’ajouter ; une estimation seulement à défaut, dite comme telle.',
       '- Budget (budget_*) : les opérations et leurs catégories. Pour les « à classer » : budget_ecritures (a_classer), budget_classer, puis une règle pour les suivantes.',
       '- atlas_bilan : le bilan d’une semaine ou d’un mois, tous modules d’un coup.',
       `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ, les heures HH:MM.`,
@@ -679,7 +704,7 @@ Deno.serve(async (request) => {
   await admin.from('mcp_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', account.tokenId);
   const day = today();
   try {
-    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId), bilan: bilanData(account.userId), budget: budgetData(account.userId), calendar: calendarData(account.userId), objectifs: objectifsData(account.userId), flashcards: flashcardsData(account.userId) };
+    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId), bilan: bilanData(account.userId), budget: budgetData(account.userId), calendar: calendarData(account.userId), objectifs: objectifsData(account.userId), flashcards: flashcardsData(account.userId), nutrition: nutritionData(account.userId) };
     const answer = await handleBody(body, tools, serverInfo(day), context);
     if (answer === null) return new Response(null, { status: 202, headers: CORS });
     return json(answer);
