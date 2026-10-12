@@ -408,6 +408,13 @@ export async function run({ browser, check, BASE }) {
   // et on demande la création d'une règle, pour que le mois suivant se
   // range tout seul (§4 point « créer une règle »).
   const aClasserRow = page.locator('.budget-import-row', { hasText: 'Vir Inst Contact Exemple' });
+  // Le menu de l'import est celui d'une écriture : groupé par nature, pas une liste à plat
+  // (signalé par Jules le 12/10/2026 : « on s'y retrouve pas du tout »).
+  check(
+    'Le menu de catégorie de l’import est groupé par nature',
+    (await aClasserRow.locator('select optgroup').count()) > 1,
+    String(await aClasserRow.locator('select optgroup').count()),
+  );
   await aClasserRow.locator('select').selectOption({ label: '🧩 Divers' });
   await aClasserRow.locator('input[type="checkbox"]').check();
 

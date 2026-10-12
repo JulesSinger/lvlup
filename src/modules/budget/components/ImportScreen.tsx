@@ -3,7 +3,9 @@ import { budgetStore } from '../data';
 import { formatCents } from '../lib/amount';
 import { buildImportPreview, parseBoursobankCsv } from '../lib/boursobankImport';
 import type { BoursobankParseError, ImportPreview, ImportPreviewRow } from '../lib/boursobankImport';
+import { menuKindOrder } from '../lib/categoryPicker';
 import type { BudgetCategory } from '../lib/types';
+import { CategorySelect } from './CategorySelect';
 
 interface Preview {
   fileName: string;
@@ -256,18 +258,15 @@ function ImportRow({
       <span className="budget-row-day">{day}</span>
       <span className="budget-row-name">{label}</span>
       <span className={`budget-row-amount${amountCents < 0 ? ' negative' : ' positive'}`}>{formatCents(amountCents)}</span>
-      <select
-        aria-label={`Catégorie pour ${label}`}
+      {/* Le même menu que la fenêtre d'une écriture : groupé par nature, les
+          sous-catégories sous leur parent, ce qui va avec le sens en tête. */}
+      <CategorySelect
+        ariaLabel={`Catégorie pour ${label}`}
         value={categoryId}
-        onChange={(e) => onCategoryChange(e.target.value)}
-      >
-        <option value="">À classer</option>
-        {categories.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.emoji} {c.name}
-          </option>
-        ))}
-      </select>
+        categories={categories}
+        kindOrder={menuKindOrder(amountCents < 0 ? 'expense' : 'income')}
+        onChange={onCategoryChange}
+      />
       <label className="budget-import-rule-toggle">
         <input type="checkbox" checked={ruleChecked} onChange={(e) => onRuleChange(e.target.checked)} disabled={!categoryId} />
         Créer une règle
