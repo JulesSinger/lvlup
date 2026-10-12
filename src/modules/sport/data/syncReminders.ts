@@ -12,8 +12,13 @@ let lastSent = '';
  */
 export async function syncReminders(): Promise<void> {
   if (!coreStore.isRemote) return;
-  const [runs, plans, sessions] = await Promise.all([sportStore.listRuns(), sportStore.listPlans(), sportStore.listSessions()]);
-  const planned = plannedReminders({ runs, plans, sessions }, new Date());
+  const [runs, plans, sessions, activities] = await Promise.all([
+    sportStore.listRuns(),
+    sportStore.listPlans(),
+    sportStore.listSessions(),
+    sportStore.listActivities().catch(() => []),
+  ]);
+  const planned = plannedReminders({ runs, plans, sessions, activities }, new Date());
   const key = JSON.stringify(planned);
   if (key === lastSent) return;
   await coreStore.scheduleReminders('sport', planned);

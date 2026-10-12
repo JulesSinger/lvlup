@@ -18,7 +18,19 @@ import {
   type PlanOptions,
   type PlanPhase,
 } from './plan';
-import { isRunningSession, type Plan, type PlanSession, type PlanSessionDraft, type Run } from './types';
+import { isRunningSession, type Activity, type Plan, type PlanSession, type PlanSessionDraft, type Run } from './types';
+
+/**
+ * Une séance rattachée à une activité de Strava (renfo, vélo) est faite, même
+ * si sa coche n'est pas encore écrite (écriture manquée à la synchronisation,
+ * réparée à l'ouverture de Sport) : le plan, Calendar et les rappels la
+ * voient faite dès maintenant. Décocher détache l'activité : rien ne revient.
+ */
+export function tickedByActivities(sessions: PlanSession[], activities: readonly Pick<Activity, 'sessionId' | 'startedAt'>[]): PlanSession[] {
+  if (activities.length === 0) return sessions;
+  const by = new Map(activities.filter((a) => a.sessionId).map((a) => [a.sessionId as string, a.startedAt]));
+  return sessions.map((s) => (s.doneAt === null && by.has(s.id) ? { ...s, doneAt: by.get(s.id) as string } : s));
+}
 
 /** Quelle sortie a fait quelle séance : `Map<séance, sortie>`. */
 export function assignRuns(plan: Plan, sessions: PlanSession[], runs: Run[]): Map<string, Run> {

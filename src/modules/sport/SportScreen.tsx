@@ -22,7 +22,7 @@ import { syncObjectifs, type LinkResult } from './data/syncObjectifs';
 import { syncReminders } from './data/syncReminders';
 import { stravaAvailable, stravaReturn, stravaStatus, syncStrava } from './data/strava';
 import { planDrafts, weekOfPlan, type PlanWeek } from './lib/plan';
-import { assignRuns, planWeeks, reschedule } from './lib/planView';
+import { assignRuns, planWeeks, reschedule, tickedByActivities } from './lib/planView';
 import { longestRecent, recentWeeklyAverage } from './lib/stats';
 import {
   DEFAULT_SPORT_SETTINGS,
@@ -226,7 +226,7 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
   const activityBySession = useMemo(() => new Map(activities.filter((a) => a.sessionId).map((a) => [a.sessionId as string, a])), [activities]);
   /** Le plan en cours : un seul à la fois (on supprime pour en refaire un). */
   const plan = plans.find((p) => p.status === 'actif') ?? null;
-  const weeks = useMemo(() => (plan ? planWeeks(plan, sessions, runs, today) : []), [plan, sessions, runs, today]);
+  const weeks = useMemo(() => (plan ? planWeeks(plan, tickedByActivities(sessions, activities), runs, today) : []), [plan, sessions, activities, runs, today]);
   const assigned = useMemo(() => (plan ? assignRuns(plan, sessions, runs) : new Map<string, Run>()), [plan, sessions, runs]);
 
   /** Ce dont la fiche d'une sortie a besoin pour choisir sa séance. */

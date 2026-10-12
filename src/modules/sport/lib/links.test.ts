@@ -80,6 +80,11 @@ describe('le calque dans Calendar', () => {
     ];
     const marks = sportMarks({ runs, plans: [PLAN], sessions, activities }, '2026-10-12', '2026-10-18', '2026-10-15');
     expect(marks.find((m) => m.id === 'activity:a1')).toMatchObject({ day: '2026-10-14', title: '✓ 💪 Renforcement', detail: 'Renforcement · 40 min · 118 bpm' });
+    // Une séance de renfo prévue le 14 et rattachée à l'activité, même pas encore cochée, n'est plus une marque à faire.
+    const planned = { ...sessions.find((x) => x.week === 1)!, id: 'renfo-14', kind: 'renfo' as const, title: 'Gainage', day: '2026-10-14', doneAt: null };
+    const linked = [{ ...activities[0], sessionId: 'renfo-14' }];
+    expect(sportMarks({ runs, plans: [PLAN], sessions: [...sessions, planned], activities }, '2026-10-12', '2026-10-18', '2026-10-15').some((m) => m.id === 'session:renfo-14')).toBe(true);
+    expect(sportMarks({ runs, plans: [PLAN], sessions: [...sessions, planned], activities: linked }, '2026-10-12', '2026-10-18', '2026-10-15').some((m) => m.id === 'session:renfo-14')).toBe(false);
     const done = marks.find((m) => m.id.startsWith('run:'))!;
     expect(done).toMatchObject({ day: '2026-10-15', title: '✓ Footing · 6,0 km', time: '18:30', duration: 36, link: `run:${runs[0].id}` });
     const week = marks.find((m) => m.id === 'week:p:1')!;

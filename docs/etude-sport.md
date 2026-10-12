@@ -894,3 +894,9 @@ d'Objectifs, archive Strava, rattachement d'une sortie à une séance. **Trois �
   compris : le générateur ne fait que de la course, il ne retire plus que la course ;
 - **Calendar** montrait les sorties faites mais pas les séances de renfo et de vélo faites : elles y
   sont, à leur heure.
+
+Signalé ensuite : le renfo apparaissait dans Calendar **en journée entière**. C'était la séance
+**prévue** (datée, sans heure), toujours affichée parce que pas encore cochée en base — la
+réparation ne se fait qu'à l'ouverture de Sport. Désormais `tickedByActivities` (`lib/planView.ts`)
+tient pour faite toute séance rattachée à une activité, **partout** : le plan, Calendar, les
+rappels ; la séance prévue disparaît du calendrier, l'activité y est à son heure, comme une course.

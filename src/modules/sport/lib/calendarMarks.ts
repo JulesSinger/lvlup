@@ -13,7 +13,7 @@ import { formatDuration, formatKm, formatPace, formatPaceRange } from './format'
 import { CROSS_LABELS, KIND_LABELS, sessionKindLabel } from './kinds';
 import { paceOf } from './pace';
 import { PHASE_LABELS } from './plan';
-import { planWeeks } from './planView';
+import { planWeeks, tickedByActivities } from './planView';
 import { isRunningSession, type Activity, type Plan, type PlanSession, type Run } from './types';
 
 const two = (n: number) => String(n).padStart(2, '0');
@@ -79,7 +79,7 @@ export function sportMarks(data: SportCalendarData, from: string, to: string, to
   if (plan.raceDay >= from && plan.raceDay <= to) {
     marks.push({ id: `race:${plan.id}`, day: plan.raceDay, title: `🏁 ${plan.title}`, detail: plan.raceDayConfirmed ? 'Date officielle' : 'Date à confirmer', link: 'plan' });
   }
-  for (const week of planWeeks(plan, data.sessions, data.runs, today)) {
+  for (const week of planWeeks(plan, tickedByActivities(data.sessions, data.activities ?? []), data.runs, today)) {
     if (week.monday > to || shiftDay(week.monday, 6) < from) continue;
     const open = week.sessions.filter((s) => s.state !== 'faite');
     for (const { session } of open.filter((s) => s.session.day)) {

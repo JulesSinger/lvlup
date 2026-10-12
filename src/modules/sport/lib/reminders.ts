@@ -13,8 +13,8 @@ import type { ReminderInput } from '../../../core/data/coreStore';
 import { dayString, shiftDay } from '../../../core/lib/day';
 import { formatDuration, formatKm, formatPaceRange } from './format';
 import { PHASE_LABELS } from './plan';
-import { planWeeks } from './planView';
-import { isRunningSession, type Plan, type PlanSession, type Run } from './types';
+import { planWeeks, tickedByActivities } from './planView';
+import { isRunningSession, type Activity, type Plan, type PlanSession, type Run } from './types';
 
 export const REMINDER_HORIZON_DAYS = 7;
 export const MORNING = '07:30';
@@ -41,7 +41,11 @@ function sessionLine(s: PlanSession): string {
 /** L'emoji du rappel d'une séance : la course, le renforcement, le vélo. */
 const sessionEmoji = (s: PlanSession) => (s.kind === 'renfo' ? '💪' : s.kind === 'velo' ? '🚴' : '🏃');
 
-export function plannedReminders(data: { runs: Run[]; plans: Plan[]; sessions: PlanSession[] }, now: Date, horizonDays = REMINDER_HORIZON_DAYS): ReminderInput[] {
+export function plannedReminders(
+  data: { runs: Run[]; plans: Plan[]; sessions: PlanSession[]; activities?: Activity[] },
+  now: Date,
+  horizonDays = REMINDER_HORIZON_DAYS,
+): ReminderInput[] {
   const plan = data.plans.find((p) => p.status === 'actif');
   if (!plan) return [];
   const today = dayString(now);
@@ -54,7 +58,7 @@ export function plannedReminders(data: { runs: Run[]; plans: Plan[]; sessions: P
     out.push({ ref, fireAt: at.toISOString(), title, body: body.slice(0, 1000), url: '/#/sport' });
   };
 
-  for (const week of planWeeks(plan, data.sessions, data.runs, today)) {
+  for (const week of planWeeks(plan, tickedByActivities(data.sessions, data.activities ?? []), data.runs, today)) {
     const open = week.sessions.filter((s) => s.state !== 'faite' && s.session.kind !== 'course').map((s) => s.session);
     const undated = open.filter((s) => !s.day);
     if (undated.length > 0) {
