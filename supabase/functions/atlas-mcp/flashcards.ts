@@ -65,7 +65,7 @@ function inline(text: string): string {
   const codes: string[] = [];
   let s = escape(text).replace(/`([^`]+)`/g, (_m, c: string) => {
     codes.push(c);
-    return `\u0000${codes.length - 1}\u0000`;
+    return `\uE000${codes.length - 1}\uE000`;
   });
   s = s
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -74,7 +74,7 @@ function inline(text: string): string {
     .replace(/==(.+?)==/g, '<mark>$1</mark>')
     .replace(/(^|[^*\w])\*(?!\s)(.+?)\*(?!\w)/g, '$1<em>$2</em>')
     .replace(/(^|[^_\w])_(?!\s)(.+?)_(?!\w)/g, '$1<em>$2</em>');
-  return s.replace(/\u0000(\d+)\u0000/g, (_m, i: string) => `<code>${codes[Number(i)]}</code>`);
+  return s.replace(/\uE000(\d+)\uE000/g, (_m, i: string) => `<code>${codes[Number(i)]}</code>`);
 }
 
 /**
