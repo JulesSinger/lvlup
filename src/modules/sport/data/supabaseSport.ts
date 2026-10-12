@@ -407,6 +407,10 @@ export class SupabaseSport implements SportStore {
     return rows.map(toActivity);
   }
 
+  async unlinkActivity(id: string) {
+    check((await this.client.from('sport_activities').update({ session_id: null }).eq('id', id)).error);
+  }
+
   async deleteActivity(id: string) {
     check((await this.client.from('sport_activities').delete().eq('id', id)).error);
   }

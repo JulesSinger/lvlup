@@ -613,16 +613,23 @@ export async function run({ browser, check, BASE }) {
 
   // Réaction instantanée au clic : l'état bascule sans attendre le serveur,
   // et l'action faite le dit explicitement.
+  // Le +PP ne vit que 0,9 s : on guette son apparition dès avant le clic, plutôt que de le compter
+  // après une attente — sous la charge des suites parallèles, il pouvait déjà être reparti.
+  const flew = page.locator('.pp-fly').first().waitFor({ state: 'attached', timeout: 5000 }).then(
+    () => true,
+    () => false,
+  );
   await page.locator('.checkin-chip').first().click(NO_WAIT);
   await settle(page, 120);
   check(
     'Le chip bascule immédiatement en « fait » (optimisme)',
     await page.locator('.checkin-chip.done').first().isVisible(),
   );
+  const flyCount = await page.locator('.pp-fly').count();
   check(
     'Le +PP s’envole au clic',
-    (await page.locator('.pp-fly').count()) === 1,
-    String(await page.locator('.pp-fly').count()),
+    (await flew) && flyCount <= 1,
+    String(flyCount),
   );
   check(
     'L’action faite affiche « fait » et non ses PP',

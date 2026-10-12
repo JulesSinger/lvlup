@@ -26,6 +26,7 @@ import { assignRuns, planWeeks, reschedule } from './lib/planView';
 import { longestRecent, recentWeeklyAverage } from './lib/stats';
 import {
   DEFAULT_SPORT_SETTINGS,
+  isRunningSession,
   type Activity,
   type Plan,
   type PlanInput,
@@ -97,7 +98,19 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
       setPlans(nextPlans);
       setSessions(nextSessions);
       // Les séances de renfo et de vélo à part : une table manquante (migration du 12/10) ne gêne pas le reste.
-      setActivities(await store.listActivities().catch(() => []));
+      const nextActivities = await store.listActivities().catch(() => [] as Activity[]);
+      setActivities(nextActivities);
+      // Une activité de Strava rattachée à une séance la coche, toujours : si la coche n'a pas été écrite
+      // (une écriture manquée au moment de la synchronisation), on la répare ici. Décocher à la main
+      // détache l'activité (`toggleCross`), qui ne recoche donc rien.
+      const toTick = nextSessions.flatMap((x) => {
+        const linked = x.doneAt === null ? nextActivities.find((a) => a.sessionId === x.id) : undefined;
+        return linked ? [{ id: x.id, doneAt: linked.startedAt }] : [];
+      });
+      if (toTick.length > 0) {
+        await Promise.all(toTick.map((t) => store.updateSession(t.id, { doneAt: t.doneAt })));
+        setSessions(await store.listSessions());
+      }
       onError('');
       // Les rappels suivent le plan et les sorties ; un échec ne gêne jamais l'écran.
       void syncReminders().catch(() => {});
@@ -220,7 +233,8 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
   function planFor(run: Run) {
     if (!plan) return undefined;
     const week = weekOfPlan(plan.startDay, run.day);
-    const inWeek = sessions.filter((s) => s.planId === plan.id && s.week === week).sort((a, b) => a.position - b.position);
+    // Une sortie de course ne fait qu'une séance de course : pas un renforcement ni du vélo.
+    const inWeek = sessions.filter((s) => s.planId === plan.id && s.week === week && isRunningSession(s.kind)).sort((a, b) => a.position - b.position);
     const auto = inWeek.find((s) => assigned.get(s.id)?.id === run.id) ?? null;
     return { sessions: inWeek, auto, onAssign: (sessionId: string | null) => void write(() => store.updateRun(run.id, { sessionId })) };
   }
@@ -245,9 +259,24 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
     await refresh();
   }
 
+  /** Cocher ou décocher un renfo ou du vélo ; décocher détache l'activité de Strava qui l'avait coché. */
+  async function toggleCross(session: PlanSession) {
+    if (session.doneAt) {
+      await store.updateSession(session.id, { doneAt: null });
+      await unlinkFrom(session.id);
+    } else {
+      await store.updateSession(session.id, { doneAt: new Date().toISOString() });
+    }
+  }
+
+  async function unlinkFrom(sessionId: string) {
+    for (const a of activities.filter((x) => x.sessionId === sessionId)) await store.unlinkActivity(a.id);
+  }
+
   async function saveSession(patch: PlanSessionPatch) {
     if (!editingSession) return;
     await store.updateSession(editingSession.id, patch);
+    if (patch.doneAt === null && editingSession.doneAt !== null) await unlinkFrom(editingSession.id);
     setEditingSession(null);
     await refresh();
   }
@@ -376,7 +405,7 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
               onEditSession={setEditingSession}
               activities={activityBySession}
               onOpenActivity={(a) => setOpenActivityId(a.id)}
-              onToggleDone={(session) => void write(() => store.updateSession(session.id, { doneAt: session.doneAt ? null : new Date().toISOString() }))}
+              onToggleDone={(session) => void write(() => toggleCross(session))}
               onOpenRun={(r) => setOpenId(r.id)}
               onChangeDate={() => setChangingDate(true)}
               onDelete={() => void write(() => store.deletePlan(plan.id))}
@@ -426,6 +455,8 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
             settings={settings}
             today={today}
             onOpen={(r) => setOpenId(r.id)}
+            activities={activities}
+            onOpenActivity={(a) => setOpenActivityId(a.id)}
             onSaveHr={saveHr}
             plan={plan ? { plan, weeks, onOpen: () => setView('plan') } : null}
             onCreatePlan={() => setCreatingPlan(true)}

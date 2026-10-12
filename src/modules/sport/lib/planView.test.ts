@@ -106,4 +106,26 @@ describe('changer la date de la course', () => {
     expect(race).toMatchObject({ week: 29, day: '2027-05-02' });
     expect(add.every((s) => s.planId === 'p')).toBe(true);
   });
+
+  it('garde le renforcement et le vélo programmés : le générateur ne fait que de la course', () => {
+    const renfo = { ...sessions.find((s) => s.week === 5)!, id: 'renfo-5', kind: 'renfo' as const, title: 'Gainage' };
+    const { removeIds } = reschedule(PLAN, [...sessions, renfo], { ...OPTIONS, raceDay: '2027-05-02' }, '2026-11-04', () => 'x');
+    expect(removeIds).not.toContain('renfo-5');
+  });
+});
+
+describe('les séances d’à côté', () => {
+  it('ne sont jamais faites par une sortie, et se cochent à la main', () => {
+    const week1 = sessions.filter((s) => s.week === 1);
+    const renfo = { ...week1[0], id: 'renfo-1', kind: 'renfo' as const, title: 'Gainage', distanceM: null, day: '2026-10-15' };
+    const runs = [run('2026-10-15', 6)];
+    const weeks = planWeeks(PLAN, [...sessions, renfo], runs, '2026-10-16');
+    const line = weeks[0].sessions.find((x) => x.session.id === 'renfo-1')!;
+    expect(line).toMatchObject({ state: 'a-faire', run: null });
+    const ticked = planWeeks(PLAN, [...sessions, { ...renfo, doneAt: '2026-10-15T18:00:00Z' }], runs, '2026-10-16');
+    expect(ticked[0].sessions.find((x) => x.session.id === 'renfo-1')!.state).toBe('faite');
+    // Ni dans les kilomètres prévus : un vélo de 25 km n'en ajoute pas.
+    const velo = { ...renfo, id: 'velo-1', kind: 'velo' as const, distanceM: 25_000 };
+    expect(planWeeks(PLAN, [...sessions, velo], runs, '2026-10-16')[0].plannedM).toBe(weeks[0].plannedM);
+  });
 });

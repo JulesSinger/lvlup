@@ -53,7 +53,7 @@ import {
   type StravaRun,
 } from './strava.ts';
 
-const VERSION = '2026-10-12.1';
+const VERSION = '2026-10-12.2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -266,9 +266,15 @@ async function syncCross(userId: string, found: StravaCrossActivity[]): Promise<
   if (insertError) throw new Error(insertError.message);
   // Cocher les séances faites, à l'heure de l'activité ; une séance déjà cochée entre-temps le reste.
   for (const r of rows) {
-    if (r.session_id) {
-      await admin.from('sport_plan_sessions').update({ done_at: r.started_at }).eq('user_id', userId).eq('id', r.session_id).is('done_at', null);
-    }
+    if (!r.session_id) continue;
+    const { error: tickError } = await admin
+      .from('sport_plan_sessions')
+      .update({ done_at: r.started_at })
+      .eq('user_id', userId)
+      .eq('id', r.session_id)
+      .is('done_at', null);
+    // Pas d'échec silencieux : l'écran recoche de toute façon une séance rattachée (SportScreen), mais on le dit.
+    if (tickError) console.error('sport-strava : séance pas cochée', r.session_id, tickError.message);
   }
   return rows.length;
 }

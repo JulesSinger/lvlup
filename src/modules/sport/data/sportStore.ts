@@ -83,6 +83,8 @@ export interface SportStore {
    */
   listActivities(): Promise<Activity[]>;
   deleteActivity(id: string): Promise<void>;
+  /** Détacher une activité de sa séance : décocher la séance à la main ne doit pas la laisser se recocher. */
+  unlinkActivity(id: string): Promise<void>;
 
   exportData(): Promise<SportBackup>;
   importData(data: SportBackup): Promise<void>;

@@ -10,11 +10,11 @@
 import type { CalendarMark } from '../../../core/lib/services';
 import { shiftDay } from '../../../core/lib/day';
 import { formatDuration, formatKm, formatPace, formatPaceRange } from './format';
-import { KIND_LABELS, sessionKindLabel } from './kinds';
+import { CROSS_LABELS, KIND_LABELS, sessionKindLabel } from './kinds';
 import { paceOf } from './pace';
 import { PHASE_LABELS } from './plan';
 import { planWeeks } from './planView';
-import { isRunningSession, type Plan, type PlanSession, type Run } from './types';
+import { isRunningSession, type Activity, type Plan, type PlanSession, type Run } from './types';
 
 const two = (n: number) => String(n).padStart(2, '0');
 
@@ -34,6 +34,8 @@ export interface SportCalendarData {
   runs: Run[];
   plans: Plan[];
   sessions: PlanSession[];
+  /** Les séances de renfo et de vélo venues de Strava, faites. */
+  activities?: Activity[];
 }
 
 /** Une marque : `run:<id>`, `session:<id>`, `week:<plan>:<n>`, `race:<plan>`. */
@@ -56,6 +58,19 @@ export function sportMarks(data: SportCalendarData, from: string, to: string, to
       time: `${two(start.getHours())}:${two(start.getMinutes())}`,
       duration: Math.min(1440, Math.max(15, Math.round(r.durationS / 60))),
       link: `run:${r.id}`,
+    });
+  }
+
+  for (const a of data.activities ?? []) {
+    if (a.day < from || a.day > to) continue;
+    const start = new Date(a.startedAt);
+    marks.push({
+      id: `activity:${a.id}`,
+      day: a.day,
+      title: `✓ ${a.sport === 'renfo' ? '💪' : '🚴'} ${a.title || CROSS_LABELS[a.sport]}`,
+      detail: [CROSS_LABELS[a.sport], formatDuration(a.durationS), a.distanceM ? formatKm(a.distanceM) : null, a.avgHr ? `${a.avgHr} bpm` : null].filter(Boolean).join(' · '),
+      time: `${two(start.getHours())}:${two(start.getMinutes())}`,
+      duration: Math.min(1440, Math.max(15, Math.round(a.durationS / 60))),
     });
   }
 

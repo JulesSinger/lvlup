@@ -871,3 +871,26 @@ gardait que la course. Elle reprend désormais aussi le **renforcement** (`Weigh
 - Le connecteur de Claude les montre au coach (`sport_resume`, `sport_plan_lire`).
 
 L'archive Strava (zip) ne les reprend pas : seule la course en est lue.
+
+
+## 25. Le renfo rattaché mais pas coché, et la cohérence avec la course (12/10/2026)
+
+Signalé par Jules : sa séance de renfo de Strava était bien **rattachée** à la séance du jour
+(`session_id`), mais la séance **pas cochée** (`done_at` vide) — la fonction cochait juste après
+avoir rangé l'activité, sans regarder si l'écriture avait réussi (ou la séance a été décochée
+ensuite d'un toucher). Désormais **une activité rattachée coche toujours sa séance** : l'écran
+répare une coche manquante à chaque chargement, et **décocher détache l'activité** (dans le plan,
+la fenêtre de la séance ou par le connecteur), qui ne recoche donc rien ; la fonction journalise un
+échec d'écriture au lieu de l'ignorer. Et le tableau de bord montre la **dernière séance**, course,
+renfo ou vélo (il ne montrait que la dernière sortie de course).
+
+Puis, à sa demande, le tour de ce qui doit rester à la course. **Restent à la course seule**, parce
+qu'ils ne lisent que les sorties (`sport_runs`) : records, prédiction et meilleure forme, volumes de
+la semaine et du mois, progression (allures, zone 2, temps par zone), FC max suggérée, coches
+d'Objectifs, archive Strava, rattachement d'une sortie à une séance. **Trois écarts corrigés** :
+- une sortie pouvait être rattachée **à la main** à un renfo (fiche d'une sortie, connecteur) : on
+  ne propose plus que les séances de course ;
+- **changer la date de la course** régénérait toutes les séances à venir, renfo et vélo du coach
+  compris : le générateur ne fait que de la course, il ne retire plus que la course ;
+- **Calendar** montrait les sorties faites mais pas les séances de renfo et de vélo faites : elles y
+  sont, à leur heure.

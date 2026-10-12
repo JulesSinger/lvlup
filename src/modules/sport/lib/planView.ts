@@ -131,6 +131,7 @@ export function reschedule(
     raceTitle: plan.title,
     sessionsPerWeek: plan.sessionsPerWeek,
   }).filter((w) => w.week >= keepBefore);
-  const removeIds = sessions.filter((s) => s.planId === plan.id && s.week >= keepBefore).map((s) => s.id);
+  // Le générateur ne fait que de la course : le renforcement et le vélo programmés (par un coach) restent.
+  const removeIds = sessions.filter((s) => s.planId === plan.id && s.week >= keepBefore && isRunningSession(s.kind)).map((s) => s.id);
   return { removeIds, add: planDrafts(plan.id, weeks, newId) };
 }

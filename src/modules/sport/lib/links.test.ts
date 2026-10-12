@@ -75,7 +75,11 @@ describe('le lien avec Objectifs', () => {
 describe('le calque dans Calendar', () => {
   it('les sorties à leur heure, la semaine du plan le lundi, la course', () => {
     const runs = [run('2026-10-15', 6, 36)];
-    const marks = sportMarks({ runs, plans: [PLAN], sessions }, '2026-10-12', '2026-10-18', '2026-10-15');
+    const activities = [
+      { id: 'a1', startedAt: '2026-10-14T16:00:00.000Z', day: '2026-10-14', sport: 'renfo' as const, durationS: 2400, distanceM: null, elevationM: null, avgHr: 118, maxHr: null, title: '', source: 'strava' as const, sourceRef: 'strava:1', sessionId: null, createdAt: '' },
+    ];
+    const marks = sportMarks({ runs, plans: [PLAN], sessions, activities }, '2026-10-12', '2026-10-18', '2026-10-15');
+    expect(marks.find((m) => m.id === 'activity:a1')).toMatchObject({ day: '2026-10-14', title: '✓ 💪 Renforcement', detail: 'Renforcement · 40 min · 118 bpm' });
     const done = marks.find((m) => m.id.startsWith('run:'))!;
     expect(done).toMatchObject({ day: '2026-10-15', title: '✓ Footing · 6,0 km', time: '18:30', duration: 36, link: `run:${runs[0].id}` });
     const week = marks.find((m) => m.id === 'week:p:1')!;

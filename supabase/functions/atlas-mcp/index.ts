@@ -31,7 +31,7 @@ import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type Store
 import { sportTools, type ActivityRow, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
 import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from './recettes.ts';
 
-const VERSION = '2026-10-12.2';
+const VERSION = '2026-10-12.3';
 /** Le fuseau de Jules : « aujourd'hui » et la semaine en cours se comptent ici. */
 const TIME_ZONE = 'Europe/Paris';
 /** Une requête plus grosse est refusée avant d'être lue (une recette tient en quelques Ko). */
@@ -280,6 +280,11 @@ function sportData(userId: string): SportData {
         .order('started_at');
       // Table absente (migration du 12/10/2026 pas appliquée) : rien à montrer, le reste marche.
       return error ? [] : ((data ?? []) as unknown as ActivityRow[]);
+    },
+    async unlinkActivities(sessionId) {
+      const { error } = await t('sport_activities').update({ session_id: null }).eq('user_id', userId).eq('session_id', sessionId);
+      // Table absente : rien à détacher.
+      if (error && !/sport_activities/.test(error.message)) throw new Error(error.message);
     },
     getRun: async (id) => (check(await t('sport_runs').select(RUN).eq('user_id', userId).eq('id', id).maybeSingle()) as unknown as RunRow | null) ?? null,
     insertRun: async (row) => check(await t('sport_runs').insert({ ...row, user_id: userId }).select(RUN).single()) as unknown as RunRow,

@@ -3,13 +3,13 @@ import { formatDuration, formatKm, formatPace, formatTime } from '../lib/format'
 import { paceOf, riegel } from '../lib/pace';
 import { bestEfforts, bestReference, recentReference, weeklyVolumes } from '../lib/stats';
 import type { ReactNode } from 'react';
-import { HALF_MARATHON_M, MARATHON_M, type Run, type SportSettings } from '../lib/types';
+import { HALF_MARATHON_M, MARATHON_M, type Activity, type Run, type SportSettings } from '../lib/types';
 import { suggestedHrMax } from '../lib/zones';
 import { HeartRateCard } from './HeartRateCard';
 import { PlanSummary } from './PlanView';
 import type { WeekStatus } from '../lib/planView';
 import type { Plan } from '../lib/types';
-import { RunRow, shortDay } from './Journal';
+import { ActivityRow, RunRow, shortDay } from './Journal';
 
 const DISTANCE_LABELS: Record<number, string> = { 1000: '1 km', 5000: '5 km', 10_000: '10 km', [HALF_MARATHON_M]: 'Semi', [MARATHON_M]: 'Marathon' };
 
@@ -18,8 +18,11 @@ const DISTANCE_LABELS: Record<number, string> = { 1000: '1 km', 5000: '5 km', 10
  * des douze dernières, la dernière sortie, les records, une prédiction pour le
  * marathon, et la fréquence cardiaque. Le plan en cours en tête (étape 4).
  */
-export function Dashboard({ runs, settings, today, onOpen, onSaveHr, plan, onCreatePlan, children }: {
+export function Dashboard({ runs, activities = [], settings, today, onOpen, onOpenActivity, onSaveHr, plan, onCreatePlan, children }: {
   runs: Run[];
+  /** Les séances de renfo et de vélo venues de Strava : la dernière séance peut en être une. */
+  activities?: Activity[];
+  onOpenActivity?: (activity: Activity) => void;
   settings: SportSettings;
   today: string;
   onOpen: (run: Run) => void;
@@ -34,6 +37,7 @@ export function Dashboard({ runs, settings, today, onOpen, onSaveHr, plan, onCre
   const week = weeks[weeks.length - 1];
   const maxWeek = Math.max(...weeks.map((w) => w.distanceM), 1);
   const last = runs.reduce<Run | null>((a, r) => (!a || r.startedAt > a.startedAt ? r : a), null);
+  const lastActivity = activities.reduce<Activity | null>((a, r) => (!a || r.startedAt > a.startedAt ? r : a), null);
   const records = bestEfforts(runs);
   const reference = recentReference(runs, today);
   const best = bestReference(runs, today);
@@ -88,10 +92,14 @@ export function Dashboard({ runs, settings, today, onOpen, onSaveHr, plan, onCre
         </div>
       </section>
 
-      {last && (
+      {(last || lastActivity) && (
         <section className="sport-panel sport-last">
-          <h2 className="sport-panel-title">Dernière sortie</h2>
-          <RunRow run={last} onOpen={() => onOpen(last)} />
+          <h2 className="sport-panel-title">Dernière séance</h2>
+          {lastActivity && (!last || lastActivity.startedAt > last.startedAt) ? (
+            <ActivityRow activity={lastActivity} onOpen={() => onOpenActivity?.(lastActivity)} />
+          ) : (
+            last && <RunRow run={last} onOpen={() => onOpen(last)} />
+          )}
         </section>
       )}
 

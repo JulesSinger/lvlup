@@ -148,6 +148,8 @@ export interface SportData {
   listRuns(from: string, to: string): Promise<RunRow[]>;
   /** Vide si la table manque encore. */
   listActivities(from: string, to: string): Promise<ActivityRow[]>;
+  /** Détacher les activités de Strava d'une séance décochée : sinon l'app la recocherait. */
+  unlinkActivities(sessionId: string): Promise<void>;
   getRun(id: string): Promise<RunRow | null>;
   insertRun(row: Record<string, unknown>): Promise<RunRow>;
   updateRun(id: string, row: Record<string, unknown>): Promise<RunRow | null>;
@@ -576,6 +578,7 @@ export const sportTools: Tool<SportContext>[] = [
       if (isRunning(session.kind)) throw new Refused('Une séance de course est faite par une sortie : note la sortie (sport_sortie_ajouter) ou laisse Strava l’apporter.');
       const done = args.done !== false;
       const updated = await data.updateSession(session.id, { done_at: done ? (session.done_at ?? new Date().toISOString()) : null });
+      if (!done) await data.unlinkActivities(session.id);
       return json({ message: `« ${session.title} » ${done ? 'faite' : 'à faire'}.`, session: updated && sessionOut(updated, plan) });
     },
   },
@@ -788,7 +791,9 @@ async function runPatch(args: Record<string, unknown>, data: SportData): Promise
     else {
       const plan = await requirePlan(data);
       const sessionId = id(args.session_id, 'session_id');
-      if (!(await data.listSessions(plan.id)).some((s) => s.id === sessionId)) throw new Refused('session_id : pas une séance du plan en cours.');
+      const target = (await data.listSessions(plan.id)).find((s) => s.id === sessionId);
+      if (!target) throw new Refused('session_id : pas une séance du plan en cours.');
+      if (!isRunning(target.kind)) throw new Refused('Une sortie de course ne fait qu’une séance de course : un renforcement ou du vélo se coche (sport_seance_cocher).');
       row.session_id = sessionId;
     }
   }

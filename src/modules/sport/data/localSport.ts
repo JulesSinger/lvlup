@@ -275,6 +275,12 @@ export class LocalSport implements SportStore {
     return read().activities.slice().sort((a, b) => a.startedAt.localeCompare(b.startedAt));
   }
 
+  async unlinkActivity(id: string) {
+    const s = read();
+    s.activities = s.activities.map((a) => (a.id === id ? { ...a, sessionId: null } : a));
+    write(s);
+  }
+
   async deleteActivity(id: string) {
     const s = read();
     s.activities = s.activities.filter((a) => a.id !== id);

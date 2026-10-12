@@ -12,8 +12,13 @@ import type { SportStore } from './sportStore';
  */
 export function createCalendarSource(store: SportStore, afterWrite: () => Promise<void> = async () => {}): CalendarSource {
   async function load() {
-    const [runs, plans, sessions] = await Promise.all([store.listRuns(), store.listPlans(), store.listSessions()]);
-    return { runs, plans, sessions };
+    const [runs, plans, sessions, activities] = await Promise.all([
+      store.listRuns(),
+      store.listPlans(),
+      store.listSessions(),
+      store.listActivities().catch(() => []),
+    ]);
+    return { runs, plans, sessions, activities };
   }
 
   return {
