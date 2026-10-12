@@ -29,9 +29,10 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { handleBody, type ServerInfo, type Tool } from './mcp.ts';
 import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type StoreRow, type TripItemRow, type TripRow } from './courses.ts';
 import { sportTools, type ActivityRow, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
+import { tachesTools, type ListRow as TachesListRow, type TachesData, type TaskRow } from './taches.ts';
 import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from './recettes.ts';
 
-const VERSION = '2026-10-12.3';
+const VERSION = '2026-10-13.1';
 /** Le fuseau de Jules : « aujourd'hui » et la semaine en cours se comptent ici. */
 const TIME_ZONE = 'Europe/Paris';
 /** Une requête plus grosse est refusée avant d'être lue (une recette tient en quelques Ko). */
@@ -298,11 +299,30 @@ function sportData(userId: string): SportData {
   };
 }
 
+/** Les données de Tâches d'un seul compte : chaque requête porte `user_id`. */
+function tachesData(userId: string): TachesData {
+  const t = (table: string) => admin.from(table);
+  return {
+    listTasks: () =>
+      fetchAll<TaskRow>((first, last) => t('taches_tasks').select('*').eq('user_id', userId).order('created_at').order('id').range(first, last)),
+    insertTask: async (row) => check(await t('taches_tasks').insert({ ...row, user_id: userId }).select('*').single()) as TaskRow,
+    updateTask: async (id, row) =>
+      (check(await t('taches_tasks').update(row).eq('user_id', userId).eq('id', id).select('*').maybeSingle()) as TaskRow | null) ?? null,
+    deleteTask: async (id) => (check(await t('taches_tasks').delete().eq('user_id', userId).eq('id', id).select('id')) as unknown[]).length > 0,
+    listLists: () =>
+      fetchAll<TachesListRow>((first, last) => t('taches_lists').select('*').eq('user_id', userId).order('position').order('id').range(first, last)),
+    insertList: async (row) => check(await t('taches_lists').insert({ ...row, user_id: userId }).select('*').single()) as TachesListRow,
+    updateList: async (id, row) =>
+      (check(await t('taches_lists').update(row).eq('user_id', userId).eq('id', id).select('*').maybeSingle()) as TachesListRow | null) ?? null,
+  };
+}
+
 interface AtlasContext {
   today: string;
   recettes: RecettesData;
   courses: CoursesData;
   sport: SportData;
+  taches: TachesData;
 }
 
 /** Les outils de chaque module, chacun avec sa part du contexte. */
@@ -311,6 +331,11 @@ const tools: Tool<AtlasContext>[] = [
   ...coursesTools.map((tool) => ({
     ...tool,
     run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.courses, today: c.today, newId: () => crypto.randomUUID() }),
+  })),
+  ...tachesTools.map((tool) => ({
+    ...tool,
+    run: (args: Record<string, unknown>, c: AtlasContext) =>
+      tool.run(args, { data: c.taches, today: c.today, now: new Date().toISOString(), newId: () => crypto.randomUUID() }),
   })),
   ...sportTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.sport, today: c.today }) })),
 ];
@@ -321,8 +346,9 @@ function serverInfo(day: string): ServerInfo {
     title: 'Atlas',
     version: VERSION,
     instructions: [
-      'Atlas est l’application personnelle de Jules. Ce connecteur donne accès à trois de ses modules : Recettes (le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là »), Courses (la liste, le catalogue des articles, l’historique des courses, et l’enregistrement d’un ticket de caisse) et Sport (les sorties, le plan marathon et ses séances, la FC).',
+      'Atlas est l’application personnelle de Jules. Ce connecteur donne accès à ses modules : Recettes (le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là »), Courses (la liste, le catalogue des articles, l’historique des courses, et l’enregistrement d’un ticket de caisse), Sport (les sorties, le plan marathon et ses séances, la FC) et Tâches (les tâches, leurs listes, leurs répétitions).',
       'Une photo de ticket de caisse : lis-la, puis courses_catalogue, puis courses_enregistrer_ticket.',
+      'Tâches : sa to-do list. Lis toi-même les dates (« demain 9 h » → planned_day et planned_time) ; « Aujourd’hui » avec taches_lister.',
       'Sport : la course à pied de Jules et son plan marathon, avec les séances de renforcement et de vélo. Commence par sport_resume. Pour donner les séances d’une semaine, sport_semaine_programmer (elles remplacent celles de la semaine).',
       `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ.`,
       'Avant de modifier, supprimer ou mettre au menu une recette, retrouve son identifiant avec recettes_lister. Une recette importée d’un site : écris les ingrédients un par ligne, quantité en tête, comme sur la page, et les étapes dans l’ordre.',
@@ -355,7 +381,7 @@ Deno.serve(async (request) => {
   await admin.from('mcp_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', account.tokenId);
   const day = today();
   try {
-    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId) };
+    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId) };
     const answer = await handleBody(body, tools, serverInfo(day), context);
     if (answer === null) return new Response(null, { status: 202, headers: CORS });
     return json(answer);
