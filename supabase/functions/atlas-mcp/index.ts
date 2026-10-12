@@ -30,6 +30,7 @@ import { handleBody, type ServerInfo, type Tool } from './mcp.ts';
 import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type StoreRow, type TripItemRow, type TripRow } from './courses.ts';
 import { sportTools, type ActivityRow, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
 import { tachesTools, type ListRow as TachesListRow, type TachesData, type TaskRow } from './taches.ts';
+import { hautsfaitsTools, type FeatRow, type HautsFaitsData } from './hautsfaits.ts';
 import { projetsTools, type ProjetsData, type ProjetsRows } from './projets.ts';
 import ciqualTable from './ciqual.json' with { type: 'json' };
 import { nutritionTools, type CiqualRow, type EntryRow as NutritionEntryRow, type FoodRow as NutritionFoodRow, type NutritionData, type TargetRow as NutritionTargetRow } from './nutrition.ts';
@@ -663,6 +664,25 @@ function projetsData(userId: string): ProjetsData {
   };
 }
 
+/** Les données de Hauts faits d'un seul compte (les photos ne sont que comptées). */
+function hautsfaitsData(userId: string): HautsFaitsData {
+  const t = (table: string) => admin.from(table);
+  return {
+    listFeats: () => fetchAll<FeatRow>((first, last) => t('hautsfaits_feats').select('*').eq('user_id', userId).order('date_start').order('id').range(first, last)),
+    photoCounts: async () => {
+      const rows = await fetchAll<{ id: string; feat_id: string }>((first, last) =>
+        t('hautsfaits_photos').select('id, feat_id').eq('user_id', userId).order('id').range(first, last),
+      );
+      const counts = new Map<string, number>();
+      for (const r of rows) counts.set(r.feat_id, (counts.get(r.feat_id) ?? 0) + 1);
+      return counts;
+    },
+    insertFeat: async (row) => check(await t('hautsfaits_feats').insert({ ...row, user_id: userId }).select('*').single()) as FeatRow,
+    updateFeat: async (id, row) => (check(await t('hautsfaits_feats').update(row).eq('user_id', userId).eq('id', id).select('*').maybeSingle()) as FeatRow | null) ?? null,
+    deleteFeat: async (id) => (check(await t('hautsfaits_feats').delete().eq('user_id', userId).eq('id', id).select('id')) as unknown[]).length > 0,
+  };
+}
+
 interface AtlasContext {
   today: string;
   recettes: RecettesData;
@@ -676,6 +696,7 @@ interface AtlasContext {
   flashcards: FlashcardsData;
   nutrition: NutritionData;
   projets: ProjetsData;
+  hautsfaits: HautsFaitsData;
 }
 
 /** Les outils de chaque module, chacun avec sa part du contexte. */
@@ -686,6 +707,7 @@ const tools: Tool<AtlasContext>[] = [
     run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.courses, today: c.today, newId: () => crypto.randomUUID() }),
   })),
   ...bilanTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.bilan, today: c.today }) })),
+  ...hautsfaitsTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.hautsfaits, today: c.today }) })),
   ...projetsTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.projets, today: c.today }) })),
   ...nutritionTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.nutrition, today: c.today }) })),
   ...flashcardsTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.flashcards, today: c.today }) })),
@@ -719,6 +741,7 @@ function serverInfo(day: string): ServerInfo {
       '- Flashcards (flashcards_*) : des paquets de cartes à réviser. « Fais-moi des cartes sur ce cours » : une idée par carte, recto court, verso précis, puis flashcards_cartes_ajouter.',
       '- Nutrition (nutrition_*) : le journal des repas, calories et macros. Cherche chaque aliment (nutrition_chercher) avant de l’ajouter ; une estimation seulement à défaut, dite comme telle.',
       '- Projets (projets_*) : les projets clients du freelance (sites pour commerçants). Après un rendez-vous : une note au journal, les tâches, le temps passé, ce qu’on attend du client. Un paiement reçu va aussi à Budget.',
+      '- Hauts faits (hautsfaits_*) : les grands moments de sa vie, sur une frise. Un souvenir raconté devient un haut fait, daté à la précision qu’il connaît ; les photos s’ajoutent dans l’app.',
       '- Budget (budget_*) : les opérations et leurs catégories. Pour les « à classer » : budget_ecritures (a_classer), budget_classer, puis une règle pour les suivantes.',
       '- atlas_bilan : le bilan d’une semaine ou d’un mois, tous modules d’un coup.',
       `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ, les heures HH:MM.`,
@@ -751,7 +774,7 @@ Deno.serve(async (request) => {
   await admin.from('mcp_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', account.tokenId);
   const day = today();
   try {
-    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId), bilan: bilanData(account.userId), budget: budgetData(account.userId), calendar: calendarData(account.userId), objectifs: objectifsData(account.userId), flashcards: flashcardsData(account.userId), nutrition: nutritionData(account.userId), projets: projetsData(account.userId) };
+    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId), bilan: bilanData(account.userId), budget: budgetData(account.userId), calendar: calendarData(account.userId), objectifs: objectifsData(account.userId), flashcards: flashcardsData(account.userId), nutrition: nutritionData(account.userId), projets: projetsData(account.userId), hautsfaits: hautsfaitsData(account.userId) };
     const answer = await handleBody(body, tools, serverInfo(day), context);
     if (answer === null) return new Response(null, { status: 202, headers: CORS });
     return json(answer);
