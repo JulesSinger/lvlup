@@ -30,6 +30,7 @@ import { handleBody, type ServerInfo, type Tool } from './mcp.ts';
 import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type StoreRow, type TripItemRow, type TripRow } from './courses.ts';
 import { sportTools, type ActivityRow, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
 import { tachesTools, type ListRow as TachesListRow, type TachesData, type TaskRow } from './taches.ts';
+import { flashcardsTools, type CardRow as FlashCardRow, type DeckRow as FlashDeckRow, type FlashcardsData } from './flashcards.ts';
 import { objectifsTools, type ObjectifsData, type Checkin as GoalCheckin } from './objectifs.ts';
 import { calendarTools, type CalendarData, type CalendarEvent, type EventInput as CalendarEventInput, type EventException } from './calendar.ts';
 import { budgetTools, type BudgetData, type CategoryRow as BudgetCategoryRow, type EntryRow as BudgetEntryRow, type RuleRow as BudgetRuleRow } from './budget.ts';
@@ -577,6 +578,25 @@ function objectifsData(userId: string): ObjectifsData {
   };
 }
 
+/** Les données de Flashcards d'un seul compte. */
+function flashcardsData(userId: string): FlashcardsData {
+  const t = (table: string) => admin.from(table);
+  return {
+    listDecks: () =>
+      fetchAll<FlashDeckRow>((first, last) => t('flashcards_decks').select('*').eq('user_id', userId).order('position').order('id').range(first, last)),
+    insertDeck: async (row) => check(await t('flashcards_decks').insert({ ...row, user_id: userId }).select('*').single()) as FlashDeckRow,
+    updateDeck: async (id, row) =>
+      (check(await t('flashcards_decks').update(row).eq('user_id', userId).eq('id', id).select('*').maybeSingle()) as FlashDeckRow | null) ?? null,
+    listCards: () =>
+      fetchAll<FlashCardRow>((first, last) => t('flashcards_cards').select('*').eq('user_id', userId).order('created_at').order('id').range(first, last)),
+    insertCards: async (rows) =>
+      check(await t('flashcards_cards').insert(rows.map((r) => ({ ...r, user_id: userId }))).select('*')) as FlashCardRow[],
+    updateCard: async (id, row) =>
+      (check(await t('flashcards_cards').update(row).eq('user_id', userId).eq('id', id).select('*').maybeSingle()) as FlashCardRow | null) ?? null,
+    deleteCard: async (id) => (check(await t('flashcards_cards').delete().eq('user_id', userId).eq('id', id).select('id')) as unknown[]).length > 0,
+  };
+}
+
 interface AtlasContext {
   today: string;
   recettes: RecettesData;
@@ -587,6 +607,7 @@ interface AtlasContext {
   budget: BudgetData;
   calendar: CalendarData;
   objectifs: ObjectifsData;
+  flashcards: FlashcardsData;
 }
 
 /** Les outils de chaque module, chacun avec sa part du contexte. */
@@ -597,6 +618,7 @@ const tools: Tool<AtlasContext>[] = [
     run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.courses, today: c.today, newId: () => crypto.randomUUID() }),
   })),
   ...bilanTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.bilan, today: c.today }) })),
+  ...flashcardsTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.flashcards, today: c.today }) })),
   ...objectifsTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.objectifs, today: c.today }) })),
   ...calendarTools.map((tool) => ({
     ...tool,
@@ -624,6 +646,7 @@ function serverInfo(day: string): ServerInfo {
       '- Tâches (taches_*) : la to-do list. Lis toi-même les dates (« demain 9 h » → planned_day et planned_time).',
       '- Calendar (calendrier_*) : les rendez-vous et événements. Une série répétée se modifie ou se supprime pour cet événement, les suivants ou tous : demande si ce n’est pas clair.',
       '- Objectifs (objectifs_*) : ses habitudes et leurs paliers (rangs Fer → Challenger). « J’ai lu 30 pages » : objectifs_cocher avec la quantité. Un palier atteint est validé par l’app à son ouverture.',
+      '- Flashcards (flashcards_*) : des paquets de cartes à réviser. « Fais-moi des cartes sur ce cours » : une idée par carte, recto court, verso précis, puis flashcards_cartes_ajouter.',
       '- Budget (budget_*) : les opérations et leurs catégories. Pour les « à classer » : budget_ecritures (a_classer), budget_classer, puis une règle pour les suivantes.',
       '- atlas_bilan : le bilan d’une semaine ou d’un mois, tous modules d’un coup.',
       `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ, les heures HH:MM.`,
@@ -656,7 +679,7 @@ Deno.serve(async (request) => {
   await admin.from('mcp_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', account.tokenId);
   const day = today();
   try {
-    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId), bilan: bilanData(account.userId), budget: budgetData(account.userId), calendar: calendarData(account.userId), objectifs: objectifsData(account.userId) };
+    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId), bilan: bilanData(account.userId), budget: budgetData(account.userId), calendar: calendarData(account.userId), objectifs: objectifsData(account.userId), flashcards: flashcardsData(account.userId) };
     const answer = await handleBody(body, tools, serverInfo(day), context);
     if (answer === null) return new Response(null, { status: 202, headers: CORS });
     return json(answer);
