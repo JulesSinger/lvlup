@@ -39,6 +39,22 @@ Ne pas se fier à cette différence, retirer toutes les espaces.
 Le signe se lit sur la partie entière et s'applique au total. Passer par `parseFloat` puis
 `× 100` réintroduit exactement l'erreur que les centimes entiers évitent.
 
+### 1 bis. L'export d'octobre 2026 : en-têtes en français
+
+Un export du 12/10/2026 est arrivé avec **les mêmes colonnes, dans le même ordre**, mais des
+en-têtes en français : `"Date Opération";"Date Valeur";Libellé;"Libellé Suggéré";Catégorie;
+"Catégorie Parente";Solde;Commentaire;"Numéro Compte";"Libellé Compte";Solde;Pointage`.
+L'ancien lecteur cherchait `dateOp` et refusait toutes les lignes (« colonne « dateOp » absente »).
+
+**« Solde » y figure deux fois** : le premier est le **montant de l'opération** (virgule
+décimale, `"-1 173,48"`), le second le solde du compte (point, `386.79`). Le lecteur
+(`canonicalHeaders`) ramène chaque en-tête à l'ancien nom, sans accents ni casse, le premier
+« Solde » devenant `amount` et le second `accountbalance`. Les deux formats sont lus.
+
+Le contenu des lignes n'a pas changé (libellé brut, dates, montants) : **l'empreinte de
+dédoublonnage est identique**, un test le vérifie sur le relevé d'exemple — un relevé déjà importé
+sous l'ancien format est reconnu sous le nouveau.
+
 ---
 
 ## 2. Les colonnes, et ce qu'on en fait
