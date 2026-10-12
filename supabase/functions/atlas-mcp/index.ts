@@ -30,11 +30,12 @@ import { handleBody, type ServerInfo, type Tool } from './mcp.ts';
 import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type StoreRow, type TripItemRow, type TripRow } from './courses.ts';
 import { sportTools, type ActivityRow, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
 import { tachesTools, type ListRow as TachesListRow, type TachesData, type TaskRow } from './taches.ts';
+import { calendarTools, type CalendarData, type CalendarEvent, type EventInput as CalendarEventInput, type EventException } from './calendar.ts';
 import { budgetTools, type BudgetData, type CategoryRow as BudgetCategoryRow, type EntryRow as BudgetEntryRow, type RuleRow as BudgetRuleRow } from './budget.ts';
 import { bilanTools, type BilanData } from './bilan.ts';
 import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from './recettes.ts';
 
-const VERSION = '2026-10-13.1';
+const VERSION = '2026-10-13.2';
 /** Le fuseau de Jules : « aujourd'hui » et la semaine en cours se comptent ici. */
 const TIME_ZONE = 'Europe/Paris';
 /** Une requête plus grosse est refusée avant d'être lue (une recette tient en quelques Ko). */
@@ -413,6 +414,86 @@ function budgetData(userId: string): BudgetData {
   };
 }
 
+/** Les données de Calendar d'un seul compte (colonnes : `2026-09-27-calendar-tables.sql` et suivantes). */
+function calendarData(userId: string): CalendarData {
+  const t = (table: string) => admin.from(table);
+  // Postgres rend « 14:00:00 », l'app parle en « 14:00 ».
+  const hhmm = (v: string | null) => (v === null ? null : v.slice(0, 5));
+  const toEvent = (r: Record<string, any>): CalendarEvent => ({
+    id: r.id,
+    title: r.title,
+    allDay: r.all_day,
+    startDay: r.start_day,
+    endDay: r.end_day,
+    startTime: hhmm(r.start_time),
+    endTime: hhmm(r.end_time),
+    timezone: r.timezone,
+    recurrence: r.recurrence,
+    color: r.color,
+    location: r.location,
+    note: r.note,
+    reminders: r.reminders ?? null,
+    createdAt: r.created_at,
+  });
+  const columns = (p: Partial<CalendarEventInput>) => {
+    const row: Record<string, unknown> = {};
+    const map: [keyof CalendarEventInput, string][] = [
+      ['title', 'title'], ['allDay', 'all_day'], ['startDay', 'start_day'], ['endDay', 'end_day'], ['startTime', 'start_time'],
+      ['endTime', 'end_time'], ['timezone', 'timezone'], ['recurrence', 'recurrence'], ['color', 'color'], ['location', 'location'],
+      ['note', 'note'], ['reminders', 'reminders'],
+    ];
+    for (const [k, c] of map) if (p[k] !== undefined) row[c] = p[k];
+    if (p.allDay === true) {
+      row.start_time = null;
+      row.end_time = null;
+    }
+    return row;
+  };
+  return {
+    listEvents: async () =>
+      (await fetchAll<Record<string, any>>((first, last) => t('calendar_events').select('*').eq('user_id', userId).order('id').range(first, last))).map(toEvent),
+    listExceptions: async () =>
+      (await fetchAll<Record<string, any>>((first, last) => t('calendar_exceptions').select('*').eq('user_id', userId).order('id').range(first, last))).map(
+        (r): EventException => ({ id: r.id, eventId: r.event_id, occurrenceDay: r.occurrence_day, kind: r.kind, override: r.override, createdAt: r.created_at }),
+      ),
+    getSettings: async () => {
+      const row = check(await t('calendar_settings').select('timed_reminders, all_day_reminders').eq('user_id', userId).maybeSingle()) as
+        | { timed_reminders: number[]; all_day_reminders: number[] }
+        | null;
+      return row ? { timedReminders: row.timed_reminders, allDayReminders: row.all_day_reminders } : { timedReminders: [], allDayReminders: [] };
+    },
+    createEvent: async (input) => toEvent(check(await t('calendar_events').insert({ ...columns(input), user_id: userId }).select('*').single()) as Record<string, any>),
+    updateEvent: async (id, patch) => {
+      check(await t('calendar_events').update(columns(patch)).eq('user_id', userId).eq('id', id));
+    },
+    deleteEvent: async (id) => {
+      check(await t('calendar_events').delete().eq('user_id', userId).eq('id', id));
+    },
+    setException: async (eventId, occurrenceDay, kind, override) => {
+      check(
+        await t('calendar_exceptions').upsert(
+          { user_id: userId, event_id: eventId, occurrence_day: occurrenceDay, kind, override: kind === 'override' ? (override ?? {}) : null },
+          { onConflict: 'event_id,occurrence_day' },
+        ),
+      );
+    },
+    deleteException: async (id) => {
+      check(await t('calendar_exceptions').delete().eq('user_id', userId).eq('id', id));
+    },
+    // Comme `coreStore.scheduleReminders('calendrier', …)` : les rappels pas encore partis sont remplacés.
+    scheduleReminders: async (reminders) => {
+      check(await t('reminders').delete().eq('user_id', userId).eq('module', 'calendrier').is('sent_at', null));
+      if (reminders.length === 0) return;
+      check(
+        await t('reminders').upsert(
+          reminders.map((r) => ({ user_id: userId, module: 'calendrier', ref: r.ref, fire_at: r.fireAt, title: r.title, body: r.body, url: r.url ?? '/' })),
+          { onConflict: 'user_id,module,ref,fire_at', ignoreDuplicates: true },
+        ),
+      );
+    },
+  };
+}
+
 interface AtlasContext {
   today: string;
   recettes: RecettesData;
@@ -421,6 +502,7 @@ interface AtlasContext {
   taches: TachesData;
   bilan: BilanData;
   budget: BudgetData;
+  calendar: CalendarData;
 }
 
 /** Les outils de chaque module, chacun avec sa part du contexte. */
@@ -431,6 +513,10 @@ const tools: Tool<AtlasContext>[] = [
     run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.courses, today: c.today, newId: () => crypto.randomUUID() }),
   })),
   ...bilanTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.bilan, today: c.today }) })),
+  ...calendarTools.map((tool) => ({
+    ...tool,
+    run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.calendar, today: c.today, now: new Date(), timezone: TIME_ZONE }),
+  })),
   ...budgetTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.budget, today: c.today }) })),
   ...tachesTools.map((tool) => ({
     ...tool,
@@ -446,14 +532,15 @@ function serverInfo(day: string): ServerInfo {
     title: 'Atlas',
     version: VERSION,
     instructions: [
-      'Atlas est l’application personnelle de Jules. Ce connecteur donne accès à ses modules : Recettes (le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là »), Courses (la liste, le catalogue des articles, l’historique des courses, et l’enregistrement d’un ticket de caisse), Sport (les sorties, le plan marathon et ses séances, la FC) Tâches (les tâches, leurs listes, leurs répétitions) et Budget (les opérations, leurs catégories, les règles de classement).',
-      'Une photo de ticket de caisse : lis-la, puis courses_catalogue, puis courses_enregistrer_ticket.',
-      'Pour « fais le bilan de ma semaine / de mon mois », atlas_bilan : tous les modules d’un coup.',
-      'Budget : ses comptes. Pour classer les « à classer », budget_ecritures (a_classer) puis budget_classer, et une règle pour les suivantes.',
-      'Tâches : sa to-do list. Lis toi-même les dates (« demain 9 h » → planned_day et planned_time) ; « Aujourd’hui » avec taches_lister.',
-      'Sport : la course à pied de Jules et son plan marathon, avec les séances de renforcement et de vélo. Commence par sport_resume. Pour donner les séances d’une semaine, sport_semaine_programmer (elles remplacent celles de la semaine).',
-      `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ.`,
-      'Avant de modifier, supprimer ou mettre au menu une recette, retrouve son identifiant avec recettes_lister. Une recette importée d’un site : écris les ingrédients un par ligne, quantité en tête, comme sur la page, et les étapes dans l’ordre.',
+      'Atlas est l’application personnelle de Jules : un module par domaine de sa vie. Ce connecteur en ouvre plusieurs, un préfixe d’outils chacun :',
+      '- Recettes (recettes_*) : le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là ». Retrouve l’identifiant d’une recette avec recettes_lister avant de la modifier ; une recette d’un site : les ingrédients un par ligne, quantité en tête, et les étapes dans l’ordre.',
+      '- Courses (courses_*) : la liste, le catalogue, l’historique. Une photo de ticket de caisse : lis-la, puis courses_catalogue, puis courses_enregistrer_ticket.',
+      '- Sport (sport_*) : la course à pied, le plan marathon, le renforcement et le vélo. Commence par sport_resume ; pour les séances d’une semaine, sport_semaine_programmer (elles remplacent celles de la semaine).',
+      '- Tâches (taches_*) : la to-do list. Lis toi-même les dates (« demain 9 h » → planned_day et planned_time).',
+      '- Calendar (calendrier_*) : les rendez-vous et événements. Une série répétée se modifie ou se supprime pour cet événement, les suivants ou tous : demande si ce n’est pas clair.',
+      '- Budget (budget_*) : les opérations et leurs catégories. Pour les « à classer » : budget_ecritures (a_classer), budget_classer, puis une règle pour les suivantes.',
+      '- atlas_bilan : le bilan d’une semaine ou d’un mois, tous modules d’un coup.',
+      `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ, les heures HH:MM.`,
       'Demande confirmation avant toute suppression.',
     ].join('\n'),
   };
@@ -483,7 +570,7 @@ Deno.serve(async (request) => {
   await admin.from('mcp_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', account.tokenId);
   const day = today();
   try {
-    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId), bilan: bilanData(account.userId), budget: budgetData(account.userId) };
+    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId), bilan: bilanData(account.userId), budget: budgetData(account.userId), calendar: calendarData(account.userId) };
     const answer = await handleBody(body, tools, serverInfo(day), context);
     if (answer === null) return new Response(null, { status: 202, headers: CORS });
     return json(answer);
