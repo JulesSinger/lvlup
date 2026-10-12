@@ -30,6 +30,7 @@ import { handleBody, type ServerInfo, type Tool } from './mcp.ts';
 import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type StoreRow, type TripItemRow, type TripRow } from './courses.ts';
 import { sportTools, type ActivityRow, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
 import { tachesTools, type ListRow as TachesListRow, type TachesData, type TaskRow } from './taches.ts';
+import { bilanTools, type BilanData } from './bilan.ts';
 import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from './recettes.ts';
 
 const VERSION = '2026-10-13.1';
@@ -317,12 +318,86 @@ function tachesData(userId: string): TachesData {
   };
 }
 
+/**
+ * Les lignes de la période pour le bilan, module par module, d'un seul compte.
+ * Une erreur (table absente) remonte : `bilan.ts` laisse alors le module de côté.
+ */
+function bilanData(userId: string): BilanData {
+  const t = (table: string) => admin.from(table);
+  type Page<R> = PromiseLike<{ data: R[] | null; error: { message: string } | null }>;
+  const between = <R>(table: string, columns: string, dayColumn: string, from: string, to: string) =>
+    fetchAll<R>(
+      (first, last) =>
+        t(table).select(columns).eq('user_id', userId).gte(dayColumn, from).lte(dayColumn, to).order(dayColumn).order('id').range(first, last) as unknown as Page<R>,
+    );
+  const all = <R>(table: string, columns: string) =>
+    fetchAll<R>((first, last) => t(table).select(columns).eq('user_id', userId).order('id').range(first, last) as unknown as Page<R>);
+  return {
+    async load(module, from, to, today) {
+      switch (module) {
+        case 'objectifs':
+          return {
+            goals: await all('goals', 'id, title, archived'),
+            checkins: await between('checkins', 'id, goal_id, day, pp', 'day', from, to),
+          } as never;
+        case 'sport': {
+          const runs = await between('sport_runs', 'id, day, distance_m, duration_s', 'day', from, to);
+          const activities = await between<{ day: string; sport: string; duration_s: number }>('sport_activities', 'id, day, sport, duration_s', 'day', from, to).catch(() => []);
+          const plans = (await all<{ id: string; status: string; created_at: string }>('sport_plans', 'id, status, created_at')).filter((p) => p.status === 'actif');
+          const plan = plans.sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+          const sessions = plan
+            ? (await all<{ plan_id: string; kind: string; day: string | null; done_at: string | null }>('sport_plan_sessions', 'id, plan_id, kind, day, done_at')).filter(
+                (x) => x.plan_id === plan.id && x.day !== null && x.day >= from && x.day <= to,
+              )
+            : [];
+          // Une séance de course est faite par une sortie du même jour ; renfo et vélo par leur coche.
+          const runDays = new Set((runs as { day: string }[]).map((r) => r.day));
+          return {
+            runs,
+            activities,
+            sessions: sessions.map((x) => ({ kind: x.kind, done: x.done_at !== null || ((x.kind !== 'renfo' && x.kind !== 'velo') && runDays.has(x.day as string)) })),
+          } as never;
+        }
+        case 'budget':
+          return {
+            entries: await between('budget_entries', 'id, day, amount_cents, category_id', 'day', from, to),
+            categories: await all('budget_categories', 'id, name, kind, parent_id'),
+          } as never;
+        case 'taches': {
+          const tasks = await all<{ title: string; completed_at: string | null; parent_id: string | null; planned_day: string | null; due_day: string | null }>(
+            'taches_tasks',
+            'id, title, completed_at, parent_id, planned_day, due_day',
+          );
+          const openTasks = tasks.filter((x) => !x.completed_at && !x.parent_id);
+          return {
+            done: tasks.filter((x) => x.completed_at && x.completed_at.slice(0, 10) >= from && x.completed_at.slice(0, 10) <= to),
+            open: openTasks.length,
+            overdue: openTasks.filter((x) => (x.planned_day && x.planned_day < today) || (x.due_day && x.due_day < today)).length,
+          } as never;
+        }
+        case 'recettes': {
+          const cooked = await between<{ day: string; recipe_id: string; rating: number | null }>('recettes_cooked', 'id, day, recipe_id, rating', 'day', from, to);
+          const recipes = await all<{ id: string; title: string }>('recettes_recipes', 'id, title');
+          return { cooked: cooked.map((c) => ({ day: c.day, rating: c.rating, title: recipes.find((r) => r.id === c.recipe_id)?.title ?? '?' })) } as never;
+        }
+        case 'courses':
+          return { trips: await between('courses_trips', 'id, day, store_name, total_cents', 'day', from, to) } as never;
+        case 'nutrition':
+          return { entries: await between('nutrition_entries', 'id, day, kcal', 'day', from, to) } as never;
+        case 'hautsfaits':
+          return { feats: await between('hautsfaits_feats', 'id, title, date_start', 'date_start', from, to) } as never;
+      }
+    },
+  };
+}
+
 interface AtlasContext {
   today: string;
   recettes: RecettesData;
   courses: CoursesData;
   sport: SportData;
   taches: TachesData;
+  bilan: BilanData;
 }
 
 /** Les outils de chaque module, chacun avec sa part du contexte. */
@@ -332,6 +407,7 @@ const tools: Tool<AtlasContext>[] = [
     ...tool,
     run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.courses, today: c.today, newId: () => crypto.randomUUID() }),
   })),
+  ...bilanTools.map((tool) => ({ ...tool, run: (args: Record<string, unknown>, c: AtlasContext) => tool.run(args, { data: c.bilan, today: c.today }) })),
   ...tachesTools.map((tool) => ({
     ...tool,
     run: (args: Record<string, unknown>, c: AtlasContext) =>
@@ -348,6 +424,7 @@ function serverInfo(day: string): ServerInfo {
     instructions: [
       'Atlas est l’application personnelle de Jules. Ce connecteur donne accès à ses modules : Recettes (le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là »), Courses (la liste, le catalogue des articles, l’historique des courses, et l’enregistrement d’un ticket de caisse), Sport (les sorties, le plan marathon et ses séances, la FC) et Tâches (les tâches, leurs listes, leurs répétitions).',
       'Une photo de ticket de caisse : lis-la, puis courses_catalogue, puis courses_enregistrer_ticket.',
+      'Pour « fais le bilan de ma semaine / de mon mois », atlas_bilan : tous les modules d’un coup.',
       'Tâches : sa to-do list. Lis toi-même les dates (« demain 9 h » → planned_day et planned_time) ; « Aujourd’hui » avec taches_lister.',
       'Sport : la course à pied de Jules et son plan marathon, avec les séances de renforcement et de vélo. Commence par sport_resume. Pour donner les séances d’une semaine, sport_semaine_programmer (elles remplacent celles de la semaine).',
       `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ.`,
@@ -381,7 +458,7 @@ Deno.serve(async (request) => {
   await admin.from('mcp_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', account.tokenId);
   const day = today();
   try {
-    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId) };
+    const context: AtlasContext = { today: day, recettes: recettesData(account.userId), courses: coursesData(account.userId), sport: sportData(account.userId), taches: tachesData(account.userId), bilan: bilanData(account.userId) };
     const answer = await handleBody(body, tools, serverInfo(day), context);
     if (answer === null) return new Response(null, { status: 202, headers: CORS });
     return json(answer);
