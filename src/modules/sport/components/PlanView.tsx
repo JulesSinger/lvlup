@@ -2,7 +2,7 @@ import { formatDuration, formatKm, formatPaceRange } from '../lib/format';
 import { PHASE_LABELS } from '../lib/plan';
 import { daysToRace, nextSession, type SessionStatus, type WeekStatus } from '../lib/planView';
 import { sessionKindLabel } from '../lib/kinds';
-import { isRunningSession, type Plan, type PlanSession, type Run } from '../lib/types';
+import { isRunningSession, type Activity, type Plan, type PlanSession, type Run } from '../lib/types';
 import { shortDay } from './Journal';
 
 const STATE_MARKS: Record<SessionStatus['state'], string> = {
@@ -20,13 +20,16 @@ const STATE_LABELS: Record<SessionStatus['state'], string> = {
 };
 
 /** Une séance du plan : ce qu'elle demande, et ce qui a été couru pour elle. */
-export function SessionLine({ status, next, onEdit, onOpenRun, onToggleDone }: {
+export function SessionLine({ status, next, onEdit, onOpenRun, onToggleDone, activity, onOpenActivity }: {
   status: SessionStatus;
   next: boolean;
   onEdit: (session: PlanSession) => void;
   onOpenRun: (run: Run) => void;
   /** Cocher un renforcement ou du vélo : aucune sortie ne le fait. */
   onToggleDone?: (session: PlanSession) => void;
+  /** La séance de renfo ou de vélo venue de Strava qui l'a cochée. */
+  activity?: Activity;
+  onOpenActivity?: (activity: Activity) => void;
 }) {
   const { session, run, state } = status;
   const cross = !isRunningSession(session.kind);
@@ -66,6 +69,12 @@ export function SessionLine({ status, next, onEdit, onOpenRun, onToggleDone }: {
           {shortDay(run.day)} · {formatKm(run.distanceM)} en {formatDuration(run.durationS)}
         </button>
       )}
+      {activity && session.doneAt && (
+        <button type="button" className="sport-session-run" onClick={() => onOpenActivity?.(activity)}>
+          {shortDay(activity.day)} · {formatDuration(activity.durationS)}
+          {activity.avgHr !== null ? ` · ♥ ${activity.avgHr}` : ''} · Strava
+        </button>
+      )}
     </li>
   );
 }
@@ -75,13 +84,16 @@ export function SessionLine({ status, next, onEdit, onOpenRun, onToggleDone }: {
  * rebours, la semaine en cours avec la séance suivante, puis toutes les
  * semaines, la passée repliée. Toucher une séance la modifie.
  */
-export function PlanView({ plan, weeks, today, onEditSession, onToggleDone, onOpenRun, onChangeDate, onDelete }: {
+export function PlanView({ plan, weeks, today, onEditSession, onToggleDone, activities, onOpenActivity, onOpenRun, onChangeDate, onDelete }: {
   plan: Plan;
   weeks: WeekStatus[];
   today: string;
   onEditSession: (session: PlanSession) => void;
   /** Cocher une séance de renforcement ou de vélo. */
   onToggleDone: (session: PlanSession) => void;
+  /** Les séances de renfo et de vélo de Strava, par séance du plan cochée. */
+  activities?: Map<string, Activity>;
+  onOpenActivity?: (activity: Activity) => void;
   onOpenRun: (run: Run) => void;
   onChangeDate: () => void;
   onDelete: () => void;
@@ -92,7 +104,7 @@ export function PlanView({ plan, weeks, today, onEditSession, onToggleDone, onOp
   const raceLabel = new Date(`${plan.raceDay}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   const line = (s: SessionStatus) => (
-    <SessionLine key={s.session.id} status={s} next={next?.session.id === s.session.id} onEdit={onEditSession} onOpenRun={onOpenRun} onToggleDone={onToggleDone} />
+    <SessionLine key={s.session.id} status={s} next={next?.session.id === s.session.id} onEdit={onEditSession} onOpenRun={onOpenRun} onToggleDone={onToggleDone} activity={activities?.get(s.session.id)} onOpenActivity={onOpenActivity} />
   );
 
   return (

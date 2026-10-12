@@ -845,3 +845,29 @@ la colonne `done_at`).
 
 Les activités Strava de musculation ou de vélo ne sont toujours pas reprises : seule la course
 l'est. À ajouter si Jules les enregistre.
+
+
+## 24. Le renforcement et le vélo venus de Strava (12/10/2026)
+
+Question de Jules : sa séance de renfo n'était pas reprise de Strava — la synchronisation (§21) ne
+gardait que la course. Elle reprend désormais aussi le **renforcement** (`WeightTraining`,
+`Workout`, `Crossfit`, `HighIntensityIntervalTraining`, `Pilates`) et le **vélo** (`Ride`,
+`VirtualRide`, `EBikeRide`, `MountainBikeRide`, `GravelRide`, `EMountainBikeRide`).
+
+- **Une table à part, `sport_activities`** (migration `2026-10-12-sport-activities.sql`), plutôt
+  que `sport_runs` : tout ce que Sport calcule sur les sorties (volumes, records, progression,
+  prédiction, coches d'Objectifs) est de la course, une séance de renfo n'y entrerait que pour être
+  filtrée partout. Même référence `strava:<id>` et même contrainte unique : rien en double.
+- **Elle coche sa séance du plan** (`pickSession`, `sport-strava/strava.ts`, testé) : de la même
+  sorte, pas encore cochée ni prise par une autre activité — celle **du même jour** d'abord, sinon
+  la **première sans jour fixé de la semaine** ; rien ne correspond, elle est seulement notée.
+  Seules les activités **nouvelles** cochent : une séance décochée à la main ne se recoche pas.
+- **Dans le journal**, à sa place dans le temps (💪 / 🚴, durée, distance pour le vélo, FC), hors du
+  total de kilomètres du mois (« 3 sorties · 25 km · 1 séance d'à côté ») ; une fiche dit la séance
+  du plan cochée, et permet de la retirer. Dans le plan, la séance cochée par Strava montre
+  l'activité qui l'a faite.
+- **La première fois**, la synchronisation regarde **un mois en arrière** (aucune activité rangée
+  encore) : les séances faites avant cette version ne sont pas perdues.
+- Le connecteur de Claude les montre au coach (`sport_resume`, `sport_plan_lire`).
+
+L'archive Strava (zip) ne les reprend pas : seule la course en est lue.

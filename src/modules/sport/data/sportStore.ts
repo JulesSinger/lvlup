@@ -1,4 +1,5 @@
 import type {
+  Activity,
   ImportToken,
   Plan,
   PlanInput,
@@ -26,6 +27,8 @@ export interface SportBackup {
   plans: Plan[];
   sessions: PlanSession[];
   settings?: SportSettings;
+  /** Les séances de renfo et de vélo venues de Strava (depuis le 12/10/2026). */
+  activities?: Activity[];
 }
 
 /**
@@ -73,6 +76,14 @@ export interface SportStore {
   deleteToken(id: string): Promise<void>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
+  /**
+   * Les séances de renforcement et de vélo venues de Strava (12/10/2026) :
+   * c'est la fonction `sport-strava` qui les écrit ; l'app les lit et peut en
+   * retirer une.
+   */
+  listActivities(): Promise<Activity[]>;
+  deleteActivity(id: string): Promise<void>;
+
   exportData(): Promise<SportBackup>;
   importData(data: SportBackup): Promise<void>;
 }

@@ -28,10 +28,10 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { handleBody, type ServerInfo, type Tool } from './mcp.ts';
 import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type StoreRow, type TripItemRow, type TripRow } from './courses.ts';
-import { sportTools, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
+import { sportTools, type ActivityRow, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
 import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from './recettes.ts';
 
-const VERSION = '2026-10-12.1';
+const VERSION = '2026-10-12.2';
 /** Le fuseau de Jules : « aujourd'hui » et la semaine en cours se comptent ici. */
 const TIME_ZONE = 'Europe/Paris';
 /** Une requête plus grosse est refusée avant d'être lue (une recette tient en quelques Ko). */
@@ -271,6 +271,16 @@ function sportData(userId: string): SportData {
         (first, last) =>
           t('sport_runs').select(RUN).eq('user_id', userId).gte('day', from).lte('day', to).order('started_at').order('id').range(first, last) as unknown as Page<RunRow>,
       ),
+    async listActivities(from, to) {
+      const { data, error } = await t('sport_activities')
+        .select('id, started_at, day, sport, duration_s, distance_m, avg_hr, max_hr, title, session_id')
+        .eq('user_id', userId)
+        .gte('day', from)
+        .lte('day', to)
+        .order('started_at');
+      // Table absente (migration du 12/10/2026 pas appliquée) : rien à montrer, le reste marche.
+      return error ? [] : ((data ?? []) as unknown as ActivityRow[]);
+    },
     getRun: async (id) => (check(await t('sport_runs').select(RUN).eq('user_id', userId).eq('id', id).maybeSingle()) as unknown as RunRow | null) ?? null,
     insertRun: async (row) => check(await t('sport_runs').insert({ ...row, user_id: userId }).select(RUN).single()) as unknown as RunRow,
     updateRun: async (id, row) =>

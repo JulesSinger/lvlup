@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { dayString } from '../../core/lib/day';
 import type { ModuleScreenProps } from '../../core/lib/module';
+import { ActivitySheet } from './components/ActivitySheet';
 import { ArchiveImport } from './components/ArchiveImport';
 import { ShortcutSetup } from './components/ShortcutSetup';
 import { StravaLink } from './components/StravaLink';
@@ -25,6 +26,7 @@ import { assignRuns, planWeeks, reschedule } from './lib/planView';
 import { longestRecent, recentWeeklyAverage } from './lib/stats';
 import {
   DEFAULT_SPORT_SETTINGS,
+  type Activity,
   type Plan,
   type PlanInput,
   type PlanSession,
@@ -67,6 +69,8 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
   const [loaded, setLoaded] = useState(false);
   const [view, setViewState] = useState<View>(savedView);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [openActivityId, setOpenActivityId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Run | 'new' | null>(null);
   const [importing, setImporting] = useState(false);
   const [linkingWatch, setLinkingWatch] = useState(false);
@@ -92,6 +96,8 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
       setSettings(nextSettings);
       setPlans(nextPlans);
       setSessions(nextSessions);
+      // Les séances de renfo et de vélo à part : une table manquante (migration du 12/10) ne gêne pas le reste.
+      setActivities(await store.listActivities().catch(() => []));
       onError('');
       // Les rappels suivent le plan et les sorties ; un échec ne gêne jamais l'écran.
       void syncReminders().catch(() => {});
@@ -203,6 +209,8 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
   const zones = useMemo(() => hrZones(settings), [settings]);
   const knownRefs = useMemo(() => new Set(runs.map((r) => r.sourceRef).filter((r): r is string => !!r)), [runs]);
   const open = runs.find((r) => r.id === openId) ?? null;
+  const openActivity = activities.find((a) => a.id === openActivityId) ?? null;
+  const activityBySession = useMemo(() => new Map(activities.filter((a) => a.sessionId).map((a) => [a.sessionId as string, a])), [activities]);
   /** Le plan en cours : un seul à la fois (on supprime pour en refaire un). */
   const plan = plans.find((p) => p.status === 'actif') ?? null;
   const weeks = useMemo(() => (plan ? planWeeks(plan, sessions, runs, today) : []), [plan, sessions, runs, today]);
@@ -366,6 +374,8 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
               weeks={weeks}
               today={today}
               onEditSession={setEditingSession}
+              activities={activityBySession}
+              onOpenActivity={(a) => setOpenActivityId(a.id)}
               onToggleDone={(session) => void write(() => store.updateSession(session.id, { doneAt: session.doneAt ? null : new Date().toISOString() }))}
               onOpenRun={(r) => setOpenId(r.id)}
               onChangeDate={() => setChangingDate(true)}
@@ -425,7 +435,7 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
         ) : view === 'progress' ? (
           <Progress runs={runs} settings={settings} today={today} targetS={plan?.targetS ?? null} onOpen={(r) => setOpenId(r.id)} />
         ) : (
-          <Journal runs={runs} onOpen={(r) => setOpenId(r.id)} />
+          <Journal runs={runs} activities={activities} onOpen={(r) => setOpenId(r.id)} onOpenActivity={(a) => setOpenActivityId(a.id)} />
         )}
 
         {open && !editing && (
@@ -457,6 +467,18 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
         )}
 
         {changingDate && plan && <RaceDateEditor plan={plan} today={today} onClose={() => setChangingDate(false)} onSave={changeRaceDay} />}
+
+        {openActivity && (
+          <ActivitySheet
+            activity={openActivity}
+            session={sessions.find((x) => x.id === openActivity.sessionId) ?? null}
+            onClose={() => setOpenActivityId(null)}
+            onDelete={() => {
+              setOpenActivityId(null);
+              void write(() => store.deleteActivity(openActivity.id));
+            }}
+          />
+        )}
 
         {linkingStrava && (
           <StravaLink

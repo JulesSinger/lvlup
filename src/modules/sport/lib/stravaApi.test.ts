@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   canReadActivities,
+  crossSport,
+  pickSession,
+  toCrossActivity,
+  weekOfPlan as serverWeekOfPlan,
   safeReturn,
   signState,
   splitsFrom,
@@ -10,6 +14,7 @@ import {
   verifyState,
   type StravaActivity,
 } from '../../../../supabase/functions/sport-strava/strava.ts';
+import { weekOfPlan } from './plan';
 
 const run: StravaActivity = {
   id: 16_012_345_678,
@@ -96,5 +101,41 @@ describe('lien avec Strava', () => {
     expect(canReadActivities('read')).toBe(false);
     expect(syncMessage(2, 1)).toBe('2 sorties reçues de Strava.');
     expect(syncMessage(0, 3)).toBe('Rien de nouveau sur Strava.');
+  });
+
+  it('reprend le renforcement et le vélo, sans en faire des sorties', () => {
+    const renfo = { ...run, id: 77, sport_type: 'WeightTraining', name: 'Renfo du soir', distance: 0, moving_time: 2_400, average_heartrate: 118.4 };
+    expect(crossSport(renfo)).toBe('renfo');
+    expect(crossSport({ ...run, sport_type: 'VirtualRide' })).toBe('velo');
+    expect(crossSport(run)).toBeNull();
+    expect(toRun(renfo)).toBeNull();
+    expect(toCrossActivity(renfo)).toMatchObject({ sport: 'renfo', day: '2026-10-04', duration_s: 2_400, distance_m: null, avg_hr: 118, title: 'Renfo du soir', source_ref: 'strava:77' });
+    expect(toCrossActivity({ ...run, id: 78, sport_type: 'Ride', distance: 25_310.4 })).toMatchObject({ sport: 'velo', distance_m: 25_310 });
+    expect(toCrossActivity(run)).toBeNull();
+  });
+
+  it('coche la séance du jour, sinon la première sans jour de la semaine', () => {
+    const start = '2026-10-12';
+    expect(serverWeekOfPlan(start, '2026-10-14')).toBe(weekOfPlan(start, '2026-10-14'));
+    expect(serverWeekOfPlan('2026-10-09', '2026-10-25')).toBe(weekOfPlan('2026-10-09', '2026-10-25'));
+    const sessions = [
+      { id: 'r-mer', kind: 'renfo', week: 1, position: 1, day: '2026-10-14', done_at: null },
+      { id: 'r-libre', kind: 'renfo', week: 1, position: 3, day: null, done_at: null },
+      { id: 'v-sam', kind: 'velo', week: 1, position: 4, day: '2026-10-17', done_at: null },
+      { id: 'r-faite', kind: 'renfo', week: 1, position: 0, day: '2026-10-13', done_at: '2026-10-13T18:00:00Z' },
+      { id: 'r-sem2', kind: 'renfo', week: 2, position: 0, day: null, done_at: null },
+    ];
+    expect(pickSession({ day: '2026-10-14', sport: 'renfo' }, start, sessions, new Set())).toBe('r-mer');
+    expect(pickSession({ day: '2026-10-16', sport: 'renfo' }, start, sessions, new Set())).toBe('r-libre');
+    expect(pickSession({ day: '2026-10-14', sport: 'renfo' }, start, sessions, new Set(['r-mer']))).toBe('r-libre');
+    expect(pickSession({ day: '2026-10-13', sport: 'renfo' }, start, sessions, new Set(['r-mer', 'r-libre']))).toBeNull();
+    expect(pickSession({ day: '2026-10-15', sport: 'velo' }, start, sessions, new Set())).toBeNull();
+    expect(pickSession({ day: '2026-10-21', sport: 'renfo' }, start, sessions, new Set())).toBe('r-sem2');
+  });
+
+  it('dit ce qui est arrivé, sorties et séances d’à côté', () => {
+    expect(syncMessage(1, 0, 1)).toBe('1 sortie et 1 séance de renfo ou de vélo reçues de Strava.');
+    expect(syncMessage(0, 2, 2)).toBe('2 séances de renfo ou de vélo reçues de Strava.');
+    expect(syncMessage(0, 0, 1)).toBe('1 séance de renfo ou de vélo reçue de Strava.');
   });
 });

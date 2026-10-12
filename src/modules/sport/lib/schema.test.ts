@@ -2,6 +2,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  ACTIVITY_SOURCES,
+  CROSS_SESSION_KINDS,
   PLAN_STATUSES,
   PLAN_TITLE_MAX,
   RUN_KINDS,
@@ -42,6 +44,8 @@ describe('le type et la base disent la même chose (Sport)', () => {
   it('les sortes de sortie et de séance', () => {
     expect(allowedBy('sport_runs_kind_check')).toEqual([...RUN_KINDS].sort());
     expect(allowedBy('sport_plan_sessions_kind_check')).toEqual([...SESSION_KINDS].sort());
+    expect(allowedBy('sport_activities_sport_check')).toEqual([...CROSS_SESSION_KINDS].sort());
+    expect(allowedBy('sport_activities_source_check')).toEqual([...ACTIVITY_SOURCES].sort());
   });
 
   it('les sources d’une sortie et les états d’un plan', () => {

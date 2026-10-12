@@ -117,6 +117,20 @@ export interface RunRow {
   splits_s: number[] | null;
 }
 
+/** Une séance de renfo ou de vélo venue de Strava (`sport_activities`, 12/10/2026). */
+export interface ActivityRow {
+  id: string;
+  started_at: string;
+  day: string;
+  sport: string;
+  duration_s: number;
+  distance_m: number | null;
+  avg_hr: number | null;
+  max_hr: number | null;
+  title: string;
+  session_id: string | null;
+}
+
 export interface SettingsRow {
   hr_max: number | null;
   hr_rest: number | null;
@@ -132,6 +146,8 @@ export interface SportData {
   updateSession(id: string, row: Record<string, unknown>): Promise<SessionRow | null>;
   deleteSessions(ids: string[]): Promise<number>;
   listRuns(from: string, to: string): Promise<RunRow[]>;
+  /** Vide si la table manque encore. */
+  listActivities(from: string, to: string): Promise<ActivityRow[]>;
   getRun(id: string): Promise<RunRow | null>;
   insertRun(row: Record<string, unknown>): Promise<RunRow>;
   updateRun(id: string, row: Record<string, unknown>): Promise<RunRow | null>;
@@ -310,6 +326,18 @@ export function sessionColumns(raw: unknown, plan: PlanRow, i: number): Record<s
   };
 }
 
+const activityOut = (a: ActivityRow) => ({
+  id: a.id,
+  day: a.day,
+  sport: a.sport,
+  title: a.title,
+  duration: clock(a.duration_s),
+  distance_km: a.distance_m ? km(a.distance_m) : null,
+  avg_hr: a.avg_hr,
+  max_hr: a.max_hr,
+  plan_session_id: a.session_id,
+});
+
 // --- Les outils --------------------------------------------------------------------------------
 
 const S = {
@@ -352,13 +380,13 @@ export const sportTools: Tool<SportContext>[] = [
     name: 'sport_resume',
     title: 'Résumé de Sport : plan, semaine, volume, FC',
     description:
-      'À lire en premier : le plan en cours (course, date, objectif, semaine actuelle sur le total), les séances de la semaine en cours et de la suivante, les kilomètres des 8 dernières semaines, les sorties des 14 derniers jours, la FC max et de repos et les zones de FC.',
+      'À lire en premier : le plan en cours (course, date, objectif, semaine actuelle sur le total), les séances de la semaine en cours et de la suivante, les kilomètres des 8 dernières semaines, les sorties des 14 derniers jours, les séances de renfo et de vélo venues de Strava, la FC max et de repos et les zones de FC.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
     async run(_args, { data, today }) {
       const [plan, settings] = await Promise.all([activePlan(data), data.getSettings()]);
       const from = shiftDay(mondayOf(today), -7 * 7);
-      const runs = await data.listRuns(from, today);
+      const [runs, activities] = await Promise.all([data.listRuns(from, today), data.listActivities(shiftDay(today, -13), today)]);
       const weeks = Array.from({ length: 8 }, (_, i) => {
         const monday = shiftDay(mondayOf(today), -7 * (7 - i));
         const inWeek = runs.filter((r) => r.day >= monday && r.day <= shiftDay(monday, 6));
@@ -390,6 +418,7 @@ export const sportTools: Tool<SportContext>[] = [
         plan: planOut,
         weekly_km: weeks,
         last_14_days: runs.filter((r) => r.day >= shiftDay(today, -13)).sort((a, b) => b.started_at.localeCompare(a.started_at)).map(runOut),
+        renfo_and_bike_last_14_days: activities.sort((a, b) => b.started_at.localeCompare(a.started_at)).map(activityOut),
         heart_rate: { max: settings?.hr_max ?? null, rest: settings?.hr_rest ?? null, zones: hrZones(settings?.hr_max ?? null, settings?.hr_rest ?? null) },
       });
     },
@@ -412,7 +441,8 @@ export const sportTools: Tool<SportContext>[] = [
       const fromWeek = Math.max(1, Math.round(number(args.from_week, 'from_week', 1, PLAN_WEEKS_MAX) ?? 1));
       const toWeek = Math.min(total, Math.round(number(args.to_week, 'to_week', 1, PLAN_WEEKS_MAX) ?? total));
       const sessions = (await data.listSessions(plan.id)).filter((s) => s.week >= fromWeek && s.week <= toWeek);
-      const runs = await data.listRuns(mondayOfWeek(plan.start_day, fromWeek), shiftDay(mondayOfWeek(plan.start_day, toWeek), 6));
+      const span = [mondayOfWeek(plan.start_day, fromWeek), shiftDay(mondayOfWeek(plan.start_day, toWeek), 6)] as const;
+      const [runs, activities] = await Promise.all([data.listRuns(...span), data.listActivities(...span)]);
       const weeks = [];
       for (let w = fromWeek; w <= toWeek; w++) {
         const monday = mondayOfWeek(plan.start_day, w);
@@ -421,6 +451,7 @@ export const sportTools: Tool<SportContext>[] = [
           monday,
           sessions: sessions.filter((s) => s.week === w).sort((a, b) => a.position - b.position).map((s) => sessionOut(s, plan)),
           runs: runs.filter((r) => r.day >= monday && r.day <= shiftDay(monday, 6)).map(runOut),
+          renfo_and_bike: activities.filter((a) => a.day >= monday && a.day <= shiftDay(monday, 6)).map(activityOut),
         });
       }
       return json({ plan: { id: plan.id, title: plan.title, race_day: plan.race_day, total_weeks: total }, weeks });

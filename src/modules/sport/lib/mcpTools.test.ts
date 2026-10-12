@@ -77,6 +77,7 @@ function memory() {
       return before - db.sessions.length;
     },
     listRuns: async (from, to) => db.runs.filter((r) => r.day >= from && r.day <= to),
+    listActivities: async () => [],
     getRun: async (id) => db.runs.find((r) => r.id === id) ?? null,
     insertRun: async (row) => {
       const r = { id: uuid(), kind: 'footing', effort: null, title: '', note: '', session_id: null, splits_s: null, elevation_m: null, avg_hr: null, max_hr: null, ...row } as RunRow;

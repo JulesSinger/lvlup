@@ -336,6 +336,35 @@ export async function run({ browser, check, BASE }) {
   check('Le journal aussi', await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   await phone.close();
 
+  // --- Une séance de renfo venue de Strava, dans le journal (12/10/2026) ----------------------
+  // En local, Strava ne parle pas à Atlas : la séance est posée dans les données, comme une sauvegarde l'apporterait.
+  const ctxA = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  const pa = await ctxA.newPage();
+  pa.on('pageerror', (e) => errors.push(e.message));
+  await pa.goto(BASE);
+  await pa.evaluate(() => {
+    const raw = JSON.parse(localStorage.getItem('palier.v1') ?? '{}');
+    const day = new Date().toISOString().slice(0, 10);
+    raw.sportRuns = [{ id: 'r1', startedAt: `${day}T07:00:00.000Z`, day, distanceM: 8000, durationS: 2700, elevationM: null, avgHr: null, maxHr: null, kind: 'footing', effort: null, title: '', note: '', source: 'manuel', sourceRef: null, sessionId: null, splitsS: null, createdAt: '' }];
+    raw.sportActivities = [{ id: 'a1', startedAt: `${day}T18:00:00.000Z`, day, sport: 'renfo', durationS: 2400, distanceM: null, elevationM: null, avgHr: 118, maxHr: 142, title: 'Renfo du soir', source: 'strava', sourceRef: 'strava:77', sessionId: null, createdAt: '' }];
+    localStorage.setItem('palier.v1', JSON.stringify(raw));
+    localStorage.setItem('sport.view.v1', 'journal');
+  });
+  await pa.evaluate(() => history.replaceState(null, '', '#/sport'));
+  await pa.reload();
+  await pa.waitForSelector('.sport-journal');
+  const renfoRow = pa.locator('.sport-run-activity');
+  check('Le journal montre la séance de renfo de Strava, avec sa durée et sa FC', (await renfoRow.count()) === 1 && (await text(renfoRow)).includes('Renfo du soir') && (await text(renfoRow)).includes('40 min') && (await text(renfoRow)).includes('♥ 118'));
+  check('… sans la compter comme une sortie', (await text(pa.locator('.sport-month-total').first())).includes('1 sortie · 8,0 km · 1 séance d’à côté'));
+  await renfoRow.click();
+  await pa.getByRole('dialog', { name: 'Renfo du soir' }).waitFor();
+  check('Sa fiche dit qu’aucune séance du plan ne lui correspondait', (await text(pa.getByRole('dialog'))).includes('Aucune séance du plan'));
+  pa.on('dialog', (d) => d.accept());
+  await pa.getByRole('dialog').getByRole('button', { name: 'Retirer' }).click();
+  await renfoRow.waitFor({ state: 'detached' });
+  check('Elle se retire du journal', (await pa.locator('.sport-run-activity').count()) === 0);
+  await ctxA.close();
+
   check('Aucune erreur JavaScript', errors.length === 0, errors.join(' | '));
   await context.close();
 }

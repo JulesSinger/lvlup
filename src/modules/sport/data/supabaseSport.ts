@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchAll, getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
 import {
   DEFAULT_SPORT_SETTINGS,
+  type Activity,
   type ImportToken,
   type Plan,
   type PlanInput,
@@ -76,6 +77,40 @@ interface SessionRow {
   done_at: string | null;
   created_at: string;
 }
+
+interface ActivityRow {
+  id: string;
+  started_at: string;
+  day: string;
+  sport: Activity['sport'];
+  duration_s: number;
+  distance_m: number | null;
+  elevation_m: number | null;
+  avg_hr: number | null;
+  max_hr: number | null;
+  title: string;
+  source: Activity['source'];
+  source_ref: string | null;
+  session_id: string | null;
+  created_at: string;
+}
+
+const toActivity = (r: ActivityRow): Activity => ({
+  id: r.id,
+  startedAt: r.started_at,
+  day: r.day,
+  sport: r.sport,
+  durationS: r.duration_s,
+  distanceM: r.distance_m,
+  elevationM: r.elevation_m,
+  avgHr: r.avg_hr,
+  maxHr: r.max_hr,
+  title: r.title,
+  source: r.source,
+  sourceRef: r.source_ref,
+  sessionId: r.session_id,
+  createdAt: r.created_at,
+});
 
 interface SettingsRow {
   hr_max: number | null;
@@ -365,14 +400,27 @@ export class SupabaseSport implements SportStore {
     check((await this.client.from('sport_import_tokens').delete().eq('id', id)).error);
   }
 
+  async listActivities(): Promise<Activity[]> {
+    const rows = await fetchAll<ActivityRow>((first, last) =>
+      this.client.from('sport_activities').select('*').order('started_at').order('id').range(first, last),
+    );
+    return rows.map(toActivity);
+  }
+
+  async deleteActivity(id: string) {
+    check((await this.client.from('sport_activities').delete().eq('id', id)).error);
+  }
+
   async exportData(): Promise<SportBackup> {
-    const [runs, plans, sessions, settings] = await Promise.all([
+    const [runs, plans, sessions, settings, activities] = await Promise.all([
       this.listRuns(),
       this.listPlans(),
       this.listSessions(),
       this.getSettings(),
+      // La table peut manquer (migration du 12/10/2026 pas appliquée) : la sauvegarde se fait quand même.
+      this.listActivities().catch(() => [] as Activity[]),
     ]);
-    return { runs, plans, sessions, settings };
+    return { runs, plans, sessions, settings, activities };
   }
 
   async importData(data: SportBackup) {
@@ -396,6 +444,31 @@ export class SupabaseSport implements SportStore {
     for (const batch of batches(runs)) {
       const rows = batch.map((r) => ({ id: r.id, user_id: userId, created_at: r.createdAt, ...runColumns(r) }));
       check((await this.client.from('sport_runs').insert(rows)).error);
+    }
+    // Après les séances, qu'elles cochent. Une sauvegarde d'avant le 12/10/2026 n'en a pas.
+    const activities = data.activities ?? [];
+    if (activities.length > 0) {
+      check((await this.client.from('sport_activities').delete().eq('user_id', userId)).error);
+      for (const batch of batches(activities)) {
+        const rows = batch.map((a) => ({
+          id: a.id,
+          user_id: userId,
+          started_at: a.startedAt,
+          day: a.day,
+          sport: a.sport,
+          duration_s: a.durationS,
+          distance_m: a.distanceM,
+          elevation_m: a.elevationM,
+          avg_hr: a.avgHr,
+          max_hr: a.maxHr,
+          title: a.title,
+          source: a.source,
+          source_ref: a.sourceRef,
+          session_id: a.sessionId,
+          created_at: a.createdAt,
+        }));
+        check((await this.client.from('sport_activities').insert(rows)).error);
+      }
     }
     if (data.settings) await this.updateSettings(data.settings);
   }

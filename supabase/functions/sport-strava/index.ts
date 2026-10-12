@@ -19,7 +19,8 @@
  *                     (les sorties déjà reçues restent dans Sport).
  *
  * Synchroniser, c'est demander à Strava les activités depuis la dernière vue
- * (trois jours de marge), garder les courses, écarter celles déjà dans Sport
+ * (trois jours de marge), garder les courses — et depuis le 12/10/2026 les
+ * séances de renforcement et de vélo, qui cochent leur séance du plan —, écarter celles déjà dans Sport
  * (même référence `strava:<id>` que l'archive, ou même sortie venue par un
  * autre chemin), et lire le détail des nouvelles pour leurs temps au km.
  *
@@ -33,6 +34,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { sameRun } from '../sport-import/payload.ts';
 import {
+  CROSS_BACKFILL_DAYS,
   STATE_TTL_MS,
   STRAVA_SCOPE,
   canReadActivities,
@@ -41,13 +43,17 @@ import {
   splitsFrom,
   syncAfter,
   syncMessage,
+  pickSession,
+  toCrossActivity,
   toRun,
   verifyState,
+  type CrossSessionRow,
+  type StravaCrossActivity,
   type StravaActivity,
   type StravaRun,
 } from './strava.ts';
 
-const VERSION = '2026-10-09.1';
+const VERSION = '2026-10-12.1';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -176,7 +182,11 @@ async function sync(userId: string, force: boolean) {
     return { added: 0, known: 0, skipped: true, message: syncMessage(0, 1) };
   }
   const token = await accessToken(link);
-  const after = syncAfter(link.last_activity_at, new Date());
+  let after = syncAfter(link.last_activity_at, new Date());
+  // La première fois qu'on reprend renfo et vélo (aucune encore rangée), on regarde un mois en arrière :
+  // les séances d'avant cette version ne sont pas perdues. Table absente : on s'en passe.
+  const { count: crossCount, error: crossError } = await admin.from('sport_activities').select('id', { count: 'exact', head: true }).eq('user_id', userId);
+  if (!crossError && crossCount === 0) after = Math.min(after, Math.floor(Date.now() / 1000) - CROSS_BACKFILL_DAYS * 86_400);
   const activities: StravaActivity[] = [];
   for (let pageNo = 1; pageNo <= 5; pageNo++) {
     const batch = (await stravaGet(`/athlete/activities?after=${after}&per_page=100&page=${pageNo}`, token, userId)) as StravaActivity[];
@@ -202,13 +212,65 @@ async function sync(userId: string, force: boolean) {
     const { error } = await admin.from('sport_runs').upsert(rows, { onConflict: 'user_id,source_ref', ignoreDuplicates: true });
     if (error) throw new Error(error.message);
   }
+  const cross = crossError ? 0 : await syncCross(userId, activities.map(toCrossActivity).filter((a): a is StravaCrossActivity => a !== null));
   const latest = activities.map((a) => Date.parse(a.start_date ?? '')).filter(Number.isFinite);
   const lastActivity = latest.length ? new Date(Math.max(...latest)).toISOString() : link.last_activity_at;
   await admin
     .from('sport_strava_links')
     .update({ last_sync_at: new Date().toISOString(), last_activity_at: lastActivity })
     .eq('user_id', userId);
-  return { added: rows.length, known, message: syncMessage(rows.length, known) };
+  return { added: rows.length + cross, known, message: syncMessage(rows.length, known, cross) };
+}
+
+/**
+ * Les séances de renfo et de vélo nouvelles (docs/etude-sport.md §24) : rangées
+ * dans `sport_activities`, et chacune coche la séance du plan en cours qu'elle
+ * a faite (`pickSession`). Seules les NOUVELLES cochent : une séance décochée à
+ * la main ne se recoche pas à la synchronisation suivante. Rend le nombre ajouté.
+ */
+async function syncCross(userId: string, found: StravaCrossActivity[]): Promise<number> {
+  if (found.length === 0) return 0;
+  const { data: knownRows, error } = await admin
+    .from('sport_activities')
+    .select('source_ref')
+    .eq('user_id', userId)
+    .in('source_ref', found.map((a) => a.source_ref));
+  if (error) throw new Error(error.message);
+  const known = new Set((knownRows ?? []).map((r) => r.source_ref as string));
+  const fresh = found.filter((a) => !known.has(a.source_ref)).sort((a, b) => a.started_at.localeCompare(b.started_at));
+  if (fresh.length === 0) return 0;
+
+  // Le plan en cours (le dernier actif) et ses séances de renfo et de vélo.
+  const { data: plans } = await admin.from('sport_plans').select('id, start_day, created_at').eq('user_id', userId).eq('status', 'actif');
+  const plan = [...(plans ?? [])].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0] as { id: string; start_day: string } | undefined;
+  let sessions: CrossSessionRow[] = [];
+  const taken = new Set<string>();
+  if (plan) {
+    const { data } = await admin
+      .from('sport_plan_sessions')
+      .select('id, kind, week, position, day, done_at')
+      .eq('user_id', userId)
+      .eq('plan_id', plan.id)
+      .in('kind', ['renfo', 'velo']);
+    sessions = (data ?? []) as CrossSessionRow[];
+    const { data: linked } = await admin.from('sport_activities').select('session_id').eq('user_id', userId).not('session_id', 'is', null);
+    for (const r of linked ?? []) taken.add(r.session_id as string);
+  }
+
+  const rows = fresh.map((a) => {
+    const sessionId = plan ? pickSession(a, plan.start_day, sessions, taken) : null;
+    if (sessionId) taken.add(sessionId);
+    return { ...a, user_id: userId, session_id: sessionId };
+  });
+  const { error: insertError } = await admin.from('sport_activities').upsert(rows, { onConflict: 'user_id,source_ref', ignoreDuplicates: true });
+  if (insertError) throw new Error(insertError.message);
+  // Cocher les séances faites, à l'heure de l'activité ; une séance déjà cochée entre-temps le reste.
+  for (const r of rows) {
+    if (r.session_id) {
+      await admin.from('sport_plan_sessions').update({ done_at: r.started_at }).eq('user_id', userId).eq('id', r.session_id).is('done_at', null);
+    }
+  }
+  return rows.length;
 }
 
 /** Le retour de Strava : ranger les jetons, puis revenir dans Sport. */

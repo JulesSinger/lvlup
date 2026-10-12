@@ -179,8 +179,107 @@ export async function verifyState(state: unknown, secret: string, now: number): 
 /** La permission de lire les activités a-t-elle été donnée (la case peut être décochée chez Strava) ? */
 export const canReadActivities = (scope: string) => /(^|,)activity:read(_all)?(,|$)/.test(scope);
 
-/** La phrase montrée après une synchronisation. */
-export function syncMessage(added: number, known: number): string {
-  if (added === 0) return known > 0 ? 'Rien de nouveau sur Strava.' : 'Aucune course récente sur Strava.';
-  return `${added} sortie${added > 1 ? 's' : ''} reçue${added > 1 ? 's' : ''} de Strava.`;
+/** La phrase montrée après une synchronisation : les sorties, puis les séances de renfo et de vélo. */
+export function syncMessage(added: number, known: number, cross = 0): string {
+  if (added === 0 && cross === 0) return known > 0 ? 'Rien de nouveau sur Strava.' : 'Aucune course récente sur Strava.';
+  const parts = [
+    added > 0 ? `${added} sortie${added > 1 ? 's' : ''}` : null,
+    cross > 0 ? `${cross} séance${cross > 1 ? 's' : ''} de renfo ou de vélo` : null,
+  ].filter(Boolean);
+  const plural = added + cross > 1;
+  return `${parts.join(' et ')} reçue${plural ? 's' : ''} de Strava.`;
+}
+
+// --- Le renforcement et le vélo (docs/etude-sport.md §24, 12/10/2026) ----------------------------
+
+/** Les sortes d'activité Strava reprises comme renforcement, puis comme vélo. */
+export const RENFO_TYPES = ['WeightTraining', 'Workout', 'Crossfit', 'HighIntensityIntervalTraining', 'Pilates'] as const;
+export const VELO_TYPES = ['Ride', 'VirtualRide', 'EBikeRide', 'MountainBikeRide', 'GravelRide', 'EMountainBikeRide'] as const;
+/** La première fois qu'on reprend renfo et vélo, on regarde ce mois-ci en arrière. */
+export const CROSS_BACKFILL_DAYS = 30;
+
+export function crossSport(a: StravaActivity): 'renfo' | 'velo' | null {
+  const type = a.sport_type ?? a.type ?? '';
+  if ((RENFO_TYPES as readonly string[]).includes(type)) return 'renfo';
+  if ((VELO_TYPES as readonly string[]).includes(type)) return 'velo';
+  return null;
+}
+
+/** Une séance de renfo ou de vélo prête à ranger (les colonnes de `sport_activities`). */
+export interface StravaCrossActivity {
+  started_at: string;
+  day: string;
+  sport: 'renfo' | 'velo';
+  duration_s: number;
+  distance_m: number | null;
+  elevation_m: number | null;
+  avg_hr: number | null;
+  max_hr: number | null;
+  title: string;
+  source: 'strava';
+  source_ref: string;
+}
+
+export function toCrossActivity(a: StravaActivity): StravaCrossActivity | null {
+  const sport = crossSport(a);
+  if (!sport || typeof a.id !== 'number' || !a.start_date) return null;
+  const started = Date.parse(a.start_date);
+  const local = a.start_date_local ?? a.start_date;
+  if (!Number.isFinite(started) || !/^\d{4}-\d{2}-\d{2}/.test(local)) return null;
+  const duration = Math.round(a.moving_time || a.elapsed_time || 0);
+  if (duration < 1 || duration > 259_200) return null;
+  const distance = sport === 'velo' && typeof a.distance === 'number' ? Math.round(a.distance) : null;
+  const elevation = typeof a.total_elevation_gain === 'number' ? Math.round(a.total_elevation_gain) : null;
+  return {
+    started_at: new Date(started).toISOString(),
+    day: local.slice(0, 10),
+    sport,
+    duration_s: duration,
+    distance_m: distance !== null && distance >= 0 && distance <= 1_000_000 ? distance : null,
+    elevation_m: elevation !== null && elevation >= 0 && elevation <= 20_000 && sport === 'velo' ? elevation : null,
+    avg_hr: hr(a.average_heartrate),
+    max_hr: hr(a.max_heartrate),
+    title: (a.name ?? '').trim().slice(0, 120),
+    source: 'strava',
+    source_ref: `strava:${a.id}`,
+  };
+}
+
+const dayUtc = (day: string) => {
+  const [y, m, d] = day.split('-').map(Number);
+  return Date.UTC(y, m - 1, d);
+};
+const mondayOf = (day: string) => {
+  const t = dayUtc(day);
+  return t - ((new Date(t).getUTCDay() + 6) % 7) * 86_400_000;
+};
+/** La semaine du plan d'un jour, comme `weekOfPlan` du module (1 = la semaine du début, lundi compris). */
+export const weekOfPlan = (startDay: string, day: string) => Math.floor(Math.round((dayUtc(day) - mondayOf(startDay)) / 86_400_000) / 7) + 1;
+
+export interface CrossSessionRow {
+  id: string;
+  kind: string;
+  week: number;
+  position: number;
+  day: string | null;
+  done_at: string | null;
+}
+
+/**
+ * La séance du plan qu'une activité de renfo ou de vélo a faite : de la même
+ * sorte, pas encore cochée ni prise par une autre activité — celle de ce
+ * jour-là d'abord, sinon la première sans jour fixé de la même semaine.
+ * `null` si rien ne correspond : l'activité est seulement notée.
+ */
+export function pickSession(
+  activity: { day: string; sport: 'renfo' | 'velo' },
+  startDay: string,
+  sessions: readonly CrossSessionRow[],
+  taken: ReadonlySet<string>,
+): string | null {
+  const week = weekOfPlan(startDay, activity.day);
+  const open = sessions
+    .filter((s) => s.kind === activity.sport && s.done_at === null && !taken.has(s.id) && s.week === week)
+    .sort((a, b) => a.position - b.position);
+  return (open.find((s) => s.day === activity.day) ?? open.find((s) => s.day === null))?.id ?? null;
 }

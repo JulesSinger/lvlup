@@ -2,6 +2,7 @@ import { newId } from '../../../core/data/coreStore';
 import { readRaw, writeRaw } from '../../../core/data/localSnapshot';
 import {
   DEFAULT_SPORT_SETTINGS,
+  type Activity,
   type ImportToken,
   type Plan,
   type PlanInput,
@@ -28,6 +29,7 @@ interface Snapshot {
   sessions: PlanSession[];
   settings: SportSettings;
   tokens: LocalToken[];
+  activities: Activity[];
 }
 
 /** Lecture des seules sections du module, sur le blob local partagé. */
@@ -40,6 +42,7 @@ function read(): Snapshot {
     sessions: arrayOf<PlanSession>(raw.sportSessions).map((x) => ({ ...x, doneAt: x.doneAt ?? null })),
     settings: { ...DEFAULT_SPORT_SETTINGS, ...(raw.sportSettings as Partial<SportSettings> | undefined) },
     tokens: arrayOf<LocalToken>(raw.sportTokens),
+    activities: arrayOf<Activity>(raw.sportActivities),
   };
 }
 
@@ -52,6 +55,7 @@ function write(s: Snapshot) {
     sportSessions: s.sessions,
     sportSettings: s.settings,
     sportTokens: s.tokens,
+    sportActivities: s.activities,
   });
 }
 
@@ -263,9 +267,23 @@ export class LocalSport implements SportStore {
     write(s);
   }
 
+  /**
+   * Sans compte, Strava ne parle pas à Atlas : la liste reste vide, sauf ce
+   * qu'une sauvegarde restaurée apporte.
+   */
+  async listActivities(): Promise<Activity[]> {
+    return read().activities.slice().sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  }
+
+  async deleteActivity(id: string) {
+    const s = read();
+    s.activities = s.activities.filter((a) => a.id !== id);
+    write(s);
+  }
+
   async exportData(): Promise<SportBackup> {
     const s = read();
-    return { runs: s.runs, plans: s.plans, sessions: s.sessions, settings: s.settings };
+    return { runs: s.runs, plans: s.plans, sessions: s.sessions, settings: s.settings, activities: s.activities };
   }
 
   async importData(data: SportBackup) {
@@ -276,6 +294,7 @@ export class LocalSport implements SportStore {
       sessions: data.sessions ?? [],
       settings: { ...DEFAULT_SPORT_SETTINGS, ...data.settings },
       tokens: s.tokens,
+      activities: data.activities ?? [],
     });
   }
 }

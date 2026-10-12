@@ -28,6 +28,32 @@ export const CROSS_SESSION_KINDS = ['renfo', 'velo'] as const;
 export type CrossSessionKind = (typeof CROSS_SESSION_KINDS)[number];
 
 export const SESSION_KINDS = [...RUNNING_SESSION_KINDS, ...CROSS_SESSION_KINDS] as const;
+
+/** D'où vient une séance de renfo ou de vélo (`sport_activities`, 12/10/2026) : Strava, ou la main. */
+export const ACTIVITY_SOURCES = ['strava', 'manuel'] as const;
+export type ActivitySource = (typeof ACTIVITY_SOURCES)[number];
+
+/**
+ * Une séance de renforcement ou de vélo faite, venue de Strava : montrée dans
+ * le journal, jamais comptée dans les sorties de course. Elle coche la séance
+ * du plan qu'elle a faite (`sessionId`).
+ */
+export interface Activity {
+  id: string;
+  startedAt: string;
+  day: string;
+  sport: CrossSessionKind;
+  durationS: number;
+  distanceM: number | null;
+  elevationM: number | null;
+  avgHr: number | null;
+  maxHr: number | null;
+  title: string;
+  source: ActivitySource;
+  sourceRef: string | null;
+  sessionId: string | null;
+  createdAt: string;
+}
 export type SessionKind = (typeof SESSION_KINDS)[number];
 
 /** Une séance de course (faite par une sortie), ou d'à côté (cochée à la main). */
