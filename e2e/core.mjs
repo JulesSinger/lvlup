@@ -103,6 +103,7 @@ export async function run({ browser, check, BASE }) {
   await context.close();
 
   await navigation({ browser, check, BASE });
+  await reorderModules({ browser, check, BASE });
 
   // Écran d'authentification : il n'apparaît qu'en mode Supabase, on le vérifie
   // donc sur un build de démonstration servi séparément si disponible.
@@ -360,5 +361,102 @@ async function navigation({ browser, check, BASE }) {
   await sheet.locator('.atlas-switcher-module', { hasText: b }).click();
   await sheet.waitFor({ state: 'detached' });
   check('… et un toucher change de module', (await mobile.locator('.atlas-module-brand:visible').first().textContent())?.includes(b));
+  await phone.close();
+}
+
+/**
+ * Réordonner les modules en les glissant (13/10/2026) : la barre de gauche, la
+ * grille, l'écran « Tes modules » partagent un seul ordre, retenu, et un clic
+ * ouvre toujours le module.
+ */
+async function reorderModules({ browser, check, BASE }) {
+  const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const railOrder = () => page.locator('.atlas-rail-module').evaluateAll((els) => els.map((el) => el.getAttribute('data-tip')));
+  const pickerOrder = () => page.locator('.hub-picker-label').allTextContents();
+
+  await page.goto(BASE);
+  await page.waitForSelector('.hub-picker-card');
+  const labels = await pickerOrder();
+  await page.locator('.hub-picker-card').first().click();
+  await page.waitForSelector('.atlas-rail');
+  const opened = labels[0];
+
+  // Glisser le troisième module tout en haut de la barre, à la souris.
+  const third = page.getByRole('button', { name: `Ouvrir ${labels[2]}`, exact: true });
+  const firstBox = await page.getByRole('button', { name: `Ouvrir ${labels[0]}`, exact: true }).boundingBox();
+  const thirdBox = await third.boundingBox();
+  await page.mouse.move(thirdBox.x + thirdBox.width / 2, thirdBox.y + thirdBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(thirdBox.x + thirdBox.width / 2, firstBox.y + 2, { steps: 12 });
+  check('Pendant le glisser, le module tenu est marqué', (await page.locator('.atlas-rail-module.atlas-dragging').count()) === 1);
+  await page.mouse.up();
+  const expected = [labels[2], labels[0], labels[1], ...labels.slice(3)];
+  check('Glisser un module dans la barre change sa place', JSON.stringify(await railOrder()) === JSON.stringify(expected), (await railOrder()).join(', '));
+  check(
+    '… sans ouvrir le module glissé',
+    (await page.locator('.atlas-rail-module[aria-current="page"]').getAttribute('data-tip')) === opened,
+  );
+
+  await page.getByRole('button', { name: `Ouvrir ${labels[1]}`, exact: true }).click();
+  await page.waitForFunction((label) => document.querySelector('.atlas-rail-module[aria-current="page"]')?.getAttribute('data-tip') === label, labels[1]);
+  check('Un simple clic ouvre toujours le module', true);
+
+  await page.locator('.atlas-module-brand:visible').first().click();
+  const switcher = page.locator('.atlas-switcher');
+  await switcher.waitFor();
+  const gridOrder = () => switcher.locator('.atlas-switcher-label').allTextContents();
+  check('La grille suit le même ordre', JSON.stringify(await gridOrder()) === JSON.stringify(expected), (await gridOrder()).join(', '));
+
+  // Au clavier dans la grille : Alt + flèche gauche avance le module d'un cran.
+  await switcher.locator('.atlas-switcher-module', { hasText: labels[0] }).focus();
+  await page.keyboard.press('Alt+ArrowLeft');
+  const afterKey = [labels[0], labels[2], labels[1], ...labels.slice(3)];
+  await page.waitForFunction((first) => document.querySelector('.atlas-switcher-label')?.textContent === first, labels[0]);
+  check('Dans la grille, Alt + flèche déplace le module', JSON.stringify(await gridOrder()) === JSON.stringify(afterKey), (await gridOrder()).join(', '));
+  check('… et le focus le suit', await switcher.locator('.atlas-switcher-module').first().evaluate((el) => el === document.activeElement));
+  await page.keyboard.press('Escape');
+  await switcher.waitFor({ state: 'detached' });
+  check('La barre suit la grille', JSON.stringify(await railOrder()) === JSON.stringify(afterKey));
+
+  await page.evaluate(() => history.replaceState(null, '', '#/'));
+  await page.reload();
+  await page.waitForSelector('.hub-picker-card');
+  check('L’ordre est retenu, et « Tes modules » le suit', JSON.stringify(await pickerOrder()) === JSON.stringify(afterKey), (await pickerOrder()).join(', '));
+  check('Aucune erreur JavaScript en réordonnant', errors.length === 0, errors.join(' | '));
+  await context.close();
+
+  // Au doigt : un toucher ouvre, un appui long fait glisser.
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const mobile = await phone.newPage();
+  await mobile.goto(BASE);
+  // Le deuxième : Objectifs, premier du registre, ouvre sur son accueil.
+  await mobile.locator('.hub-picker-card').nth(1).click();
+  await mobile.locator('.atlas-module-brand:visible').first().click();
+  const sheet = mobile.locator('.atlas-switcher');
+  await sheet.waitFor();
+  await mobile.waitForTimeout(300);
+  const before = await sheet.locator('.atlas-switcher-label').allTextContents();
+  const cards = sheet.locator('.atlas-switcher-module');
+  const from = await cards.nth(1).boundingBox();
+  const to = await cards.nth(0).boundingBox();
+  // Un vrai appui long au doigt, par le protocole de Chrome : Playwright n'a pas de geste « appuyer, attendre, glisser ».
+  const cdp = await phone.newCDPSession(mobile);
+  const point = (b) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+  const touch = (type, p) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: p.x, y: p.y }] });
+  await touch('touchStart', point(from));
+  await mobile.waitForTimeout(500);
+  for (let i = 1; i <= 8; i++) await touch('touchMove', { x: point(from).x + ((to.x + 5 - point(from).x) * i) / 8, y: point(from).y + ((to.y + 5 - point(from).y) * i) / 8 });
+  await touch('touchEnd', point(to));
+  await mobile.waitForTimeout(200);
+  const after = await sheet.locator('.atlas-switcher-label').allTextContents();
+  check(
+    'Au doigt, un appui long fait glisser un module dans la grille',
+    JSON.stringify(after) === JSON.stringify([before[1], before[0], ...before.slice(2)]),
+    after.join(', '),
+  );
+  check('… sans fermer la grille ni changer de module', await sheet.isVisible());
   await phone.close();
 }

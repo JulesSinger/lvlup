@@ -14,6 +14,11 @@ export interface Settings {
    * à la bonne heure même après un changement d'heure ou un déplacement.
    */
   tzOffset: number;
+  /**
+   * L'ordre des modules choisi à la main (13/10/2026), en identifiants ; vide =
+   * l'ordre du registre. Rangé avec le compte : le même sur chaque appareil.
+   */
+  moduleOrder: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -21,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reminderEnabled: false,
   reminderTime: '20:00',
   tzOffset: 0,
+  moduleOrder: [],
 };
 
 /** Un navigateur abonné aux notifications (iPhone, Mac, Android…). */

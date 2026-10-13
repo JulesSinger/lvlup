@@ -1,5 +1,7 @@
+import { useRef } from 'react';
 import type { AtlasModule } from '../lib/module';
 import AtlasMark from './AtlasMark';
+import { useReorderDrag } from './useReorderDrag';
 
 /**
  * La barre d'icônes, à gauche de chaque module sur ordinateur : un clic pour
@@ -10,6 +12,9 @@ import AtlasMark from './AtlasMark';
  * place. Un bouton se nomme « Ouvrir Budget » (l'infobulle dit « Budget ») :
  * ce qu'il fait, et pas le même nom que ce que le module montre chez lui.
  *
+ * Les modules s'y glissent pour changer leur ordre (13/10/2026), le même que
+ * dans la grille ; un clic les ouvre toujours.
+ *
  * Le socle ne lit des modules que ce qu'il a le droit de connaître : `id`,
  * `label`, `emoji`, `accent`.
  */
@@ -18,26 +23,37 @@ export function ModuleRail({
   activeId,
   onSelect,
   onHome,
+  onReorder,
 }: {
   modules: readonly AtlasModule[];
   activeId: string;
   onSelect: (id: string) => void;
   onHome: () => void;
+  /** L'ordre des modules après un glisser. */
+  onReorder: (order: string[]) => void;
 }) {
+  const list = useRef<HTMLUListElement>(null);
+  const drag = useReorderDrag(
+    modules.map((m) => m.id),
+    list,
+    onReorder,
+  );
+  const byId = new Map(modules.map((m) => [m.id, m]));
   return (
     <nav className="atlas-rail" aria-label="Modules">
       <button className="atlas-rail-btn atlas-rail-home" onClick={onHome} aria-label="Tous les modules" data-tip="Tous les modules">
         <AtlasMark className="atlas-rail-mark" />
       </button>
-      <ul className="atlas-rail-list">
-        {modules.map((m) => (
+      <ul className="atlas-rail-list" ref={list}>
+        {drag.order.flatMap((id) => byId.get(id) ?? []).map((m) => (
           <li key={m.id}>
             <button
-              className="atlas-rail-btn atlas-rail-module"
+              {...drag.itemProps(m.id)}
+              className={`atlas-rail-btn atlas-rail-module${drag.draggingId === m.id ? ' atlas-dragging' : ''}`}
               onClick={() => onSelect(m.id)}
               aria-label={`Ouvrir ${m.label}`}
               aria-current={m.id === activeId ? 'page' : undefined}
-              data-tip={m.label}
+              data-tip={drag.draggingId ? undefined : m.label}
               style={{ ['--atlas-module-accent' as string]: m.accent }}
             >
               <span aria-hidden="true">{m.emoji}</span>

@@ -8,6 +8,7 @@ import { SettingsPanel } from './core/components/SettingsPanel';
 import { coreStore } from './core/data';
 import { exportBackup, importBackup, readBackupFile } from './core/data/backup';
 import { DEFAULT_SETTINGS, type Settings } from './core/data/coreStore';
+import { orderModules } from './core/lib/moduleOrder';
 import { hashFor, initialModule, readLastModule, routeFromHash, saveLastModule } from './core/lib/moduleRoute';
 import { timezoneOffsetMinutes } from './core/lib/push';
 import { collectServices } from './core/lib/services';
@@ -223,12 +224,21 @@ export default function App() {
   }
 
   const activeModule = MODULES.find((m) => m.id === moduleId) ?? null;
+  // L'ordre choisi à la main (13/10/2026) ; le registre reste la liste des modules.
+  const ordered = orderModules(MODULES, settings.moduleOrder);
+  const reorderModules = (order: string[]) => {
+    setSettings((s) => ({ ...s, moduleOrder: order }));
+    void coreStore.updateSettings({ moduleOrder: order }).catch((err) => {
+      setError(err instanceof Error ? err.message : 'Ordre des modules non enregistré.');
+    });
+  };
 
   return (
     <>
       {!activeModule ? (
         <ModulePicker
-          modules={MODULES}
+          modules={ordered}
+          onReorder={reorderModules}
           user={user!}
           onSelect={(id) => navigate(id)}
           onOpenSettings={() => setShowSettings(true)}
@@ -236,7 +246,8 @@ export default function App() {
       ) : (
         <div className="atlas-shell">
           <ModuleRail
-            modules={MODULES}
+            modules={ordered}
+            onReorder={reorderModules}
             activeId={activeModule.id}
             onSelect={(id) => navigate(id)}
             onHome={() => navigate(null)}
@@ -269,7 +280,8 @@ export default function App() {
 
       {switching && (
         <ModuleSwitcher
-          modules={MODULES}
+          modules={ordered}
+          onReorder={reorderModules}
           activeId={activeModule?.id ?? null}
           onSelect={(id) => navigate(id)}
           onHome={() => navigate(null)}

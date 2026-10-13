@@ -105,7 +105,9 @@ export class SupabaseCore implements CoreStore {
     const userId = await this.requireUserId();
     const { data, error } = await this.client
       .from('profiles')
-      .select('daily_goal, reminder_enabled, reminder_time, tz_offset')
+      // `*` plutôt qu'une liste : avant la migration du 13/10/2026, `module_order`
+      // n'existe pas, et la nommer ferait échouer la lecture de tous les réglages.
+      .select('*')
       .eq('user_id', userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -115,6 +117,7 @@ export class SupabaseCore implements CoreStore {
       reminderEnabled: data.reminder_enabled ?? DEFAULT_SETTINGS.reminderEnabled,
       reminderTime: data.reminder_time ?? DEFAULT_SETTINGS.reminderTime,
       tzOffset: data.tz_offset ?? DEFAULT_SETTINGS.tzOffset,
+      moduleOrder: Array.isArray(data.module_order) ? data.module_order : DEFAULT_SETTINGS.moduleOrder,
     };
   }
 
@@ -126,6 +129,7 @@ export class SupabaseCore implements CoreStore {
     if (patch.reminderEnabled !== undefined) row.reminder_enabled = patch.reminderEnabled;
     if (patch.reminderTime !== undefined) row.reminder_time = patch.reminderTime;
     if (patch.tzOffset !== undefined) row.tz_offset = patch.tzOffset;
+    if (patch.moduleOrder !== undefined) row.module_order = patch.moduleOrder;
     const { error } = await this.client
       .from('profiles')
       .upsert(row, { onConflict: 'user_id' });

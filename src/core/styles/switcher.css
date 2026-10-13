@@ -338,3 +338,29 @@
     transform: translateY(100%);
   }
 }
+
+/* --- Réordonner les modules en les glissant (13/10/2026) ---------------------
+   Barre de gauche, grille et écran « Tes modules ». Pas de sélection de texte
+   ni de menu d'appui long : l'appui long au doigt démarre le glisser. */
+.atlas-rail-module,
+.atlas-switcher-module,
+.hub-picker-card {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.atlas-dragging {
+  cursor: grabbing;
+  opacity: 0.85;
+  transform: scale(1.06);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--shadow-ink) 45%, transparent);
+  outline: 2px dashed color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
+  z-index: 2;
+  position: relative;
+}
+
+body:has(.atlas-dragging) {
+  cursor: grabbing;
+}

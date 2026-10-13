@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react';
 import type { AtlasModule } from '../lib/module';
 import AtlasMark from './AtlasMark';
+import { useReorderDrag } from './useReorderDrag';
 
 /**
  * La grille des modules : ouverte en touchant le nom du module en haut de son
  * écran, ou par ⌘K / Ctrl+K. Sur téléphone elle monte du bas, à portée de
  * pouce ; sur ordinateur, un panneau au centre. Toucher un module y va ;
  * Échap, la croix ou un toucher à côté ferment — il n'y a rien à perdre ici.
+ * Les modules s'y glissent pour changer leur ordre (13/10/2026) — au doigt,
+ * par un appui long, pour qu'un toucher simple ouvre toujours le module.
  */
 export function ModuleSwitcher({
   modules,
@@ -14,14 +17,24 @@ export function ModuleSwitcher({
   onSelect,
   onHome,
   onClose,
+  onReorder,
 }: {
   modules: readonly AtlasModule[];
   activeId: string | null;
   onSelect: (id: string) => void;
   onHome: () => void;
   onClose: () => void;
+  /** L'ordre des modules après un glisser. */
+  onReorder: (order: string[]) => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
+  const grid = useRef<HTMLUListElement>(null);
+  const drag = useReorderDrag(
+    modules.map((m) => m.id),
+    grid,
+    onReorder,
+  );
+  const byId = new Map(modules.map((m) => [m.id, m]));
 
   useEffect(() => {
     // Le module ouvert reçoit le focus : Entrée ou Échap le laissent où il est.
@@ -37,7 +50,8 @@ export function ModuleSwitcher({
   }, [onClose]);
 
   return (
-    <div className="atlas-switcher-overlay" onClick={onClose}>
+    // Un glisser qui finit hors du panneau ne doit pas le fermer.
+    <div className="atlas-switcher-overlay" onClick={() => !drag.draggingId && onClose()}>
       <div
         ref={panel}
         className="atlas-switcher"
@@ -54,11 +68,12 @@ export function ModuleSwitcher({
             ✕
           </button>
         </div>
-        <ul className="atlas-switcher-grid">
-          {modules.map((m) => (
+        <ul className="atlas-switcher-grid" ref={grid}>
+          {drag.order.flatMap((id) => byId.get(id) ?? []).map((m) => (
             <li key={m.id}>
               <button
-                className="atlas-switcher-module"
+                {...drag.itemProps(m.id)}
+                className={`atlas-switcher-module${drag.draggingId === m.id ? ' atlas-dragging' : ''}`}
                 onClick={() => onSelect(m.id)}
                 aria-current={m.id === activeId ? 'page' : undefined}
                 style={{ ['--atlas-module-accent' as string]: m.accent }}
