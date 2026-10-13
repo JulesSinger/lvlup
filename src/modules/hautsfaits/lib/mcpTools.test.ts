@@ -6,7 +6,7 @@ import { alignDate, formatFeatSpan } from './dates';
 import * as types from './types';
 import { validateFeat } from './validation';
 
-// Les outils de Hauts faits du connecteur (docs/connecteur-claude.md §18).
+// Les outils de Hauts faits du connecteur (docs/connecteur-claude.md §19).
 
 describe('connecteur — Hauts faits : les copies suivent le module', () => {
   it('reprend les bornes et les catégories', () => {

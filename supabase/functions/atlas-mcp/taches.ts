@@ -1,5 +1,5 @@
 /**
- * Les outils de Tâches pour Claude (docs/connecteur-claude.md §10) — règles
+ * Les outils de Tâches pour Claude (docs/connecteur-claude.md §11) — règles
  * pures, testées par Vitest (`src/modules/taches/lib/mcpTools.test.ts`), qui
  * compare ce qui est recopié ici (cocher une tâche répétée, les vues, les
  * bornes) à ce que fait le module.

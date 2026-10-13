@@ -5,7 +5,7 @@ import { withoutDuplicates } from './bulkImport';
 import { htmlToPlainText } from './htmlPreview';
 import { BOX_COUNT, CARD_FACE_MAX } from './types';
 
-// Les outils de Flashcards du connecteur (docs/connecteur-claude.md §15).
+// Les outils de Flashcards du connecteur (docs/connecteur-claude.md §16).
 
 describe('connecteur — Flashcards : le texte d’une carte', () => {
   it('reprend les bornes du module', () => {

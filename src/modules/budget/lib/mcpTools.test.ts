@@ -4,7 +4,7 @@ import { budgetTools, type BudgetData, type CategoryRow, type EntryRow, type Rul
 import { matchRule } from './boursobankImport';
 import { BUDGET_CATEGORY_KINDS, BUDGET_ENTRY_SOURCES } from './types';
 
-// Les outils de Budget du connecteur (docs/connecteur-claude.md §12) : la fonction ne peut pas
+// Les outils de Budget du connecteur (docs/connecteur-claude.md §13) : la fonction ne peut pas
 // importer le module, elle en recopie les bornes et la règle — comparées ici.
 
 let n = 0;

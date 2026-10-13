@@ -1,5 +1,5 @@
 /**
- * Les outils de Budget pour Claude (docs/connecteur-claude.md §12) — règles
+ * Les outils de Budget pour Claude (docs/connecteur-claude.md §13) — règles
  * pures, testées par Vitest (`src/modules/budget/lib/mcpTools.test.ts`), qui
  * compare les bornes et la règle de classement à celles du module.
  *

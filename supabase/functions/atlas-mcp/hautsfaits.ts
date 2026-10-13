@@ -1,5 +1,5 @@
 /**
- * Les outils de Hauts faits pour Claude (docs/connecteur-claude.md §18) —
+ * Les outils de Hauts faits pour Claude (docs/connecteur-claude.md §19) —
  * règles pures, testées par Vitest (`src/modules/hautsfaits/lib/mcpTools.test.ts`).
  *
  * Dernier de la liste du 11/10/2026 : raconter un souvenir à Claude et qu'il
@@ -266,7 +266,7 @@ export const hautsfaitsTools: Tool<HautsFaitsContext>[] = [
     name: 'hautsfaits_ajouter',
     title: 'Ajouter un haut fait',
     description:
-      'Ajoute un grand moment de la vie de Jules (un diplôme, une course, un voyage, un appartement…), jamais à venir. Ne mets que ce qu’il a dit ; la date à la précision qu’il connaît. Les photos s’ajoutent ensuite dans l’app.',
+      'Ajoute un grand moment de la vie de Jules (un diplôme, une course, un voyage, un appartement…), jamais à venir. Ne mets que ce qui a été dit ; la date à la précision connue. Les photos s’ajoutent ensuite dans l’app.',
     inputSchema: { type: 'object', properties: FIELDS, required: ['title', 'category', 'date'] },
     annotations: {},
     async run(args, { data, today }) {

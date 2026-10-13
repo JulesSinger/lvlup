@@ -7,7 +7,7 @@ import { RANKS } from './ranks';
 import * as types from './types';
 import type { Action, Checkin, Goal, Tier } from './types';
 
-// Les outils d'Objectifs du connecteur (docs/connecteur-claude.md §14) : la fonction recopie le
+// Les outils d'Objectifs du connecteur (docs/connecteur-claude.md §15) : la fonction recopie le
 // comptage des paliers — comparé ici à celui du module, sorte par sorte.
 
 let n = 0;

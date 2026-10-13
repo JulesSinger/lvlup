@@ -1,5 +1,5 @@
 /**
- * Les outils d'Objectifs pour Claude (docs/connecteur-claude.md §14) — règles
+ * Les outils d'Objectifs pour Claude (docs/connecteur-claude.md §15) — règles
  * pures, testées par Vitest (`src/modules/objectifs/lib/mcpTools.test.ts`),
  * qui compare le comptage des paliers à celui du module.
  *

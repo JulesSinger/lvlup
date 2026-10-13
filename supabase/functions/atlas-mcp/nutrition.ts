@@ -1,5 +1,5 @@
 /**
- * Les outils de Nutrition pour Claude (docs/connecteur-claude.md §16) —
+ * Les outils de Nutrition pour Claude (docs/connecteur-claude.md §17) —
  * règles pures, testées par Vitest (`src/modules/nutrition/lib/mcpTools.test.ts`).
  *
  * Priorité n° 7 de l'analyse du 11/10/2026 : « ce midi, 150 g de riz et un

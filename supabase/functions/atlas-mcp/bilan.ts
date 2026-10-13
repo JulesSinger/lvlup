@@ -1,5 +1,5 @@
 /**
- * Le bilan transversal (docs/connecteur-claude.md §11) — en lecture seule,
+ * Le bilan transversal (docs/connecteur-claude.md §12) — en lecture seule,
  * règles pures, testées par Vitest (`src/core/lib/mcpBilan.test.ts`).
  *
  * Priorité n° 2 de l'analyse du 11/10/2026 : « fais le bilan de ma semaine »

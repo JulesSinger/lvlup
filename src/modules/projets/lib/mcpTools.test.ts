@@ -7,7 +7,7 @@ import { STATUS_LABELS } from './status';
 import { formatDuration, parseDuration } from './time';
 import * as types from './types';
 
-// Les outils de Projets du connecteur (docs/connecteur-claude.md §17).
+// Les outils de Projets du connecteur (docs/connecteur-claude.md §18).
 
 let n = 0;
 const uuid = () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`;

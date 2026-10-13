@@ -1,5 +1,5 @@
 /**
- * Les outils de Calendar pour Claude (docs/connecteur-claude.md §13) — règles
+ * Les outils de Calendar pour Claude (docs/connecteur-claude.md §14) — règles
  * pures, testées par Vitest (`src/modules/calendrier/lib/mcpTools.test.ts`),
  * qui compare chaque copie à la règle du module.
  *
@@ -682,8 +682,10 @@ export const calendarTools: Tool<CalendarContext>[] = [
     annotations: { idempotentHint: true },
     async run(args, ctx) {
       const { event, exceptions, occurrenceDay, scope } = await target(args, ctx.data);
-      const occurrence = expandEvents([event], exceptions, occurrenceDay, occurrenceDay).find((o) => o.occurrenceDay === occurrenceDay);
-      if (!occurrence) throw new Refused('Cette occurrence a été supprimée.');
+      // L'occurrence telle qu'à l'écran, exception comprise — même déplacée à un autre jour.
+      const own = exceptions.find((x) => x.eventId === event.id && x.occurrenceDay === occurrenceDay);
+      if (own?.kind === 'skip') throw new Refused('Cette occurrence a été supprimée.');
+      const occurrence = occurrenceOf(event, occurrenceDay, own?.kind === 'override' ? own.override : null);
       const before: OccurrenceValues = {
         title: occurrence.title,
         allDay: occurrence.allDay,

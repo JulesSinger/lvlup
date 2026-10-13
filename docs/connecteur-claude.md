@@ -185,9 +185,117 @@ Sport), les coches d'Objectifs (idem), recaler les semaines quand la date de la 
 (l'app le propose), supprimer un plan. Les règles recopiées (semaines, allures, zones, bornes)
 sont comparées à celles du module par le test.
 
-## 7. La suite
+## 10. Tous les modules (12/10/2026)
 
-Un module à la fois, chacun avec son fichier d'outils à côté de `recettes.ts`, `courses.ts` et
-`sport.ts`, et son test qui compare ses règles à celles du module : Tâches et un bilan transversal
-d'abord, puis Budget, Calendar, Objectifs, Flashcards (l'ordre proposé le 11/10/2026). À trancher pour chacun : ce qui peut
-se supprimer depuis Claude.
+Demande de Jules : « développe ce qu'il faut pour les MCP des autres modules, par ordre de
+priorités » — l'ordre de l'analyse du 11/10/2026. Chaque module a son fichier d'outils à côté
+de `recettes.ts`, et un test **dans le module** (`src/modules/<id>/lib/mcpTools.test.ts`) qui
+compare chaque règle recopiée à celle du module. La fonction ne peut pas importer `src/` (Deno
+demande des extensions `.ts`) : ce test est ce qui empêche les deux copies de diverger.
+
+Règles communes à tous :
+
+- **chaque requête filtre `user_id`** (la fonction parle avec la clé de service) ;
+- une écriture se **valide avec les règles du module** avant de partir, et refuse avec une phrase
+  plutôt que de laisser Postgres répondre ;
+- **ce qui touche un autre module passe par sa règle** : un paiement de projet entre dans Budget
+  sous `projets:paiement:<n>`, comme le service `expenses` ; une coche tenue par Sport (`ref`)
+  n'est jamais réécrite ;
+- **les rappels sont recalculés après chaque écriture** pour Calendar et Tâches, à l'heure de
+  Paris (`zone.ts`), exactement comme l'écran à son ouverture (comparé par les tests) : un
+  rendez-vous ou une tâche notés depuis Claude préviennent même si l'app n'est pas rouverte ;
+- les instructions du serveur (`serverInfo`) disent à Claude, **une ligne par module**, quand
+  utiliser quoi, et les liens entre modules.
+
+## 11. Tâches
+
+`taches.ts` (+ `recurrence.ts`, copie du moteur commun, comparée au texte près par
+`src/core/lib/mcpShared.test.ts`) : `taches_lister` (Aujourd'hui, À venir, À faire, une liste,
+Terminées), `taches_ajouter` (sous-tâches comprises), `taches_modifier`, `taches_cocher` (une tâche
+répétée laisse sa copie terminée et avance, comme l'app), `taches_supprimer`, `taches_listes`,
+`taches_liste_creer`, `taches_liste_modifier`. Claude lit lui-même « demain 9 h » : pas d'analyseur
+d'ajout rapide côté serveur.
+
+## 12. Le bilan transversal
+
+`bilan.ts` : `atlas_bilan` — une semaine ou un mois (ou deux jours), tous modules d'un coup :
+coches et PP d'Objectifs, km et séances de Sport, dépensé et entré de Budget (**mêmes règles que
+le camembert** : virements et épargne écartés, remboursements nets par catégorie — comparé à
+`computeMonthlyBreakdown`), tâches faites et en retard, recettes cuisinées, courses, kcal
+moyennes, hauts faits. Un module dont la table manque est simplement absent.
+
+## 13. Budget
+
+`budget.ts` : `budget_categories` (et les règles), `budget_ecritures` (un mois, « à classer »,
+recherche), `budget_mois` (l'Aperçu et le mois d'avant), `budget_classer` (plusieurs d'un coup),
+`budget_ecriture_ajouter` / `_modifier` / `_supprimer`, `budget_regle_creer` (qui dit quelles
+« à classer » des trois derniers mois elle aurait rangées) et `budget_regle_supprimer`. **Une
+opération du relevé garde le jour et le montant de la banque** : seuls catégorie, libellé et note
+changent. Une dépense notée à la main puis importée apparaîtrait deux fois : l'outil le dit.
+
+## 14. Calendar
+
+`calendar.ts` : `calendrier_evenements` (séries dépliées), `calendrier_ajouter`,
+`calendrier_modifier`, `calendrier_supprimer`. Une série se modifie **cet événement / les suivants /
+tous** avec `planEdit` et `planDelete` recopiés (comparés sur chaque portée) : seul ce qui change
+s'applique à la série, et la nouvelle série est créée avant que l'ancienne soit raccourcie. Une
+heure sans fin donne une heure ; 22 h → 1 h passe au lendemain. Les jours de la semaine d'une
+répétition : **0 = dimanche** (la convention du moteur).
+
+## 15. Objectifs
+
+`objectifs.ts` : `objectifs_resume` (rang, prochain palier et sa progression — `tierProgress`
+recopié et comparé sorte par sorte —, actions, coches du jour), `objectifs_cocher` (avec la
+quantité ; une mesure exige son relevé ; jamais un jour à venir), `objectifs_decocher`,
+`objectifs_geste` et `_retirer` (le geste ponctuel, 10 PP), `objectifs_historique`. **Claude ne
+valide pas un palier** : il dit qu'il est atteint, l'app le valide à son ouverture (le
+« rattrapage silencieux » de `ZenithScreen`), comme pour une coche venue de Sport. Ni objectif ni
+palier ne se créent ici.
+
+## 16. Flashcards
+
+`flashcards.ts` : `flashcards_paquets`, `flashcards_paquet_creer` / `_modifier`,
+`flashcards_cartes_ajouter` (200 par envoi, en boîte 1, à réviser dès aujourd'hui, rectos déjà
+là écartés), `flashcards_cartes`, `flashcards_carte_modifier` / `_supprimer`. **Claude n'écrit
+jamais de HTML** : l'app affiche recto et verso tels quels, alors Claude écrit un petit Markdown
+(gras, italique, souligné, barré, surligné, code, listes) que `toCardHtml` traduit dans les
+balises de l'éditeur, tout le reste échappé — vérifié avec un `<img onerror>`. Une carte dessinée
+ne se réécrit pas (le dessin serait perdu). La révision reste à l'app.
+
+## 17. Nutrition
+
+`nutrition.ts` et **une copie de `ciqual.json`** à côté (260 Ko, identique à l'octet près à celle de
+l'app : le test compare les deux fichiers) : `nutrition_journal` (un jour avec l'objectif et le
+reste, ou une période), `nutrition_chercher` (ses aliments et CIQUAL, favoris et récents d'abord,
+`searchFoods` recopié et comparé), `nutrition_ajouter`, `nutrition_modifier` (le poids remet les
+valeurs à l'échelle), `nutrition_supprimer`. Un aliment trouvé prend les valeurs de la table ; à
+défaut, une **estimation** de Claude, rangée sous « … (estimation) » et dite comme telle. Après une
+régénération de CIQUAL (`scripts/import-ciqual.mjs`), recopier le fichier, sinon le test échoue.
+
+## 18. Projets
+
+`projets.ts` : `projets_tableau`, `projets_projet` (chantiers et leur état, journal, paiements,
+taux horaire réel), `projets_tache_ajouter` / `_modifier` (cocher compris) / `_supprimer`,
+`projets_note` (le journal), `projets_temps`, `projets_attente`, `projets_statut`,
+`projets_paiement_recu` : le paiement d'abord, **puis l'entrée dans Budget** (« Revenus
+freelance », référence `projets:paiement:<n>`, rejouable sans doublon) — comme l'app. Clients,
+questionnaire, design, liens, images et échéancier restent à l'app.
+
+## 19. Hauts faits
+
+`hautsfaits.ts` : `hautsfaits_frise`, `hautsfaits_ajouter`, `hautsfaits_modifier`,
+`hautsfaits_supprimer`. La date s'écrit **à la précision connue** — « 2019 », « 2019-06 »,
+« 2019-06-14 » — et la précision s'en déduit ; `validateFeat` recopié et comparé. Les photos restent à
+l'app ; un haut fait qui en a ne se supprime pas ici (ses fichiers resteraient dans le stockage).
+
+## 20. Ce qui reste
+
+- **91 outils** : Claude les reçoit tous à chaque conversation. Si la liste gêne (lenteur, outils
+  mal choisis), un connecteur par groupe de modules se ferait sans rien réécrire : chaque fichier
+  exporte déjà sa liste.
+- Recettes → Courses n'a pas d'outil à soi : `recettes_lire`, `recettes_toujours_la` et
+  `courses_liste_ajouter` suffisent, et les instructions demandent la relecture de Jules avant
+  l'envoi (décision du 08/10/2026 : jamais automatique).
+- Les rappels de Projets, Sport, Budget et Hauts faits restent recalculés à l'ouverture de leur
+  module (leurs dates changent rarement depuis Claude).
+- À essayer pour de vrai, avec la clé : une tâche à 9 h demain doit sonner sans ouvrir l'app.

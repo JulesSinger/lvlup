@@ -8,7 +8,7 @@ import { rescaleEntry, targetForDay } from './journal';
 import { valuesForGrams } from './macros';
 import { MEALS, MEAL_LABELS } from './types';
 
-// Les outils de Nutrition du connecteur (docs/connecteur-claude.md §16) : la table CIQUAL est
+// Les outils de Nutrition du connecteur (docs/connecteur-claude.md §17) : la table CIQUAL est
 // copiée à côté de la fonction, la recherche et les calculs recopiés — tout est comparé ici.
 
 const ciqual = table.foods as CiqualRow[];

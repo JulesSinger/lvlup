@@ -1,5 +1,5 @@
 /**
- * Les outils de Flashcards pour Claude (docs/connecteur-claude.md §15) —
+ * Les outils de Flashcards pour Claude (docs/connecteur-claude.md §16) —
  * règles pures, testées par Vitest (`src/modules/flashcards/lib/mcpTools.test.ts`).
  *
  * Priorité n° 6 de l'analyse du 11/10/2026 : « fais-moi des cartes sur ce

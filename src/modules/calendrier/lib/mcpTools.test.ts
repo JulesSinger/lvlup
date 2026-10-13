@@ -8,7 +8,7 @@ import * as types from './types';
 import type { CalendarEvent, EventException } from './types';
 import { validateEvent } from './validation';
 
-// Les outils de Calendar du connecteur (docs/connecteur-claude.md §13) : la fonction recopie les
+// Les outils de Calendar du connecteur (docs/connecteur-claude.md §14) : la fonction recopie les
 // règles du module (occurrences, validation, séries, rappels) — chaque copie est comparée ici.
 
 const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -212,6 +212,13 @@ describe('connecteur — Calendar : les outils', () => {
     expect(m.list[1]).toMatchObject({ title: 'Yoga doux', startDay: '2026-10-27' });
     await m.call('calendrier_modifier', { event_id: m.list[1].id, occurrence_day: '2026-11-03', scope: 'tous', location: 'Salle 2' });
     expect(m.list[1]).toMatchObject({ location: 'Salle 2', startDay: '2026-10-27' });
+  });
+
+  it('retrouve une occurrence déplacée à un autre jour', async () => {
+    const m = memory([weekly]);
+    await m.call('calendrier_modifier', { event_id: weekly.id, occurrence_day: '2026-10-13', scope: 'cet_evenement', day: '2026-10-15' });
+    await m.call('calendrier_modifier', { event_id: weekly.id, occurrence_day: '2026-10-13', scope: 'cet_evenement', title: 'Yoga du jeudi' });
+    expect(m.xs).toEqual([expect.objectContaining({ occurrenceDay: '2026-10-13', override: { title: 'Yoga du jeudi', startDay: '2026-10-15', endDay: '2026-10-15' } })]);
   });
 
   it('supprime une occurrence, puis toute la série', async () => {

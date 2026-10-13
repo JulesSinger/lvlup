@@ -74,9 +74,9 @@ export function ClaudeConnector({ remote }: { remote: boolean }) {
     <section className="settings-block claude-connector">
       <h3 className="settings-title">Claude</h3>
       <p className="settings-hint">
-        Un connecteur pour demander à Claude — sur le site, l’app iPhone ou l’ordinateur — de tenir tes recettes et ton menu, ta liste de
-        courses — une course d’après la photo du ticket de caisse —, et ton plan marathon : un coach dans Claude y programme tes séances.
-        Les autres modules viendront ensuite.
+        Un connecteur pour parler à Atlas depuis Claude — le site, l’app iPhone ou l’ordinateur : noter une tâche ou un rendez-vous, cocher
+        une habitude, classer tes dépenses, enregistrer un ticket de caisse, un repas, une séance du coach marathon, tirer des cartes d’un
+        cours, tenir tes projets clients et tes hauts faits — ou demander le bilan de ta semaine.
       </p>
       {!remote ? (
         <p className="settings-hint claude-connector-local" role="note">

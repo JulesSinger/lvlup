@@ -1,5 +1,5 @@
 /**
- * Les outils de Projets pour Claude (docs/connecteur-claude.md §17) — règles
+ * Les outils de Projets pour Claude (docs/connecteur-claude.md §18) — règles
  * pures, testées par Vitest (`src/modules/projets/lib/mcpTools.test.ts`).
  *
  * Priorité n° 8 de l'analyse du 11/10/2026 : en sortant d'un rendez-vous
