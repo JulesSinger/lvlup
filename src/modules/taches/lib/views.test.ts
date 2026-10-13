@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { compareTasks, doneView, dueStatus, inboxView, listView, subtasksOf, todayView, upcomingView } from './views';
-import type { Task } from './types';
+import { compareTasks, doneView, dueStatus, inboxView, listView, navLists, subtasksOf, todayView, upcomingView } from './views';
+import type { Task, TaskList } from './types';
 
 const today = '2026-09-28';
 let n = 0;
@@ -113,5 +113,20 @@ describe('boîte de réception, listes, sous-tâches, terminées', () => {
       ['2026-09-28', ['Lundi soir', 'Lundi']],
       ['2026-09-27', ['Dimanche']],
     ]);
+  });
+});
+
+describe('navLists', () => {
+  const list = (id: string, position: number, favorite = false, archived = false): TaskList => ({
+    id, name: id, color: 'bleu', position, archived, favorite, createdAt: '2026-10-13T08:00:00.000Z',
+  });
+
+  it('met les favorites en tête, chaque groupe dans son ordre', () => {
+    const lists = [list('maison', 0), list('travail', 1, true), list('papiers', 2), list('courses', 3, true)];
+    expect(navLists(lists).map((l) => l.id)).toEqual(['travail', 'courses', 'maison', 'papiers']);
+  });
+
+  it('écarte les listes archivées, même favorites', () => {
+    expect(navLists([list('a', 0, true, true), list('b', 1)]).map((l) => l.id)).toEqual(['b']);
   });
 });

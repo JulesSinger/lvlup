@@ -12,7 +12,9 @@ function read(): TachesBackup {
   // Une tâche enregistrée avant la durée (28/09/2026) n'a pas le champ : `null`.
   // Ni ses rappels (06/10/2026) : `null`, celui par défaut.
   const tasks = arrayOf<Task>(raw.tachesTasks).map((t) => ({ ...t, durationMinutes: t.durationMinutes ?? null, reminders: t.reminders ?? null }));
-  return { lists: arrayOf<TaskList>(raw.tachesLists), tasks, settings };
+  // Une liste enregistrée avant les favorites (13/10/2026) n'a pas le champ.
+  const lists = arrayOf<TaskList>(raw.tachesLists).map((l) => ({ ...l, favorite: l.favorite ?? false }));
+  return { lists, tasks, settings };
 }
 
 /** Écriture par fusion : les sections des autres modules sont préservées. */
@@ -40,6 +42,7 @@ export class LocalTaches implements TachesStore {
       color: input.color ?? 'bleu',
       position: s.lists.length,
       archived: false,
+      favorite: false,
       createdAt: new Date().toISOString(),
     };
     s.lists.push(list);
@@ -47,7 +50,7 @@ export class LocalTaches implements TachesStore {
     return list;
   }
 
-  async updateList(id: string, patch: Partial<ListInput> & { position?: number; archived?: boolean }) {
+  async updateList(id: string, patch: Partial<ListInput> & { position?: number; archived?: boolean; favorite?: boolean }) {
     const s = read();
     const list = s.lists.find((l) => l.id === id);
     if (!list) return;

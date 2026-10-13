@@ -47,6 +47,8 @@ export interface TaskList {
   color: ListColor;
   position: number;
   archived: boolean;
+  /** Mise en tête de la barre des listes et en évidence (13/10/2026). */
+  favorite: boolean;
   createdAt: string;
 }
 

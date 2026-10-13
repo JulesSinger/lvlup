@@ -61,6 +61,51 @@
   background: var(--taches-color, var(--gray));
 }
 
+/* Une liste favorite (13/10/2026) : en tête, teintée de sa couleur, une étoile
+   à la place du point. La liste ouverte garde la teinte de sa couleur. */
+.taches-nav-item.taches-nav-favorite {
+  color: var(--text);
+  font-weight: 600;
+  border-color: color-mix(in srgb, var(--taches-color) 55%, transparent);
+  background: color-mix(in srgb, var(--taches-color) 14%, transparent);
+}
+
+.taches-nav-item.taches-nav-favorite.on {
+  border-color: var(--taches-color);
+  background: color-mix(in srgb, var(--taches-color) 26%, transparent);
+}
+
+.taches-list-star {
+  color: color-mix(in oklab, var(--taches-color), var(--text) var(--ink-mix));
+  font-size: 12px;
+  line-height: 1;
+}
+
+.taches-head-actions {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.taches-favorite-toggle.on {
+  color: var(--accent);
+}
+
+.taches-favorite-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.taches-favorite-field input {
+  width: auto;
+}
+
 .taches-nav-add {
   border-style: dashed;
 }

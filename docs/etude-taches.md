@@ -663,3 +663,26 @@ comprises — sans rien ôter à la sélection, demandée le 28/09/2026 :
   qui reste là pour tout le reste.
 
 Le titre tapé est pris tel quel : l'ajout rapide (« demain 9h ») ne s'applique qu'à la création.
+
+## 21. Des listes favorites (13/10/2026)
+
+Demande de Jules : « pouvoir mettre des listes en favoris et qu'elles soient mises en évidence ».
+
+- **Un drapeau sur la liste** (`TaskList.favorite`), migration `2026-10-13-taches-lists-favorite.sql`
+  (`taches_lists.favorite`, faux par défaut), au contrat et dans ses deux implémentations. Une
+  liste enregistrée avant se lit sans favori.
+- **En tête de la barre** (`navLists`, `lib/views.ts`, testé) : les favorites d'abord, puis les
+  autres, chacune dans son ordre ; l'ordre stocké (`position`) ne bouge pas. Les listes proposées
+  à l'ajout suivent le même ordre.
+- **Mises en évidence** : une étoile à la place du point, le nom en gras, la pastille teintée de
+  la couleur de la liste. Vérifié sur captures, sombre et clair ; sur téléphone, la barre défile
+  et les favorites viennent juste après les vues.
+- **Deux façons de basculer** : « ☆ Favorite » dans l'en-tête d'une liste ouverte (un toucher),
+  et une case dans la fenêtre de la liste — dès sa création.
+- La sauvegarde garde le drapeau. La restauration n'envoie la colonne que s'il y a une favorite,
+  pour qu'une sauvegarde sans favorite se restaure même avant la migration.
+- Le connecteur de Claude (`atlas-mcp`) ne connaît pas encore les favorites : il lit et modifie
+  les listes comme avant.
+
+Suite de Tâches +6 vérifications (80 → 86), tests unitaires +4. **Migration à appliquer par Jules** : sans
+elle, les listes s'affichent comme avant, mais mettre une liste en favorite est refusé par la base.

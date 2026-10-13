@@ -121,6 +121,34 @@ export async function run({ browser, check, BASE }) {
   await row(page, 'Ampoule du salon').waitFor();
   check('Ajouter dans une liste l’y range', await row(page, 'Ampoule du salon').isVisible());
 
+  // Les listes favorites (13/10/2026) : en tête de la barre, mises en évidence.
+  await page.getByRole('button', { name: '+ Liste' }).click();
+  await page.locator('#taches-list-name').fill('Travail');
+  await page.getByRole('button', { name: 'Créer' }).click();
+  await page.waitForSelector('.taches-list-editor', { state: 'detached' });
+  const navNames = async () => (await page.locator('.taches-nav-list').allTextContents()).map((t) => t.replace(/[★\d]/g, '').trim());
+  check('Une liste naît sans favori, rangée après les autres', (await navNames()).join(',') === 'Maison,Travail' && (await page.locator('.taches-nav-favorite').count()) === 0, (await navNames()).join(','));
+  await page.getByRole('button', { name: '☆ Favorite' }).click();
+  await page.locator('.taches-nav-favorite').waitFor();
+  check(
+    'Mise en favorite, la liste passe en tête, étoilée et mise en évidence',
+    (await navNames()).join(',') === 'Travail,Maison' && (await text(page.locator('.taches-nav-favorite'))).includes('★'),
+    (await navNames()).join(','),
+  );
+  check('Le bouton dit qu’elle est favorite', (await page.getByRole('button', { name: '★ Favorite' }).getAttribute('aria-pressed')) === 'true');
+  await page.reload();
+  await page.locator('.taches-nav-favorite').waitFor();
+  check('La favorite le reste après un rechargement', (await navNames()).join(',') === 'Travail,Maison');
+  await page.getByRole('button', { name: /^Travail/ }).click();
+  await page.getByRole('button', { name: 'Modifier la liste' }).click();
+  const favoriteBox = page.locator('.taches-list-editor input[type="checkbox"]');
+  check('La fenêtre de la liste montre la case cochée', await favoriteBox.isChecked());
+  await favoriteBox.uncheck();
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.taches-list-editor', { state: 'detached' });
+  check('Décocher la retire des favorites, la liste reprend sa place', (await navNames()).join(',') === 'Maison,Travail' && (await page.locator('.taches-nav-favorite').count()) === 0);
+  await page.getByRole('button', { name: /^Maison/ }).click();
+
   await page.getByRole('button', { name: /^Aujourd’hui/ }).click();
   await add(page, 'Cartouches #maison');
   await row(page, 'Cartouches').waitFor();

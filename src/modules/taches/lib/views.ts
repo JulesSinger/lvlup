@@ -4,7 +4,7 @@
  * premier niveau : une sous-tâche s'affiche sous sa tâche, jamais seule.
  */
 import { daysBetween, shiftDay } from '../../../core/lib/day';
-import type { Priority, Task } from './types';
+import type { Priority, Task, TaskList } from './types';
 
 /** Une échéance entre dans « Aujourd'hui » ce nombre de jours avant (elle est « proche »). */
 export const DUE_SOON_DAYS = 2;
@@ -103,4 +103,14 @@ export function subtasksOf(tasks: readonly Task[], parentId: string): Task[] {
   return tasks
     .filter((t) => t.parentId === parentId)
     .sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt));
+}
+
+/**
+ * Les listes de la barre : les favorites d'abord (13/10/2026), puis les
+ * autres, chacune dans son ordre. Une archivée n'y figure pas.
+ */
+export function navLists(lists: readonly TaskList[]): TaskList[] {
+  return lists
+    .filter((l) => !l.archived)
+    .sort((a, b) => Number(b.favorite) - Number(a.favorite) || a.position - b.position);
 }

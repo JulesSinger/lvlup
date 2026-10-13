@@ -23,7 +23,7 @@ import { completionPlan, undoCompletion, upcomingOccurrences } from './lib/repea
 import { effectiveTaskReminders } from './lib/reminders';
 import { DEFAULT_TACHES_SETTINGS, type TachesSettings, type Task, type TaskInput, type TaskList, type TaskPatch } from './lib/types';
 import { validateTask } from './lib/validation';
-import { doneView, inboxView, listView, subtasksOf, todayView, upcomingView } from './lib/views';
+import { doneView, inboxView, listView, navLists, subtasksOf, todayView, upcomingView } from './lib/views';
 
 /** La vue ouverte : Aujourd'hui, À venir, la boîte de réception, les terminées, ou une liste. */
 type View = 'today' | 'upcoming' | 'inbox' | 'done' | `list:${string}`;
@@ -192,7 +192,8 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
     }
   }
 
-  const activeLists = useMemo(() => lists.filter((l) => !l.archived).sort((a, b) => a.position - b.position), [lists]);
+  // Les favorites d'abord (13/10/2026) : dans la barre, et dans les listes proposées à l'ajout.
+  const activeLists = useMemo(() => navLists(lists), [lists]);
   const currentList = view.startsWith('list:') ? lists.find((l) => `list:${l.id}` === view) : undefined;
   // Une liste supprimée entre-temps : retour à « À faire ».
   useEffect(() => {
@@ -399,18 +400,23 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
     });
   }
 
-  async function saveList(name: string, color: TaskList['color']) {
+  async function saveList(name: string, color: TaskList['color'], favorite: boolean) {
     if (listEditing === 'new') {
       let created: TaskList | undefined;
       await write(async () => {
         created = await tachesStore.createList({ name, color });
+        if (favorite) await tachesStore.updateList(created.id, { favorite: true });
       });
       if (created) setView(`list:${created.id}`);
     } else if (listEditing) {
       const id = listEditing.id;
-      await write(() => tachesStore.updateList(id, { name, color }));
+      await write(() => tachesStore.updateList(id, { name, color, favorite }));
     }
     setListEditing(null);
+  }
+
+  async function toggleFavorite(list: TaskList) {
+    await write(() => tachesStore.updateList(list.id, { favorite: !list.favorite }));
   }
 
   async function deleteList() {
@@ -583,11 +589,17 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
             <button
               key={l.id}
               type="button"
-              className={`taches-nav-item taches-nav-list taches-color-${l.color}${view === `list:${l.id}` ? ' on' : ''}`}
+              className={`taches-nav-item taches-nav-list taches-color-${l.color}${l.favorite ? ' taches-nav-favorite' : ''}${view === `list:${l.id}` ? ' on' : ''}`}
               aria-current={view === `list:${l.id}` ? 'page' : undefined}
               onClick={() => setView(`list:${l.id}`)}
             >
-              <span className="taches-list-dot" aria-hidden="true" />
+              {l.favorite ? (
+                <span className="taches-list-star" aria-hidden="true">
+                  ★
+                </span>
+              ) : (
+                <span className="taches-list-dot" aria-hidden="true" />
+              )}
               {l.name}
               {(counts.lists.get(l.id) ?? 0) > 0 && <span className="taches-count">{counts.lists.get(l.id)}</span>}
             </button>
@@ -603,9 +615,19 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
             {view === 'today' && <span className="taches-subtitle">{longDate(today)}</span>}
           </h1>
           {currentList && (
-            <button className="btn btn-ghost btn-sm" onClick={() => setListEditing(currentList)}>
-              Modifier la liste
-            </button>
+            <span className="taches-head-actions">
+              <button
+                className={`btn btn-ghost btn-sm taches-favorite-toggle${currentList.favorite ? ' on' : ''}`}
+                aria-pressed={currentList.favorite}
+                title={currentList.favorite ? 'Retirer des favorites' : 'Mettre en favorite : en tête, mise en évidence'}
+                onClick={() => void toggleFavorite(currentList)}
+              >
+                {currentList.favorite ? '★ Favorite' : '☆ Favorite'}
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setListEditing(currentList)}>
+                Modifier la liste
+              </button>
+            </span>
           )}
         </div>
 

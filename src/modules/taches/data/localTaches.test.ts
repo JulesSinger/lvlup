@@ -91,6 +91,18 @@ describe('LocalTaches', () => {
     expect((await store.listLists())[0]).toMatchObject({ name: 'Administratif', archived: true });
   });
 
+  it('une liste naît sans favori, et se met en favori', async () => {
+    const list = await store.createList({ name: 'Travail' });
+    expect(list.favorite).toBe(false);
+    await store.updateList(list.id, { favorite: true });
+    expect((await store.listLists())[0].favorite).toBe(true);
+  });
+
+  it('une liste enregistrée avant les favorites se lit sans favori', async () => {
+    localStorage.setItem('palier.v1', JSON.stringify({ tachesLists: [{ id: 'l1', name: 'Vieille', color: 'bleu', position: 0, archived: false, createdAt: '2026-09-27T08:00:00.000Z' }] }));
+    expect((await store.listLists())[0].favorite).toBe(false);
+  });
+
   it('exporte et réimporte à l’identique', async () => {
     const list = await store.createList({ name: 'Maison' });
     await store.createTask({ title: 'Arroser', listId: list.id, plannedDay: '2026-09-28', recurrence: { freq: 'daily', interval: 5 }, repeatFrom: 'completion' });
