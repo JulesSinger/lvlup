@@ -49,6 +49,8 @@ export interface TaskList {
   archived: boolean;
   /** Mise en tête de la barre des listes et en évidence (13/10/2026). */
   favorite: boolean;
+  /** Une liste « travail » : la seule chose que Tâches montre en mode travail (14/10/2026). */
+  work: boolean;
   createdAt: string;
 }
 

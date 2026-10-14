@@ -19,6 +19,8 @@ export function ModulePicker({
   onSelect,
   onOpenSettings,
   onReorder,
+  workMode,
+  onToggleWorkMode,
 }: {
   modules: readonly AtlasModule[];
   user: AppUser;
@@ -26,6 +28,9 @@ export function ModulePicker({
   onOpenSettings: () => void;
   /** L'ordre des modules après un glisser. */
   onReorder: (order: string[]) => void;
+  /** Le mode « au travail » (14/10/2026). */
+  workMode: boolean;
+  onToggleWorkMode: () => void;
 }) {
   const grid = useRef<HTMLDivElement>(null);
   const drag = useReorderDrag(
@@ -47,6 +52,9 @@ export function ModulePicker({
               {user.email}
             </span>
           )}
+          <button className={`btn btn-ghost btn-sm atlas-work-toggle${workMode ? ' on' : ''}`} onClick={onToggleWorkMode} aria-pressed={workMode}>
+            💼 Mode travail
+          </button>
           <button className="btn btn-ghost btn-sm" onClick={onOpenSettings}>
             ⚙ Réglages
           </button>
@@ -55,6 +63,11 @@ export function ModulePicker({
 
       <main className="hub-picker-main">
         <h1 className="hub-picker-title">Tes modules</h1>
+        {workMode && (
+          <p className="atlas-work-banner" role="status">
+            💼 Mode travail : seuls les modules du travail sont visibles, et seulement ce qui est marqué « travail ».
+          </p>
+        )}
         <div className="hub-picker-grid" ref={grid}>
           {drag.order.flatMap((id) => byId.get(id) ?? []).map((m) => (
             <button

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareTasks, doneView, dueStatus, inboxView, listView, navLists, subtasksOf, todayView, upcomingView } from './views';
+import { compareTasks, doneView, dueStatus, inboxView, listView, navLists, subtasksOf, todayView, upcomingView, workScope } from './views';
 import type { Task, TaskList } from './types';
 
 const today = '2026-09-28';
@@ -118,7 +118,7 @@ describe('boîte de réception, listes, sous-tâches, terminées', () => {
 
 describe('navLists', () => {
   const list = (id: string, position: number, favorite = false, archived = false): TaskList => ({
-    id, name: id, color: 'bleu', position, archived, favorite, createdAt: '2026-10-13T08:00:00.000Z',
+    id, name: id, color: 'bleu', position, archived, favorite, work: false, createdAt: '2026-10-13T08:00:00.000Z',
   });
 
   it('met les favorites en tête, chaque groupe dans son ordre', () => {
@@ -128,5 +128,20 @@ describe('navLists', () => {
 
   it('écarte les listes archivées, même favorites', () => {
     expect(navLists([list('a', 0, true, true), list('b', 1)]).map((l) => l.id)).toEqual(['b']);
+  });
+});
+
+describe('workScope', () => {
+  const list = (id: string, work: boolean): TaskList => ({ id, name: id, color: 'bleu', position: 0, archived: false, favorite: false, work, createdAt: '' });
+  it('ne garde que les listes « travail » et leurs tâches, sous-tâches comprises', () => {
+    const tasks = [
+      task({ id: 'a', title: 'Rapport', listId: 'boulot' }),
+      task({ id: 'a1', title: 'Relire', parentId: 'a', listId: null }),
+      task({ id: 'b', title: 'Pain', listId: 'maison' }),
+      task({ id: 'c', title: 'Idée', listId: null }),
+    ];
+    const scope = workScope(tasks, [list('boulot', true), list('maison', false)]);
+    expect(scope.lists.map((l) => l.id)).toEqual(['boulot']);
+    expect(titles(scope.tasks)).toEqual(['Rapport', 'Relire']);
   });
 });

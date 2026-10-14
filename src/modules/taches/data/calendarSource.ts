@@ -4,7 +4,7 @@ import type { CalendarSource } from '../../../core/lib/services';
 import { taskIdOf, taskMarks } from '../lib/calendarMarks';
 import { completionPlan } from '../lib/repeat';
 import { validateTask } from '../lib/validation';
-import { subtasksOf } from '../lib/views';
+import { subtasksOf, workScope } from '../lib/views';
 import { applyCompletion } from './applyPlans';
 import type { TachesStore } from './tachesStore';
 
@@ -21,8 +21,10 @@ export function createCalendarSource(store: TachesStore, afterWrite: () => Promi
     label: 'Tâches',
     color: '#ff9f7a',
     defaultVisible: true,
-    async marksBetween(from, to) {
-      const [tasks, lists] = await Promise.all([store.listTasks(), store.listLists()]);
+    async marksBetween(from, to, context) {
+      const [allTasks, allLists] = await Promise.all([store.listTasks(), store.listLists()]);
+      // Au travail (14/10/2026), seules les tâches des listes de travail.
+      const { tasks, lists } = context?.workMode ? workScope(allTasks, allLists) : { tasks: allTasks, lists: allLists };
       return taskMarks(tasks, lists, from, to, dayString());
     },
     async toggleMark(markId) {

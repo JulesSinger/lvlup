@@ -5,17 +5,20 @@ interface Props {
   /** `null` : une nouvelle liste */
   list: TaskList | null;
   onCancel: () => void;
-  onSave: (name: string, color: ListColor, favorite: boolean) => Promise<void>;
+  onSave: (name: string, color: ListColor, favorite: boolean, work: boolean) => Promise<void>;
+  /** Une nouvelle liste créée en mode travail est une liste de travail (14/10/2026). */
+  workMode?: boolean;
   onDelete?: () => Promise<void>;
 }
 
 const COLOR_LABELS: Record<ListColor, string> = { bleu: 'Bleu', vert: 'Vert', orange: 'Orange', rose: 'Rose', violet: 'Violet', gris: 'Gris' };
 
 /** Créer, renommer ou supprimer une liste. La supprimer renvoie ses tâches à la boîte de réception. */
-export function ListEditor({ list, onCancel, onSave, onDelete }: Props) {
+export function ListEditor({ list, onCancel, onSave, onDelete, workMode = false }: Props) {
   const [name, setName] = useState(list?.name ?? '');
   const [color, setColor] = useState<ListColor>(list?.color ?? 'bleu');
   const [favorite, setFavorite] = useState(list?.favorite ?? false);
+  const [work, setWork] = useState(list?.work ?? workMode);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -42,7 +45,7 @@ export function ListEditor({ list, onCancel, onSave, onDelete }: Props) {
     const value = name.trim();
     if (!value) return setError('Donne un nom à la liste.');
     if (value.length > 60) return setError('Le nom est trop long (60 caractères au plus).');
-    void run(() => onSave(value, color, favorite));
+    void run(() => onSave(value, color, favorite, work));
   }
 
   return (
@@ -87,6 +90,10 @@ export function ListEditor({ list, onCancel, onSave, onDelete }: Props) {
           <label className="taches-favorite-field">
             <input type="checkbox" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} />
             <span>Favorite — en tête des listes, mise en évidence</span>
+          </label>
+          <label className="taches-favorite-field">
+            <input type="checkbox" checked={work} onChange={(e) => setWork(e.target.checked)} />
+            <span>💼 Liste de travail — la seule chose visible en mode travail</span>
           </label>
           {list && <p className="taches-hint">Supprimer la liste renvoie ses tâches dans À faire.</p>}
           {error && <div className="notice error">{error}</div>}

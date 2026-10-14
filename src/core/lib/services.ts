@@ -123,6 +123,14 @@ export interface MarkEditorProps {
   header?: ReactNode;
   /** `changed` : quelque chose a été écrit, le calque est à relire. */
   onClose: (changed: boolean) => void;
+  /** Le mode « au travail » (14/10/2026) : ce qu'on crée l'est pour le travail. */
+  workMode?: boolean;
+}
+
+/** Ce que le calendrier dit au calque en le lui demandant. */
+export interface MarksContext {
+  /** Le mode « au travail » (14/10/2026) : le calque ne rend que ce qui est marqué « travail ». */
+  workMode: boolean;
 }
 
 /**
@@ -140,7 +148,7 @@ export interface CalendarSource {
   /** Affiché tant que l'utilisateur n'a rien choisi */
   defaultVisible: boolean;
   /** Les marques des jours `from` à `to`, inclus */
-  marksBetween(from: string, to: string): Promise<CalendarMark[]>;
+  marksBetween(from: string, to: string, context?: MarksContext): Promise<CalendarMark[]>;
   /**
    * Cocher ou décocher une marque `checkable` — le premier calque qui écrit
    * (Polaris, 28/09/2026). C'est le module qui décide de ce que « cocher »

@@ -29,6 +29,7 @@ const event = (extra: Partial<CalendarEvent>): CalendarEvent => ({
   location: '',
   note: '',
   reminders: null,
+  work: false,
   createdAt: '2026-10-01T00:00:00Z',
   ...extra,
 });
@@ -126,7 +127,7 @@ function memory(initial: CalendarEvent[] = [], initialExceptions: EventException
     listExceptions: async () => xs.map((x) => ({ ...x })),
     getSettings: async () => ({ timedReminders: [], allDayReminders: [] }),
     createEvent: async (input) => {
-      const e = { id: uuid(), createdAt: '', timezone: 'Europe/Paris', recurrence: null, color: 'bleu', location: '', note: '', reminders: null, ...input } as CalendarEvent;
+      const e = { id: uuid(), createdAt: '', timezone: 'Europe/Paris', recurrence: null, color: 'bleu', location: '', note: '', reminders: null, work: false, ...input } as CalendarEvent;
       list.push(e);
       return e;
     },

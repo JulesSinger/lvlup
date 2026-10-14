@@ -11,15 +11,15 @@ import { effectiveTaskReminders } from '../lib/reminders';
 import { completionPlan } from '../lib/repeat';
 import { DEFAULT_TACHES_SETTINGS, type TachesSettings, type Task, type TaskInput, type TaskList, type TaskPatch } from '../lib/types';
 import { validateTask } from '../lib/validation';
-import { subtasksOf } from '../lib/views';
+import { navLists, subtasksOf } from '../lib/views';
 import { TaskEditor } from './TaskEditor';
 
 /** Une tâche pas encore enregistrée, posée sur le créneau touché dans le calendrier. */
-function draftTask(id: string, slot: MarkSlot | undefined, today: string): Task {
+function draftTask(id: string, slot: MarkSlot | undefined, today: string, listId: string | null = null): Task {
   const time = slot?.time ?? null;
   return {
     id,
-    listId: null,
+    listId,
     parentId: null,
     title: slot?.title ?? '',
     note: '',
@@ -44,7 +44,7 @@ function draftTask(id: string, slot: MarkSlot | undefined, today: string): Task 
  * créneau. Elle écrit par le même rédacteur que l'écran de Tâches — file hors
  * ligne comprise — et recalcule les rappels après chaque écriture.
  */
-export function CalendarTaskEditor({ link, slot, header, onClose }: MarkEditorProps) {
+export function CalendarTaskEditor({ link, slot, header, onClose, workMode = false }: MarkEditorProps) {
   const today = dayString();
   const [data, setData] = useState<{ tasks: Task[]; lists: TaskList[]; settings: TachesSettings } | null>(null);
   const [problem, setProblem] = useState('');
@@ -102,7 +102,9 @@ export function CalendarTaskEditor({ link, slot, header, onClose }: MarkEditorPr
     );
   }
 
-  const task = existing ?? draftTask(draftId, slot, today);
+  // Au travail (14/10/2026), une tâche créée va dans la première liste de travail, et l'on ne choisit que parmi elles.
+  const lists = workMode ? navLists((data?.lists ?? []).filter((l) => l.work)) : (data?.lists ?? []);
+  const task = existing ?? draftTask(draftId, slot, today, workMode ? (lists[0]?.id ?? null) : null);
   const isNew = !existing;
   const tasks = data?.tasks ?? [];
 
@@ -134,7 +136,7 @@ export function CalendarTaskEditor({ link, slot, header, onClose }: MarkEditorPr
       today={today}
       subtasks={subtasksOf(tasks, task.id)}
       allTasks={tasks}
-      lists={data?.lists ?? []}
+      lists={lists}
       defaultReminders={effectiveTaskReminders({ reminders: null }, data?.settings ?? DEFAULT_TACHES_SETTINGS)}
       isNew={isNew}
       header={header}

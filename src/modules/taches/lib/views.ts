@@ -114,3 +114,15 @@ export function navLists(lists: readonly TaskList[]): TaskList[] {
     .filter((l) => !l.archived)
     .sort((a, b) => Number(b.favorite) - Number(a.favorite) || a.position - b.position);
 }
+
+/**
+ * Le mode « au travail » (14/10/2026) : seules les listes marquées « travail »,
+ * et les tâches qui y sont rangées — sous-tâches comprises, qui suivent leur
+ * tâche. Une tâche sans liste (« À faire ») est personnelle.
+ */
+export function workScope(tasks: readonly Task[], lists: readonly TaskList[]): { tasks: Task[]; lists: TaskList[] } {
+  const workLists = lists.filter((l) => l.work);
+  const ids = new Set(workLists.map((l) => l.id));
+  const shown = new Set(tasks.filter((t) => t.parentId === null && t.listId !== null && ids.has(t.listId)).map((t) => t.id));
+  return { lists: workLists, tasks: tasks.filter((t) => shown.has(t.id) || (t.parentId !== null && shown.has(t.parentId))) };
+}

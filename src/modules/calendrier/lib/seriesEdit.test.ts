@@ -18,6 +18,7 @@ const series: CalendarEvent = {
   location: 'Salle',
   note: '',
   reminders: null,
+  work: false,
   createdAt: '',
 };
 

@@ -121,6 +121,8 @@ export default function CalendarView({ items, initialView, narrow, onRangeChange
           else onOpenMark(sourceId as string, markId as string);
           return;
         }
+        // Un bloc « Occupé » du mode travail ne s'ouvre pas : il ne dit rien de plus.
+        if (arg.event.extendedProps.busy) return;
         onOpen(arg.event.extendedProps.eventId as string, arg.event.extendedProps.occurrenceDay as string);
       }}
       eventDrop={(arg) => {

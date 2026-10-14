@@ -30,6 +30,8 @@ interface EventRow {
   note: string;
   reminders: number[] | null;
   source_uid?: string | null;
+  /** Absente tant que la migration du 14/10/2026 n'est pas appliquée. */
+  work?: boolean;
   created_at: string;
 }
 
@@ -60,6 +62,7 @@ const toEvent = (r: EventRow): CalendarEvent => ({
   note: r.note,
   reminders: r.reminders ?? null,
   sourceUid: r.source_uid ?? null,
+  work: r.work ?? false,
   createdAt: r.created_at,
 });
 
@@ -88,6 +91,7 @@ function eventColumns(patch: Partial<EventInput>): Record<string, unknown> {
   if (patch.note !== undefined) row.note = patch.note;
   if (patch.reminders !== undefined) row.reminders = patch.reminders;
   if (patch.sourceUid !== undefined) row.source_uid = patch.sourceUid;
+  if (patch.work !== undefined) row.work = patch.work;
   // Journée entière : pas d'heure, sinon la contrainte de la base refuse.
   if (patch.allDay === true) {
     row.start_time = null;

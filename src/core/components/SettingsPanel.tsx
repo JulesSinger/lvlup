@@ -30,6 +30,7 @@ export function SettingsPanel({
   onImport,
   onClose,
   modules,
+  allModules = modules,
   onBackToHub,
 }: {
   user: AppUser | null;
@@ -40,6 +41,8 @@ export function SettingsPanel({
   onClose: () => void;
   /** Chaque module ayant une `SettingsSection` y ajoute la sienne, sous son nom. */
   modules: readonly AtlasModule[];
+  /** Tous les modules, même ceux que le mode travail cache : pour choisir ceux qu'il garde. */
+  allModules?: readonly AtlasModule[];
   /**
    * Revient à l'écran de choix du module. Porté par la fenêtre de réglages
    * plutôt que par le seul pied de la barre latérale : c'est le seul endroit
@@ -139,6 +142,37 @@ export function SettingsPanel({
                 >
                   {THEME_LABELS[choice]}
                 </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="settings-block">
+            <h3 className="settings-title">Mode travail</h3>
+            <p className="settings-hint">
+              Au travail, seuls ces modules restent visibles, et ils ne montrent que ce qui est marqué « travail » : les listes de
+              Tâches marquées travail, les événements marqués travail (les autres deviennent des blocs « Occupé »). Le même
+              interrupteur sur tous tes appareils. C'est un affichage, pas une protection : tes données restent celles du compte.
+            </p>
+            <label className="settings-switch-row">
+              <input type="checkbox" checked={settings.workMode} onChange={(e) => onChange({ workMode: e.target.checked })} />
+              <span>💼 Au travail</span>
+            </label>
+            <div className="settings-work-modules" role="group" aria-label="Modules visibles au travail">
+              {allModules.map((m) => (
+                <label key={m.id} className="settings-switch-row">
+                  <input
+                    type="checkbox"
+                    checked={settings.workModules.includes(m.id)}
+                    onChange={(e) =>
+                      onChange({
+                        workModules: e.target.checked ? [...settings.workModules, m.id] : settings.workModules.filter((id) => id !== m.id),
+                      })
+                    }
+                  />
+                  <span>
+                    {m.emoji} {m.label}
+                  </span>
+                </label>
               ))}
             </div>
           </section>

@@ -23,6 +23,8 @@ interface ListRow {
   archived: boolean;
   /** Absente tant que la migration du 13/10/2026 n'est pas appliquée. */
   favorite?: boolean;
+  /** Absente tant que la migration du 14/10/2026 n'est pas appliquée. */
+  work?: boolean;
   created_at: string;
 }
 
@@ -55,6 +57,7 @@ const toList = (r: ListRow): TaskList => ({
   position: r.position,
   archived: r.archived,
   favorite: r.favorite ?? false,
+  work: r.work ?? false,
   createdAt: r.created_at,
 });
 
@@ -138,7 +141,7 @@ export class SupabaseTaches implements TachesStore {
     return toList(row);
   }
 
-  async updateList(id: string, patch: Partial<ListInput> & { position?: number; archived?: boolean; favorite?: boolean }) {
+  async updateList(id: string, patch: Partial<ListInput> & { position?: number; archived?: boolean; favorite?: boolean; work?: boolean }) {
     check((await this.client.from('taches_lists').update(patch).eq('id', id)).error);
   }
 
@@ -231,11 +234,12 @@ export class SupabaseTaches implements TachesStore {
     // sauvegarde sans favorite se restaure même avant la migration du 13/10/2026.
     // Toutes les lignes ou aucune : un envoi groupé aux colonnes inégales mettrait `null`.
     const withFavorite = lists.some((l) => l.favorite);
+    const withWork = lists.some((l) => l.work);
     if (lists.length > 0) {
       check(
         (
           await this.client.from('taches_lists').insert(
-            lists.map((l) => ({ id: l.id, user_id: userId, name: l.name, color: l.color, position: l.position, archived: l.archived, ...(withFavorite ? { favorite: l.favorite === true } : {}) })),
+            lists.map((l) => ({ id: l.id, user_id: userId, name: l.name, color: l.color, position: l.position, archived: l.archived, ...(withFavorite ? { favorite: l.favorite === true } : {}), ...(withWork ? { work: l.work === true } : {}) })),
           )
         ).error,
       );

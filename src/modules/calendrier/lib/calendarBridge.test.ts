@@ -21,6 +21,7 @@ const occurrence = (overrides: Partial<Occurrence> = {}): Occurrence => ({
   location: '',
   note: '',
   reminders: null,
+  work: false,
   recurring: false,
   modified: false,
   ...overrides,

@@ -10,11 +10,12 @@ import { coreStore } from './core/data';
 import { exportBackup, importBackup, readBackupFile } from './core/data/backup';
 import { DEFAULT_SETTINGS, type Settings } from './core/data/coreStore';
 import { claimDevice, forgetDeviceData } from './core/data/deviceOwner';
-import { orderModules } from './core/lib/moduleOrder';
+import { orderModules, reorderSubset } from './core/lib/moduleOrder';
 import { hashFor, initialModule, readLastModule, routeFromHash, saveLastModule } from './core/lib/moduleRoute';
 import { timezoneOffsetMinutes } from './core/lib/push';
 import { collectServices } from './core/lib/services';
 import type { AppUser } from './core/lib/types';
+import { visibleModules } from './core/lib/workMode';
 import { MODULES } from './modules';
 
 /** Ce que chaque module oublie de l'appareil à la déconnexion (`AtlasModule.forgetDevice`). */
@@ -24,7 +25,17 @@ const forgetHooks = MODULES.flatMap((m) => (m.forgetDevice ? [() => m.forgetDevi
  * Les services que les modules se rendent (`core/lib/services.ts`). Calculés
  * une fois : le registre ne change pas pendant la vie de l'application.
  */
-const SERVICES = collectServices(MODULES);
+/**
+ * Les services des modules visibles : tous d'ordinaire, ceux du mode travail
+ * sinon — un calque du calendrier d'un module caché disparaît avec lui.
+ * Gardés par liste de modules, pour garder la même référence d'un rendu à l'autre.
+ */
+const servicesCache = new Map<string, ReturnType<typeof collectServices>>();
+function servicesFor(modules: readonly (typeof MODULES)[number][]) {
+  const key = modules.map((m) => m.id).join(',');
+  if (!servicesCache.has(key)) servicesCache.set(key, collectServices(modules));
+  return servicesCache.get(key)!;
+}
 const MODULE_IDS = MODULES.map((m) => m.id);
 
 /** Le module à ouvrir maintenant : celui de l'adresse, sinon le dernier, sinon la liste. */
@@ -250,15 +261,22 @@ export default function App() {
     return <SecondFactorScreen email={user.email} />;
   }
 
-  const activeModule = MODULES.find((m) => m.id === moduleId) ?? null;
+  // Le mode « au travail » (14/10/2026) : seuls ses modules restent ; un module caché ne s'ouvre pas.
+  const shown = visibleModules(MODULES, settings);
+  const activeModule = shown.find((m) => m.id === moduleId) ?? null;
   // L'ordre choisi à la main (13/10/2026) ; le registre reste la liste des modules.
-  const ordered = orderModules(MODULES, settings.moduleOrder);
-  const reorderModules = (order: string[]) => {
-    setSettings((s) => ({ ...s, moduleOrder: order }));
-    void coreStore.updateSettings({ moduleOrder: order }).catch((err) => {
-      setError(err instanceof Error ? err.message : 'Ordre des modules non enregistré.');
+  const ordered = orderModules(shown, settings.moduleOrder);
+  const services = servicesFor(shown);
+  const changeSettings = (patch: Partial<Settings>, failure: string) => {
+    setSettings((s) => ({ ...s, ...patch }));
+    void coreStore.updateSettings(patch).catch((err) => {
+      setError(err instanceof Error ? err.message : failure);
     });
   };
+  // En mode travail, on ne glisse que les modules visibles : les autres gardent leur place.
+  const reorderModules = (order: string[]) =>
+    changeSettings({ moduleOrder: reorderSubset(orderModules(MODULES, settings.moduleOrder).map((m) => m.id), order) }, 'Ordre des modules non enregistré.');
+  const toggleWorkMode = () => changeSettings({ workMode: !settings.workMode }, 'Mode travail non enregistré.');
 
   return (
     <>
@@ -269,6 +287,8 @@ export default function App() {
           user={user!}
           onSelect={(id) => navigate(id)}
           onOpenSettings={() => setShowSettings(true)}
+          workMode={settings.workMode}
+          onToggleWorkMode={toggleWorkMode}
         />
       ) : (
         <div className="atlas-shell">
@@ -278,6 +298,8 @@ export default function App() {
             activeId={activeModule.id}
             onSelect={(id) => navigate(id)}
             onHome={() => navigate(null)}
+            workMode={settings.workMode}
+            onToggleWorkMode={toggleWorkMode}
           />
           <div className="atlas-shell-main">
             <activeModule.Screen
@@ -294,12 +316,13 @@ export default function App() {
               emoji={activeModule.emoji}
               onOpenModule={(id, next) => {
                 // Un module absent du registre : rien à ouvrir, on reste où l'on est.
-                if (!MODULES.some((m) => m.id === id)) return;
+                // Un module caché par le mode travail ne s'ouvre pas non plus.
+                if (!shown.some((m) => m.id === id)) return;
                 navigate(id, next ?? null);
               }}
               intent={intent}
               reloadToken={reloadToken}
-              services={SERVICES}
+              services={services}
             />
           </div>
         </div>
@@ -313,6 +336,8 @@ export default function App() {
           onSelect={(id) => navigate(id)}
           onHome={() => navigate(null)}
           onClose={() => setSwitching(false)}
+          workMode={settings.workMode}
+          onToggleWorkMode={toggleWorkMode}
         />
       )}
 
@@ -329,7 +354,9 @@ export default function App() {
           onExport={exportJson}
           onImport={importJson}
           onClose={() => setShowSettings(false)}
-          modules={MODULES}
+          // Les sections des seuls modules visibles ; le choix du mode travail porte sur tous.
+          modules={shown}
+          allModules={MODULES}
           // Inutile de proposer de « changer de module » si on est déjà sur
           // l'écran qui les liste.
           onBackToHub={activeModule ? () => navigate(null) : undefined}

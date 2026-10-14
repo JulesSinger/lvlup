@@ -50,11 +50,16 @@ export interface CalendarEvent {
    * absent pour un événement créé dans Atlas (docs/etude-calendrier.md §20).
    */
   sourceUid?: string | null;
+  /**
+   * Un événement « travail » (14/10/2026) : en mode travail, le seul montré
+   * en entier ; les autres deviennent des blocs « Occupé ». Pour toute la série.
+   */
+  work: boolean;
   createdAt: string;
 }
 
 export type EventInput = Pick<CalendarEvent, 'title' | 'allDay' | 'startDay' | 'endDay' | 'startTime' | 'endTime'> &
-  Partial<Pick<CalendarEvent, 'timezone' | 'recurrence' | 'color' | 'location' | 'note' | 'reminders' | 'sourceUid'>>;
+  Partial<Pick<CalendarEvent, 'timezone' | 'recurrence' | 'color' | 'location' | 'note' | 'reminders' | 'sourceUid' | 'work'>>;
 
 /**
  * Les rappels possibles, en minutes avant le début (01/10/2026). Avec une

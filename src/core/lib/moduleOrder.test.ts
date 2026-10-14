@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dropIndex, orderModules } from './moduleOrder';
+import { dropIndex, orderModules, reorderSubset } from './moduleOrder';
 
 const mods = ['objectifs', 'budget', 'taches', 'sport'].map((id) => ({ id }));
 const ids = (list: { id: string }[]) => list.map((m) => m.id);
@@ -15,6 +15,12 @@ describe('orderModules', () => {
 
   it('un module ajouté depuis vient à la fin, un module disparu est ignoré', () => {
     expect(ids(orderModules(mods, ['taches', 'ancien', 'objectifs']))).toEqual(['taches', 'objectifs', 'budget', 'sport']);
+  });
+});
+
+describe('reorderSubset', () => {
+  it('réordonne les modules visibles sans déplacer les autres', () => {
+    expect(reorderSubset(['objectifs', 'taches', 'budget', 'calendrier'], ['calendrier', 'taches'])).toEqual(['objectifs', 'calendrier', 'budget', 'taches']);
   });
 });
 

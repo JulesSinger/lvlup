@@ -24,6 +24,8 @@ export function ModuleRail({
   onSelect,
   onHome,
   onReorder,
+  workMode,
+  onToggleWorkMode,
 }: {
   modules: readonly AtlasModule[];
   activeId: string;
@@ -31,6 +33,9 @@ export function ModuleRail({
   onHome: () => void;
   /** L'ordre des modules après un glisser. */
   onReorder: (order: string[]) => void;
+  /** Le mode « au travail » (14/10/2026), basculé d'un clic. */
+  workMode: boolean;
+  onToggleWorkMode: () => void;
 }) {
   const list = useRef<HTMLUListElement>(null);
   const drag = useReorderDrag(
@@ -43,6 +48,15 @@ export function ModuleRail({
     <nav className="atlas-rail" aria-label="Modules">
       <button className="atlas-rail-btn atlas-rail-home" onClick={onHome} aria-label="Tous les modules" data-tip="Tous les modules">
         <AtlasMark className="atlas-rail-mark" />
+      </button>
+      <button
+        className={`atlas-rail-btn atlas-rail-work${workMode ? ' on' : ''}`}
+        onClick={onToggleWorkMode}
+        aria-pressed={workMode}
+        aria-label="Mode travail"
+        data-tip={workMode ? 'Mode travail : activé' : 'Mode travail'}
+      >
+        <span aria-hidden="true">💼</span>
       </button>
       <ul className="atlas-rail-list" ref={list}>
         {drag.order.flatMap((id) => byId.get(id) ?? []).map((m) => (

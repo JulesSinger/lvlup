@@ -23,7 +23,7 @@ import { completionPlan, undoCompletion, upcomingOccurrences } from './lib/repea
 import { effectiveTaskReminders } from './lib/reminders';
 import { DEFAULT_TACHES_SETTINGS, type TachesSettings, type Task, type TaskInput, type TaskList, type TaskPatch } from './lib/types';
 import { validateTask } from './lib/validation';
-import { doneView, inboxView, listView, navLists, subtasksOf, todayView, upcomingView } from './lib/views';
+import { doneView, inboxView, listView, navLists, subtasksOf, todayView, upcomingView, workScope } from './lib/views';
 
 /** La vue ouverte : Aujourd'hui, À venir, la boîte de réception, les terminées, ou une liste. */
 type View = 'today' | 'upcoming' | 'inbox' | 'done' | `list:${string}`;
@@ -66,9 +66,16 @@ const PLACEHOLDERS: Record<string, string> = {
  * Toute la logique est dans les bibliothèques pures (`lib/`) : cet écran ne
  * fait qu'appeler le contrat de stockage et afficher.
  */
-export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, intent, label, emoji }: ModuleScreenProps) {
-  const [lists, setLists] = useState<TaskList[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
+export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, intent, label, emoji, settings: atlasSettings }: ModuleScreenProps) {
+  const [allLists, setLists] = useState<TaskList[]>([]);
+  const [allTasks, setTasks] = useState<Task[]>([]);
+  // Le mode « au travail » (14/10/2026) : seules les listes marquées travail et leurs tâches s'affichent.
+  // L'état garde tout (les rappels se calculent sur tout) ; seul l'affichage est filtré.
+  const workMode = atlasSettings.workMode;
+  const { tasks, lists } = useMemo(
+    () => (workMode ? workScope(allTasks, allLists) : { tasks: allTasks, lists: allLists }),
+    [workMode, allTasks, allLists],
+  )
   // Le rappel par défaut, montré dans la fenêtre d'une tâche qui n'a pas choisi les siens.
   const [settings, setSettings] = useState<TachesSettings>(DEFAULT_TACHES_SETTINGS);
   const [loaded, setLoaded] = useState(false);
@@ -195,11 +202,13 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
   // Les favorites d'abord (13/10/2026) : dans la barre, et dans les listes proposées à l'ajout.
   const activeLists = useMemo(() => navLists(lists), [lists]);
   const currentList = view.startsWith('list:') ? lists.find((l) => `list:${l.id}` === view) : undefined;
-  // Une liste supprimée entre-temps : retour à « À faire ».
+  // Une liste supprimée entre-temps (ou cachée par le mode travail) : retour à « À faire » —
+  // au travail, à Aujourd'hui, puisque « À faire » (sans liste) est personnel.
+  const homeView: View = workMode ? 'today' : START_VIEW;
   useEffect(() => {
-    if (loaded && view.startsWith('list:') && !currentList) setView(START_VIEW);
+    if (loaded && ((view.startsWith('list:') && !currentList) || (workMode && view === 'inbox'))) setView(homeView);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, view, currentList]);
+  }, [loaded, view, currentList, workMode]);
 
   const listName = (id: string | null) => lists.find((l) => l.id === id)?.name;
   const counts = useMemo(() => {
@@ -232,6 +241,15 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
     if (view === 'today' && !dated) input.plannedDay = today;
     if (view === 'upcoming' && !dated) input.plannedDay = shiftDay(today, 1);
     if (currentList && !parsed.listId) input.listId = currentList.id;
+    // Au travail, une tâche sans liste disparaîtrait aussitôt (« À faire » est personnel) : la première liste de travail.
+    if (workMode && !input.listId) {
+      if (!activeLists[0]) {
+        const problem = 'Au travail, une tâche va dans une liste de travail : crée-en une avec « + Liste ».';
+        onError(problem);
+        throw new Error(problem);
+      }
+      input.listId = activeLists[0].id;
+    }
     input.position = tasks.filter((t) => t.listId === (input.listId ?? null) && !t.parentId).length;
 
     const problem = validateTask(input, tasks);
@@ -400,17 +418,17 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
     });
   }
 
-  async function saveList(name: string, color: TaskList['color'], favorite: boolean) {
+  async function saveList(name: string, color: TaskList['color'], favorite: boolean, work: boolean) {
     if (listEditing === 'new') {
       let created: TaskList | undefined;
       await write(async () => {
         created = await tachesStore.createList({ name, color });
-        if (favorite) await tachesStore.updateList(created.id, { favorite: true });
+        if (favorite || work) await tachesStore.updateList(created.id, { favorite, work });
       });
       if (created) setView(`list:${created.id}`);
     } else if (listEditing) {
       const id = listEditing.id;
-      await write(() => tachesStore.updateList(id, { name, color, favorite }));
+      await write(() => tachesStore.updateList(id, { name, color, favorite, work }));
     }
     setListEditing(null);
   }
@@ -424,7 +442,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
     const id = listEditing.id;
     await write(() => tachesStore.deleteList(id));
     setListEditing(null);
-    setView('inbox');
+    setView(homeView);
   }
 
   // --- Affichage ---------------------------------------------------------------------
@@ -570,6 +588,13 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
           </div>
         )}
 
+        {workMode && (
+          <p className="taches-work-note" role="status">
+            💼 Mode travail : seules tes listes de travail.
+            {activeLists.length === 0 && ' Aucune pour l’instant : crée-en une avec « + Liste ».'}
+          </p>
+        )}
+
         <nav className="taches-nav" aria-label="Vues">
           {(
             [
@@ -578,7 +603,10 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
               ['inbox', 'À faire', counts.inbox],
               ['done', 'Terminées', 0],
             ] as const
-          ).map(([id, label, n]) => (
+          )
+            // « À faire » (sans liste) est personnel : pas au travail.
+            .filter(([id]) => !(workMode && id === 'inbox'))
+            .map(([id, label, n]) => (
             <button key={id} type="button" className={`taches-nav-item${view === id ? ' on' : ''}`} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>
               {label}
               {n > 0 && <span className="taches-count">{n}</span>}
@@ -601,6 +629,11 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
                 <span className="taches-list-dot" aria-hidden="true" />
               )}
               {l.name}
+              {l.work && !workMode && (
+                <span className="taches-list-work" title="Liste de travail" aria-label="(travail)">
+                  💼
+                </span>
+              )}
               {(counts.lists.get(l.id) ?? 0) > 0 && <span className="taches-count">{counts.lists.get(l.id)}</span>}
             </button>
           ))}
@@ -695,6 +728,7 @@ export function TachesScreen({ error, onError, onOpenSettings, onSwitchModule, r
             onCancel={() => setListEditing(null)}
             onSave={saveList}
             onDelete={listEditing === 'new' ? undefined : deleteList}
+            workMode={workMode}
           />
         )}
       </main>

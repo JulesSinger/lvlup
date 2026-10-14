@@ -64,8 +64,8 @@ type Editing = { eventId: string | null; occurrenceDay: string | null; inSeries:
 type PendingMove = { eventId: string; occurrenceDay: string; span: EventSpan; resolve: () => void; reject: (err: Error) => void };
 
 function valuesOf(o: Occurrence): OccurrenceValues {
-  const { title, allDay, startDay, endDay, startTime, endTime, color, location, note, reminders } = o;
-  return { title, allDay, startDay, endDay, startTime, endTime, color, location, note, reminders };
+  const { title, allDay, startDay, endDay, startTime, endTime, color, location, note, reminders, work } = o;
+  return { title, allDay, startDay, endDay, startTime, endTime, color, location, note, reminders, work };
 }
 
 /**
@@ -80,7 +80,9 @@ function valuesOf(o: Occurrence): OccurrenceValues {
  * déplacer ou supprimer une occurrence demande « cet événement, les
  * suivants ou tous », traduit en écritures par `lib/seriesEdit.ts`.
  */
-export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchModule, onOpenModule, reloadToken, services, label, emoji }: ModuleScreenProps) {
+export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchModule, onOpenModule, reloadToken, services, label, emoji, settings: atlasSettings }: ModuleScreenProps) {
+  // Le mode « au travail » (14/10/2026) : les événements personnels deviennent des blocs « Occupé ».
+  const workMode = atlasSettings.workMode;
   const narrow = typeof window !== 'undefined' && window.innerWidth < NARROW;
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [exceptions, setExceptions] = useState<EventException[]>([]);
@@ -116,7 +118,7 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
     let current = true;
     for (const source of sources) {
       if (!isVisible(source.id, source.defaultVisible)) continue;
-      source.marksBetween(range.from, range.to).then(
+      source.marksBetween(range.from, range.to, { workMode }).then(
         (found) => {
           if (!current) return;
           setMarks((m) => ({ ...m, [source.id]: found }));
@@ -128,7 +130,7 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
     return () => {
       current = false;
     };
-  }, [sources, range, isVisible, reloadToken, marksVersion]);
+  }, [sources, range, isVisible, reloadToken, marksVersion, workMode]);
 
   /**
    * Cocher une marque d'un autre module (une tâche de Polaris, étape 6 de
@@ -207,12 +209,12 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
   const occurrences = useMemo(() => expandEvents(events, exceptions, range.from, range.to), [events, exceptions, range]);
   const items = useMemo(
     () => [
-      ...occurrences.map(toCalendarItem),
+      ...occurrences.map((o) => toCalendarItem(o, workMode)),
       ...sources.flatMap((source, i) =>
         isVisible(source.id, source.defaultVisible) ? (marks[source.id] ?? []).map((mark) => markItem(source, mark, i + 1)) : [],
       ),
     ],
-    [occurrences, sources, marks, isVisible],
+    [occurrences, sources, marks, isVisible, workMode],
   );
 
   function openNew(span: EventSpan, title = '') {
@@ -220,7 +222,8 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
       eventId: null,
       occurrenceDay: null,
       inSeries: false,
-      values: { ...span, title, color: 'bleu', location: '', note: '', recurrence: null, reminders: null },
+      // Créé en mode travail, un événement est « travail » d'office.
+      values: { ...span, title, color: 'bleu', location: '', note: '', recurrence: null, reminders: null, work: workMode },
       before: null,
     });
   }
@@ -231,7 +234,7 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
     if (!event || !occurrence) return;
     // La fenêtre montre l'occurrence touchée (exception comprise), avec la règle de sa série.
     const before = valuesOf(occurrence);
-    setEditing({ eventId, occurrenceDay, inSeries: event.recurrence !== null, values: { ...before, recurrence: event.recurrence }, before });
+    setEditing({ eventId, occurrenceDay, inSeries: event.recurrence !== null, values: { ...before, work: before.work ?? false, recurrence: event.recurrence }, before });
   }
 
   /**
@@ -432,6 +435,7 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
                 key={`${lent.sourceId}:${lent.link ?? 'new'}`}
                 link={lent.link}
                 slot={lent.slot}
+                workMode={workMode}
                 header={
                   !lent.link && span && kinds.length > 1 ? (
                     <KindSwitch

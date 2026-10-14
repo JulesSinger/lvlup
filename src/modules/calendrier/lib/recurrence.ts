@@ -32,6 +32,8 @@ export interface Occurrence {
   recurring: boolean;
   /** Une occurrence modifiée à part de sa série */
   modified: boolean;
+  /** Celle de sa série (14/10/2026) */
+  work: boolean;
 }
 
 /** L'occurrence d'un jour de la série, telle que la règle la donne, sans son exception éventuelle. */
@@ -55,6 +57,7 @@ function occurrenceOf(event: CalendarEvent, day: string, override: EventOverride
     reminders: event.reminders ?? null,
     recurring: event.recurrence !== null,
     modified: override !== null,
+    work: event.work ?? false,
   };
   if (!override) return base;
   const merged = { ...base, ...override };

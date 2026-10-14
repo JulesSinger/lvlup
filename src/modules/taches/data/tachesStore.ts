@@ -22,7 +22,7 @@ export interface TachesBackup {
 export interface TachesStore {
   listLists(): Promise<TaskList[]>;
   createList(input: ListInput): Promise<TaskList>;
-  updateList(id: string, patch: Partial<ListInput> & { position?: number; archived?: boolean; favorite?: boolean }): Promise<void>;
+  updateList(id: string, patch: Partial<ListInput> & { position?: number; archived?: boolean; favorite?: boolean; work?: boolean }): Promise<void>;
   /** Ses tâches retournent à la boîte de réception, jamais à la corbeille. */
   deleteList(id: string): Promise<void>;
 

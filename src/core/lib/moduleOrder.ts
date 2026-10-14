@@ -20,6 +20,17 @@ export function orderModules<T extends { id: string }>(modules: readonly T[], or
     .map(({ m }) => m);
 }
 
+/**
+ * Un nouvel ordre pour une partie seulement des modules (le mode travail n'en
+ * montre que quelques-uns) : ils prennent leurs nouvelles places parmi les
+ * leurs, et les autres ne bougent pas.
+ */
+export function reorderSubset(all: readonly string[], subset: readonly string[]): string[] {
+  const moved = new Set(subset);
+  let next = 0;
+  return all.map((id) => (moved.has(id) ? subset[next++] : id));
+}
+
 export interface Box {
   left: number;
   top: number;

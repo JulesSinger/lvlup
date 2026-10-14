@@ -126,6 +126,8 @@ export class SupabaseCore implements CoreStore {
       reminderTime: data.reminder_time ?? DEFAULT_SETTINGS.reminderTime,
       tzOffset: data.tz_offset ?? DEFAULT_SETTINGS.tzOffset,
       moduleOrder: Array.isArray(data.module_order) ? data.module_order : DEFAULT_SETTINGS.moduleOrder,
+      workMode: typeof data.work_mode === 'boolean' ? data.work_mode : DEFAULT_SETTINGS.workMode,
+      workModules: Array.isArray(data.work_modules) ? data.work_modules : DEFAULT_SETTINGS.workModules,
     };
   }
 
@@ -138,6 +140,8 @@ export class SupabaseCore implements CoreStore {
     if (patch.reminderTime !== undefined) row.reminder_time = patch.reminderTime;
     if (patch.tzOffset !== undefined) row.tz_offset = patch.tzOffset;
     if (patch.moduleOrder !== undefined) row.module_order = patch.moduleOrder;
+    if (patch.workMode !== undefined) row.work_mode = patch.workMode;
+    if (patch.workModules !== undefined) row.work_modules = patch.workModules;
     const { error } = await this.client
       .from('profiles')
       .upsert(row, { onConflict: 'user_id' });

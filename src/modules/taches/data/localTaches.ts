@@ -13,7 +13,8 @@ function read(): TachesBackup {
   // Ni ses rappels (06/10/2026) : `null`, celui par défaut.
   const tasks = arrayOf<Task>(raw.tachesTasks).map((t) => ({ ...t, durationMinutes: t.durationMinutes ?? null, reminders: t.reminders ?? null }));
   // Une liste enregistrée avant les favorites (13/10/2026) n'a pas le champ.
-  const lists = arrayOf<TaskList>(raw.tachesLists).map((l) => ({ ...l, favorite: l.favorite ?? false }));
+  // Ni la marque « travail » (14/10/2026).
+  const lists = arrayOf<TaskList>(raw.tachesLists).map((l) => ({ ...l, favorite: l.favorite ?? false, work: l.work ?? false }));
   return { lists, tasks, settings };
 }
 
@@ -43,6 +44,7 @@ export class LocalTaches implements TachesStore {
       position: s.lists.length,
       archived: false,
       favorite: false,
+      work: false,
       createdAt: new Date().toISOString(),
     };
     s.lists.push(list);
@@ -50,7 +52,7 @@ export class LocalTaches implements TachesStore {
     return list;
   }
 
-  async updateList(id: string, patch: Partial<ListInput> & { position?: number; archived?: boolean; favorite?: boolean }) {
+  async updateList(id: string, patch: Partial<ListInput> & { position?: number; archived?: boolean; favorite?: boolean; work?: boolean }) {
     const s = read();
     const list = s.lists.find((l) => l.id === id);
     if (!list) return;

@@ -950,3 +950,18 @@
   border-radius: var(--radius-sm);
   box-shadow: none;
 }
+
+/* --- Le mode « au travail » (14/10/2026) ------------------------------------------------ */
+.taches-work-note {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--sky) 45%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--sky) 12%, transparent);
+  font-size: 13.5px;
+}
+
+.taches-list-work {
+  font-size: 11px;
+  line-height: 1;
+}

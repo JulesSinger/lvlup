@@ -17,6 +17,7 @@ function event(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
     location: '',
     note: '',
     reminders: null,
+    work: false,
     createdAt: '',
     ...overrides,
   };

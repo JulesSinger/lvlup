@@ -35,11 +35,26 @@ export interface CalendarItem {
    * du registre (`eventOrder` de FullCalendar).
    */
   extendedProps:
-    | { order: 0; eventId: string; occurrenceDay: string }
+    | { order: 0; eventId: string; occurrenceDay: string; busy?: boolean }
     | { order: number; layer: string; detail?: string; sourceId: string; markId: string; checkable: boolean; done: boolean; movable: boolean };
 }
 
-export function toCalendarItem(o: Occurrence): CalendarItem {
+/**
+ * Une occurrence en élément de FullCalendar. En mode travail (14/10/2026), un
+ * événement personnel devient un bloc « Occupé » : son créneau, rien d'autre
+ * — ni titre, ni couleur, ni lieu —, et il ne s'ouvre ni ne se déplace.
+ */
+export function toCalendarItem(o: Occurrence, workMode = false): CalendarItem {
+  if (workMode && !o.work) {
+    return {
+      id: `${o.eventId}|${o.occurrenceDay}`,
+      title: 'Occupé',
+      ...occurrenceRange(o),
+      classNames: ['calendrier-event-busy'],
+      editable: false,
+      extendedProps: { order: 0, eventId: o.eventId, occurrenceDay: o.occurrenceDay, busy: true },
+    };
+  }
   return {
     id: `${o.eventId}|${o.occurrenceDay}`,
     title: o.title,

@@ -18,6 +18,8 @@ export interface EditorValues extends EventSpan {
   recurrence: Recurrence | null;
   /** `null` : ceux par défaut des réglages, tant qu'on n'y touche pas */
   reminders: number[] | null;
+  /** Un événement « travail » (14/10/2026), pour toute la série */
+  work: boolean;
 }
 
 interface Props {
@@ -246,6 +248,10 @@ export function EventEditor({ eventId, inSeries, initial, defaults, local, onCan
             <label htmlFor="calendrier-note">Note (facultatif)</label>
             <textarea id="calendrier-note" rows={2} value={v.note} onChange={(e) => set('note', e.target.value)} />
           </div>
+          <label className="calendrier-work-field">
+            <input type="checkbox" checked={v.work} onChange={(e) => set('work', e.target.checked)} />
+            <span>💼 Travail — visible en mode travail{inSeries || v.recurrence ? ' (pour toute la série)' : ''} ; sinon, un bloc « Occupé »</span>
+          </label>
 
 
           {error && <div className="notice error">{error}</div>}

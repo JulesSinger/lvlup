@@ -18,6 +18,8 @@ export function ModuleSwitcher({
   onHome,
   onClose,
   onReorder,
+  workMode,
+  onToggleWorkMode,
 }: {
   modules: readonly AtlasModule[];
   activeId: string | null;
@@ -26,6 +28,9 @@ export function ModuleSwitcher({
   onClose: () => void;
   /** L'ordre des modules après un glisser. */
   onReorder: (order: string[]) => void;
+  /** Le mode « au travail » (14/10/2026), basculé d'un toucher. */
+  workMode: boolean;
+  onToggleWorkMode: () => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLUListElement>(null);
@@ -86,9 +91,14 @@ export function ModuleSwitcher({
             </li>
           ))}
         </ul>
-        <button className="atlas-switcher-home" onClick={onHome}>
-          <AtlasMark className="atlas-mark-inline" /> Tous les modules
-        </button>
+        <div className="atlas-switcher-foot">
+          <button className="atlas-switcher-home" onClick={onHome}>
+            <AtlasMark className="atlas-mark-inline" /> Tous les modules
+          </button>
+          <button className={`atlas-switcher-home atlas-work-toggle${workMode ? ' on' : ''}`} onClick={onToggleWorkMode} aria-pressed={workMode}>
+            💼 Mode travail
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -19,6 +19,14 @@ export interface Settings {
    * l'ordre du registre. Rangé avec le compte : le même sur chaque appareil.
    */
   moduleOrder: string[];
+  /**
+   * Le mode « au travail » (14/10/2026) : seuls `workModules` restent visibles,
+   * et ces modules ne montrent que ce qui est marqué « travail ». Rangé avec le
+   * compte : un interrupteur, le même partout.
+   */
+  workMode: boolean;
+  /** Les modules visibles en mode travail, en identifiants. */
+  workModules: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -27,6 +35,8 @@ export const DEFAULT_SETTINGS: Settings = {
   reminderTime: '20:00',
   tzOffset: 0,
   moduleOrder: [],
+  workMode: false,
+  workModules: ['taches', 'calendrier'],
 };
 
 /** Un navigateur abonné aux notifications (iPhone, Mac, Android…). */

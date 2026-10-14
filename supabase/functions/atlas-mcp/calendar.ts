@@ -45,11 +45,13 @@ export interface CalendarEvent {
   location: string;
   note: string;
   reminders: number[] | null;
+  /** « Travail » (14/10/2026), pour toute la série ; absent : personnel. */
+  work?: boolean;
   createdAt: string;
 }
 
 export type EventInput = Pick<CalendarEvent, 'title' | 'allDay' | 'startDay' | 'endDay' | 'startTime' | 'endTime'> &
-  Partial<Pick<CalendarEvent, 'timezone' | 'recurrence' | 'color' | 'location' | 'note' | 'reminders'>>;
+  Partial<Pick<CalendarEvent, 'timezone' | 'recurrence' | 'color' | 'location' | 'note' | 'reminders' | 'work'>>;
 
 export type EventOverride = Partial<
   Pick<CalendarEvent, 'title' | 'allDay' | 'startDay' | 'endDay' | 'startTime' | 'endTime' | 'color' | 'location' | 'note' | 'reminders'>
@@ -94,6 +96,7 @@ export interface Occurrence {
   reminders: number[] | null;
   recurring: boolean;
   modified: boolean;
+  work: boolean;
 }
 
 export const baseOccurrence = (event: CalendarEvent, day: string): Occurrence => occurrenceOf(event, day, null);
@@ -115,6 +118,7 @@ function occurrenceOf(event: CalendarEvent, day: string, override: EventOverride
     reminders: event.reminders ?? null,
     recurring: event.recurrence !== null,
     modified: override !== null,
+    work: event.work ?? false,
   };
   if (!override) return base;
   const merged = { ...base, ...override };
@@ -194,7 +198,7 @@ export function validateReminders(reminders: readonly number[] | null): string |
 
 export const SCOPES = ['this', 'following', 'all'] as const;
 export type Scope = (typeof SCOPES)[number];
-export type OccurrenceValues = Required<EventOverride>;
+export type OccurrenceValues = Required<EventOverride> & { work?: boolean };
 
 export interface SeriesPlan {
   create?: EventInput;
@@ -205,7 +209,7 @@ export interface SeriesPlan {
 }
 
 const OVERRIDABLE = ['title', 'allDay', 'startDay', 'endDay', 'startTime', 'endTime', 'color', 'location', 'note', 'reminders'] as const;
-const PLAIN = ['title', 'color', 'location', 'note', 'allDay', 'startTime', 'endTime', 'reminders'] as const;
+const PLAIN = ['title', 'color', 'location', 'note', 'allDay', 'startTime', 'endTime', 'reminders', 'work'] as const;
 
 const same = (a: unknown, b: unknown) => (Array.isArray(a) || Array.isArray(b) ? JSON.stringify(a ?? null) === JSON.stringify(b ?? null) : a === b);
 
@@ -265,8 +269,9 @@ export function planEdit(
     for (const f of OVERRIDABLE) if (!same(next[f], base[f])) (override as Record<string, unknown>)[f] = next[f];
     checked({ ...next, recurrence: null });
     const existing = own.find((x) => x.occurrenceDay === occurrenceDay);
-    if (Object.keys(override).length === 0) return { deleteExceptions: existing ? [existing.id] : [] };
-    return { setException: { eventId: event.id, occurrenceDay, kind: 'override', override }, deleteExceptions: [] };
+    const work = after.work !== undefined && after.work !== (event.work ?? false) ? { update: { id: event.id, patch: { work: after.work } } } : {};
+    if (Object.keys(override).length === 0) return { ...work, deleteExceptions: existing ? [existing.id] : [] };
+    return { ...work, setException: { eventId: event.id, occurrenceDay, kind: 'override', override }, deleteExceptions: [] };
   }
 
   const split = scope === 'following' ? splitSeries(event, occurrenceDay) : null;
@@ -294,6 +299,7 @@ export function planEdit(
     note: event.note,
     reminders: event.reminders ?? null,
     timezone: event.timezone,
+    work: event.work ?? false,
     ...changed,
     startDay,
     endDay,
