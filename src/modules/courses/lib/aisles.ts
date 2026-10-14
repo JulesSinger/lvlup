@@ -39,7 +39,7 @@ export const AISLE_KEYWORDS: [Aisle, string[]][] = [
 ];
 
 /** Un -s/-x final retiré aux mots de plus de trois lettres : « tomates » = « tomate ». */
-const singular = (text: string) =>
+export const singular = (text: string) =>
   text
     .split(' ')
     .map((w) => (w.length > 3 && /[sx]$/.test(w) ? w.slice(0, -1) : w))
