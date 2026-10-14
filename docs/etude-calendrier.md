@@ -529,6 +529,36 @@ de 5 minutes. Aucune fonction nouvelle, aucun cron de plus.
 - Les **tâches** gardent leurs propres rappels (ceux de Polaris) : le calque n'en ajoute pas, pour
   ne rien recevoir en double.
 
+## 20. Importer un calendrier Apple (14/10/2026)
+
+Demande de Jules : importer son calendrier Apple dans Atlas, sans effacer ce qui y est déjà.
+
+**Le chemin** : l'app Calendrier du Mac exporte un `.ics` par calendrier (*Fichier → Exporter →
+Exporter…* ; l'iPhone ne sait pas exporter). Dans Calendar, « ⤓ Importer » ouvre
+`ImportIcsDialog` : un ou plusieurs fichiers, un aperçu (combien d'événements, combien déjà dans
+Atlas, ce qui n'a pas pu être repris), une couleur, une période (tout, depuis un an, à venir), puis
+« Ajouter ». Rien n'est écrit avant.
+
+**La lecture** (`lib/ics.ts`, pure, testée sur un fichier modelé sur un vrai export du Mac,
+`lib/__fixtures__/apple.ics`) : lignes repliées, texte échappé, journées entières (fin exclusive
+ramenée au dernier jour), heures dans un fuseau ou en UTC **ramenées à l'heure de l'appareil**
+(changement d'heure compris), heures flottantes gardées, durées. Répétitions reprises quand Atlas
+sait les rendre — tous les N jours, semaines, mois, ans ; certains jours de la semaine ; « le 2e
+mardi », « le dernier vendredi » ; fin à une date ou après N fois — avec leurs occurrences
+supprimées (`EXDATE`) et modifiées (`RECURRENCE-ID`, en exceptions « cet événement »). Une règle
+plus fine (« le 1er et le 15 ») n'est **pas approchée** : l'événement entre une fois, et l'aperçu le
+dit. Les alertes deviennent des rappels quand elles ont un équivalent (15 min, 1 h, 1 jour avant ;
+la veille à 18 h, le jour même à 8 h) ; sans alerte, aucun rappel. Événements annulés, invités et
+réponses ignorés.
+
+**Sans doublon, sans rien effacer** : chaque événement garde son `UID` d'origine
+(`calendar_events.source_uid`, migration `2026-10-14-calendar-source-uid.sql`, unique par
+compte). `importEvents` saute ce qui est déjà là ; réimporter le même fichier plus tard n'ajoute
+que les nouveautés. Une modification faite sur l'iPhone **après** un premier import n'est pas
+reportée (l'événement est déjà là) : c'est un import, pas une synchronisation. Par paquets de 200 ;
+si les exceptions d'un paquet échouent, ses événements sont retirés, pour qu'un nouvel import les
+reprenne entiers.
+
 ## Sources
 
 - Comparatifs 2026 : [Zapier, meilleures applis de calendrier](https://zapier.com/blog/best-calendar-apps/),

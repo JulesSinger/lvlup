@@ -132,3 +132,32 @@ describe('LocalCalendar', () => {
     expect(raw.calendarEvents).toHaveLength(1);
   });
 });
+
+describe('LocalCalendar — importer un calendrier (.ics)', () => {
+  beforeEach(() => memory.clear());
+
+  it('ajoute sans rien toucher, et un second import n’ajoute que les nouveaux', async () => {
+    const store = new LocalCalendar();
+    const mine = await store.createEvent(dentist);
+    const yoga = {
+      uid: 'apple-yoga',
+      event: { ...dentist, title: 'Yoga', recurrence: { freq: 'weekly' as const, interval: 1 } },
+      exceptions: [{ occurrenceDay: '2026-10-06', kind: 'skip' as const }],
+    };
+    expect(await store.importEvents([yoga])).toBe(1);
+    expect(await store.importEvents([yoga, { uid: 'apple-cine', event: { ...dentist, title: 'Ciné' }, exceptions: [] }])).toBe(1);
+    const events = await store.listEvents();
+    expect(events.map((e) => e.title)).toEqual(['Dentiste', 'Yoga', 'Ciné']);
+    expect(events.find((e) => e.id === mine.id)).toMatchObject({ title: 'Dentiste', sourceUid: null });
+    expect(events.find((e) => e.title === 'Yoga')?.sourceUid).toBe('apple-yoga');
+    expect(await store.listExceptions()).toEqual([expect.objectContaining({ occurrenceDay: '2026-10-06', kind: 'skip' })]);
+  });
+
+  it('la sauvegarde garde l’identifiant d’origine', async () => {
+    const store = new LocalCalendar();
+    await store.importEvents([{ uid: 'apple-1', event: dentist, exceptions: [] }]);
+    const backup = await store.exportData();
+    await store.importData(backup);
+    expect(await store.importEvents([{ uid: 'apple-1', event: dentist, exceptions: [] }])).toBe(0);
+  });
+});

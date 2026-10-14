@@ -10,6 +10,7 @@ import {
   type EventOverride,
   type ExceptionKind,
 } from '../lib/types';
+import type { ImportedEvent } from '../lib/ics';
 import type { CalendarBackup, CalendarStore } from './calendarStore';
 
 interface Snapshot extends CalendarBackup {}
@@ -61,6 +62,7 @@ export class LocalCalendar implements CalendarStore {
       location: input.location ?? '',
       note: input.note ?? '',
       reminders: input.reminders ?? null,
+      sourceUid: input.sourceUid ?? null,
       createdAt: new Date().toISOString(),
     };
     s.events.push(event);
@@ -121,6 +123,19 @@ export class LocalCalendar implements CalendarStore {
   async saveSettings(patch: Partial<CalendarSettings>) {
     const s = read();
     write({ ...s, settings: { ...DEFAULT_CALENDAR_SETTINGS, ...s.settings, ...patch } });
+  }
+
+  async importEvents(items: readonly ImportedEvent[]) {
+    const known = new Set(read().events.map((e) => e.sourceUid).filter(Boolean));
+    let added = 0;
+    for (const item of items) {
+      if (known.has(item.uid)) continue;
+      known.add(item.uid);
+      const event = await this.createEvent({ ...item.event, sourceUid: item.uid });
+      for (const x of item.exceptions) await this.setException(event.id, x.occurrenceDay, x.kind, x.override);
+      added++;
+    }
+    return added;
   }
 
   async exportData(): Promise<CalendarBackup> {

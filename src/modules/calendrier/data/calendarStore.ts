@@ -1,3 +1,4 @@
+import type { ImportedEvent } from '../lib/ics';
 import type { CalendarEvent, CalendarSettings, EventException, EventInput, EventOverride, ExceptionKind } from '../lib/types';
 
 /**
@@ -40,6 +41,12 @@ export interface CalendarStore {
   saveSettings(patch: Partial<CalendarSettings>): Promise<void>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
+  /**
+   * Ajoute des événements lus dans un calendrier (`.ics`), avec leurs
+   * exceptions, sans rien toucher à ce qui existe : un événement dont
+   * l'identifiant d'origine est déjà là est sauté. Rend le nombre ajouté.
+   */
+  importEvents(items: readonly ImportedEvent[]): Promise<number>;
   exportData(): Promise<CalendarBackup>;
   importData(data: CalendarBackup): Promise<void>;
 }

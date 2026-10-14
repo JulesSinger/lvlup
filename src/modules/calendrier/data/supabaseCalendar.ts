@@ -12,6 +12,7 @@ import {
   type ExceptionKind,
   type Recurrence,
 } from '../lib/types';
+import type { ImportedEvent } from '../lib/ics';
 import type { CalendarBackup, CalendarStore } from './calendarStore';
 
 interface EventRow {
@@ -28,6 +29,7 @@ interface EventRow {
   location: string;
   note: string;
   reminders: number[] | null;
+  source_uid?: string | null;
   created_at: string;
 }
 
@@ -57,6 +59,7 @@ const toEvent = (r: EventRow): CalendarEvent => ({
   location: r.location,
   note: r.note,
   reminders: r.reminders ?? null,
+  sourceUid: r.source_uid ?? null,
   createdAt: r.created_at,
 });
 
@@ -84,6 +87,7 @@ function eventColumns(patch: Partial<EventInput>): Record<string, unknown> {
   if (patch.location !== undefined) row.location = patch.location;
   if (patch.note !== undefined) row.note = patch.note;
   if (patch.reminders !== undefined) row.reminders = patch.reminders;
+  if (patch.sourceUid !== undefined) row.source_uid = patch.sourceUid;
   // Journée entière : pas d'heure, sinon la contrainte de la base refuse.
   if (patch.allDay === true) {
     row.start_time = null;
@@ -195,6 +199,53 @@ export class SupabaseCalendar implements CalendarStore {
         )
       ).error,
     );
+  }
+
+  /**
+   * Par paquets de 200 : les événements, puis leurs exceptions. Si les
+   * exceptions d'un paquet échouent, ses événements sont retirés — sinon un
+   * nouvel import les sauterait (identifiant déjà là) et leurs exceptions
+   * seraient perdues pour de bon.
+   */
+  async importEvents(items: readonly ImportedEvent[]) {
+    const userId = await this.requireUserId();
+    const known = new Set(
+      (
+        await fetchAll<{ id: string; source_uid: string }>((first, last) =>
+          this.client.from('calendar_events').select('id, source_uid').not('source_uid', 'is', null).order('id').range(first, last),
+        )
+      ).map((r) => r.source_uid),
+    );
+    const fresh = items.filter((item, i) => !known.has(item.uid) && items.findIndex((x) => x.uid === item.uid) === i);
+    let added = 0;
+    for (let i = 0; i < fresh.length; i += 200) {
+      const chunk = fresh.slice(i, i + 200);
+      const rows = unwrap(
+        await this.client
+          .from('calendar_events')
+          .insert(chunk.map((item) => ({ user_id: userId, ...eventColumns({ ...item.event, sourceUid: item.uid }) })))
+          .select('id, source_uid'),
+      ) as { id: string; source_uid: string }[];
+      const idOf = new Map(rows.map((r) => [r.source_uid, r.id]));
+      const exceptions = chunk.flatMap((item) =>
+        item.exceptions.map((x) => ({
+          user_id: userId,
+          event_id: idOf.get(item.uid),
+          occurrence_day: x.occurrenceDay,
+          kind: x.kind,
+          override: x.kind === 'override' ? (x.override ?? {}) : null,
+        })),
+      );
+      if (exceptions.length > 0) {
+        const { error } = await this.client.from('calendar_exceptions').insert(exceptions);
+        if (error) {
+          await this.client.from('calendar_events').delete().in('id', rows.map((r) => r.id));
+          throw new Error(error.message);
+        }
+      }
+      added += rows.length;
+    }
+    return added;
   }
 
   async exportData(): Promise<CalendarBackup> {

@@ -3,6 +3,7 @@ import type { ModuleScreenProps } from '../../core/lib/module';
 import type { CalendarMark, MarkMove, MarkSlot } from '../../core/lib/services';
 import type { ViewName } from './components/CalendarView';
 import { EventEditor, type EditorValues } from './components/EventEditor';
+import { ImportIcsDialog } from './components/ImportIcsDialog';
 import { KindSwitch, type Kind } from './components/KindSwitch';
 import { MarkDialog } from './components/MarkDialog';
 import { ScopeDialog } from './components/ScopeDialog';
@@ -89,6 +90,8 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
     return { from: shiftDay(today, -7), to: shiftDay(today, 7) };
   });
   const [editing, setEditing] = useState<Editing | null>(null);
+  /** La fenêtre « Importer un calendrier » (.ics) est ouverte. */
+  const [importing, setImporting] = useState(false);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
 
   // --- Les calques des autres modules (étape 5) ---
@@ -328,6 +331,15 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
               <span aria-hidden="true">+</span>
               <span className="calendrier-topbar-label">Nouvel événement</span>
             </button>
+            <button
+              className="btn btn-ghost btn-sm calendrier-topbar-btn"
+              onClick={() => setImporting(true)}
+              title="Importer un calendrier (.ics)"
+              aria-label="Importer un calendrier"
+            >
+              <span aria-hidden="true">⤓</span>
+              <span className="calendrier-topbar-label">Importer</span>
+            </button>
             <button className="btn btn-ghost btn-sm calendrier-topbar-btn" onClick={onOpenSettings} title="Réglages" aria-label="Réglages">
               <span aria-hidden="true">⚙</span>
               <span className="calendrier-topbar-label">Réglages</span>
@@ -463,6 +475,19 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
             onDelete={editing.eventId ? remove : undefined}
             kinds={kinds}
             onSwitchKind={switchKind}
+          />
+        )}
+
+        {importing && (
+          <ImportIcsDialog
+            existing={events}
+            onImport={async (items) => {
+              const added = await calendarStore.importEvents(items);
+              // Relire recalcule aussi les rappels (les alertes devenues rappels).
+              await refresh();
+              return added;
+            }}
+            onClose={() => setImporting(false)}
           />
         )}
       </main>

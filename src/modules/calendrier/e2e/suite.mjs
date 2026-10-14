@@ -652,6 +652,81 @@ export async function run({ browser, check, BASE }) {
   check('Aucune erreur JavaScript avec les calques', layerErrors.length === 0, layerErrors.join(' | '));
   await layered.close();
 
+  // --- Importer un calendrier (.ics), docs/etude-calendrier.md §20 ------------------------------
+  // Heures « flottantes » (sans fuseau) : la vérification ne dépend pas du fuseau de la machine.
+  const ics = (d) => d.replace(/-/g, '');
+  const appleFile = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Apple Inc.//macOS 15.4//EN',
+    'X-WR-CALNAME:Perso',
+    'BEGIN:VEVENT',
+    'UID:e2e-visio',
+    `DTSTART:${ics(day(0))}T100000`,
+    `DTEND:${ics(day(0))}T110000`,
+    'SUMMARY:Visio Apple',
+    'LOCATION:Chez moi\\, bureau',
+    'BEGIN:VALARM',
+    'TRIGGER:-PT15M',
+    'ACTION:DISPLAY',
+    'END:VALARM',
+    'END:VEVENT',
+    'BEGIN:VEVENT',
+    'UID:e2e-cours',
+    `DTSTART:${ics(day(0))}T140000`,
+    `DTEND:${ics(day(0))}T150000`,
+    'RRULE:FREQ=WEEKLY;COUNT=3',
+    'SUMMARY:Cours Apple',
+    'END:VEVENT',
+    'BEGIN:VEVENT',
+    'UID:e2e-loyer',
+    `DTSTART;VALUE=DATE:${ics(day(1))}`,
+    `DTEND;VALUE=DATE:${ics(day(2))}`,
+    'RRULE:FREQ=MONTHLY;BYMONTHDAY=1,15',
+    'SUMMARY:Loyer Apple',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+  const importing = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  const ip = await importing.newPage();
+  const importErrors = [];
+  ip.on('pageerror', (e) => importErrors.push(e.message));
+  await openEclipse(ip, BASE);
+  await createEvent(ip, { title: 'Déjà là', start: day(0), from: '08:00', to: '09:00' });
+  const openImport = async () => {
+    await ip.getByRole('button', { name: 'Importer un calendrier' }).click();
+    await ip.waitForSelector('.calendrier-import');
+    await ip.locator('#calendrier-ics').setInputFiles({ name: 'Perso.ics', mimeType: 'text/calendar', buffer: Buffer.from(appleFile) });
+    await ip.locator('.calendrier-import-count').waitFor();
+  };
+  await openImport();
+  check('L’aperçu d’un fichier .ics nomme le calendrier et compte ses événements', (await text(ip.locator('.calendrier-import-summary'))).includes('Perso : 3 événements, dont 1 répété'));
+  check('… et dit combien seront ajoutés', (await text(ip.locator('.calendrier-import-count'))).includes('3 événements à ajouter'));
+  check('… et ce qui n’a pas pu être repris tel quel', (await text(ip.locator('.calendrier-import-warnings summary'))).includes('1 point à savoir'));
+  check('Rien n’est enregistré avant « Ajouter »', await ip.evaluate(() => (JSON.parse(localStorage.getItem('palier.v1') ?? '{}').calendarEvents ?? []).length === 1));
+  await ip.locator('.calendrier-import .calendrier-color-violet').click();
+  await ip.getByRole('button', { name: 'Ajouter 3 événements' }).click();
+  await ip.locator('.calendrier-import-done').waitFor();
+  check('L’import dit combien d’événements il a ajoutés', (await text(ip.locator('.calendrier-import-done'))).includes('3 événements ajoutés'));
+  await ip.getByRole('button', { name: 'Fermer', exact: true }).last().click();
+  await ip.waitForSelector('.calendrier-import', { state: 'detached' });
+  const visio = ip.locator('.fc-timegrid-event', { hasText: 'Visio Apple' });
+  await visio.waitFor();
+  check('L’événement importé apparaît dans la semaine, à son heure', (await text(visio)).includes('10:00'));
+  check('… dans la couleur choisie', ((await visio.getAttribute('class')) ?? '').includes('calendrier-event-violet'));
+  check('L’événement déjà là n’a pas bougé', await ip.locator('.fc-timegrid-event', { hasText: 'Déjà là' }).isVisible());
+  const stored = await ip.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').calendarEvents ?? []);
+  check(
+    'La série importée garde sa répétition, et chaque événement son identifiant d’origine',
+    stored.find((e) => e.title === 'Cours Apple')?.recurrence?.count === 3 && stored.filter((e) => e.sourceUid).length === 3,
+  );
+  check('L’alerte d’Apple devient un rappel', JSON.stringify(stored.find((e) => e.title === 'Visio Apple')?.reminders) === '[15]');
+  await openImport();
+  check('Réimporter le même fichier n’ajoute rien', (await text(ip.locator('.calendrier-import-count'))).includes('Rien de nouveau à ajouter. · 3 déjà dans Atlas'));
+  await ip.getByRole('button', { name: 'Annuler' }).click();
+  check('Aucune erreur JavaScript à l’import', importErrors.length === 0, importErrors.join(' | '));
+  await importing.close();
+
   // --- Téléphone ------------------------------------------------------------------------------
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const mobile = await phone.newPage();

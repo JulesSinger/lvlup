@@ -44,11 +44,17 @@ export interface CalendarEvent {
    * réécrire. `[]` : aucun rappel, choisi.
    */
   reminders: number[] | null;
+  /**
+   * L'identifiant de l'événement dans le calendrier d'où il a été importé (le
+   * `UID` d'un fichier `.ics`), pour qu'un second import ne le double pas ;
+   * absent pour un événement créé dans Atlas (docs/etude-calendrier.md §20).
+   */
+  sourceUid?: string | null;
   createdAt: string;
 }
 
 export type EventInput = Pick<CalendarEvent, 'title' | 'allDay' | 'startDay' | 'endDay' | 'startTime' | 'endTime'> &
-  Partial<Pick<CalendarEvent, 'timezone' | 'recurrence' | 'color' | 'location' | 'note' | 'reminders'>>;
+  Partial<Pick<CalendarEvent, 'timezone' | 'recurrence' | 'color' | 'location' | 'note' | 'reminders' | 'sourceUid'>>;
 
 /**
  * Les rappels possibles, en minutes avant le début (01/10/2026). Avec une

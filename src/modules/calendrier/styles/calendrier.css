@@ -658,3 +658,48 @@
   font-weight: 600;
   box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-ink) 25%, transparent);
 }
+
+/* --- importer un calendrier (.ics), docs/etude-calendrier.md §20 --- */
+.calendrier-import {
+  max-width: 520px;
+}
+
+.calendrier-import-summary {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.calendrier-import-summary p {
+  margin: 0 0 4px;
+}
+
+.calendrier-import-count {
+  font-weight: 600;
+}
+
+.calendrier-import-since {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.calendrier-import-warnings {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 10px;
+}
+
+.calendrier-import-warnings ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.calendrier-import-done {
+  color: var(--green);
+  font-weight: 600;
+}
