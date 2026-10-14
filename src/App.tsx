@@ -4,6 +4,7 @@ import { ModulePicker } from './core/components/ModulePicker';
 import { ModuleRail } from './core/components/ModuleRail';
 import { ModuleSwitcher } from './core/components/ModuleSwitcher';
 import { PasswordRecovery } from './core/components/PasswordRecovery';
+import { SecondFactorScreen } from './core/components/SecondFactorScreen';
 import { SettingsPanel } from './core/components/SettingsPanel';
 import { coreStore } from './core/data';
 import { exportBackup, importBackup, readBackupFile } from './core/data/backup';
@@ -113,7 +114,10 @@ export default function App() {
     setSwitching(false);
     setError('');
     setModuleId(startingModule());
-    if (!user) {
+    // Code de la double authentification pas encore donné : la base ne rendrait
+    // rien ; les réglages se lisent une fois le code accepté (même compte, d'où
+    // la seconde dépendance).
+    if (!user || user.needsSecondFactor) {
       setSettings(DEFAULT_SETTINGS);
       return;
     }
@@ -122,7 +126,7 @@ export default function App() {
       .then(setSettings)
       .catch((err) => setError(err instanceof Error ? err.message : 'Réglages illisibles.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, user?.needsSecondFactor]);
 
   /**
    * Aller à un module (ou à la liste, `null`). Chaque changement ajoute une
@@ -181,7 +185,7 @@ export default function App() {
   // Le fuseau est réécrit à chaque ouverture : c'est ce qui garde le rappel à
   // la bonne heure après un changement d'heure ou un déplacement.
   useEffect(() => {
-    if (!user || user.isLocal || !settings.reminderEnabled) return;
+    if (!user || user.isLocal || user.needsSecondFactor || !settings.reminderEnabled) return;
     const offset = timezoneOffsetMinutes();
     if (offset === settings.tzOffset) return;
     void coreStore.updateSettings({ tzOffset: offset }).catch(() => {});
@@ -240,6 +244,10 @@ export default function App() {
   }
   if (coreStore.isRemote && !user) {
     return <Landing modules={MODULES} />;
+  }
+  // Mot de passe donné, code pas encore : rien d'autre ne s'affiche (docs/securite.md §7).
+  if (user?.needsSecondFactor) {
+    return <SecondFactorScreen email={user.email} />;
   }
 
   const activeModule = MODULES.find((m) => m.id === moduleId) ?? null;

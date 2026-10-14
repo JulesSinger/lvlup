@@ -13,6 +13,19 @@ export function getClient(url: string, anonKey: string): SupabaseClient {
   return client;
 }
 
+/**
+ * Un client à part, en mémoire, pour redemander le mot de passe sans toucher à
+ * la session ouverte (supprimer son compte, docs/securite.md §8) : se
+ * reconnecter avec le client partagé ferait redescendre la session au premier
+ * niveau de la double authentification, et l'app afficherait l'écran du code
+ * au milieu de l'opération.
+ */
+export function isolatedClient(url: string, anonKey: string): SupabaseClient {
+  return createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'atlas-reauth' },
+  });
+}
+
 export async function requireUserId(sb: SupabaseClient): Promise<string> {
   const { data } = await sb.auth.getUser();
   if (!data.user) throw new Error('Session expirée, reconnecte-toi.');

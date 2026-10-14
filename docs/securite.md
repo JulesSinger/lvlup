@@ -90,11 +90,57 @@ Pour quelques proches, recommandé : **inscriptions fermées, comptes sur invita
 Le bouton « Créer un compte » de l'écran de connexion resterait affiché mais échouerait : à
 masquer si les inscriptions sont fermées pour de bon.
 
-## 6. Ce qui resterait à faire pour un vrai partage
+**Les e-mails** (vérifié le 14/10/2026, sources de tiers) : l'envoi intégré à Supabase ne livre
+qu'aux membres de l'équipe du projet, et deux à trois e-mails par heure. Une invitation à un proche
+n'arriverait pas. Deux façons gratuites :
 
-- **Supprimer son compte** soi-même (RGPD) : une fonction avec la clé de service, qui efface
-  d'abord les fichiers du compte dans les trois buckets (ils ne partent pas en cascade), puis
-  l'utilisateur (ses lignes partent en cascade). L'export existe déjà (sauvegarde JSON).
-- **Double authentification** (TOTP, gratuite dans Supabase) pour le compte de Jules.
+- **Créer le compte soi-même** : *Authentication → Users → Add user → Create new user*, avec
+  « Auto Confirm User » ; donner le mot de passe de vive voix, la personne le change dans
+  Réglages → Compte. Aucun e-mail.
+- **Un serveur d'envoi** (*Authentication → Emails → SMTP Settings*) : Brevo (300 e-mails par jour
+  gratuits) ou Resend (gratuit avec un nom de domaine). Nécessaire aussi pour « mot de passe
+  oublié » d'un proche.
+
+**Combien de comptes** : le forfait gratuit compte 50 000 utilisateurs actifs par mois ; la vraie
+limite est ailleurs — 500 Mo de base, 1 Go de fichiers (les photos), 5 Go de sortie par mois, et
+un projet mis en pause après une semaine sans aucune activité. Pour quelques proches, très loin.
+
+
+## 7. La double authentification (14/10/2026)
+
+Réglages → *Double authentification* : un QR code à scanner avec une app d'authentification
+(TOTP : Authentificateur d'iCloud, Google Authenticator, 1Password, Bitwarden…), puis le premier
+code. Ensuite, à chaque connexion, après le mot de passe, l'écran du code
+(`SecondFactorScreen`) ; rien d'autre ne s'affiche avant.
+
+**La base l'impose, pas seulement l'écran** : migration `2026-10-14-mfa-enforce.sql`, une
+politique **restrictive** `<table>_mfa` sur chaque table de `public` et sur les fichiers, qui
+refuse tout à un compte ayant une app vérifiée tant que sa session n'est pas au second niveau
+(`aal2`). Sans elle, un mot de passe volé suffirait à interroger l'API directement. Un compte sans
+double authentification n'est pas touché. **Une table créée ensuite doit recevoir sa politique** :
+rejouer la migration (elle boucle sur toutes les tables). La clé du connecteur de Claude et celle
+du raccourci iPhone restent des accès à part, créés depuis une session au second niveau.
+
+L'état se lit dans la session sans appel réseau (`core/lib/mfa.ts` : niveau dans le jeton,
+facteurs dans l'utilisateur). Téléphone perdu : garder la clé affichée à l'activation dans un
+gestionnaire de mots de passe ; en dernier recours, retirer le facteur dans *Authentication →
+Users*.
+
+## 8. Supprimer son compte (14/10/2026)
+
+Réglages → *Supprimer mon compte* : mot de passe, code si la double authentification est active,
+et « SUPPRIMER » recopié. Le mot de passe est redonné dans une **session à part, en mémoire**
+(`isolatedClient`) : la session ouverte ne redescend pas au premier niveau au milieu de
+l'opération. La fonction `account-delete` exige une preuve d'identité de moins de dix minutes (lue
+dans `amr`) et le second niveau pour un compte qui l'a, efface **d'abord les fichiers** des trois
+espaces (ils ne partent pas en cascade), **puis le compte** — toutes les tables partent en cascade
+(vérifié : chaque clé vers `auth.users` est `on delete cascade`). Une coupure entre les deux laisse
+un compte sans fichiers, qu'on resupprime ; jamais des fichiers sans compte. L'écran propose
+d'exporter une sauvegarde avant.
+
+## 9. Ce qui resterait à faire pour un vrai partage
+
+- ~~Supprimer son compte~~ et ~~double authentification~~ : faits le 14/10/2026 (§7, §8).
+- Un serveur d'envoi d'e-mails si des proches doivent recevoir « mot de passe oublié » (§5).
 - La protection contre les mots de passe divulgués de Supabase est réservée au forfait payant :
   écartée (règle n° 1).

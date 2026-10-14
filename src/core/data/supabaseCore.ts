@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { needsSecondFactor, readTotpCode } from '../lib/mfa';
 import type { AppUser } from '../lib/types';
 import {
   DEFAULT_SETTINGS,
@@ -8,9 +9,11 @@ import {
   type PushDeviceInput,
   type PushDiagnostic,
   type ReminderInput,
+  type SecondFactor,
+  type SecondFactorEnrollment,
   type Settings,
 } from './coreStore';
-import { fetchAll, getClient, requireUserId, unwrap } from './supabaseClient';
+import { fetchAll, getClient, isolatedClient, requireUserId, unwrap } from './supabaseClient';
 
 function check(error: { message: string } | null) {
   if (error) throw new Error(error.message);
@@ -25,8 +28,13 @@ export class SupabaseCore implements CoreStore {
   readonly isRemote = true;
   private client: SupabaseClient;
 
+  private url: string;
+  private anonKey: string;
+
   constructor(url: string, anonKey: string) {
     this.client = getClient(url, anonKey);
+    this.url = url;
+    this.anonKey = anonKey;
   }
 
   private requireUserId(): Promise<string> {
@@ -50,7 +58,7 @@ export class SupabaseCore implements CoreStore {
     const { data } = this.client.auth.onAuthStateChange((_event, session) => {
       callback(
         session?.user
-          ? { id: session.user.id, email: session.user.email ?? '', isLocal: false }
+          ? { id: session.user.id, email: session.user.email ?? '', isLocal: false, needsSecondFactor: needsSecondFactor(session) }
           : null,
       );
     });
@@ -275,6 +283,92 @@ export class SupabaseCore implements CoreStore {
   async deleteMcpToken(id: string) {
     unwrap(await this.client.from('mcp_tokens').delete().eq('id', id));
   }
+
+  // --- Double authentification (docs/securite.md §7) ---------------------------
+
+  async listSecondFactors(): Promise<SecondFactor[]> {
+    const { data, error } = await this.client.auth.mfa.listFactors();
+    check(error);
+    return (data?.totp ?? []).map((f) => ({ id: f.id, label: f.friendly_name ?? 'App d’authentification', createdAt: f.created_at }));
+  }
+
+  async enrollSecondFactor(): Promise<SecondFactorEnrollment> {
+    // Un ajout abandonné laisse un facteur non vérifié : on le retire, sinon
+    // Supabase refuse d'en créer un autre du même nom.
+    const { data: listed } = await this.client.auth.mfa.listFactors();
+    for (const f of listed?.all ?? []) {
+      if (f.status !== 'verified') await this.client.auth.mfa.unenroll({ factorId: f.id });
+    }
+    const { data, error } = await this.client.auth.mfa.enroll({ factorType: 'totp', friendlyName: `Atlas ${new Date().toISOString().slice(0, 10)}` });
+    check(error);
+    if (!data) throw new Error('Supabase n’a rien rendu.');
+    return { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret };
+  }
+
+  async confirmSecondFactor(factorId: string, code: string) {
+    const digits = readTotpCode(code);
+    if (!digits) throw new Error('Le code a six chiffres.');
+    const { error } = await this.client.auth.mfa.challengeAndVerify({ factorId, code: digits });
+    if (error) throw new Error('Code refusé : vérifie l’heure du téléphone, et prends le code affiché maintenant.');
+  }
+
+  async verifySecondFactor(code: string) {
+    const digits = readTotpCode(code);
+    if (!digits) throw new Error('Le code a six chiffres.');
+    const factors = await this.listSecondFactors();
+    if (factors.length === 0) throw new Error('Aucune app d’authentification sur ce compte.');
+    // Plusieurs apps reliées (un téléphone et une tablette) : le code vaut pour l'une d'elles.
+    for (const f of factors) {
+      const { error } = await this.client.auth.mfa.challengeAndVerify({ factorId: f.id, code: digits });
+      if (!error) return;
+    }
+    throw new Error('Code refusé : prends le code affiché maintenant dans ton app d’authentification.');
+  }
+
+  async removeSecondFactor(factorId: string) {
+    const { error } = await this.client.auth.mfa.unenroll({ factorId });
+    check(error);
+    // Le jeton garde l'ancien niveau tant qu'il n'est pas renouvelé.
+    await this.client.auth.refreshSession();
+  }
+
+  // --- Supprimer son compte (docs/securite.md §8) --------------------------------
+
+  async deleteAccount(password: string, code: string | null) {
+    const { data: current } = await this.client.auth.getUser();
+    const email = current.user?.email;
+    if (!email) throw new Error('Aucun compte connecté.');
+    // Le mot de passe (et le code) redonnés dans une session à part : la
+    // fonction exige une preuve de moins de dix minutes, et la session ouverte
+    // n'est pas touchée tant que rien n'est effacé.
+    const proof = isolatedClient(this.url, this.anonKey);
+    const { data: signed, error: signInError } = await proof.auth.signInWithPassword({ email, password });
+    if (signInError || !signed.session) throw new Error('Mot de passe incorrect.');
+    const { data: listed } = await proof.auth.mfa.listFactors();
+    const factors = listed?.totp ?? [];
+    if (factors.length > 0) {
+      const digits = code ? readTotpCode(code) : null;
+      if (!digits) throw new Error('Donne aussi le code de ton app d’authentification.');
+      let verified = false;
+      for (const f of factors) {
+        const { error } = await proof.auth.mfa.challengeAndVerify({ factorId: f.id, code: digits });
+        if (!error) {
+          verified = true;
+          break;
+        }
+      }
+      if (!verified) throw new Error('Code refusé : prends le code affiché maintenant.');
+    }
+    const { error } = await proof.functions.invoke('account-delete', { body: { confirm: true } });
+    if (error) {
+      const response = (error as { context?: Response }).context;
+      const payload = response && typeof response.json === 'function' ? ((await response.json().catch(() => null)) as { error?: string } | null) : null;
+      throw new Error(payload?.error ?? 'La suppression n’a pas abouti : réessaie.');
+    }
+    // Le compte n'existe plus : on ferme la session de l'appareil, sans prévenir le serveur.
+    await this.client.auth.signOut({ scope: 'local' });
+  }
+
 }
 
 interface McpTokenRow {

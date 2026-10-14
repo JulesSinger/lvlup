@@ -341,3 +341,22 @@
   font-weight: 600;
   color: var(--text-dim);
 }
+
+/* --- double authentification et suppression du compte (docs/securite.md §7-§8) --- */
+/* Le QR code reste noir sur blanc dans les deux thèmes : sinon les apps le lisent mal. */
+.settings-mfa-qr {
+  display: block;
+  background: var(--white);
+  padding: 8px;
+  border-radius: 8px;
+  margin: 8px 0;
+}
+
+.settings-mfa-secret {
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.settings-delete .field {
+  margin-top: 10px;
+}

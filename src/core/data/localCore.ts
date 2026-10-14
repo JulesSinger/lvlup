@@ -92,4 +92,30 @@ export class LocalCore implements CoreStore {
   }
 
   async deleteMcpToken() {}
+
+  // Sans compte, ni double authentification ni compte à supprimer : les données
+  // sont sur l'appareil, et s'effacent avec celles du navigateur.
+  async listSecondFactors() {
+    return [];
+  }
+
+  async enrollSecondFactor(): Promise<never> {
+    throw new Error('Le mode local n’a pas de compte à protéger.');
+  }
+
+  async confirmSecondFactor() {
+    throw new Error('Le mode local n’a pas de compte à protéger.');
+  }
+
+  async verifySecondFactor() {
+    throw new Error('Le mode local n’a pas de compte à protéger.');
+  }
+
+  async removeSecondFactor() {
+    throw new Error('Le mode local n’a pas de compte à protéger.');
+  }
+
+  async deleteAccount() {
+    throw new Error('Le mode local n’a pas de compte : ses données sont celles du navigateur.');
+  }
 }

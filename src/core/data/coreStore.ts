@@ -82,6 +82,22 @@ export interface PushDiagnostic {
   serverKeyPrefix: string;
 }
 
+/** Une app d'authentification reliée au compte. */
+export interface SecondFactor {
+  id: string;
+  label: string;
+  createdAt: string;
+}
+
+/** Ce qu'il faut pour relier une app d'authentification. */
+export interface SecondFactorEnrollment {
+  factorId: string;
+  /** Le QR code, en image SVG (adresse `data:`) */
+  qrCode: string;
+  /** La même clé, à taper à la main si le QR code ne se scanne pas */
+  secret: string;
+}
+
 /** Niveaux d'objectif quotidien proposés (à la Duolingo). */
 export const DAILY_GOAL_LEVELS: { label: string; pp: number; hint: string }[] = [
   { label: 'Tranquille', pp: 20, hint: 'une action, ou deux petits pas' },
@@ -149,6 +165,24 @@ export interface CoreStore {
   /** Range l'empreinte d'un jeton tiré sur l'appareil (le jeton, lui, n'est jamais envoyé). */
   createMcpToken(tokenHash: string, label: string): Promise<McpToken>;
   deleteMcpToken(id: string): Promise<void>;
+
+  // Double authentification et suppression du compte (docs/securite.md §7-§8).
+  // Sans compte (mode local), il n'y a ni l'une ni l'autre : ces méthodes le disent.
+  /** Les facteurs actifs (une app d'authentification, TOTP). */
+  listSecondFactors(): Promise<SecondFactor[]>;
+  /** Commence l'ajout d'une app d'authentification : le QR code à scanner. */
+  enrollSecondFactor(): Promise<SecondFactorEnrollment>;
+  /** Termine l'ajout avec le premier code donné par l'app. */
+  confirmSecondFactor(factorId: string, code: string): Promise<void>;
+  /** Donne le code à la connexion : la session passe au second niveau. */
+  verifySecondFactor(code: string): Promise<void>;
+  /** Retire une app d'authentification (session au second niveau exigée). */
+  removeSecondFactor(factorId: string): Promise<void>;
+  /**
+   * Supprime le compte et tout ce qu'il contient, fichiers compris, après avoir
+   * redemandé le mot de passe (et le code, si la double authentification est active).
+   */
+  deleteAccount(password: string, code: string | null): Promise<void>;
 }
 
 export function newId(): string {

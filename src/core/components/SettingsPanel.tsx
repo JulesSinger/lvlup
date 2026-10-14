@@ -7,6 +7,7 @@ import { THEME_CHOICES, applyTheme, readThemeChoice, saveThemeChoice } from '../
 import type { ThemeChoice } from '../lib/theme';
 import type { AppUser } from '../lib/types';
 import AtlasMark from './AtlasMark';
+import { AccountSecurity } from './AccountSecurity';
 import { ClaudeConnector } from './ClaudeConnector';
 
 const THEME_LABELS: Record<ThemeChoice, string> = {
@@ -211,6 +212,8 @@ export function SettingsPanel({
               </div>
             </section>
           )}
+
+          {user && !user.isLocal && <AccountSecurity onExport={onExport} />}
         </div>
 
         <div className="modal-foot">
