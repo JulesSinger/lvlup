@@ -81,8 +81,9 @@ describe('lire un fichier .ics', () => {
     });
   });
 
-  it('un autre fuseau ramené à l’heure de l’appareil', () => {
-    expect(byTitle('Appel avec New York').event).toMatchObject({ startDay: '2026-11-20', startTime: '15:00', endTime: '16:00' });
+  it('un autre fuseau ramené à l’heure de l’appareil ; « aucune alerte » d’Apple ne dit rien', () => {
+    expect(byTitle('Appel avec New York').event).toMatchObject({ startDay: '2026-11-20', startTime: '15:00', endTime: '16:00', reminders: [] });
+    expect(result.warnings.some((w) => w.includes('New York'))).toBe(false);
   });
 
   it('une répétition inconnue d’Atlas : importé une fois, et dit', () => {

@@ -278,6 +278,8 @@ export function readAlarms(c: Component, allDay: boolean): { reminders: number[]
   const reminders: number[] = [];
   let dropped = 0;
   for (const alarm of c.children.filter((x) => x.type === 'VALARM')) {
+    // « Aucune alerte » chez Apple : une alerte fictive (ACTION:NONE, déclenchée en 1976). Rien à reprendre, rien à dire.
+    if (textOf(alarm, 'ACTION').toUpperCase() === 'NONE') continue;
     const trigger = prop(alarm, 'TRIGGER');
     if (!trigger || trigger.params.VALUE === 'DATE-TIME' || trigger.params.RELATED === 'END') {
       dropped++;

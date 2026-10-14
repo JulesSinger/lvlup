@@ -559,6 +559,13 @@ reportée (l'événement est déjà là) : c'est un import, pas une synchronisat
 si les exceptions d'un paquet échouent, ses événements sont retirés, pour qu'un nouvel import les
 reprenne entiers.
 
+**Éprouvé sur un vrai export de Jules** (14/10/2026, macOS 26, 169 événements, fichier jamais
+versé au dépôt) : tous lus et acceptés — 35 journées entières, 19 sur plusieurs jours, 9
+anniversaires annuels, deux en heure de Toronto. Un défaut trouvé : Apple écrit « aucune alerte »
+comme une alerte fictive (`ACTION:NONE`, déclenchée en 1976) ; elle aurait produit 28 fausses
+remarques dans l'aperçu — elle est désormais ignorée sans rien dire. Restent signalées trois alertes
+sans équivalent dans Atlas (2 jours avant, 1 semaine avant, 7 h avant).
+
 ## Sources
 
 - Comparatifs 2026 : [Zapier, meilleures applis de calendrier](https://zapier.com/blog/best-calendar-apps/),
