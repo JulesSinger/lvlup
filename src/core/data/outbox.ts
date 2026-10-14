@@ -16,6 +16,8 @@
  * la renommer effacerait les coches en attente (CLAUDE.md §4).
  */
 
+import { OUTBOX_KEY_PATTERN } from './deviceOwner';
+
 /** Ce que toute opération en file porte, quel que soit son module. */
 export interface QueuedOp {
   /** Identifiant de l'opération dans la file */
@@ -36,6 +38,9 @@ export interface Outbox<Op extends QueuedOp> {
 }
 
 export function createOutbox<Op extends QueuedOp>(key: string): Outbox<Op> {
+  // La forme de la clé dit au socle que c'est une file : c'est ainsi que
+  // `claimDevice` la met de côté quand un autre compte se connecte (deviceOwner.ts).
+  if (!OUTBOX_KEY_PATTERN.test(key)) throw new Error(`Clé de file d’attente « ${key} » : elle doit avoir la forme <module>.outbox.v<n>.`);
   const listeners = new Set<(ops: Op[]) => void>();
 
   function list(): Op[] {

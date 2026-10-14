@@ -38,3 +38,12 @@ export function readOfflineCopy(storage: Storage | undefined = globalThis.localS
     return null;
   }
 }
+
+/** À la déconnexion : la copie appartenait au compte qui part (docs/securite.md §3). */
+export function forgetOfflineCopy(storage: Storage | undefined = globalThis.localStorage): void {
+  try {
+    storage?.removeItem(OFFLINE_KEY);
+  } catch {
+    // Stockage refusé : il n'y avait pas de copie.
+  }
+}

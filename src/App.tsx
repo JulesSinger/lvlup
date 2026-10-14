@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Landing } from './core/components/Landing';
 import { ModulePicker } from './core/components/ModulePicker';
 import { ModuleRail } from './core/components/ModuleRail';
@@ -8,12 +8,16 @@ import { SettingsPanel } from './core/components/SettingsPanel';
 import { coreStore } from './core/data';
 import { exportBackup, importBackup, readBackupFile } from './core/data/backup';
 import { DEFAULT_SETTINGS, type Settings } from './core/data/coreStore';
+import { claimDevice, forgetDeviceData } from './core/data/deviceOwner';
 import { orderModules } from './core/lib/moduleOrder';
 import { hashFor, initialModule, readLastModule, routeFromHash, saveLastModule } from './core/lib/moduleRoute';
 import { timezoneOffsetMinutes } from './core/lib/push';
 import { collectServices } from './core/lib/services';
 import type { AppUser } from './core/lib/types';
 import { MODULES } from './modules';
+
+/** Ce que chaque module oublie de l'appareil à la déconnexion (`AtlasModule.forgetDevice`). */
+const forgetHooks = MODULES.flatMap((m) => (m.forgetDevice ? [() => m.forgetDevice!()] : []));
 
 /**
  * Les services que les modules se rendent (`core/lib/services.ts`). Calculés
@@ -60,6 +64,10 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = coreStore.onUserChange((next) => {
+      // Avant tout écran, donc avant tout envoi de file d'attente : l'appareil
+      // passe à ce compte, et ce qu'un autre y a laissé est mis de côté ou
+      // oublié (docs/securite.md §3). Sans compte, l'appareil est à lui seul.
+      if (next && !next.isLocal && claimDevice(next.id)) void forgetDeviceData(forgetHooks);
       setUser(next);
       setAuthReady(true);
     });
@@ -89,6 +97,17 @@ export default function App() {
   // rapporté par l'utilisateur. Ne dépendre que de l'identifiant ignore les
   // ré-émissions du même compte et ne réagit qu'à un changement réel
   // (connexion, déconnexion, autre compte).
+  // Une déconnexion : ce que l'appareil gardait du compte s'oublie (copies,
+  // photos en cache) ; ses écritures pas encore parties, elles, attendent son
+  // retour (docs/securite.md §3).
+  const previousUser = useRef<AppUser | null>(null);
+  useEffect(() => {
+    const before = previousUser.current;
+    previousUser.current = user;
+    if (before && !before.isLocal && !user) void forgetDeviceData(forgetHooks);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   useEffect(() => {
     setShowSettings(false);
     setSwitching(false);

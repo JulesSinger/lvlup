@@ -129,7 +129,7 @@ describe('journalWriter', () => {
 
   it('avec du réseau, écrit directement et ne met rien en file', async () => {
     const { store, rows } = fakeStore();
-    const writer = createJournalWriter(store, createOutbox<EntryOp>('test.nutrition.outbox'));
+    const writer = createJournalWriter(store, createOutbox<EntryOp>('testnutrition.outbox.v1'));
     const { id, queued } = await writer.add(input);
     expect(queued).toBe(false);
     expect(rows.has(id)).toBe(true);
@@ -138,7 +138,7 @@ describe('journalWriter', () => {
 
   it('sans réseau, met en file ; au retour du réseau, envoie avec le même id, sans doublon', async () => {
     const { store, rows, setMode } = fakeStore();
-    const writer = createJournalWriter(store, createOutbox<EntryOp>('test.nutrition.outbox'));
+    const writer = createJournalWriter(store, createOutbox<EntryOp>('testnutrition.outbox.v1'));
     setMode('offline');
     const { id, queued } = await writer.add(input);
     expect(queued).toBe(true);
@@ -156,7 +156,7 @@ describe('journalWriter', () => {
 
   it('une entrée qui attend passe par la file même avec du réseau, pour garder l’ordre', async () => {
     const { store, rows, setMode } = fakeStore();
-    const writer = createJournalWriter(store, createOutbox<EntryOp>('test.nutrition.outbox'));
+    const writer = createJournalWriter(store, createOutbox<EntryOp>('testnutrition.outbox.v1'));
     setMode('offline');
     const { id } = await writer.add(input);
     setMode('online');
@@ -167,7 +167,7 @@ describe('journalWriter', () => {
 
   it('un refus du serveur n’est pas mis en file : il remonte', async () => {
     const { store, setMode } = fakeStore();
-    const writer = createJournalWriter(store, createOutbox<EntryOp>('test.nutrition.outbox'));
+    const writer = createJournalWriter(store, createOutbox<EntryOp>('testnutrition.outbox.v1'));
     setMode('refuse');
     await expect(writer.add(input)).rejects.toThrow('check constraint');
     expect(writer.pending()).toEqual([]);
@@ -176,8 +176,8 @@ describe('journalWriter', () => {
   it('la file survit à un rechargement (nouvelle instance, même clé)', async () => {
     const { store, setMode } = fakeStore();
     setMode('offline');
-    await createJournalWriter(store, createOutbox<EntryOp>('test.nutrition.outbox')).add(input);
-    const reloaded = createJournalWriter(store, createOutbox<EntryOp>('test.nutrition.outbox'));
+    await createJournalWriter(store, createOutbox<EntryOp>('testnutrition.outbox.v1')).add(input);
+    const reloaded = createJournalWriter(store, createOutbox<EntryOp>('testnutrition.outbox.v1'));
     expect(reloaded.pending()).toHaveLength(1);
   });
 });

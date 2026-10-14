@@ -1,0 +1,28 @@
+# En-têtes de sécurité, servis par Cloudflare Pages avec chaque page (docs/securite.md §2).
+#
+# La politique de contenu (CSP) ne laisse exécuter que le code d'Atlas : un texte
+# piégé (une carte, une recette importée) ne peut ni lancer de script ni envoyer
+# des données ailleurs que vers Supabase. Le seul script écrit dans la page — le
+# thème, dans index.html — est autorisé par son empreinte ; `src/core/lib/
+# securityHeaders.test.ts` la recalcule, et échoue si le script change sans elle.
+#
+#   script-src  'wasm-unsafe-eval' : le lecteur de code-barres (zxing en WebAssembly)
+#   style-src   'unsafe-inline'    : les styles posés par React et FullCalendar
+#   img-src     blob:              : les photos, déchiffrées en local avant affichage
+#   connect-src                    : Supabase (données, comptes, fonctions, temps réel),
+#                                    Open Food Facts (code-barres)
+#   camera=(self)                  : le scanner de Nutrition, rien d'autre
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-zcFx7Q1Zg/8aorVtwsKGwaR0VAnummYvbdrdCLbLT94=' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://world.openfoodfacts.org; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+
+# Le service worker doit toujours être relu : une ancienne version en cache
+# garderait d'anciennes règles.
+/sw.js
+  Cache-Control: no-cache

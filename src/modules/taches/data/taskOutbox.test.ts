@@ -87,7 +87,7 @@ function flaky() {
 
 describe('taskWriter', () => {
   beforeEach(() => memory.clear());
-  const box = () => createOutbox<TaskOp>('test.taches.outbox');
+  const box = () => createOutbox<TaskOp>('testtaches.outbox.v1');
 
   it('avec du réseau, écrit directement et ne met rien en file', async () => {
     const { store, inner } = flaky();

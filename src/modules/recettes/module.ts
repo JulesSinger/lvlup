@@ -2,6 +2,7 @@ import type { AtlasModule } from '../../core/lib/module';
 import { RecettesLandingPreview } from './components/RecettesLandingPreview';
 import { recettesStore } from './data';
 import { createCalendarSource } from './data/calendarSource';
+import { forgetOfflineCopy } from './data/offlineCopy';
 import { RecettesScreen } from './RecettesScreen';
 
 /**
@@ -21,4 +22,6 @@ export const recettesModule: AtlasModule = {
   Screen: RecettesScreen,
   LandingPreview: RecettesLandingPreview,
   provides: { calendarSources: [createCalendarSource(recettesStore)] },
+  // La copie du carnet pour le lire sans réseau : celle du compte qui part.
+  forgetDevice: () => forgetOfflineCopy(),
 };

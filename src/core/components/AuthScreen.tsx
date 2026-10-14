@@ -90,7 +90,9 @@ export function AuthScreen({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
+                // 8 à l'inscription, comme au changement de mot de passe ; jamais à la
+                // connexion : un compte plus ancien peut avoir un mot de passe plus court.
+                minLength={mode === 'signup' ? 8 : undefined}
                 autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
               />
               <button

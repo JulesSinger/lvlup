@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { coreStore } from '../data';
 import type { Settings } from '../data/coreStore';
+import { pendingWrites } from '../data/deviceOwner';
 import type { AtlasModule } from '../lib/module';
 import { THEME_CHOICES, applyTheme, readThemeChoice, saveThemeChoice } from '../lib/theme';
 import type { ThemeChoice } from '../lib/theme';
@@ -51,6 +52,8 @@ export function SettingsPanel({
   const [passwordDone, setPasswordDone] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [theme, setTheme] = useState<ThemeChoice>(readThemeChoice);
+  // Lu à l'ouverture du panneau : ce qui partirait avec une déconnexion.
+  const [pending] = useState(() => pendingWrites());
 
   function chooseTheme(choice: ThemeChoice) {
     setTheme(choice);
@@ -184,6 +187,14 @@ export function SettingsPanel({
               </form>
               {passwordDone && <p className="settings-ok">{passwordDone}</p>}
               {passwordError && <p className="settings-problem">{passwordError}</p>}
+              {pending > 0 && (
+                <p className="settings-hint" role="note">
+                  {pending === 1
+                    ? 'Une modification n’est pas encore envoyée : elle partira'
+                    : `${pending} modifications ne sont pas encore envoyées : elles partiront`}{' '}
+                  à ta prochaine connexion sur cet appareil, jamais dans un autre compte.
+                </p>
+              )}
               <div className="settings-actions">
                 {/* Refermer avant de partir : sans ça, le panneau restait
                     ouvert par-dessus l'écran de connexion, puis accueillait la

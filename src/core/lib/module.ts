@@ -130,4 +130,12 @@ export interface AtlasModule {
    * déclaration : le socle le transmet sans en connaître l'implémentation.
    */
   provides?: Partial<AtlasServices>;
+  /**
+   * Oublier ce que l'appareil garde du compte qui se déconnecte (une copie
+   * hors ligne, un brouillon…) — docs/securite.md §3. Les photos en cache et
+   * les files d'attente sont l'affaire du socle (`core/data/deviceOwner.ts`) :
+   * un module ne déclare ici que ce qui lui est propre. Jamais une donnée qui
+   * n'existe que sur l'appareil (le mode local, une écriture pas encore partie).
+   */
+  forgetDevice?(): void | Promise<void>;
 }

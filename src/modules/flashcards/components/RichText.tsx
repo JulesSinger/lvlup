@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { renderDrawings } from '../lib/drawing';
+import { sanitizeCardHtml } from '../lib/sanitize';
 
 interface Props {
   html: string;
@@ -8,17 +9,16 @@ interface Props {
 
 /**
  * Affiche le recto/verso d'une carte, écrit par l'éditeur Tiptap de
- * `CardEditor` (§19-§20 de l'étude). `front`/`back` sont du HTML de
- * confiance : il ne provient que du schéma restreint de l'éditeur (les huit
- * boutons de `EditorToolbar` — voir les extensions désactivées dans
- * `CardEditor.tsx`), jamais d'une saisie brute injectée telle quelle. Une
- * carte créée en masse (`BulkImport`) est du texte simple sans balise : il
- * s'affiche tel quel, sans erreur.
+ * `CardEditor` (§19-§20 de l'étude). Ce HTML n'est **pas** de confiance : une
+ * carte créée en masse (`BulkImport`) est du texte brut, une sauvegarde peut
+ * être retouchée. Il passe donc par une liste blanche avant d'être affiché
+ * (docs/securite.md §4) ; le texte brut s'y affiche tel quel, chevrons compris.
  */
 export function RichText({ html, className }: Props) {
-  // Un dessin n'est stocké que sous forme de traits : son SVG est recalculé
-  // ici, depuis des nombres validés (`lib/drawing.ts`).
-  const rendered = useMemo(() => renderDrawings(html), [html]);
+  // Le HTML est d'abord filtré (`lib/sanitize.ts`) : une carte importée ou une
+  // sauvegarde retouchée ne peut rien exécuter. Un dessin n'est stocké que sous
+  // forme de traits : son SVG est recalculé ici, depuis des nombres validés.
+  const rendered = useMemo(() => renderDrawings(sanitizeCardHtml(html)), [html]);
   return (
     <div
       className={`flashcards-richtext${className ? ` ${className}` : ''}`}
