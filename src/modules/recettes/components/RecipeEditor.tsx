@@ -4,6 +4,7 @@ import { ingredientsToText, readMinutesField, stepsToText, textToIngredients, te
 import { parsePastedRecipe } from '../lib/pasteText';
 import { RECIPE_CATEGORIES, type Recipe, type RecipeCategory, type RecipeInput, type RecipePhoto } from '../lib/types';
 import { validateRecipe } from '../lib/validation';
+import { mergeStepTiming } from '../lib/schedule';
 import { Modal } from './Modal';
 import { RecipeCover } from './RecipePhotoImg';
 
@@ -179,6 +180,8 @@ export function RecipeEditor({ recipe, photo, draft, onSave, onClose, onImportLi
   async function save() {
     const input = toInput(f);
     if (typeof input === 'string') return setError(input);
+    // Le texte des étapes est recréé : chaque étape reprend ses réglages de temps (§20.7).
+    if (recipe && input.steps) input.steps = mergeStepTiming(recipe.steps, input.steps);
     setSaving(true);
     setError('');
     try {

@@ -15,6 +15,7 @@ import {
   type RecettesSettings,
 } from '../lib/types';
 import { validateCooked, validatePlanEntry, validateRecipe } from '../lib/validation';
+import { cleanSteps } from '../lib/schedule';
 import { deviceBlobs } from './deviceImages';
 import type { RecettesBackup, RecettesStore } from './recettesStore';
 
@@ -77,7 +78,7 @@ function toRecipe(input: RecipeInput, id: string, createdAt: string): Recipe {
     note: input.note ?? '',
     favorite: input.favorite ?? false,
     ingredients: input.ingredients ?? [],
-    steps: input.steps ?? [],
+    steps: cleanSteps(input.steps ?? []),
     createdAt,
     updatedAt: createdAt,
   };
@@ -111,6 +112,7 @@ export class LocalRecettes implements RecettesStore {
     const recipe = s.recipes.find((r) => r.id === id);
     if (!recipe) throw new Error('Cette recette n’existe plus.');
     const next = { ...recipe, ...patch, title: (patch.title ?? recipe.title).trim(), updatedAt: new Date().toISOString() };
+    if (patch.steps) next.steps = cleanSteps(patch.steps);
     fail(validateRecipe(next));
     s.recipes = s.recipes.map((r) => (r.id === id ? next : r));
     write(s);

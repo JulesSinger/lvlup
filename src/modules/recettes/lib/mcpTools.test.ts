@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as server from '../../../../supabase/functions/atlas-mcp/recettes.ts';
 import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from '../../../../supabase/functions/atlas-mcp/recettes.ts';
+import { cleanSteps, mergeStepTiming, schedule } from './schedule';
 import * as types from './types';
 
 /** Une base en mémoire, du seul compte du jeton, comme `recettesData` dans la fonction. */
@@ -102,6 +103,60 @@ describe('les outils de Recettes pour Claude', () => {
       types.PLAN_TITLE_MAX,
     ]);
     expect(server.DEFAULT_PANTRY).toEqual(types.DEFAULT_PANTRY);
+  });
+
+  it('ont les mêmes postes, et gardent le temps des étapes comme l’app (§20)', () => {
+    expect([...server.STATIONS]).toEqual([...types.STATIONS]);
+    expect(server.STATION_MAX).toBe(types.STATION_MAX);
+    const previous = [
+      { text: 'Eau', id: 'e1', station: 'Casserole', minutes: 8, hands: false },
+      { text: 'Oignon', id: 'o1', minutes: 3, hands: true, start: { after: 'start' as const, of: 'e1', offset: 0 } },
+      { text: 'Pâtes', id: 'p1', minutes: 10, start: { after: 'end' as const, of: 'e1' } },
+    ];
+    for (const next of [
+      [{ text: 'Oignon' }, { text: 'Eau' }],
+      [{ text: 'Eau bouillante' }, { text: 'Oignon' }, { text: 'Pâtes' }],
+      [{ text: 'Pâtes' }],
+      [{ text: 'Eau' }, { text: 'Servir' }],
+    ]) {
+      expect(server.keepTiming(previous, next)).toEqual(mergeStepTiming(previous, next));
+    }
+  });
+
+  it('règlent le temps d’une recette, et le gardent quand on réécrit ses étapes', async () => {
+    const data = memory();
+    const { recipe } = (
+      await use(data, 'recettes_creer', { title: 'Pâtes aux lardons', steps: ['Faire bouillir l’eau.', 'Émincer l’oignon.', 'Cuire les pâtes 10 minutes.'] })
+    ).value;
+    expect(recipe.steps_timing).toBeNull();
+    const timed = await use(data, 'recettes_minuter', {
+      id: recipe.id,
+      steps_timing: [
+        { step: 1, station: 'Casserole', minutes: 8, hands: false, starts: 'launch' },
+        { step: 2, station: 'Plan de travail', minutes: 3, hands: true, starts: { start_of: 1, offset_minutes: 0 } },
+        { step: 3, station: 'Casserole', minutes: 10, hands: false, starts: { end_of: 1 } },
+      ],
+    });
+    expect(timed.error).toBe(false);
+    expect(timed.value.steps_timing).toEqual([
+      { step: 1, station: 'Casserole', minutes: 8, hands: false, starts: 'launch' },
+      { step: 2, station: 'Plan de travail', minutes: 3, hands: true, starts: { start_of: 1, offset_minutes: 0 } },
+      { step: 3, station: 'Casserole', minutes: 10, hands: false, starts: { end_of: 1 } },
+    ]);
+    // Le JSON rangé est celui que l'app relit : rien n'est écarté par `cleanSteps`.
+    expect(cleanSteps(data.recipes[0].steps)).toEqual(data.recipes[0].steps);
+    expect(schedule(cleanSteps(data.recipes[0].steps)).total).toBe(18);
+
+    const rewritten = await use(data, 'recettes_modifier', { id: recipe.id, steps: ['Faire bouillir l’eau.', 'Émincer l’oignon.', 'Cuire les pâtes 10 minutes.', 'Servir.'] });
+    expect(rewritten.value.recipe.steps_timing.slice(0, 3)).toEqual(timed.value.steps_timing);
+
+    const errors = [
+      await use(data, 'recettes_minuter', { id: recipe.id, steps_timing: [{ step: 9 }] }),
+      await use(data, 'recettes_minuter', { id: recipe.id, steps_timing: [{ step: 3, starts: { end_of: 3 } }] }),
+      await use(data, 'recettes_minuter', { id: recipe.id, steps_timing: [{ step: 1, minutes: -2 }] }),
+      await use(data, 'recettes_minuter', { id: recipe.id, steps_timing: [{ step: 1, starts: 'plus tard' }] }),
+    ];
+    expect(errors.map((e) => e.error)).toEqual([true, true, true, true]);
   });
 
   it('ajoutent, retrouvent, lisent, modifient et suppriment une recette', async () => {

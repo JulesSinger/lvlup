@@ -18,6 +18,7 @@ import {
   type Step,
 } from '../lib/types';
 import { validateCooked, validatePlanEntry, validateRecipe } from '../lib/validation';
+import { cleanSteps } from '../lib/schedule';
 import { photoCache } from './deviceImages';
 import type { RecettesBackup, RecettesStore } from './recettesStore';
 
@@ -109,7 +110,8 @@ const toRecipe = (r: RecipeRow): Recipe => ({
   ingredients: (r.ingredients ?? [])
     .filter((i) => i && typeof i.text === 'string')
     .map((i) => ({ text: i.text, section: typeof i.section === 'string' ? i.section : null })),
-  steps: (r.steps ?? []).filter((s) => s && typeof s.text === 'string').map((s) => ({ text: s.text })),
+  // Les temps d'une étape (§20) relus avec elle, un champ douteux retiré.
+  steps: cleanSteps(r.steps),
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -162,7 +164,7 @@ function recipeColumns(p: Partial<RecipeInput>): Record<string, unknown> {
   if (p.note !== undefined) row.note = p.note;
   if (p.favorite !== undefined) row.favorite = p.favorite;
   if (p.ingredients !== undefined) row.ingredients = p.ingredients;
-  if (p.steps !== undefined) row.steps = p.steps;
+  if (p.steps !== undefined) row.steps = cleanSteps(p.steps);
   return row;
 }
 

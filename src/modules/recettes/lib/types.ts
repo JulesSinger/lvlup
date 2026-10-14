@@ -36,8 +36,36 @@ export interface Ingredient {
   section: string | null;
 }
 
+/**
+ * Quand une étape commence (docs/etude-recettes.md §20) : au lancement, à la
+ * fin d'une autre étape, ou quelques minutes après le début d'une autre.
+ * Absent : après l'étape d'avant.
+ */
+export type StepStart =
+  | { after: 'launch' }
+  | { after: 'end'; of: string }
+  | { after: 'start'; of: string; offset: number };
+
+/** Les postes proposés (§20.7 : une liste, et « Autre » en texte libre). */
+export const STATIONS = ['Plan de travail', 'Casserole', 'Poêle', 'Four', 'Micro-ondes', 'Robot'] as const;
+export const STATION_MAX = 40;
+
+/**
+ * Une étape : son texte, et, si on l'a réglé, son temps (§20, 14/10/2026).
+ * Tous les champs de temps sont facultatifs : une recette sans eux reste une
+ * suite d'étapes, comme avant. Rangés dans le JSON des étapes, sans migration.
+ */
 export interface Step {
   text: string;
+  /** Pour qu'une autre étape la désigne (« à la fin de… »), même déplacée. */
+  id?: string;
+  /** Le poste : « Casserole », « Poêle »… */
+  station?: string | null;
+  /** La durée, en minutes. */
+  minutes?: number | null;
+  /** true : tu es dessus ; false : ça cuit tout seul. */
+  hands?: boolean;
+  start?: StepStart;
 }
 
 export interface Recipe {

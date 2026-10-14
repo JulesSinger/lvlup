@@ -71,7 +71,8 @@ sur une base en mémoire — test qui compare aussi les bornes (catégories, rep
 | `recettes_lister` | le carnet en résumé, ou une recherche (titre, étiquettes, ingrédients ; sans accents ni majuscules) |
 | `recettes_lire` | une recette entière, avec les fois où elle a été faite |
 | `recettes_creer` | une recette : titre, ingrédients (un par ligne, quantité en tête, groupes possibles), étapes, personnes, temps, catégorie, étiquettes, source, note, favori |
-| `recettes_modifier` | seuls les champs donnés changent ; une liste donnée remplace la liste entière |
+| `recettes_modifier` | seuls les champs donnés changent ; une liste donnée remplace la liste entière — des étapes réécrites **gardent leur temps** (même texte, sinon même place) |
+| `recettes_minuter` | le temps des étapes (§20 de l'étude) : poste, durée, « tu es dessus » ou non, ce qui les déclenche (`launch`, `after_previous`, `{ end_of: N }`, `{ start_of: N, offset_minutes: M }`) ; `recettes_lire` le rend dans `steps_timing` |
 | `recettes_supprimer` | avec sa photo (fichiers compris), son historique et ses places au menu — **marqué destructeur** |
 | `recettes_menu_lister` | le menu entre deux jours, la semaine en cours par défaut |
 | `recettes_menu_ajouter` | une recette ou un simple titre (« Restes »), à la suite dans le repas |

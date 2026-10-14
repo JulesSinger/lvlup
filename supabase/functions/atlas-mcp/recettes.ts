@@ -25,6 +25,9 @@ export const STEPS_MAX = 80;
 export const TAGS_MAX = 20;
 export const PLAN_TITLE_MAX = 120;
 export const PANTRY_MAX = 200;
+/** Les postes proposés et la longueur d'un poste (`STATIONS`, `STATION_MAX` du module). */
+export const STATIONS = ['Plan de travail', 'Casserole', 'Poêle', 'Four', 'Micro-ondes', 'Robot'] as const;
+export const STATION_MAX = 40;
 /** Au plus tant de recettes rendues par une recherche : au-delà, Claude affine. */
 export const LIST_LIMIT = 100;
 
@@ -44,9 +47,22 @@ export interface RecipeRow {
   note: string;
   favorite: boolean;
   ingredients: { text: string; section: string | null }[];
-  steps: { text: string }[];
+  steps: StepRow[];
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Une étape, et son temps s'il est réglé (docs/etude-recettes.md §20) :
+ * le même JSON que `Step` du module. `start.of` désigne l'`id` d'une autre étape.
+ */
+export interface StepRow {
+  text: string;
+  id?: string;
+  station?: string | null;
+  minutes?: number | null;
+  hands?: boolean;
+  start?: { after: 'launch' } | { after: 'end'; of: string } | { after: 'start'; of: string; offset: number };
 }
 
 export interface PlanRow {
@@ -172,6 +188,118 @@ function steps(v: unknown): RecipeRow['steps'] {
 }
 
 /**
+ * Les étapes réécrites par Claude reprennent leurs réglages de temps : ceux de
+ * l'ancienne étape au même texte, sinon de celle à la même place si son texte
+ * a disparu. Un renvoi vers une étape disparue est retiré. Même règle que
+ * `mergeStepTiming` du module, comparée par `mcpTools.test.ts`.
+ */
+export function keepTiming(previous: readonly StepRow[], next: readonly StepRow[]): StepRow[] {
+  const used = new Set<number>();
+  const timing = next.map(() => null as Omit<StepRow, 'text'> | null);
+  const take = (i: number) => {
+    used.add(i);
+    const { text: _text, ...rest } = previous[i];
+    return rest;
+  };
+  next.forEach((step, n) => {
+    const same = previous.findIndex((p, i) => !used.has(i) && p.text === step.text);
+    if (same >= 0) timing[n] = take(same);
+  });
+  next.forEach((_, n) => {
+    if (!timing[n] && n < previous.length && !used.has(n) && !next.some((x) => x.text === previous[n].text)) timing[n] = take(n);
+  });
+  const out: StepRow[] = next.map((step, n) => (timing[n] ? { ...timing[n], text: step.text } : { text: step.text }));
+  const ids = new Set(out.map((x) => x.id).filter(Boolean));
+  return out.map((x) => {
+    if (x.start && x.start.after !== 'launch' && !ids.has(x.start.of)) {
+      const { start: _start, ...rest } = x;
+      return rest;
+    }
+    return x;
+  });
+}
+
+const newStepId = () => Math.random().toString(36).slice(2, 10);
+
+/**
+ * Le temps d'une étape, tel que Claude le donne : `step` (son numéro, à partir
+ * de 1), puis les champs à régler. `starts` : `"launch"` (au lancement),
+ * `"after_previous"` (après l'étape d'avant), `{ end_of: 3 }` (à la fin de
+ * l'étape 3), `{ start_of: 1, offset_minutes: 3 }` (3 min après le début de
+ * l'étape 1). Un champ à `null` est retiré ; un champ absent ne change pas.
+ */
+export function applyTiming(current: readonly StepRow[], items: unknown): StepRow[] {
+  if (!Array.isArray(items) || items.length === 0) throw new Refused('steps_timing : une liste, une entrée par étape à régler.');
+  if (items.length > STEPS_MAX) throw new Refused(`${STEPS_MAX} étapes au plus.`);
+  const out = current.map((step) => ({ ...step, id: step.id ?? newStepId() }));
+  const numberOf = (v: unknown, what: string) => {
+    if (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > out.length) throw new Refused(`${what} : un numéro d’étape de 1 à ${out.length}.`);
+    return v - 1;
+  };
+  const minutesOf = (v: unknown, what: string, min: number) => {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < min || v > 1440) throw new Refused(`${what} : de ${min} à 1440 minutes.`);
+    return Math.round(v * 2) / 2;
+  };
+  for (const raw of items) {
+    if (!raw || typeof raw !== 'object') throw new Refused('Chaque entrée de steps_timing est un objet { step, … }.');
+    const item = raw as Record<string, unknown>;
+    const n = numberOf(item.step, 'step');
+    const step = out[n];
+    if ('station' in item) {
+      if (item.station === null) delete step.station;
+      else step.station = text(item.station, 'Le poste', STATION_MAX, true);
+    }
+    if ('minutes' in item) {
+      if (item.minutes === null) delete step.minutes;
+      else step.minutes = minutesOf(item.minutes, 'minutes', 0.5);
+    }
+    if ('hands' in item) {
+      if (item.hands === null) delete step.hands;
+      else if (typeof item.hands === 'boolean') step.hands = item.hands;
+      else throw new Refused('hands : vrai (tu es dessus) ou faux (ça cuit tout seul).');
+    }
+    if ('starts' in item) {
+      const v = item.starts;
+      if (v === null || v === 'after_previous') delete step.start;
+      else if (v === 'launch') step.start = { after: 'launch' };
+      else if (v && typeof v === 'object' && 'end_of' in v) {
+        const ref = numberOf((v as Record<string, unknown>).end_of, 'end_of');
+        if (ref === n) throw new Refused('Une étape ne peut pas attendre sa propre fin.');
+        step.start = { after: 'end', of: out[ref].id! };
+      } else if (v && typeof v === 'object' && 'start_of' in v) {
+        const o = v as Record<string, unknown>;
+        const ref = numberOf(o.start_of, 'start_of');
+        if (ref === n) throw new Refused('Une étape ne peut pas partir de son propre début.');
+        step.start = { after: 'start', of: out[ref].id!, offset: o.offset_minutes === undefined ? 0 : minutesOf(o.offset_minutes, 'offset_minutes', 0) };
+      } else {
+        throw new Refused('starts : "launch", "after_previous", { end_of: N } ou { start_of: N, offset_minutes: M }.');
+      }
+    }
+  }
+  return out;
+}
+
+/** Le temps des étapes, lisible par Claude : numéros d'étape plutôt qu'identifiants. */
+function timingOut(list: readonly StepRow[]) {
+  const numberOf = new Map(list.map((x, i) => [x.id, i + 1]));
+  const timed = list.some((x) => (x.station ?? null) !== null || (x.minutes ?? null) !== null);
+  if (!timed) return null;
+  return list.map((x, i) => ({
+    step: i + 1,
+    station: x.station ?? null,
+    minutes: x.minutes ?? null,
+    hands: x.hands ?? null,
+    starts: !x.start
+      ? i === 0 ? 'launch' : 'after_previous'
+      : x.start.after === 'launch'
+        ? 'launch'
+        : x.start.after === 'end'
+          ? { end_of: numberOf.get(x.start.of) ?? null }
+          : { start_of: numberOf.get(x.start.of) ?? null, offset_minutes: x.start.offset },
+  }));
+}
+
+/**
  * Les arguments d'une recette → les colonnes de la base. `partial` : une
  * modification, seuls les champs donnés changent (une liste donnée remplace
  * la liste entière).
@@ -253,6 +381,8 @@ const recipeOut = (r: RecipeRow, extra: Record<string, unknown> = {}) => ({
   favorite: r.favorite,
   ingredients: r.ingredients,
   steps: r.steps.map((s) => s.text),
+  // Le temps des étapes, seulement pour une recette minutée (§20).
+  steps_timing: timingOut(r.steps),
   updated_at: r.updated_at,
   ...extra,
 });
@@ -385,9 +515,52 @@ export const recettesTools: Tool<RecettesContext>[] = [
       const { id: _id, ...rest } = args;
       const row = recipeColumns(rest, true);
       if (Object.keys(row).length === 0) throw new Refused('Rien à modifier : donne au moins un champ.');
+      // Des étapes réécrites gardent leur temps (§20.7).
+      if (row.steps) row.steps = keepTiming(recipe.steps ?? [], row.steps as StepRow[]);
       const updated = await data.updateRecipe(recipe.id, { ...row, updated_at: new Date().toISOString() });
       if (!updated) throw new Refused('La recette n’existe plus.');
       return json({ message: `Recette « ${updated.title} » modifiée.`, recipe: recipeOut(updated) });
+    },
+  },
+  {
+    name: 'recettes_minuter',
+    title: 'Régler les temps d’une recette',
+    description:
+      'Règle le temps des étapes, pour les recettes où plusieurs choses se font en parallèle (l’eau qui chauffe pendant qu’on émince) : l’app en tire un plan et l’écran « En cuisine ». ' +
+      'Pour chaque étape (son numéro, à partir de 1) : station (le poste : ' +
+      STATIONS.join(', ') +
+      ', ou autre), minutes (la durée), hands (vrai : on est dessus ; faux : ça cuit tout seul), starts ("launch", "after_previous", { end_of: N } — « quand l’eau bout » —, ou { start_of: N, offset_minutes: M }). ' +
+      'Seules les étapes données changent ; un champ à null est retiré. Lis d’abord la recette.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: S.id,
+        steps_timing: {
+          type: 'array',
+          maxItems: STEPS_MAX,
+          items: {
+            type: 'object',
+            properties: {
+              step: { type: 'integer', minimum: 1, maximum: STEPS_MAX },
+              station: { type: ['string', 'null'], maxLength: STATION_MAX },
+              minutes: { type: ['number', 'null'], minimum: 0.5, maximum: 1440 },
+              hands: { type: ['boolean', 'null'] },
+              starts: {},
+            },
+            required: ['step'],
+          },
+        },
+      },
+      required: ['id', 'steps_timing'],
+    },
+    annotations: { idempotentHint: true },
+    async run(args, { data }) {
+      const recipe = await ownRecipe(data, args.id);
+      if (recipe.steps.length === 0) throw new Refused('Cette recette n’a pas d’étapes : ajoute-les d’abord (recettes_modifier).');
+      const steps = applyTiming(recipe.steps, args.steps_timing);
+      const updated = await data.updateRecipe(recipe.id, { steps, updated_at: new Date().toISOString() });
+      if (!updated) throw new Refused('La recette n’existe plus.');
+      return json({ message: `Temps de « ${updated.title} » réglés : le plan est dans l’app.`, steps_timing: timingOut(updated.steps) });
     },
   },
   {

@@ -689,3 +689,18 @@ lancement pour être « à table à 20:00 ».
    avec « Autre », ou du texte libre dès le départ ?
 5. **L'écran en cuisine** remplace-t-il l'actuel « étape par étape » pour une recette minutée, ou
    s'y ajoute-t-il ?
+
+### 20.7 Décisions de Jules (14/10/2026)
+
+« On reste comme ça » : les quatre façons de démarrer, deux états (« ça cuit tout seul / tu es
+dessus »), le plan qui suit les retards, une liste de postes avec « Autre ». Et **« En cuisine »
+s'ajoute à l'étape par étape, mais c'est le mode par défaut** d'une recette minutée.
+
+Deux précisions prises en l'écrivant :
+
+- **Garder les réglages quand on retouche le texte.** La fenêtre de la recette édite les étapes
+  dans une zone de texte, recréées à chaque enregistrement : elle effacerait les réglages. Une
+  étape dont le texte n'a pas changé garde les siens ; une étape retouchée garde ceux de l'étape
+  à la même place (`mergeStepTiming`).
+- **Les réglages se font dans une fenêtre à part**, « ⏱ Régler les temps », ouverte depuis la
+  fiche : la fenêtre de la recette reste une saisie de texte, rapide.
