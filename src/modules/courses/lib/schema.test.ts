@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { FOOD_KINDS, TYPOLOGIES } from './typology';
 import { AISLES } from './types';
 
 /**
@@ -33,5 +34,12 @@ describe('le type et la base disent la même chose (Comète)', () => {
 
   it('… et ceux de l’historique aussi', () => {
     expect(allowedBy('courses_trip_items_aisle_check')).toEqual([...AISLES].sort());
+  });
+
+  it('les typologies et les sous-types aussi, au catalogue comme dans l’historique', () => {
+    for (const table of ['courses_items', 'courses_trip_items']) {
+      expect(allowedBy(`${table}_typology_check`)).toEqual([...TYPOLOGIES].sort());
+      expect(allowedBy(`${table}_food_kind_check`)).toEqual([...FOOD_KINDS].sort());
+    }
   });
 });
