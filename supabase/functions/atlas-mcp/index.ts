@@ -41,7 +41,7 @@ import { budgetTools, type BudgetData, type CategoryRow as BudgetCategoryRow, ty
 import { bilanTools, type BilanData } from './bilan.ts';
 import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from './recettes.ts';
 
-const VERSION = '2026-10-13.2';
+const VERSION = '2026-10-14.1';
 /** Le fuseau de Jules : « aujourd'hui » et la semaine en cours se comptent ici. */
 const TIME_ZONE = 'Europe/Paris';
 /** Une requête plus grosse est refusée avant d'être lue (une recette tient en quelques Ko). */
@@ -732,7 +732,7 @@ function serverInfo(day: string): ServerInfo {
     version: VERSION,
     instructions: [
       'Atlas est l’application personnelle de Jules : un module par domaine de sa vie. Ce connecteur en ouvre plusieurs, un préfixe d’outils chacun :',
-      '- Recettes (recettes_*) : le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là ». Retrouve l’identifiant d’une recette avec recettes_lister avant de la modifier ; une recette d’un site : les ingrédients un par ligne, quantité en tête, et les étapes dans l’ordre.',
+      '- Recettes (recettes_*) : le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là ». Retrouve l’identifiant d’une recette avec recettes_lister avant de la modifier ; une recette d’un site : les ingrédients un par ligne, quantité en tête, et les étapes dans l’ordre. Minuter une recette (plusieurs choses en parallèle : l’eau qui chauffe pendant qu’on émince) = recettes_minuter, étape par étape : poste, durée, « ça cuit tout seul » ou non, ce qui la déclenche ; recettes_lire rend les temps déjà réglés (steps_timing).',
       '- Courses (courses_*) : la liste, le catalogue, l’historique. Une photo de ticket de caisse : lis-la, puis courses_catalogue, puis courses_enregistrer_ticket.',
       '- Sport (sport_*) : la course à pied, le plan marathon, le renforcement et le vélo. Commence par sport_resume ; pour les séances d’une semaine, sport_semaine_programmer (elles remplacent celles de la semaine).',
       '- Tâches (taches_*) : la to-do list. Lis toi-même les dates (« demain 9 h » → planned_day et planned_time).',
