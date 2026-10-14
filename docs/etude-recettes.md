@@ -577,3 +577,115 @@ d'un lien Marmiton, l'écran qui reste allumé en mode cuisine, et la lecture en
 
 1628 → **1633** tests unitaires ; suite de Recettes 49 → **59** ; **1194/1194** en local et en
 mode comptes.
+
+## 20. Étude : les étapes en parallèle, et leurs temps (14/10/2026)
+
+Demande de Jules : dans une recette, « il faut lancer quelque chose, par exemple faire bouillir
+de l'eau, puis après 3 min lancer la cuisson des lardons dans une poêle en parallèle, puis
+ajouter les pâtes… Il y a des timings à respecter et plusieurs choses en parallèle ». Il proposait
+des lignes de temps parallèles sur un temps commun (« à 0 min lancer ça, à 1 min faire ça »).
+Maquette : `docs/maquette-recettes-timeline.html` (l'exemple des pâtes aux lardons, quatre vues).
+
+### 20.1 Ce que la proposition garde, et ce qu'elle change
+
+**Gardé** : des lignes parallèles sur un temps commun. Ce sont les **postes** (plan de travail,
+casserole, poêle, four), et c'est la vue « Le plan », pour voir toute la recette avant de commencer.
+
+**Changé, sur quatre points :**
+
+1. **On ne saisit pas des heures, on dit ce qui déclenche une étape.** Écrire « à 3 min », « à
+   8 min » à la main est pénible, et tout est faux dès qu'on modifie une durée. Une étape dit
+   plutôt **quand elle commence**, de l'une de quatre façons : au lancement, après l'étape d'avant,
+   à la fin d'une autre étape (« quand l'eau bout »), ou N minutes après le début d'une autre. Les
+   heures en sont **calculées**. C'est la même idée que l'avancement de Projets : il est déduit,
+   jamais saisi.
+2. **« Ça cuit tout seul » ou « tu es dessus ».** C'est ce qui rend le parallèle possible : l'eau
+   chauffe sans toi, mais tu ne peux pas émincer et remuer en même temps. Le plan a donc une ligne
+   **« Tes mains »** (occupées ou libres), et Atlas **prévient** quand deux étapes « tu es dessus »
+   se chevauchent, en proposant d'en décaler une.
+3. **Pendant qu'on cuisine, on ne lit pas un plan.** L'écran « en cuisine » montre **ce qu'il faut
+   faire maintenant** (et l'annonce 20 s avant, avec un son), **ce qui tourne** (une barre par
+   poste) et **ce qui vient ensuite**. Le plan sert à se préparer, cet écran sert à cuisiner.
+4. **Le plan suit ce qui se passe vraiment.** En cuisine on prend du retard. Quand une étape est
+   commencée ou finie plus tard que prévu, les étapes qui en dépendent se décalent, et l'heure du
+   repas avec. Un plan figé mentirait au bout de cinq minutes. Le contour or du plan marque
+   justement les étapes qui fixent la durée totale (le **chemin critique**) : c'est sur elles qu'un
+   retard compte.
+
+**Sur téléphone**, des lignes horizontales seraient illisibles. Le plan devient la liste que
+décrivait Jules, minute par minute (« 0 min : faire bouillir l'eau · émincer l'oignon ; 3 min :
+lardons… »).
+
+### 20.2 Les données
+
+Aucune migration : les étapes sont déjà rangées en JSON (`recettes_recipes.steps`). Une étape
+gagne des champs, tous facultatifs :
+
+```ts
+interface Step {
+  text: string;
+  id?: string;            // pour qu'une autre étape puisse dire « à la fin de celle-ci », même après un réordonnancement
+  station?: string | null;// le poste : « Casserole », « Poêle »… (des suggestions, et du texte libre)
+  minutes?: number | null;// la durée
+  hands?: boolean;        // true : tu es dessus ; false : ça cuit tout seul
+  start?:                 // quand elle commence ; absent = après l'étape d'avant sur le même poste
+    | { after: 'launch' }
+    | { after: 'end'; of: string }
+    | { after: 'start'; of: string; offset: number };
+}
+```
+
+**Une recette sans ces champs reste exactement comme aujourd'hui** (étape par étape, minuteurs
+tirés du texte). Le plan n'apparaît que lorsqu'au moins une étape a un poste ou une durée.
+
+Les règles, pures et testées comme le reste du module (`lib/schedule.ts`) : le calcul des heures
+(de proche en proche, une boucle dans les dépendances étant refusée), le chemin critique, les
+chevauchements de « tu es dessus », le recalcul depuis les heures réelles, et l'heure de
+lancement pour être « à table à 20:00 ».
+
+### 20.3 Remplir ces champs sans y passer dix minutes
+
+- **Proposé d'après le texte.** Atlas lit déjà les durées (`findTimers`). Il lirait aussi le poste
+  (« dans la casserole », « au four », « dans une poêle ») et les mots qui disent le parallèle
+  (« pendant ce temps », « en même temps », « pendant que », « quand l'eau bout »). Il propose,
+  avec un bandeau « à vérifier » ; rien n'est enregistré sans toi.
+- **Par le connecteur de Claude** : « minute cette recette » dans une conversation remplit les
+  champs. C'est gratuit, puisque c'est ton propre Claude. **À corriger au passage** : aujourd'hui
+  le connecteur réécrit les étapes en texte seul (`atlas-mcp/recettes.ts`), il effacerait ces
+  réglages. Il doit les garder, et savoir les écrire.
+- **À la main**, dans la fenêtre de la recette : pour chaque étape, le poste en pastilles, la
+  durée, « ça cuit tout seul / tu es dessus », et « Commence » (voir la maquette).
+
+### 20.4 Ce qui va coûter
+
+- **Le son quand le téléphone est en veille.** L'écran reste allumé en mode cuisine
+  (`wakeLock`, déjà là), ce qui suffit en pratique. Sinon, une alerte précise au moment voulu
+  passerait par les rappels du socle (`send-reminders`), dont le passage n'a lieu que toutes les
+  quelques minutes : trop lent pour « dans 20 s ». À accepter, ou à ne pas promettre.
+- **Le glisser des blocs sur le plan** (déplacer « Lardons » d'une minute à la souris) est
+  séduisant, mais il faudrait alors traduire un geste en « 3 min après le début de… ». Proposé
+  pour plus tard, pas en V1.
+- **Plusieurs recettes à la fois** (le plat, l'accompagnement et le dessert prêts ensemble) se
+  ferait avec le même calcul, sur plusieurs recettes. Hors de cette étude.
+
+### 20.5 Découpage proposé
+
+1. Les règles (`lib/schedule.ts`) et les champs des étapes, sans écran ; le connecteur qui les
+   garde.
+2. La fenêtre de la recette : régler le temps de chaque étape, avec les propositions tirées du
+   texte.
+3. Le plan : lignes sur ordinateur, minute par minute sur téléphone, « Tes mains », chemin
+   critique, « À table à… ».
+4. En cuisine : maintenant, ce qui tourne, ensuite ; les alertes ; le plan qui suit les retards.
+5. Le connecteur de Claude : « minute cette recette ».
+
+### 20.6 Questions à trancher
+
+1. **Les quatre façons de démarrer** te suffisent-elles, ou veux-tu aussi pouvoir écrire une
+   heure fixe (« à 3 min ») ?
+2. **« Tu es dessus » en deux états**, ou trois, avec « à surveiller » (remuer de temps en temps) ?
+3. **Le plan suit les retards** (proposé), ou reste figé pour qu'on se rattrape ?
+4. **Les postes** : une liste fixe (plan de travail, casserole, poêle, four, micro-ondes, robot)
+   avec « Autre », ou du texte libre dès le départ ?
+5. **L'écran en cuisine** remplace-t-il l'actuel « étape par étape » pour une recette minutée, ou
+   s'y ajoute-t-il ?

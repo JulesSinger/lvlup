@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recettes en parallèle</title>
+<style>
+  :root {
+    --bg: #0b0e15; --surface: #141925; --surface-2: #1b2130; --border: #262d3d; --border-strong: #364055;
+    --text: #e8ebf2; --dim: #9aa3b5; --faint: #6b7487;
+    --accent: #f2b33d; --plan: #b39cff; --pot: #6fb6ff; --pan: #ff9f6a; --oven: #ff7f8f; --green: #6fc783;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f4f5f8; --surface: #ffffff; --surface-2: #eef0f5; --border: #dde1ea; --border-strong: #c3c9d6;
+      --text: #1b2130; --dim: #586176; --faint: #7d8597;
+      --accent: #b58212; --plan: #6d4fd6; --pot: #1f6fc4; --pan: #c4561a; --oven: #c42f45; --green: #2f8a4a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 32px 16px 80px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  .lead { color: var(--dim); max-width: 760px; margin: 0 0 28px; }
+  h2 { font-size: 18px; margin: 44px 0 4px; }
+  h2 small { color: var(--faint); font-weight: 500; font-size: 13px; margin-left: 8px; }
+  .why { color: var(--dim); max-width: 760px; margin: 0 0 16px; font-size: 14px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px; }
+
+  /* ---------- Plan (ordinateur) ---------- */
+  .plan-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .plan-title { font-weight: 650; font-size: 17px; }
+  .plan-meta { color: var(--dim); font-size: 13px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; }
+  .seg span { padding: 4px 11px; border-radius: 999px; font-size: 12.5px; color: var(--dim); }
+  .seg .on { background: var(--surface-2); color: var(--text); font-weight: 600; }
+  .gantt { --min: 40px; overflow-x: auto; }
+  .gantt-inner { position: relative; min-width: calc(130px + 21 * var(--min) + 10px); }
+  .axis, .lane { display: grid; grid-template-columns: 130px 1fr; align-items: center; }
+  .axis .ticks { position: relative; height: 22px; border-bottom: 1px solid var(--border); }
+  .tick { position: absolute; bottom: 4px; font-size: 11px; color: var(--faint); transform: translateX(-50%); font-variant-numeric: tabular-nums; }
+  .lane { min-height: 58px; border-bottom: 1px dashed var(--border); }
+  .lane-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+  .lane-name i { width: 9px; height: 9px; border-radius: 3px; background: var(--c); }
+  .track { position: relative; height: 58px; }
+  .block { position: absolute; top: 9px; height: 40px; border-radius: 9px; padding: 3px 8px; font-size: 12px; line-height: 1.25; overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--c) 70%, transparent); color: var(--text); }
+  .block.hands { background: color-mix(in srgb, var(--c) 34%, transparent); }
+  .block.alone { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--c) 16%, transparent) 0 6px, color-mix(in srgb, var(--c) 7%, transparent) 6px 12px); }
+  .block b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .block em { font-style: normal; color: var(--dim); font-size: 11px; white-space: nowrap; }
+  .block.critical { box-shadow: 0 0 0 2px var(--accent); }
+  .hands-row .track { height: 30px; }
+  .hands-row { min-height: 30px; border-bottom: none; }
+  .busy { position: absolute; top: 8px; height: 14px; border-radius: 4px; background: var(--text); opacity: .75; }
+  .free { position: absolute; top: 13px; height: 4px; border-radius: 2px; background: var(--border-strong); }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; font-size: 12.5px; color: var(--dim); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 22px; height: 12px; border-radius: 3px; display: inline-block; --c: var(--pot); border: 1px solid color-mix(in srgb, var(--c) 70%, transparent); }
+  .sw.hands { background: color-mix(in srgb, var(--c) 34%, transparent); }
+  .sw.alone { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--c) 16%, transparent) 0 4px, transparent 4px 8px); }
+  .sw.crit { box-shadow: 0 0 0 2px var(--accent); }
+  .link { position: absolute; top: 0; bottom: 0; border-left: 1.5px dotted var(--faint); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: 10px; padding: 7px 13px; font-size: 13.5px; font-weight: 600; }
+  .btn.primary { background: var(--accent); color: #1b1404; border-color: var(--accent); }
+
+  /* ---------- Téléphones ---------- */
+  .phones { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+  .phone { width: 340px; max-width: 100%; border: 1px solid var(--border-strong); border-radius: 34px; padding: 14px 12px 18px; background: var(--bg); box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+  .phone-cap { text-align: center; font-size: 12.5px; color: var(--faint); margin-top: 10px; width: 340px; max-width: 100%; }
+  .p-top { display: flex; justify-content: space-between; align-items: center; padding: 2px 6px 10px; font-size: 13px; color: var(--dim); }
+  .p-top b { color: var(--text); font-size: 15px; }
+
+  .minute { display: grid; grid-template-columns: 52px 1fr; gap: 8px; padding: 9px 4px; border-bottom: 1px solid var(--border); }
+  .minute .t { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--dim); font-size: 14px; padding-top: 2px; }
+  .act { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; margin: 2px 0; }
+  .act i { flex: none; margin-top: 5px; width: 9px; height: 9px; border-radius: 3px; background: var(--c); }
+  .act small { display: block; color: var(--faint); font-size: 11.5px; }
+  .tag { font-size: 10.5px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--dim); margin-left: 4px; white-space: nowrap; }
+
+  .clock { text-align: center; padding: 6px 0 12px; }
+  .clock .big { font-size: 44px; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+  .clock .sub { color: var(--dim); font-size: 12.5px; }
+  .now { border-radius: 16px; padding: 14px; background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); margin-bottom: 12px; }
+  .now .label { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); font-weight: 700; }
+  .now .what { font-size: 19px; font-weight: 650; margin: 4px 0 2px; line-height: 1.3; }
+  .now .in { font-size: 13px; color: var(--dim); }
+  .now .row { display: flex; gap: 8px; margin-top: 10px; }
+  .runs { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .run { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 9px 11px; }
+  .run-top { display: flex; justify-content: space-between; font-size: 13px; }
+  .run-top b { font-weight: 600; }
+  .run-top span { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .run-lane { font-size: 11px; color: var(--faint); display: flex; align-items: center; gap: 5px; }
+  .run-lane i { width: 8px; height: 8px; border-radius: 2px; background: var(--c); }
+  .bar { height: 6px; background: var(--surface-2); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+  .bar div { height: 100%; background: var(--c); border-radius: 3px; }
+  .run.soon { border-color: color-mix(in srgb, var(--pan) 60%, transparent); }
+  .next-title { font-size: 12px; color: var(--faint); text-transform: uppercase; letter-spacing: .06em; margin: 4px 4px 6px; font-weight: 700; }
+  .next { display: grid; grid-template-columns: 52px 1fr; gap: 8px; font-size: 13.5px; padding: 6px 4px; }
+  .next .t { color: var(--dim); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .mini { display: flex; gap: 2px; height: 26px; margin: 4px 4px 14px; position: relative; }
+
+  /* ---------- Éditeur d'étape ---------- */
+  .editor { max-width: 520px; }
+  .ed-step { font-size: 15px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); margin-bottom: 14px; }
+  .ed-step mark { background: color-mix(in srgb, var(--accent) 25%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
+  .field { margin-bottom: 14px; }
+  .field > label { display: block; font-size: 12.5px; color: var(--dim); font-weight: 600; margin-bottom: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); font-size: 13px; color: var(--dim); display: inline-flex; align-items: center; gap: 6px; }
+  .chip i { width: 8px; height: 8px; border-radius: 2px; background: var(--c); }
+  .chip.on { color: var(--text); border-color: var(--c, var(--accent)); background: color-mix(in srgb, var(--c, var(--accent)) 16%, transparent); font-weight: 600; }
+  .input { border: 1px solid var(--border); background: var(--surface-2); border-radius: 9px; padding: 7px 10px; font-size: 14px; display: inline-block; min-width: 70px; }
+  .hint { font-size: 12px; color: var(--faint); margin-top: 5px; }
+  .radio { display: flex; flex-direction: column; gap: 7px; font-size: 14px; }
+  .radio div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .dot { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--border-strong); flex: none; }
+  .dot.on { border-color: var(--accent); background: radial-gradient(var(--accent) 45%, transparent 50%); }
+  .banner { font-size: 13px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--green) 12%, transparent); border: 1px solid color-mix(in srgb, var(--green) 40%, transparent); margin-bottom: 14px; }
+  .warn { font-size: 13px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--oven) 12%, transparent); border: 1px solid color-mix(in srgb, var(--oven) 40%, transparent); margin-top: 14px; }
+
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; align-items: start; }
+  ul.points { padding-left: 18px; color: var(--dim); font-size: 14px; margin: 0; }
+  ul.points li { margin: 5px 0; }
+  ul.points b { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Recettes : les étapes en parallèle</h1>
+  <p class="lead">Maquette d'étude, sur ton exemple des pâtes aux lardons. Elle montre une seule recette, mais quatre vues :
+    le plan sur ordinateur, le même plan sur téléphone, l'écran pendant qu'on cuisine, et la fenêtre qui règle le temps d'une étape.
+    Rien n'est construit : c'est pour décider ensemble.</p>
+
+  <!-- ================================================================= 1 -->
+  <h2>1. Le plan <small>ordinateur — avant de commencer, d'un coup d'œil</small></h2>
+  <p class="why">Ce sont tes « timelines en parallèle », avec une ligne par <b>poste</b> (plan de travail, casserole, poêle, four) et un temps commun en haut.
+    J'ai ajouté deux choses. <b>« Tes mains »</b>, tout en bas, montre quand tu es occupé et quand tu as du temps libre.
+    Et le contour or marque <b>ce qui fixe la durée totale</b> : prendre du retard ailleurs ne change rien, mais un retard sur ces étapes-là décale l'heure du repas.</p>
+  <div class="panel">
+    <div class="plan-head">
+      <div>
+        <div class="plan-title">Pâtes aux lardons · 2 personnes</div>
+        <div class="plan-meta">21 min en tout · 3 postes · 9 min les mains occupées</div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+        <span class="seg"><span class="on">Depuis le début</span><span>À table à 20:00</span></span>
+        <span class="btn primary">▶ Lancer</span>
+      </div>
+    </div>
+    <div class="gantt">
+      <div class="gantt-inner" id="gantt"></div>
+    </div>
+    <div class="legend">
+      <span><span class="sw hands"></span> tu es dessus</span>
+      <span><span class="sw alone"></span> ça cuit tout seul</span>
+      <span><span class="sw crit"></span> fixe la durée totale</span>
+      <span>┆ « quand l'eau bout » : une étape qui attend la fin d'une autre</span>
+    </div>
+  </div>
+
+  <!-- ================================================================= 2-3 -->
+  <h2>2. Sur téléphone <small>le plan minute par minute, puis l'écran pendant qu'on cuisine</small></h2>
+  <p class="why">Sur un écran étroit, des lignes horizontales seraient illisibles. Le plan devient donc <b>la liste que tu décrivais</b> : « à 0 min, lancer ça ; à 3 min, faire ça ».
+    Pendant qu'on cuisine, on ne lit plus un plan : on veut savoir <b>quoi faire maintenant</b> et <b>ce qui tourne</b>. D'où le second écran.</p>
+  <div class="phones">
+    <div>
+      <div class="phone">
+        <div class="p-top"><span>‹ Fiche</span><b>Le plan</b><span>21 min</span></div>
+        <div id="minutes"></div>
+        <div style="padding:12px 4px 2px"><span class="btn primary" style="width:100%; justify-content:center">▶ Lancer la cuisson</span></div>
+      </div>
+      <div class="phone-cap">Le plan, minute par minute. Les étapes du même moment sont regroupées.</div>
+    </div>
+
+    <div>
+      <div class="phone">
+        <div class="p-top"><span>✕</span><b>Pâtes aux lardons</b><span>⏸</span></div>
+        <div class="clock"><div class="big">9:40</div><div class="sub">sur 21 min · à table vers 20:01</div></div>
+        <div class="now">
+          <div class="label">Dans 20 s</div>
+          <div class="what">Battre les œufs, la crème et le parmesan</div>
+          <div class="in">Plan de travail · 3 min · tes mains seront prises</div>
+          <div class="row"><span class="btn primary">Je commence</span><span class="btn">Plus tard</span></div>
+        </div>
+        <div class="runs">
+          <div class="run soon" style="--c: var(--pan)">
+            <div class="run-lane"><i></i>Poêle</div>
+            <div class="run-top"><b>Lardons et oignon</b><span>0:20</span></div>
+            <div class="bar"><div style="width:95%"></div></div>
+          </div>
+          <div class="run" style="--c: var(--pot)">
+            <div class="run-lane"><i></i>Casserole</div>
+            <div class="run-top"><b>Pâtes</b><span>8:20</span></div>
+            <div class="bar"><div style="width:17%"></div></div>
+          </div>
+        </div>
+        <div class="next-title">Ensuite</div>
+        <div class="next"><span class="t">10:00</span><span>Couper le feu sous les lardons</span></div>
+        <div class="next"><span class="t">18:00</span><span>Égoutter, garder une louche d'eau</span></div>
+        <div class="next"><span class="t">19:00</span><span>Tout mélanger hors du feu</span></div>
+      </div>
+      <div class="phone-cap">En cuisine : ce qui tourne, en barres. La prochaine action sonne 20 s avant son heure.</div>
+    </div>
+  </div>
+
+  <!-- ================================================================= 4 -->
+  <h2>3. Régler le temps d'une étape <small>dans la fenêtre de la recette</small></h2>
+  <p class="why">On ne place pas les blocs à la main sur une échelle de temps. Pour chaque étape, on dit <b>sur quel poste</b> elle se fait, <b>combien de temps</b> elle dure, <b>qui travaille</b> (toi ou le feu), et <b>quand elle commence</b> par rapport à une autre étape.
+    Les heures du plan en sont calculées. Atlas pré-remplit ces champs en lisant le texte (« 10 minutes », « dans la poêle », « pendant ce temps ») ; il te reste à vérifier.</p>
+  <div class="cols">
+    <div class="panel editor">
+      <div class="banner">✨ Proposé d'après le texte : 3 postes, et 2 choses en même temps. À vérifier.</div>
+      <div class="ed-step">4. Quand l'eau bout, plonger les pâtes et cuire <mark>10 minutes</mark>.</div>
+      <div class="field">
+        <label>Poste</label>
+        <div class="chips">
+          <span class="chip" style="--c: var(--plan)"><i></i>Plan de travail</span>
+          <span class="chip on" style="--c: var(--pot)"><i></i>Casserole</span>
+          <span class="chip" style="--c: var(--pan)"><i></i>Poêle</span>
+          <span class="chip" style="--c: var(--oven)"><i></i>Four</span>
+          <span class="chip">+ Autre</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Durée</label>
+        <span class="input">10 min</span>
+        <div class="hint">Lue dans le texte : « 10 minutes ».</div>
+      </div>
+      <div class="field">
+        <label>Pendant ce temps</label>
+        <div class="chips">
+          <span class="chip on">🔥 ça cuit tout seul</span>
+          <span class="chip">✋ tu es dessus</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Commence</label>
+        <div class="radio">
+          <div><span class="dot"></span> au lancement</div>
+          <div><span class="dot"></span> après l'étape d'avant</div>
+          <div><span class="dot on"></span> à la fin de <span class="input">1. Faire bouillir l'eau ▾</span></div>
+          <div><span class="dot"></span> <span class="input">3</span> min après le début de <span class="input">… ▾</span></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <ul class="points">
+        <li><b>Une recette sans réglage reste comme aujourd'hui</b> : étape par étape. Le plan n'apparaît que lorsqu'au moins une étape a un poste ou une durée.</li>
+        <li><b>Quatre façons de démarrer suffisent</b> à décrire toutes les recettes : au lancement, après l'étape d'avant, à la fin d'une autre étape (« quand l'eau bout »), ou quelques minutes après le début d'une autre (« 3 min après avoir lancé l'eau »).</li>
+        <li><b>Ça cuit tout seul, ou tu es dessus</b> : c'est ce qui rend le parallèle possible. Tu ne peux pas émincer et remuer en même temps, mais l'eau chauffe sans toi.</li>
+        <li><b>Le connecteur de Claude</b> peut remplir ces champs : « minute cette recette » dans une conversation, et le plan est prêt. Gratuit, puisque c'est ton propre Claude.</li>
+      </ul>
+      <div class="warn">⚠ Entre 10:00 et 11:00, tu as deux choses à faire de tes mains : battre les œufs (plan de travail) et remuer les lardons (poêle). Décaler les œufs à 11:00 ?</div>
+      <p class="hint" style="margin-top:6px">Ce que dirait Atlas si deux étapes « tu es dessus » se chevauchaient. Ce n'est pas le cas dans l'exemple : c'est pour montrer le message.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Les données de l'exemple, et le calcul des heures, tel que l'app le ferait (en minutes).
+  const LANES = { plan: ['Plan de travail', '--plan'], pot: ['Casserole', '--pot'], pan: ['Poêle', '--pan'] };
+  const STEPS = [
+    { n: 1, lane: 'pot', title: "Faire bouillir 2 L d'eau salée", dur: 8, hands: false, start: { at: 'launch' }, crit: true },
+    { n: 2, lane: 'plan', title: "Émincer l'oignon", dur: 3, hands: true, start: { at: 'launch' } },
+    { n: 3, lane: 'pan', title: 'Faire revenir lardons et oignon', dur: 7, hands: false, start: { at: 'end', of: 2 } },
+    { n: 4, lane: 'pot', title: 'Cuire les pâtes', dur: 10, hands: false, start: { at: 'end', of: 1 }, note: "quand l'eau bout", crit: true },
+    { n: 5, lane: 'plan', title: 'Battre œufs, crème, parmesan', dur: 3, hands: true, start: { at: 'end', of: 3 } },
+    { n: 6, lane: 'pot', title: 'Égoutter', dur: 1, hands: true, start: { at: 'end', of: 4 }, crit: true },
+    { n: 7, lane: 'pan', title: 'Tout mélanger hors du feu', dur: 2, hands: true, start: { at: 'end', of: 6 }, crit: true },
+  ];
+  const at = {};
+  for (const s of STEPS) {
+    at[s.n] = s.start.at === 'launch' ? 0 : at[s.start.of] + STEPS.find((x) => x.n === s.start.of).dur;
+  }
+  const total = Math.max(...STEPS.map((s) => at[s.n] + s.dur));
+
+  const g = document.getElementById('gantt');
+  const W = 'var(--min)';
+  const pos = (m) => `calc(${m} * ${W})`;
+  let html = '<div class="axis"><div></div><div class="ticks">';
+  for (let m = 0; m <= total; m += 1) if (m % 3 === 0 || m === total) html += `<span class="tick" style="left:${pos(m)}">${m} min</span>`;
+  html += '</div></div>';
+  for (const [key, [name, color]] of Object.entries(LANES)) {
+    html += `<div class="lane" style="--c: var(${color})"><div class="lane-name"><i></i>${name}</div><div class="track">`;
+    for (const s of STEPS.filter((x) => x.lane === key)) {
+      if (s.note) html += `<span class="link" style="left:${pos(at[s.n])}"></span>`;
+      html += `<div class="block ${s.hands ? 'hands' : 'alone'}${s.crit ? ' critical' : ''}" style="left:calc(${pos(at[s.n])} + 2px); width:calc(${pos(s.dur)} - 4px)" title="${s.title}">
+        <b>${s.n}. ${s.title}</b><em>${at[s.n]}–${at[s.n] + s.dur} min${s.note ? ' · ' + s.note : ''}</em></div>`;
+    }
+    html += '</div></div>';
+  }
+  html += '<div class="lane hands-row"><div class="lane-name">✋ Tes mains</div><div class="track">';
+  html += `<span class="free" style="left:0; width:${pos(total)}"></span>`;
+  for (const s of STEPS.filter((x) => x.hands)) html += `<span class="busy" style="left:calc(${pos(at[s.n])} + 2px); width:calc(${pos(s.dur)} - 4px)" title="${s.title}"></span>`;
+  html += '</div></div>';
+  g.innerHTML = html;
+
+  // Le plan minute par minute (téléphone).
+  const byMinute = new Map();
+  const add = (m, item) => byMinute.set(m, [...(byMinute.get(m) ?? []), item]);
+  for (const s of STEPS) add(at[s.n], s);
+  let list = '';
+  for (const m of [...byMinute.keys()].sort((a, b) => a - b)) {
+    list += `<div class="minute"><span class="t">${m} min</span><div>`;
+    for (const s of byMinute.get(m)) {
+      const [lane, color] = LANES[s.lane];
+      list += `<div class="act" style="--c: var(${color})"><i></i><div>${s.title}<span class="tag">${s.hands ? '✋ ' + s.dur + ' min' : '🔥 ' + s.dur + ' min'}</span><small>${lane}${s.note ? ' · ' + s.note : ''}</small></div></div>`;
+    }
+    list += '</div></div>';
+  }
+  list += `<div class="minute"><span class="t">${total} min</span><div><div class="act" style="--c: var(--green)"><i></i><div><b>À table</b></div></div></div></div>`;
+  document.getElementById('minutes').innerHTML = list;
+</script>
+</body>
+</html>
