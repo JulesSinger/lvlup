@@ -8,6 +8,7 @@ import type { ModuleScreenProps } from '../../core/lib/module';
 import type { ShoppingRequest } from '../../core/lib/services';
 import { CookMode } from './components/CookMode';
 import { CookedDialog } from './components/CookedDialog';
+import { KitchenMode } from './components/KitchenMode';
 import { MenuView } from './components/MenuView';
 import { ShoppingDialog } from './components/ShoppingDialog';
 import { PlanPicker } from './components/PlanPicker';
@@ -15,12 +16,14 @@ import { Notebook } from './components/Notebook';
 import { RecipeEditor, type PhotoChange } from './components/RecipeEditor';
 import { forgetPhoto } from './components/RecipePhotoImg';
 import { RecipeSheet } from './components/RecipeSheet';
+import { TimingEditor } from './components/TimingEditor';
 import { recettesStore as store } from './data';
 import { canImportFromLink, importFromLink } from './data/importFromLink';
 import { readOfflineCopy, saveOfflineCopy } from './data/offlineCopy';
 import { MEAL_LABELS } from './lib/calendarMarks';
 import { weekdayLabel } from './lib/format';
 import { nextPosition, shoppingLines, weekDays, type ShoppingLine } from './lib/menu';
+import { isTimed } from './lib/schedule';
 import { DEFAULT_RECETTES_SETTINGS, type Cooked, type CookedInput, type Meal, type PlanEntry, type PlanEntryInput, type Recipe, type RecipeInput, type RecipePhoto, type RecettesSettings } from './lib/types';
 
 /** Une photo réduite dans le navigateur avant tout envoi : 1 600 px et une vignette (étude §12). */
@@ -54,7 +57,9 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
   const [servings, setServings] = useState<number | null>(null);
   const [editing, setEditing] = useState<Recipe | 'new' | null>(null);
   const [cooking, setCooking] = useState(false);
-  const [cookMode, setCookMode] = useState(false);
+  /** « En cuisine » (une recette minutée, par défaut) ou étape par étape (§20.7). */
+  const [cookMode, setCookMode] = useState<false | 'kitchen' | 'steps'>(false);
+  const [timing, setTiming] = useState(false);
   /** Hors ligne : le moment de la copie affichée. */
   const [offline, setOffline] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
@@ -322,8 +327,13 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
             actions={
               <>
                 {open.steps.length > 0 && (
-                  <button type="button" className="btn btn-sm btn-primary" onClick={() => setCookMode(true)}>
+                  <button type="button" className="btn btn-sm btn-primary" onClick={() => setCookMode(isTimed(open.steps) ? 'kitchen' : 'steps')}>
                     👩‍🍳 Cuisiner
+                  </button>
+                )}
+                {open.steps.length > 0 && (
+                  <button type="button" className="btn btn-sm" onClick={() => setTiming(true)}>
+                    ⏱ Régler les temps
                   </button>
                 )}
                 <button type="button" className="btn btn-sm" onClick={() => setPicking('recipe')}>
@@ -382,12 +392,33 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
             onImportLink={canImportFromLink ? importFromLink : null}
           />
         )}
-        {cookMode && open && (
+        {cookMode === 'kitchen' && open && (
+          <KitchenMode
+            recipe={open}
+            servings={servings}
+            factor={open.servings && servings ? servings / open.servings : 1}
+            onClose={() => setCookMode(false)}
+            onStepByStep={() => setCookMode('steps')}
+          />
+        )}
+        {timing && open && (
+          <TimingEditor
+            steps={open.steps}
+            onClose={() => setTiming(false)}
+            onSave={async (steps) => {
+              await store.updateRecipe(open.id, { steps });
+              setTiming(false);
+              await refresh();
+            }}
+          />
+        )}
+        {cookMode === 'steps' && open && (
           <CookMode
             recipe={open}
             servings={servings}
             factor={open.servings && servings ? servings / open.servings : 1}
             onClose={() => setCookMode(false)}
+            onKitchen={isTimed(open.steps) ? () => setCookMode('kitchen') : undefined}
           />
         )}
         {shopping && (

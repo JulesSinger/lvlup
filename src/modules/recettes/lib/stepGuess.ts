@@ -5,7 +5,7 @@
  * enregistré sans qu'on le valide. Un champ déjà réglé n'est jamais remplacé.
  */
 import { fold } from './ingredients';
-import { withIds } from './schedule';
+import { schedule, withIds } from './schedule';
 import { findTimers } from './timers';
 import type { Step } from './types';
 
@@ -65,7 +65,13 @@ export function guessTiming(steps: readonly Step[]): Step[] {
       // Ce qui précède cuit tout seul, ailleurs : on passe à la suite sans attendre.
       out[i].start = { after: 'start', of: previous.id!, offset: 0 };
     }
-    // Sinon, rien : l'étape vient après celle d'avant, la lecture la plus prudente.
+    // Le poste doit être libre : « Égoutter » (casserole) attend la fin des pâtes, même si l'étape
+    // d'avant (les œufs, sur le plan de travail) finit plus tôt.
+    if (station) {
+      const sofar = schedule(out.slice(0, i + 1)).slots;
+      const busy = sofar.slice(0, i).filter((s) => s.station === station).sort((a, b) => b.end - a.end)[0];
+      if (busy && busy.end > sofar[i].start + 1e-6) out[i].start = { after: 'end', of: busy.key };
+    }
   });
   return out;
 }

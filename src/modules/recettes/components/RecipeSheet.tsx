@@ -4,7 +4,9 @@ import { formatMinutes, totalMinutes } from '../lib/duration';
 import { hostOf, shortDay } from '../lib/format';
 import { isSectionHeading, scaleIngredient } from '../lib/ingredients';
 import { cookedSummary } from '../lib/search';
+import { isTimed, schedule } from '../lib/schedule';
 import type { Cooked, Ingredient, Recipe, RecipePhoto } from '../lib/types';
+import { PlanView } from './PlanView';
 import { RecipeCover } from './RecipePhotoImg';
 
 /** Les ingrédients groupés par section, dans leur ordre. */
@@ -169,6 +171,13 @@ export function RecipeSheet({ recipe, photo, cooked, today, servings, onServings
           )}
         </section>
       </div>
+
+      {isTimed(recipe.steps) && (
+        <section className="recettes-panel recettes-plan-panel">
+          <h2 className="recettes-panel-title">Le plan</h2>
+          <PlanView plan={schedule(recipe.steps)} />
+        </section>
+      )}
 
       {history.length > 0 && (
         <section className="recettes-panel recettes-history">

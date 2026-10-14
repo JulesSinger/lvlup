@@ -263,6 +263,94 @@ export async function run({ browser, check, BASE }) {
   check('Échap quitte le mode cuisine', (await page.locator('.recettes-cook').count()) === 0);
   await sheet.getByRole('button', { name: '← Carnet' }).click();
 
+  // --- Les étapes en parallèle (§20) --------------------------------------------------------------
+  await page.getByRole('button', { name: 'Nouvelle recette' }).click();
+  await page.waitForSelector('#recettes-title');
+  await page.locator('#recettes-title').fill('Pâtes aux lardons');
+  await page.locator('#recettes-servings').fill('2');
+  await page.locator('#recettes-ingredients').fill('200 g de pâtes\n150 g de lardons\n1 oignon\n2 œufs\n10 cl de crème');
+  await page.locator('#recettes-steps').fill(
+    [
+      'Porter à ébullition une grande casserole d’eau salée.',
+      'Pendant ce temps, émincer l’oignon.',
+      'Faire revenir les lardons et l’oignon dans une poêle 7 minutes.',
+      'Quand l’eau bout, cuire les pâtes 10 minutes.',
+      'Battre les œufs avec la crème.',
+      'Égoutter les pâtes et mélanger le tout hors du feu.',
+    ].join('\n'),
+  );
+  await modal.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.recettes-sheet');
+  check('Une recette sans temps réglés n’a pas de plan', (await page.locator('.recettes-plan-panel').count()) === 0);
+
+  await sheet.getByRole('button', { name: '⏱ Régler les temps' }).click();
+  const timing = page.locator('.recettes-timing-editor');
+  await timing.waitFor();
+  check('« Régler les temps » propose d’après le texte, à vérifier', (await text(timing.locator('.recettes-timing-guessed'))).includes('à vérifier'));
+  check(
+    'Le poste et la durée sont devinés',
+    (await timing.getByRole('group', { name: 'Poste de l’étape 1' }).getByRole('button', { name: 'Casserole' }).getAttribute('aria-pressed')) === 'true' &&
+      (await timing.getByLabel('Durée de l’étape 4, en minutes').inputValue()) === '10',
+  );
+  check('« Quand l’eau bout » attend la fin de l’eau', (await timing.getByLabel('Quand commence l’étape 4').inputValue()).startsWith('end:'));
+  check('Le plan se dessine en direct', (await timing.locator('.recettes-gantt-block').count()) === 6 && (await text(timing.locator('.recettes-plan-meta'))).startsWith('21 min'));
+  // Un réglage à la main : les œufs au lancement, en même temps que l'oignon → deux gestes à la fois.
+  await timing.getByLabel('Quand commence l’étape 5').selectOption('launch');
+  check('Deux gestes en même temps sont signalés', (await text(timing.locator('.recettes-timing-conflict'))).includes('deux choses à faire de tes mains'));
+  await timing.getByLabel('Quand commence l’étape 5').selectOption({ index: 1 });
+  await timing.getByRole('button', { name: 'Enregistrer' }).click();
+  await timing.waitFor({ state: 'detached' });
+  const planPanel = page.locator('.recettes-plan-panel');
+  await planPanel.waitFor();
+  check(
+    'La fiche montre le plan : une ligne par poste, et « Tes mains »',
+    (await planPanel.locator('.recettes-gantt-lane').allTextContents()).map((t) => t.trim()).join(',') === 'Casserole,Plan de travail,Poêle,✋ Tes mains',
+    (await planPanel.locator('.recettes-gantt-lane').allTextContents()).join(','),
+  );
+  check('Le chemin qui fixe la durée est marqué', (await planPanel.locator('.recettes-gantt-block.critical').count()) >= 2);
+
+  // Modifier le texte de la recette garde les temps.
+  await sheet.getByRole('button', { name: 'Modifier' }).click();
+  await page.locator('#recettes-title').fill('Pâtes à la carbonara');
+  await modal.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.recettes-sheet h1:has-text("carbonara")');
+  check('Modifier la recette garde ses temps', (await planPanel.locator('.recettes-gantt-block').count()) === 6);
+
+  // En cuisine, le mode par défaut d'une recette minutée.
+  await sheet.getByRole('button', { name: '👩‍🍳 Cuisiner' }).click();
+  const kitchen = page.locator('.recettes-kitchen');
+  await kitchen.waitFor();
+  check('« Cuisiner » ouvre « En cuisine » pour une recette minutée', (await text(kitchen.locator('.recettes-kitchen-big'))) === '21 min' && (await kitchen.getByRole('button', { name: '▶ Lancer' }).isVisible()));
+  await kitchen.getByRole('button', { name: '▶ Lancer' }).click();
+  await kitchen.locator('.recettes-kitchen-working').waitFor();
+  check(
+    'Lancer démarre l’eau et l’oignon : l’oignon en cours, l’eau en barre',
+    (await text(kitchen.locator('.recettes-kitchen-working'))).includes('émincer l’oignon') && (await text(kitchen.locator('.recettes-kitchen-running'))).includes('ébullition'),
+  );
+  await kitchen.getByRole('button', { name: '✓ Fini' }).click();
+  await kitchen.locator('.recettes-kitchen-due').waitFor();
+  check('L’oignon fini, les lardons sont à faire maintenant', (await text(kitchen.locator('.recettes-kitchen-due'))).includes('lardons'));
+  await kitchen.getByRole('button', { name: 'C’est parti' }).click();
+  await kitchen.locator('.recettes-kitchen-soon').waitFor();
+  check('Puis la suite est annoncée, avec le temps qui reste', /Dans \d+:\d\d/.test(await text(kitchen.locator('.recettes-kitchen-soon .recettes-kitchen-label'))));
+  check('Deux choses cuisent en même temps', (await kitchen.locator('.recettes-kitchen-running li').count()) === 2);
+
+  await page.reload();
+  await page.locator('.recettes-card', { hasText: 'carbonara' }).click();
+  await sheet.getByRole('button', { name: '👩‍🍳 Cuisiner' }).click();
+  await kitchen.waitFor();
+  check('Un rechargement reprend la cuisine où elle en était', (await kitchen.locator('.recettes-kitchen-running li').count()) === 2 && (await kitchen.getByRole('button', { name: '▶ Lancer' }).count()) === 0);
+  await kitchen.getByRole('button', { name: 'Étape par étape' }).click();
+  check('« Étape par étape » reste à portée de main', (await text(page.locator('.recettes-cook-label'))) === 'Réunir les ingrédients');
+  await page.getByRole('button', { name: '⏱ En cuisine' }).click();
+  await kitchen.waitFor();
+  check('… et l’on revient « En cuisine » sans rien perdre', (await kitchen.locator('.recettes-kitchen-running li').count()) === 2);
+  page.once('dialog', (d) => void d.accept());
+  await kitchen.getByRole('button', { name: 'Quitter la cuisine' }).click();
+  await kitchen.waitFor({ state: 'detached' });
+  check('Quitter (après confirmation) oublie la cuisine en cours', (await page.evaluate(() => localStorage.getItem('recettes.kitchen.v1'))) === null);
+  await sheet.getByRole('button', { name: '← Carnet' }).click();
+
   // --- Téléphone ----------------------------------------------------------------------------------
   const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   for (const width of [390, 320]) {

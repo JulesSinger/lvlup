@@ -33,6 +33,13 @@ describe('guessTiming', () => {
     expect(pates.start).toEqual({ after: 'end', of: eau.id });
   });
 
+  it('une étape attend que son poste soit libre : égoutter après les pâtes', () => {
+    const plan = schedule(guessed);
+    expect(guessed[5].start).toEqual({ after: 'end', of: guessed[3].id });
+    expect(plan.slots[5].start).toBe(plan.slots[3].end);
+    expect(plan.total).toBe(21);
+  });
+
   it('en tire un plan où l’eau et l’oignon partent ensemble', () => {
     const plan = schedule(guessed);
     expect(plan.slots[0].start).toBe(0);

@@ -704,3 +704,41 @@ Deux précisions prises en l'écrivant :
   à la même place (`mergeStepTiming`).
 - **Les réglages se font dans une fenêtre à part**, « ⏱ Régler les temps », ouverte depuis la
   fiche : la fenêtre de la recette reste une saisie de texte, rapide.
+
+### 20.8 Livré (14/10/2026) — les cinq étapes
+
+- **Les règles** (`lib/schedule.ts`, `lib/stepGuess.ts`, testées sur l'exemple des pâtes) : les
+  heures calculées de proche en proche, le chemin qui fixe la durée (marges à rebours), les
+  gestes qui se chevauchent, une boucle dans les renvois signalée sans rien bloquer, et **le plan
+  qui suit ce qui se passe** (une étape commencée garde son heure réelle, une étape en retard part
+  de maintenant, un geste dure tant qu'on ne l'a pas dit fini, ce qui cuit tout seul se finit
+  seul). La proposition d'après le texte lit le poste, la durée (l'eau qui bout : 8 min ; un geste
+  sans durée : 3), « tu es dessus » ou non, « pendant ce temps », « quand l'eau bout », et fait
+  attendre une étape que **son poste soit libre** (« égoutter » après les pâtes) — défaut trouvé
+  en déroulant l'exemple, pas par un test. Les étapes sont relues par `cleanSteps` dans les deux
+  implémentations : un champ douteux est retiré, jamais deviné.
+- **« ⏱ Régler les temps »** (`TimingEditor`) : par étape, le poste en pastilles (et « + Autre »),
+  la durée, « ça cuit tout seul / tu es dessus », « Commence » (au lancement, après l'étape
+  d'avant, à la fin de l'étape N, pendant l'étape N au bout de M min) ; « ✨ Compléter d'après le
+  texte », « Tout effacer » ; les gestes simultanés et les boucles dits en direct, le plan dessiné
+  sous les réglages. Une recette encore sans réglage s'ouvre sur la proposition.
+- **Le plan sur la fiche** (`PlanView`) : sur ordinateur, une ligne par poste, « Tes mains »,
+  contour or ; sur téléphone (moins de 640 px), minute par minute. Les deux sont rendus, le CSS
+  choisit.
+- **« En cuisine »** (`KitchenMode`), ouvert par « Cuisiner » pour une recette minutée :
+  avant de lancer, la durée, l'heure du repas et le plan ; après, l'horloge, « Maintenant »
+  (« C'est parti ») ou « En cours » (« ✓ Fini »), sinon « Dans 0:15 » ; ce qui cuit, en barres
+  (« Fini plus tôt ») ; « Ensuite » à l'heure réelle. Un bip annonce une étape 20 s avant, trois
+  bips à son heure et à la fin de ce qui cuit. **Gardé sur l'appareil** (`recettes.kitchen.v1`,
+  ajouté à CLAUDE.md §4) : un rechargement en pleine cuisson reprend où l'on en était ; quitter
+  demande confirmation et l'oublie. « Étape par étape » et « ⏱ En cuisine » passent de l'un à
+  l'autre sans rien perdre. Le bip et l'écran allumé sortent de `CookMode` vers
+  `components/kitchen.ts`, partagés.
+- **La fenêtre de la recette garde les temps** (`mergeStepTiming`) ; **le connecteur aussi**
+  (`keepTiming`, comparé à la règle du module), et `recettes_minuter` règle les temps depuis une
+  conversation ; `recettes_lire` les rend dans `steps_timing`, par numéros d'étape.
+
+Aucune migration. 1837 tests unitaires ; suite de Recettes +18 vérifications. **À redéployer** :
+`atlas-mcp` (le connecteur), sans quoi une modification des étapes par Claude effacerait leurs
+temps. **À essayer sur l'iPhone** : les bips quand l'écran est allumé, et la reprise après que
+l'app a été mise en veille.
