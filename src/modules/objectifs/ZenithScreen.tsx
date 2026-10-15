@@ -3,6 +3,7 @@ import type { KeyboardEvent, PointerEvent } from 'react';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { moveItem, positionPatches } from '../../core/lib/order';
 import { playCheckinBlip, vibrate } from '../../core/lib/sound';
+import { demoModuleId } from '../../core/lib/demo';
 import { adoptLegacyOnboarding, hasOnboarded, markOnboarded } from '../../core/lib/onboarding';
 import { ActionEditor } from './components/ActionEditor';
 import { Ceremony, type Celebration } from './components/Ceremony';
@@ -1065,7 +1066,8 @@ export function ZenithScreen({
           </div>
         )}
 
-        {user?.isLocal && (
+        {/* Pas en démo : les exemples n'ont rien à voir avec un mode local à configurer. */}
+        {user?.isLocal && demoModuleId === null && (
           <div className="notice info">
             Mode local : tes objectifs sont enregistrés dans ce navigateur uniquement. Renseigne
             tes clés Supabase pour activer les comptes et la synchronisation entre appareils.

@@ -1,5 +1,6 @@
 import type { AtlasModule } from '../../core/lib/module';
 import { goalsStore } from './data';
+import { objectifsDemo } from './demo';
 import { createCalendarSource } from './data/calendarSource';
 import { createCheckinService } from './data/checkinService';
 import type { GoalsBackup } from './data/goalsStore';
@@ -22,6 +23,8 @@ export const objectifsModule: AtlasModule = {
   Screen: ZenithScreen,
   SettingsSection: ZenithSettingsSection,
   LandingPreview: ZenithLandingPreview,
+  // La démo (15/10/2026) : des exemples et une visite, proposées à la première ouverture.
+  demo: objectifsDemo,
   // Les réalisations de chaque jour, en calque dans le calendrier (Éclipse).
   provides: { calendarSources: [createCalendarSource(goalsStore)], checkins: createCheckinService(goalsStore) },
 

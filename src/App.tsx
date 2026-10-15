@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { DemoBar, DemoOffer, ModuleChromeContext } from './core/components/DemoChrome';
 import { Landing } from './core/components/Landing';
 import { ModulePicker } from './core/components/ModulePicker';
 import { ModuleRail } from './core/components/ModuleRail';
@@ -6,10 +7,12 @@ import { ModuleSwitcher } from './core/components/ModuleSwitcher';
 import { PasswordRecovery } from './core/components/PasswordRecovery';
 import { SecondFactorScreen } from './core/components/SecondFactorScreen';
 import { SettingsPanel } from './core/components/SettingsPanel';
+import { Tour } from './core/components/Tour';
 import { coreStore } from './core/data';
 import { exportBackup, importBackup, readBackupFile } from './core/data/backup';
 import { DEFAULT_SETTINGS, type Settings } from './core/data/coreStore';
 import { claimDevice, forgetDeviceData } from './core/data/deviceOwner';
+import { DEMO_SNAPSHOT_KEY, demoHref, demoModuleId, exitDemoHref, markDemoSeen, readSeenDemos, todayString } from './core/lib/demo';
 import { orderModules, reorderSubset } from './core/lib/moduleOrder';
 import { hashFor, initialModule, readLastModule, routeFromHash, saveLastModule } from './core/lib/moduleRoute';
 import { timezoneOffsetMinutes } from './core/lib/push';
@@ -37,6 +40,8 @@ function servicesFor(modules: readonly (typeof MODULES)[number][]) {
   return servicesCache.get(key)!;
 }
 const MODULE_IDS = MODULES.map((m) => m.id);
+/** Le module de la démo en cours (`?demo=…`), s'il en a une. */
+const DEMO_MODULE = demoModuleId ? (MODULES.find((m) => m.id === demoModuleId && m.demo) ?? null) : null;
 
 /** Le module à ouvrir maintenant : celui de l'adresse, sinon le dernier, sinon la liste. */
 const startingModule = () => initialModule(window.location.hash, readLastModule(), MODULE_IDS);
@@ -73,6 +78,49 @@ export default function App() {
   const [intent, setIntent] = useState<string | null>(null);
   /** Incrémenté après une restauration : signale au module actif de se relire. */
   const [reloadToken, setReloadToken] = useState(0);
+  /** En démo, les exemples sont posés avant que l'écran du module ne lise quoi que ce soit. */
+  const [demoReady, setDemoReady] = useState(demoModuleId === null);
+  const [touring, setTouring] = useState(false);
+  /** Les démos déjà proposées sur cet appareil (une seule fois, à la première ouverture). */
+  const [seenDemos, setSeenDemos] = useState(readSeenDemos);
+
+  // La démo (15/10/2026) : un stockage à part, vidé, rempli par le module, puis la visite.
+  useEffect(() => {
+    if (demoModuleId === null) return;
+    if (!DEMO_MODULE) {
+      window.location.replace(exitDemoHref(demoModuleId));
+      return;
+    }
+    void (async () => {
+      try {
+        localStorage.removeItem(DEMO_SNAPSHOT_KEY);
+      } catch {
+        // Navigation privée : les exemples s'écrivent quand même, le temps de la page.
+      }
+      markDemoSeen(DEMO_MODULE.id);
+      try {
+        await DEMO_MODULE.demo!.seed(todayString());
+      } catch (err) {
+        console.warn('Démo : exemples incomplets', err);
+      }
+      setModuleId(DEMO_MODULE.id);
+      setDemoReady(true);
+      setTouring(true);
+    })();
+  }, []);
+
+  const openDemo = (id: string) => {
+    markDemoSeen(id);
+    window.location.assign(demoHref(id));
+  };
+  const exitDemo = () => {
+    try {
+      localStorage.removeItem(DEMO_SNAPSHOT_KEY);
+    } catch {
+      // Rien à vider.
+    }
+    window.location.assign(exitDemoHref(demoModuleId ?? ''));
+  };
 
   useEffect(() => {
     const unsubscribe = coreStore.onUserChange((next) => {
@@ -260,7 +308,7 @@ export default function App() {
   }
   // En mode local comme en mode Supabase, `user` n'est fiable qu'une fois
   // `authReady` passé : avant ça, le rendu ne doit jamais le déréférencer.
-  if (!authReady) {
+  if (!authReady || !demoReady) {
     return <div className="auth-screen">Chargement…</div>;
   }
   if (coreStore.isRemote && !user) {
@@ -272,7 +320,8 @@ export default function App() {
   }
 
   // Le mode « au travail » (14/10/2026) : seuls ses modules restent ; un module caché ne s'ouvre pas.
-  const shown = visibleModules(MODULES, settings);
+  // En démo, le seul module de la démo.
+  const shown = DEMO_MODULE ? [DEMO_MODULE] : visibleModules(MODULES, settings);
   const activeModule = shown.find((m) => m.id === moduleId) ?? null;
   // L'ordre choisi à la main (13/10/2026) ; le registre reste la liste des modules.
   const ordered = orderModules(shown, settings.moduleOrder);
@@ -312,6 +361,26 @@ export default function App() {
             onToggleWorkMode={toggleWorkMode}
           />
           <div className="atlas-shell-main">
+            {DEMO_MODULE && (
+              <DemoBar label={DEMO_MODULE.label} emoji={DEMO_MODULE.emoji} onReplay={() => setTouring(true)} onExit={exitDemo} />
+            )}
+            {!DEMO_MODULE && activeModule.demo && !seenDemos.includes(activeModule.id) && (
+              <DemoOffer
+                label={activeModule.label}
+                emoji={activeModule.emoji}
+                onAccept={() => openDemo(activeModule.id)}
+                onDismiss={() => {
+                  markDemoSeen(activeModule.id);
+                  setSeenDemos(readSeenDemos());
+                }}
+              />
+            )}
+            <ModuleChromeContext.Provider
+              value={{
+                // Le « ? » : en démo, revoir la visite ; sinon, ouvrir la démo.
+                onDemo: activeModule.demo ? () => (DEMO_MODULE ? setTouring(true) : openDemo(activeModule.id)) : undefined,
+              }}
+            >
             <activeModule.Screen
               // La clé remonte l'écran quand on change de module : chacun repart de son propre état.
               key={activeModule.id}
@@ -334,6 +403,8 @@ export default function App() {
               reloadToken={reloadToken}
               services={services}
             />
+            </ModuleChromeContext.Provider>
+            {touring && activeModule.demo && <Tour steps={activeModule.demo.tour} onClose={() => setTouring(false)} />}
           </div>
         </div>
       )}
@@ -367,6 +438,7 @@ export default function App() {
           // Les sections des seuls modules visibles ; le choix du mode travail porte sur tous.
           modules={shown}
           allModules={MODULES}
+          onDemo={DEMO_MODULE ? undefined : openDemo}
           // Inutile de proposer de « changer de module » si on est déjà sur
           // l'écran qui les liste.
           onBackToHub={activeModule ? () => navigate(null) : undefined}

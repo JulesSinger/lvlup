@@ -2,6 +2,7 @@ import type { AtlasModule } from '../../core/lib/module';
 import { AstraLandingPreview } from './components/AstraLandingPreview';
 import { BudgetScreen } from './BudgetScreen';
 import { budgetStore } from './data';
+import { budgetDemo } from './demo';
 import { createCalendarSource } from './data/calendarSource';
 import { createExpenseService } from './data/expenseService';
 
@@ -23,6 +24,8 @@ export const budgetModule: AtlasModule = {
   data: budgetStore,
   Screen: BudgetScreen,
   LandingPreview: AstraLandingPreview,
+  // La démo (15/10/2026) : des exemples et une visite, proposées à la première ouverture.
+  demo: budgetDemo,
   // Astra enregistre les dépenses que d'autres modules lui envoient — les
   // courses terminées de Comète (core/lib/services.ts, 26/09/2026).
   // Et ce qui a été dépensé chaque jour, en calque (masqué d'office) dans le calendrier (Éclipse).

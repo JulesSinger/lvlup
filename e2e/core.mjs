@@ -105,6 +105,7 @@ export async function run({ browser, check, BASE }) {
   await navigation({ browser, check, BASE });
   await reorderModules({ browser, check, BASE });
   await workMode({ browser, check, BASE });
+  await demos({ browser, check, BASE });
 
   // Écran d'authentification : il n'apparaît qu'en mode Supabase, on le vérifie
   // donc sur un build de démonstration servi séparément si disponible.
@@ -502,5 +503,73 @@ async function workMode({ browser, check, BASE }) {
   await page.waitForFunction((n) => document.querySelectorAll('.atlas-rail-module').length === n, all);
   check('La barre bascule le mode travail : tous les modules reviennent', (await page.locator('.atlas-rail-module').count()) === all);
   check('Aucune erreur JavaScript en mode travail', errors.length === 0, errors.join(' | '));
+  await context.close();
+}
+
+/**
+ * Les démos (15/10/2026) : proposées une fois, rejouables depuis les réglages,
+ * sur des exemples à part — les vraies données ne bougent pas. Chaque démo
+ * listée est parcourue bulle par bulle : une bulle qui ne trouve plus ce
+ * qu'elle montre (un bouton renommé, une classe changée) fait échouer la suite.
+ */
+async function demos({ browser, check, BASE }) {
+  const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(BASE);
+  // Une donnée « réelle » du mode local, qui ne doit jamais bouger.
+  await page.evaluate(() => localStorage.setItem('palier.v1', JSON.stringify({ settings: { dailyGoal: 40 }, tachesLists: [{ id: 'vraie', name: 'Ma vraie liste', color: 'bleu', position: 0, archived: false, favorite: false, work: false, createdAt: '' }] })));
+  const real = () => page.evaluate(() => localStorage.getItem('palier.v1'));
+  const before = await real();
+  await page.reload();
+  await page.waitForSelector('.hub-picker-card');
+  await page.locator('.hub-picker-card', { hasText: 'Tâches' }).click();
+  await page.locator('.atlas-demo-offer').waitFor();
+  check('À la première ouverture, la démo est proposée', (await page.locator('.atlas-demo-offer').textContent())?.includes('Première fois dans Tâches'));
+  await page.getByRole('button', { name: 'Non merci' }).click();
+  await page.reload();
+  await page.waitForSelector('.atlas-module-brand');
+  check('« Non merci » est retenu : elle n’est plus proposée', (await page.locator('.atlas-demo-offer').count()) === 0);
+  check('Un « ? » à côté du nom du module ouvre la démo', await page.getByRole('button', { name: 'Voir la démo de Tâches' }).isVisible());
+
+  await page.evaluate(() => history.replaceState(null, '', '#/'));
+  await page.reload();
+  await page.getByRole('button', { name: '⚙ Réglages' }).click();
+  const listed = await page.locator('.settings-demos button').allTextContents();
+  check('Les réglages listent les démos', listed.length >= 6, listed.join(', '));
+  await page.keyboard.press('Escape');
+
+  for (let n = 0; n < listed.length; n++) {
+    await page.goto(BASE);
+    await page.evaluate(() => history.replaceState(null, '', '#/'));
+    await page.reload();
+    await page.getByRole('button', { name: '⚙ Réglages' }).click();
+    await page.locator('.settings-demos button').nth(n).click();
+    await page.locator('.atlas-tour').waitFor({ timeout: 15000 });
+    const name = listed[n].trim();
+    const lost = [];
+    let steps = 0;
+    for (;;) {
+      steps++;
+      // Chaque bulle trouve ce qu'elle montre (surligné), ou se dit introuvable au bout de 2,5 s.
+      await page.waitForFunction(() => document.querySelector('.atlas-tour-spot') || document.querySelector('.atlas-tour[data-target-missing]') || !document.querySelector('.atlas-tour-spot, .atlas-tour-dim:not(:only-child)'), null, { timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(150);
+      if (await page.locator('.atlas-tour[data-target-missing]').count()) lost.push(steps);
+      const next = page.locator('.atlas-tour').getByRole('button', { name: 'Suivant ›' });
+      if (!(await next.count())) break;
+      await next.click();
+    }
+    check(`Démo ${name} : ${steps} bulles, chacune trouve ce qu’elle montre`, lost.length === 0 && steps >= 4, lost.length ? `introuvables : ${lost.join(', ')}` : '');
+    await page.locator('.atlas-tour').getByRole('button', { name: 'Terminer' }).click();
+    check(`Démo ${name} : le bandeau dit que rien n’est enregistré`, (await page.locator('.atlas-demo-bar').textContent())?.includes('rien n’est enregistré'));
+    check(`Démo ${name} : les vraies données n’ont pas bougé`, (await real()) === before);
+  }
+
+  await page.getByRole('button', { name: 'Quitter la démo' }).click();
+  await page.waitForFunction(() => !location.search.includes('demo'));
+  await page.waitForSelector('.atlas-module-brand');
+  check('« Quitter la démo » ramène au module, sur les vraies données', (await page.locator('.atlas-demo-bar').count()) === 0 && (await real()) === before);
+  check('Aucune erreur JavaScript dans les démos', errors.length === 0, errors.join(' | '));
   await context.close();
 }

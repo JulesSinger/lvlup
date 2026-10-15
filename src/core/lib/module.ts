@@ -81,6 +81,25 @@ export interface ModuleSettingsProps {
   onChange: (patch: Partial<Settings>) => void;
 }
 
+/** Une bulle de la visite d'un module (15/10/2026). */
+export interface TourStep {
+  /** Ce qu'on montre : un sélecteur CSS. Absent : la bulle seule, au centre. */
+  target?: string;
+  title: string;
+  body: string;
+}
+
+/**
+ * La démo d'un module : des exemples, puis une visite guidée sur eux. Le
+ * socle l'ouvre à part (`?demo=<id>`, données dans `atlas.demo.v1`, jamais le
+ * compte) et appelle `seed` sur un stockage vide.
+ */
+export interface ModuleDemo {
+  /** Crée les exemples avec le contrat du module, datés par rapport à `today` (AAAA-MM-JJ). */
+  seed(today: string): Promise<void>;
+  tour: TourStep[];
+}
+
 export interface AtlasModule {
   /**
    * Nom technique : dossier, préfixe des tables et des classes CSS, clé dans
@@ -138,4 +157,6 @@ export interface AtlasModule {
    * n'existe que sur l'appareil (le mode local, une écriture pas encore partie).
    */
   forgetDevice?(): void | Promise<void>;
+  /** La démo du module (15/10/2026) : proposée à la première ouverture, rejouable. */
+  demo?: ModuleDemo;
 }

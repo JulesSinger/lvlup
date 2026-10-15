@@ -1,6 +1,7 @@
 import type { AtlasModule } from '../../core/lib/module';
 import { RecettesLandingPreview } from './components/RecettesLandingPreview';
 import { recettesStore } from './data';
+import { recettesDemo } from './demo';
 import { createCalendarSource } from './data/calendarSource';
 import { forgetOfflineCopy } from './data/offlineCopy';
 import { RecettesScreen } from './RecettesScreen';
@@ -21,6 +22,8 @@ export const recettesModule: AtlasModule = {
   data: recettesStore,
   Screen: RecettesScreen,
   LandingPreview: RecettesLandingPreview,
+  // La démo (15/10/2026) : des exemples et une visite, proposées à la première ouverture.
+  demo: recettesDemo,
   provides: { calendarSources: [createCalendarSource(recettesStore)] },
   // La copie du carnet pour le lire sans réseau : celle du compte qui part.
   forgetDevice: () => forgetOfflineCopy(),

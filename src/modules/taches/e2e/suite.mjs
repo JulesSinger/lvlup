@@ -183,7 +183,8 @@ export async function run({ browser, check, BASE }) {
   const titleInput = page.locator('.taches-row-title-input');
   await titleInput.waitFor();
   check('Toucher le titre le rend modifiable, sur place', (await titleInput.inputValue()) === 'Réunion de lundi' && (await page.locator('.taches-editor').count()) === 0);
-  await titleInput.press('End');
+  // Le curseur au bout, sans « Fin » : sur Mac, cette touche fait défiler la page au lieu de déplacer le curseur.
+  await titleInput.evaluate((el) => el.setSelectionRange(el.value.length, el.value.length));
   await titleInput.pressSequentially(' matin');
   await titleInput.press('Enter');
   await row(page, 'Réunion de lundi matin').waitFor();

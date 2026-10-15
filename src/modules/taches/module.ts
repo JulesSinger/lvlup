@@ -1,6 +1,7 @@
 import type { AtlasModule } from '../../core/lib/module';
 import { PolarisLandingPreview } from './components/PolarisLandingPreview';
 import { tachesStore } from './data';
+import { tachesDemo } from './demo';
 import { CalendarTaskEditor } from './components/CalendarTaskEditor';
 import { createCalendarSource } from './data/calendarSource';
 import { syncReminders } from './data/syncReminders';
@@ -31,4 +32,6 @@ export const tachesModule: AtlasModule = {
     calendarSources: [{ ...createCalendarSource(tachesStore, () => syncReminders()), Editor: CalendarTaskEditor, createLabel: 'Tâche' }],
   },
   LandingPreview: PolarisLandingPreview,
+  // La démo (15/10/2026) : des exemples et une visite, proposées à la première ouverture.
+  demo: tachesDemo,
 };

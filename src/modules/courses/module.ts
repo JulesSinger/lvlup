@@ -2,6 +2,7 @@ import type { AtlasModule } from '../../core/lib/module';
 import { CometeLandingPreview } from './components/CometeLandingPreview';
 import { CoursesScreen } from './CoursesScreen';
 import { coursesStore } from './data';
+import { coursesDemo } from './demo';
 import { createCalendarSource } from './data/calendarSource';
 import { createShoppingService } from './data/shoppingService';
 import { createSpendService } from './data/spendService';
@@ -22,6 +23,8 @@ export const coursesModule: AtlasModule = {
   data: coursesStore,
   Screen: CoursesScreen,
   LandingPreview: CometeLandingPreview,
+  // La démo (15/10/2026) : des exemples et une visite, proposées à la première ouverture.
+  demo: coursesDemo,
   // Les courses faites, en calque dans le calendrier (Éclipse).
   provides: { calendarSources: [createCalendarSource(coursesStore)], shopping: createShoppingService(coursesStore), shoppingSpend: createSpendService(coursesStore) },
 };

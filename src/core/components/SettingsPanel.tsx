@@ -32,6 +32,7 @@ export function SettingsPanel({
   modules,
   allModules = modules,
   onBackToHub,
+  onDemo,
 }: {
   user: AppUser | null;
   settings: Settings;
@@ -43,6 +44,8 @@ export function SettingsPanel({
   modules: readonly AtlasModule[];
   /** Tous les modules, même ceux que le mode travail cache : pour choisir ceux qu'il garde. */
   allModules?: readonly AtlasModule[];
+  /** Ouvre la démo d'un module (15/10/2026). */
+  onDemo?: (moduleId: string) => void;
   /**
    * Revient à l'écran de choix du module. Porté par la fenêtre de réglages
    * plutôt que par le seul pied de la barre latérale : c'est le seul endroit
@@ -145,6 +148,24 @@ export function SettingsPanel({
               ))}
             </div>
           </section>
+
+          {onDemo && modules.some((m) => m.demo) && (
+            <section className="settings-block">
+              <h3 className="settings-title">Démos</h3>
+              <p className="settings-hint">
+                Chaque démo ouvre le module sur des exemples, avec une visite guidée. Rien n’est enregistré dans ton compte.
+              </p>
+              <div className="settings-actions settings-demos">
+                {modules
+                  .filter((m) => m.demo)
+                  .map((m) => (
+                    <button key={m.id} type="button" className="btn btn-sm" onClick={() => onDemo(m.id)}>
+                      {m.emoji} {m.label}
+                    </button>
+                  ))}
+              </div>
+            </section>
+          )}
 
           <section className="settings-block">
             <h3 className="settings-title">Mode travail</h3>

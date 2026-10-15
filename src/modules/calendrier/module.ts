@@ -3,6 +3,7 @@ import { CalendarScreen } from './CalendarScreen';
 import { CalendarSettingsSection } from './CalendarSettingsSection';
 import { EclipseLandingPreview } from './components/EclipseLandingPreview';
 import { calendarStore } from './data';
+import { calendrierDemo } from './demo';
 
 /**
  * Déclaration du module calendrier.
@@ -22,4 +23,6 @@ export const calendrierModule: AtlasModule = {
   Screen: CalendarScreen,
   SettingsSection: CalendarSettingsSection,
   LandingPreview: EclipseLandingPreview,
+  // La démo (15/10/2026) : des exemples et une visite, proposées à la première ouverture.
+  demo: calendrierDemo,
 };

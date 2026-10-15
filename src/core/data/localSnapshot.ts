@@ -1,3 +1,5 @@
+import { DEMO_SNAPSHOT_KEY, demoModuleId } from '../lib/demo';
+
 /**
  * L'unique blob du mode local.
  *
@@ -8,8 +10,11 @@
  * les siennes. D'où la lecture-modification-écriture d'un enregistrement
  * libre plutôt qu'un type fermé : sans ça, le socle écraserait les sections
  * qu'il ne connaît pas.
+ *
+ * En démo (`?demo=…`), le blob est un autre (`atlas.demo.v1`) : les exemples
+ * ne touchent jamais les vraies données du mode local.
  */
-const KEY = 'palier.v1';
+const KEY = demoModuleId === null ? 'palier.v1' : DEMO_SNAPSHOT_KEY;
 
 export type RawSnapshot = Record<string, unknown>;
 
