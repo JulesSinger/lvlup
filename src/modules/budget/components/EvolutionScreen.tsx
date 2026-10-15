@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ShoppingSpendService, ShoppingSpendTrip } from '../../../core/lib/services';
 import { budgetStore } from '../data';
 import { currentMonthKey } from '../lib/month';
+import { moduleRefs, shoppingTrend } from '../lib/shoppingContent';
 import { computeIncomeTrend, computeNetTrend, computeSpendingTrend } from '../lib/spendingTrend';
 import type { BudgetCategory, BudgetEntry } from '../lib/types';
 import { NetTrendChart } from './NetTrendChart';
@@ -30,10 +32,13 @@ export function EvolutionScreen({
   categories,
   onError,
   reloadToken,
+  shoppingSpend,
 }: {
   categories: BudgetCategory[];
   onError: (message: string) => void;
   reloadToken: number;
+  /** Le contenu des courses, rendu par Courses (docs/etude-courses-typologies.md) */
+  shoppingSpend?: ShoppingSpendService;
 }) {
   const [entries, setEntries] = useState<BudgetEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +93,29 @@ export function EvolutionScreen({
   );
 
   const netTrend = useMemo(() => computeNetTrend(entries, categories, currentMonthKey()), [entries, categories]);
+
+  // Le contenu des courses détaillées, mois par mois — si Courses est là et en a.
+  const [trips, setTrips] = useState<ShoppingSpendTrip[]>([]);
+  const [shoppingKey, setShoppingKey] = useState('alimentation');
+  const refsKey = moduleRefs(entries).sort().join('|');
+  useEffect(() => {
+    if (!shoppingSpend || !refsKey) return;
+    let alive = true;
+    shoppingSpend
+      .trips(refsKey.split('|'))
+      .then((t) => alive && setTrips(t))
+      .catch(() => alive && setTrips([]));
+    return () => {
+      alive = false;
+    };
+  }, [shoppingSpend, refsKey]);
+  const shoppingPoints = useMemo(() => shoppingTrend(trips, shoppingKey, currentMonthKey()), [trips, shoppingKey]);
+  const shoppingChoices = shoppingSpend
+    ? shoppingSpend.typologies.flatMap((t) => [
+        { value: t.id, label: `${t.emoji} ${t.label}` },
+        ...(t.id === shoppingSpend.foodTypology ? shoppingSpend.foodKinds.map((k) => ({ value: `${t.id}:${k.id}`, label: `   ${t.label} · ${k.label}` })) : []),
+      ])
+    : [];
 
   if (loading) return <p>Chargement…</p>;
 
@@ -145,6 +173,28 @@ export function EvolutionScreen({
       <section className="budget-evolution-section">
         <NetTrendChart points={netTrend} />
       </section>
+
+      {trips.length > 0 && (
+        <section className="budget-evolution-section">
+          <div className="field budget-evolution-picker">
+            <label htmlFor="budget-evolution-shopping">Le contenu des courses</label>
+            <select id="budget-evolution-shopping" value={shoppingKey} onChange={(e) => setShoppingKey(e.target.value)}>
+              {shoppingChoices.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <SpendingTrendChart
+            title={shoppingChoices.find((c) => c.value === shoppingKey)?.label.trim() ?? ''}
+            points={shoppingPoints}
+            color={TOTAL_COLOR}
+            emptyMessage="Rien à montrer avant ta première course détaillée."
+          />
+          <p className="field-hint">Seules les courses passées par Courses (ticket ou prix cochés) sont détaillées.</p>
+        </section>
+      )}
     </div>
   );
 }

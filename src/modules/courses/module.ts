@@ -4,6 +4,7 @@ import { CoursesScreen } from './CoursesScreen';
 import { coursesStore } from './data';
 import { createCalendarSource } from './data/calendarSource';
 import { createShoppingService } from './data/shoppingService';
+import { createSpendService } from './data/spendService';
 
 /**
  * Déclaration du module courses.
@@ -22,5 +23,5 @@ export const coursesModule: AtlasModule = {
   Screen: CoursesScreen,
   LandingPreview: CometeLandingPreview,
   // Les courses faites, en calque dans le calendrier (Éclipse).
-  provides: { calendarSources: [createCalendarSource(coursesStore)], shopping: createShoppingService(coursesStore) },
+  provides: { calendarSources: [createCalendarSource(coursesStore)], shopping: createShoppingService(coursesStore), shoppingSpend: createSpendService(coursesStore) },
 };

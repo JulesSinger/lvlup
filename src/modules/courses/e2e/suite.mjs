@@ -295,6 +295,30 @@ export async function run({ browser, check, BASE }) {
     'Sans catégorie « Courses » créée dans Budget, la dépense y est « à classer »',
     (await budgetRows.first().locator('.budget-row-category').textContent()) === 'À classer',
   );
+
+  // Le contenu des courses dans Budget (docs/etude-courses-typologies.md) : la part qui les contient le montre.
+  await page.locator('.budget-pie-legend-item', { hasText: 'À classer' }).first().click();
+  const content = page.locator('.budget-shopping');
+  await content.waitFor({ timeout: 10000 }).catch(() => {});
+  check('Toucher la part des courses montre leur contenu, par typologie', (await text(content)).includes('Le contenu de tes courses'));
+  check('… l’alimentation et l’entretien y sont, devinés d’après les articles', (await text(content)).includes('Alimentation') && (await text(content)).includes('Entretien'));
+  await content.locator('.budget-shopping-trips summary').click();
+  check('… avec les courses détaillées', (await text(content.locator('.budget-shopping-trips summary'))).includes('2 courses détaillées'));
+  // La course qui contient la lessive : on les déplie l'une après l'autre.
+  const lessiveLine = content.locator('.budget-shopping-lines li', { hasText: 'Lessive' });
+  for (const button of await content.locator('.budget-shopping-trip').all()) {
+    await button.click();
+    await content.locator('.budget-shopping-lines').waitFor();
+    if ((await lessiveLine.count()) > 0) break;
+  }
+  check('Une course se déplie sur ses lignes, classées', (await lessiveLine.count()) === 1 && (await lessiveLine.locator('select').inputValue()) === 'entretien');
+  await lessiveLine.locator('select').selectOption('maison');
+  await content.locator('.budget-shopping-row', { hasText: 'Maison et équipement' }).waitFor({ timeout: 5000 }).catch(() => {});
+  check('Reclasser une ligne change le contenu aussitôt', await content.locator('.budget-shopping-row', { hasText: 'Maison et équipement' }).isVisible());
+  check(
+    '… et reclasse l’article dans Courses (ses autres courses suivent)',
+    await page.evaluate(() => (JSON.parse(localStorage.getItem('palier.v1') ?? '{}').coursesItems ?? []).find((i) => i.name === 'Lessive')?.typology === 'maison'),
+  );
   await page.getByRole('button', { name: 'Tous les modules' }).click();
   await page.waitForSelector('.hub-picker-card');
   await page.getByRole('button', { name: /Courses/ }).click();

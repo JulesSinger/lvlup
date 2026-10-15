@@ -1434,3 +1434,128 @@
   justify-content: space-between;
   gap: 4px 12px;
 }
+
+/* --- le contenu des courses, docs/etude-courses-typologies.md §4 --- */
+.budget-shopping {
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 0 0 14px;
+}
+
+.budget-shopping-title {
+  font-size: 15px;
+  margin: 0 0 10px;
+}
+
+.budget-shopping-rows,
+.budget-shopping-kinds,
+.budget-shopping-notes,
+.budget-shopping-trips ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.budget-shopping-row {
+  display: grid;
+  grid-template-columns: minmax(0, 12em) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 14px;
+}
+
+.budget-shopping-kind {
+  font-size: 13px;
+  color: var(--text-dim);
+  padding-left: 1.6em;
+}
+
+.budget-shopping-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.budget-shopping-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  overflow: hidden;
+}
+
+.budget-shopping-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.budget-shopping-kind .budget-shopping-bar span {
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.budget-shopping-amount {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.budget-shopping-notes {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.budget-shopping-trips {
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.budget-shopping-trip {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 6px 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.budget-shopping-lines li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 13em);
+  gap: 8px;
+  align-items: center;
+  padding: 3px 0 3px 1em;
+}
+
+.budget-shopping-lines select {
+  font-size: 13px;
+  padding: 3px 6px;
+}
+
+.budget-shopping-line-name {
+  overflow-wrap: anywhere;
+}
+
+.budget-shopping-hint {
+  color: var(--text-dim);
+  margin: 8px 0 0;
+}
+
+@media (max-width: 520px) {
+  .budget-shopping-row {
+    grid-template-columns: minmax(0, 9em) 1fr auto;
+  }
+
+  .budget-shopping-lines li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .budget-shopping-lines select {
+    grid-column: 1 / -1;
+  }
+}

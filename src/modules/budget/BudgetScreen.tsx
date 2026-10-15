@@ -46,7 +46,7 @@ type View = 'categories' | 'month' | 'import' | 'epargne' | 'evolution' | 'recur
  * l'argent ce mois-ci », mais « et par rapport à d'habitude ». Juste après
  * Aperçu, dont c'est le prolongement naturel dans le temps.
  */
-export function BudgetScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji }: ModuleScreenProps) {
+export function BudgetScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, label, emoji, services }: ModuleScreenProps) {
   const [view, setView] = useState<View>('month');
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,9 +192,9 @@ export function BudgetScreen({ error, onError, onOpenSettings, onSwitchModule, r
         )}
 
         {view === 'import' ? null : view === 'month' ? (
-          <MonthScreen categories={categories} onError={onError} reloadToken={reloadToken} />
+          <MonthScreen categories={categories} onError={onError} reloadToken={reloadToken} shoppingSpend={services?.shoppingSpend} />
         ) : view === 'evolution' ? (
-          <EvolutionScreen categories={categories} onError={onError} reloadToken={reloadToken} />
+          <EvolutionScreen categories={categories} onError={onError} reloadToken={reloadToken} shoppingSpend={services?.shoppingSpend} />
         ) : view === 'recurring' ? (
           <RecurringScreen categories={categories} onError={onError} reloadToken={reloadToken} />
         ) : view === 'epargne' ? (

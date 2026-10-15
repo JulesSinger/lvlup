@@ -240,6 +240,54 @@ export interface ShoppingService {
 }
 
 /** Tout ce que les modules peuvent se rendre les uns aux autres. */
+/**
+ * Le contenu d'une course, pour qu'un autre module (Budget) montre en quoi
+ * part l'argent des courses — rendu par Courses, depuis le 2026-10-15
+ * (docs/etude-courses-typologies.md). Les typologies sont des identifiants
+ * que le module qui les rend décrit lui-même (`typologies`, `foodKinds`) :
+ * le socle n'en connaît aucun.
+ */
+export interface ShoppingSpendLine {
+  /** La ligne de la course, pour la reclasser */
+  id: string;
+  name: string;
+  quantity: string;
+  /** Prix payé ; `null` si la ligne n'en a pas */
+  cents: number | null;
+  typology: string;
+  foodKind: string | null;
+}
+
+export interface ShoppingSpendTrip {
+  /** La référence de la dépense dans Budget (« comete:course:12 ») */
+  ref: string;
+  day: string;
+  store: string;
+  totalCents: number | null;
+  lines: ShoppingSpendLine[];
+  /** Somme des lignes, par « typologie » ou « typologie:sous-type » */
+  byKey: Record<string, number>;
+  /** Ce que le ticket a coûté de moins (remises, négatif) ou de plus que ses lignes */
+  adjustmentCents: number;
+  /** La part du total que des lignes sans prix empêchent de répartir */
+  undetailedCents: number;
+}
+
+export interface ShoppingSpendService {
+  typologies: { id: string; label: string; emoji: string }[];
+  /** Le second niveau, pour la typologie `foodTypology` seulement */
+  foodTypology: string;
+  foodKinds: { id: string; label: string }[];
+  /** Les courses qui portent ces références, avec leurs lignes classées. */
+  trips(refs: readonly string[]): Promise<ShoppingSpendTrip[]>;
+  /**
+   * Reclasse une ligne : son article du catalogue s'il en a un (toutes ses
+   * courses, passées comprises, suivent), sinon la ligne seule. `null` : revenir
+   * à la devinette.
+   */
+  classify(lineId: string, typology: string | null, foodKind: string | null): Promise<void>;
+}
+
 export interface AtlasServices {
   /** Fourni par le module budget (Astra). */
   expenses?: ExpenseService;
@@ -247,6 +295,8 @@ export interface AtlasServices {
   checkins?: CheckinService;
   /** Fourni par le module courses : ajouter des articles à la liste (Recettes). */
   shopping?: ShoppingService;
+  /** Fourni par le module courses : le contenu des courses, par typologie (Budget). */
+  shoppingSpend?: ShoppingSpendService;
   /** Fournis par tout module qui a quelque chose à montrer dans le calendrier — plusieurs à la fois. */
   calendarSources?: CalendarSource[];
 }

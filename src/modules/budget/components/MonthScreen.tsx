@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { ShoppingSpendService } from '../../../core/lib/services';
 import { budgetStore } from '../data';
 import { currentMonthKey, monthKeyOf, monthLabel, shiftMonthKey } from '../lib/month';
 import { computeMonthlyBreakdown, deltaMap, formatMonthDelta, monthDelta, subcategoryBreakdown } from '../lib/monthlyBreakdown';
@@ -8,6 +9,7 @@ import type { BudgetCategory, BudgetEntry, BudgetEnvelope, BudgetEnvelopeMove, B
 import { ClassifyDialog } from './ClassifyDialog';
 import { EntriesView } from './EntriesView';
 import { PieChart } from './PieChart';
+import { ShoppingContent } from './ShoppingContent';
 import { SubcategoryDetail } from './SubcategoryDetail';
 
 function categoryName(categories: BudgetCategory[], id: string | null): string {
@@ -25,10 +27,13 @@ export function MonthScreen({
   categories,
   onError,
   reloadToken,
+  shoppingSpend,
 }: {
   categories: BudgetCategory[];
   onError: (message: string) => void;
   reloadToken: number;
+  /** Le contenu des courses, rendu par Courses ; absent, rien ne s'affiche (docs/etude-courses-typologies.md) */
+  shoppingSpend?: ShoppingSpendService;
 }) {
   const [monthKey, setMonthKey] = useState(currentMonthKey);
   const [entries, setEntries] = useState<BudgetEntry[]>([]);
@@ -295,6 +300,10 @@ export function MonthScreen({
               Retirer le filtre
             </button>
           </div>
+        )}
+
+        {shoppingSpend && selectedCategoryId !== undefined && (
+          <ShoppingContent entries={visibleEntries} service={shoppingSpend} onError={onError} />
         )}
 
         {subdetail && selectedCategory && (
