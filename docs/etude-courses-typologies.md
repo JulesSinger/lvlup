@@ -174,3 +174,34 @@ La première vraie valeur arrive à l'étape 3.
 4. **Les remises** : à part (« remises »), ou réparties sur les lignes ?
 5. **Reclasser un article** : seulement pour les prochaines courses, ou proposer aussi de corriger
    les courses passées ?
+
+## 10. Décisions et livraison (15/10/2026)
+
+Réponses de Jules : **tout d'accord** (les typologies et essentiel / plaisir / alcool pour
+l'alimentation), **visible dans les deux** (Budget et Courses), **remises à part**, et **reclasser
+vaut aussi pour les courses passées**.
+
+Cette dernière décision simplifie le modèle prévu au §3 : une ligne de course **ne fige plus** sa
+typologie. Elle suit celle de son article du catalogue ; seule une ligne sans article (rare) porte
+la sienne. Aucune fonction SQL de clôture n'a donc eu à changer.
+
+Livré, les cinq étapes :
+
+1. **Les règles** (`courses/lib/typology.ts`) : typologies, sous-types, `guessTypology` (mots-clés
+   puis rayon), `classify`, `tripSpend` (remises à part, lignes sans prix « non détaillées »),
+   `typologyRows`, `spendLinesOf` — testées sur les deux vrais tickets de Jules (alimentation
+   27,48 € dont 1,82 € de plaisir et 5,25 € d'alcool ; maison 43,88 €).
+2. **Le stockage** : migration `2026-10-15-courses-typologies.sql` (`typology`, `food_kind` sur
+   `courses_items` et `courses_trip_items`, contraintes comparées au code), contrat
+   (`classifyTripItem`) et ses deux implémentations, sauvegarde comprise ; « Dans les dépenses »
+   dans la fenêtre d'un article (`TypologyPicker`).
+3. **Dans Budget** : service du socle `shoppingSpend` (rendu par Courses,
+   `courses/data/spendService.ts`) ; toucher une part du camembert qui contient des courses
+   détaillées montre « Le contenu de tes courses » (`ShoppingContent`) — typologies, essentiel /
+   plaisir / alcool, remises, lignes sans prix, et ce qui reste **sans ticket** ; chaque course s'y
+   déplie sur ses lignes, **reclassables d'un geste** (l'article suit, ses courses passées aussi).
+4. **L'évolution** : une quatrième section dans Évolution de Budget (une typologie ou un sous-type,
+   mois par mois), et « Par typologie » dans les Chiffres de Courses (ce mois-ci, 12 mois, tout).
+5. **Claude** : `courses_enregistrer_ticket` reçoit la typologie de chaque ligne et l'applique à
+   l'article ; `courses_article_modifier` la change ; le catalogue la montre. Un échec de
+   classement (migration pas encore appliquée) n'annule jamais le ticket.

@@ -152,6 +152,11 @@ budget » reste dans l'historique de l'app). **Et le relevé bancaire ne la comp
 l'import de Budget reconnaît désormais un paiement déjà enregistré par un module
 (`docs/etude-astra.md` §16).
 
+**Depuis le 15/10/2026**, chaque ligne d'un ticket peut porter sa typologie (`typology`, et
+`food_kind` pour l'alimentation : essentiel, plaisir, alcool), appliquée à l'article du catalogue
+— c'est ce qui alimente « le contenu de tes courses » dans Budget
+(`docs/etude-courses-typologies.md`) ; `courses_article_modifier` la change.
+
 ## 9. Sport, et le coach marathon (12/10/2026)
 
 Demande de Jules : une conversation de Claude lui sert de **coach pour le marathon d'Annecy** —

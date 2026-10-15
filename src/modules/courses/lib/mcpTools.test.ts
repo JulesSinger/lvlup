@@ -5,6 +5,7 @@ import { AISLE_KEYWORDS, guessAisle } from './aisles';
 import { BUDGET_CATEGORY, expenseForTrip, tripRef } from './budgetLink';
 import { findItemLoosely } from './catalog';
 import { buildClosePlan, isDue } from './trip';
+import { FOOD_KINDS, TYPOLOGIES } from './typology';
 import { AISLES, type Item, type ListEntry } from './types';
 
 const NAMES = ['Tomates cerises', 'lait de coco', 'Eau de Javel', 'Thé vert', 'Thon', 'Pommes de terre', 'Œufs', 'Croquettes chat', 'Yaourts nature', 'Bière', 'xyz'];
@@ -250,5 +251,29 @@ describe('les outils de Courses pour Claude', () => {
     expect(hints.courses_supprimer_course.destructiveHint).toBe(true);
     expect(hints.courses_liste.readOnlyHint).toBe(true);
     expect(coursesTools.every((t) => t.name.startsWith('courses_'))).toBe(true);
+  });
+
+  it('classent les articles d’un ticket, et un article à la main (docs/etude-courses-typologies.md)', async () => {
+    expect(server.TYPOLOGIES).toEqual(TYPOLOGIES);
+    expect(server.FOOD_KINDS).toEqual(FOOD_KINDS);
+    const { db, data } = memory();
+    const result = await use(data, 'courses_enregistrer_ticket', {
+      store: 'Auchan',
+      day: '2026-10-10',
+      total: 4.5,
+      items: [
+        { name: 'Allumettes fumées', price: 1.85, typology: 'alimentation', food_kind: 'essentiel' },
+        { name: 'Chips barbecue', price: 1.82, typology: 'alimentation', food_kind: 'plaisir' },
+        { name: 'Ampoule', price: 0.83, typology: 'maison', food_kind: 'plaisir' },
+      ],
+      budget: false,
+    });
+    expect(result.value.classified).toBe('3 articles classés');
+    expect(db.items.find((i) => i.name === 'Chips barbecue')).toMatchObject({ typology: 'alimentation', food_kind: 'plaisir' });
+    expect(db.items.find((i) => i.name === 'Ampoule')).toMatchObject({ typology: 'maison', food_kind: null });
+    const ampoule = db.items.find((i) => i.name === 'Ampoule')!;
+    await use(data, 'courses_article_modifier', { id: ampoule.id, typology: 'entretien' });
+    expect(ampoule).toMatchObject({ typology: 'entretien', food_kind: null });
+    expect((await use(data, 'courses_article_modifier', { id: ampoule.id, typology: 'jardin' })).text).toMatch(/typologie/);
   });
 });

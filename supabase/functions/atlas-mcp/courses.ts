@@ -52,6 +52,11 @@ export const AISLE_KEYWORDS: [Aisle, string[]][] = [
 ];
 
 export const ITEM_NAME_MAX = 80;
+/** La typologie d'un achat et, pour l'alimentation, sa sorte (docs/etude-courses-typologies.md) — comparées au module. */
+export const TYPOLOGIES = ['alimentation', 'hygiene', 'entretien', 'maison', 'bebe', 'animaux', 'autre'] as const;
+export const FOOD_KINDS = ['essentiel', 'plaisir', 'alcool'] as const;
+export type Typology = (typeof TYPOLOGIES)[number];
+export type FoodKind = (typeof FOOD_KINDS)[number];
 export const STORE_NAME_MAX = 60;
 export const QUANTITY_MAX = 30;
 export const NOTE_MAX = 200;
@@ -123,6 +128,8 @@ export interface ItemRow {
   recurrence: number | null;
   default_quantity: string;
   last_trip_number: number | null;
+  typology?: Typology | null;
+  food_kind?: FoodKind | null;
 }
 export interface StoreRow {
   id: string;
@@ -257,6 +264,9 @@ export interface TicketLine {
   priceCents: number | null;
   itemId: string | null;
   aisle: Aisle | null;
+  /** Proposée par Claude ; appliquée à l'article du catalogue après la clôture */
+  typology?: Typology | null;
+  foodKind?: FoodKind | null;
 }
 
 export interface TicketPlan {
@@ -355,9 +365,25 @@ function ticketLines(v: unknown): TicketLine[] {
       priceCents: euros(o.price, `Le prix de l’article n° ${i + 1}`),
       itemId: o.item_id === undefined || o.item_id === null ? null : id(o.item_id, `item_id de l’article n° ${i + 1}`),
       aisle: aisle(o.aisle),
+      ...classification(o.typology, o.food_kind, `de l’article n° ${i + 1}`),
     };
   });
 }
+
+/** Une typologie et sa sorte, validées : la sorte ne vaut que pour l'alimentation (essentiel par défaut). */
+export function classification(typology: unknown, foodKind: unknown, what: string): { typology?: Typology; foodKind?: FoodKind | null } {
+  if (typology === undefined || typology === null) return {};
+  if (!(TYPOLOGIES as readonly string[]).includes(String(typology))) throw new Refused(`La typologie ${what} : ${TYPOLOGIES.join(', ')}.`);
+  const t = typology as Typology;
+  if (t !== 'alimentation') return { typology: t, foodKind: null };
+  if (foodKind !== undefined && foodKind !== null && !(FOOD_KINDS as readonly string[]).includes(String(foodKind))) {
+    throw new Refused(`La sorte ${what} : ${FOOD_KINDS.join(', ')}.`);
+  }
+  return { typology: t, foodKind: (foodKind as FoodKind | undefined) ?? 'essentiel' };
+}
+
+const TYPOLOGY_HELP =
+  'Typologie, pour le contenu des courses dans Budget : alimentation, hygiene (hygiène et beauté), entretien, maison (équipement), bebe, animaux, autre. Pour l’alimentation, food_kind : essentiel, plaisir (apéritif, sucreries, gâteaux), alcool.';
 
 // --- Les outils --------------------------------------------------------------------------------
 
@@ -374,6 +400,7 @@ export const coursesTools: Tool<CoursesContext>[] = [
     description: [
       'Enregistre une course faite, à partir d’un ticket de caisse : comme « Terminer la course » dans l’app.',
       'Lis le ticket ligne à ligne et remets chaque article au propre, comme on l’écrirait sur une liste : « LAIT DEMI ECR 1L » → « Lait demi-écrémé », quantité « 1 L ».',
+      'Donne aussi la typologie de chaque ligne quand tu la sais (typology, et food_kind pour l’alimentation) : « Allumettes fumées » sont des lardons (alimentation, essentiel), des chips de l’apéritif (plaisir).',
       'Avant, appelle courses_catalogue et reprends le nom (ou l’item_id) des articles déjà connus : l’historique des prix suit l’article.',
       'Prix de chaque ligne en euros, remises et bons de réduction déduits de l’article concerné ; une remise globale, déduis-la du total seulement. Ne compte pas les sacs ni les consignes comme articles si le ticket les distingue, mais garde-les dans le total.',
       'Le total est celui du ticket (ce qui a été payé). Effets : les articles de la liste de courses présents sur le ticket sont retirés de la liste ; les articles habituels reviennent quand c’est leur tour ; la dépense est créée dans Budget (catégorie Courses).',
@@ -396,6 +423,8 @@ export const coursesTools: Tool<CoursesContext>[] = [
               price: S.price,
               item_id: { type: 'string', description: 'L’article du catalogue, s’il est connu.' },
               aisle: S.aisle,
+              typology: { type: 'string', enum: [...TYPOLOGIES], description: TYPOLOGY_HELP },
+              food_kind: { type: 'string', enum: [...FOOD_KINDS] },
             },
             required: ['name'],
           },
@@ -417,6 +446,19 @@ export const coursesTools: Tool<CoursesContext>[] = [
       const { plan, fromList, created } = ticketPlan({ items, stores, entries, trips, day, storeName, totalCents, note, lines, newId });
       const trip = await data.closeTrip(plan);
 
+      // La typologie lue par Claude va à l'article du catalogue : toutes ses courses la suivent.
+      // Un échec ici (migration pas encore appliquée) n'annule pas le ticket, déjà enregistré : il est dit.
+      let classified = 0;
+      let classifyError = '';
+      for (const [i, line] of lines.entries()) {
+        if (!line.typology) continue;
+        try {
+          if (await data.updateItem(plan.items[i].itemId, { typology: line.typology, food_kind: line.foodKind ?? null })) classified++;
+        } catch (err) {
+          classifyError = err instanceof Error ? err.message : 'erreur';
+        }
+      }
+
       let budget = 'non demandée';
       if (args.budget !== false) {
         try {
@@ -434,6 +476,8 @@ export const coursesTools: Tool<CoursesContext>[] = [
         from_list: `${fromList} article${fromList > 1 ? 's' : ''} de la liste retiré${fromList > 1 ? 's' : ''}`,
         new_catalog_items: created,
         back_on_list: plan.addItemIds.length,
+        classified: classified ? `${classified} article${classified > 1 ? 's' : ''} classé${classified > 1 ? 's' : ''}` : undefined,
+        classify_error: classifyError ? `Typologies non enregistrées (${classifyError}) ; le ticket, lui, l’est.` : undefined,
         expense: budget,
         check: sum === trip.total_cents ? 'La somme des lignes égale le total.' : `La somme des lignes (${euro(sum)} €) diffère du total (${euro(trip.total_cents)} €) : remise globale, sac, ou ligne mal lue ?`,
       });
@@ -597,6 +641,7 @@ export const coursesTools: Tool<CoursesContext>[] = [
             id: i.id,
             name: i.name,
             aisle: i.aisle,
+            typology: i.typology ? (i.food_kind ? `${i.typology}:${i.food_kind}` : i.typology) : undefined,
             recurrence: recurrenceLabel(i.recurrence),
             default_quantity: i.default_quantity,
             on_list: onList.has(i.id),
@@ -609,7 +654,7 @@ export const coursesTools: Tool<CoursesContext>[] = [
     name: 'courses_article_modifier',
     title: 'Modifier un article du catalogue',
     description:
-      'Renomme un article, change son rayon, sa quantité habituelle ou sa récurrence : null pour un article ponctuel, 1 pour « à chaque course », N pour « toutes les N courses ».',
+      'Renomme un article, change son rayon, sa quantité habituelle, sa récurrence (null pour un article ponctuel, 1 pour « à chaque course », N pour « toutes les N courses ») ou sa typologie dans les dépenses.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -618,6 +663,8 @@ export const coursesTools: Tool<CoursesContext>[] = [
         aisle: S.aisle,
         default_quantity: { type: 'string', maxLength: QUANTITY_MAX },
         recurrence: { type: ['integer', 'null'], minimum: 1, maximum: RECURRENCE_MAX },
+        typology: { type: ['string', 'null'], enum: [...TYPOLOGIES, null], description: `${TYPOLOGY_HELP} null : la deviner d’après le nom. Ses courses passées suivent.` },
+        food_kind: { type: 'string', enum: [...FOOD_KINDS] },
       },
       required: ['id'],
     },
@@ -634,6 +681,11 @@ export const coursesTools: Tool<CoursesContext>[] = [
       if (args.aisle !== undefined) row.aisle = aisle(args.aisle) ?? 'autre';
       if (args.default_quantity !== undefined) row.default_quantity = text(args.default_quantity, 'La quantité habituelle', QUANTITY_MAX);
       if (args.recurrence !== undefined) row.recurrence = recurrence(args.recurrence);
+      if (args.typology !== undefined) {
+        const c = classification(args.typology, args.food_kind, 'de l’article');
+        row.typology = c.typology ?? null;
+        row.food_kind = c.foodKind ?? null;
+      }
       if (Object.keys(row).length === 0) throw new Refused('Rien à modifier : donne au moins un champ.');
       const updated = await data.updateItem(itemId, row);
       if (!updated) throw new Refused('Aucun article avec cet identifiant : relis le catalogue.');
