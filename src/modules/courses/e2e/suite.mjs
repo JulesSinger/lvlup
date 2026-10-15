@@ -244,6 +244,10 @@ export async function run({ browser, check, BASE }) {
   const tracked = await page.locator('.courses-stats-select option').allTextContents();
   check('Seuls les articles avec un prix se suivent, par ordre alphabétique', JSON.stringify(tracked) === JSON.stringify(['Lait demi-écrémé', 'Lessive']), tracked.join(' | '));
   check('Le dernier prix d’un article et son magasin', (await text(page.locator('.courses-price-summary'))).includes('Dernier prix 2,38 € chez Leclerc'));
+  const typologyBlock = page.locator('[aria-label="Par typologie"]');
+  check('Les chiffres disent en quoi part l’argent, par typologie', (await text(typologyBlock)).includes('Alimentation') && (await text(typologyBlock)).includes('Essentiel'));
+  await typologyBlock.getByRole('radio', { name: 'Tout' }).click();
+  check('… sur la période choisie', (await typologyBlock.getByRole('radio', { name: 'Tout' }).getAttribute('aria-checked')) === 'true');
   await page.locator('.courses-stats-select').selectOption({ label: 'Lessive' });
   check('Changer d’article change son historique', (await text(page.locator('.courses-price-summary'))).includes('8,99 €'));
   await page.getByRole('tab', { name: 'Liste' }).click();

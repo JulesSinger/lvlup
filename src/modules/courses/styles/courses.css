@@ -678,3 +678,60 @@
   font-size: 12.5px;
   color: var(--text-dim);
 }
+
+/* --- par typologie, docs/etude-courses-typologies.md --- */
+.courses-typology-periods {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.courses-typology-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.courses-typology-row {
+  display: grid;
+  grid-template-columns: minmax(0, 12em) 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 14px;
+}
+
+.courses-typology-kind {
+  font-size: 13px;
+  color: var(--text-dim);
+  padding-left: 1.6em;
+}
+
+.courses-typology-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  overflow: hidden;
+}
+
+.courses-typology-bar span {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}
+
+.courses-typology-kind .courses-typology-bar span {
+  background: color-mix(in srgb, var(--green) 55%, transparent);
+}
+
+.courses-typology-amount {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+@media (max-width: 520px) {
+  .courses-typology-row {
+    grid-template-columns: minmax(0, 9em) 1fr auto;
+  }
+}

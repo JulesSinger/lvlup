@@ -3,6 +3,7 @@ import { dayString, formatDay, formatMonth } from '../lib/day';
 import { formatEuros } from '../lib/money';
 import { priceHistory, priceSummary, pricedItems } from '../lib/prices';
 import { averageBasket, byStore, monthlyTotals } from '../lib/stats';
+import { FOOD_KIND_LABELS, spendLinesOf, sumSpends, tripSpend, typologyRows, TYPOLOGY_EMOJIS, TYPOLOGY_LABELS } from '../lib/typology';
 import type { Item, Trip, TripItem } from '../lib/types';
 
 interface Props {
@@ -72,6 +73,8 @@ export function StatsView({ trips, tripItems, items }: Props) {
         <h2 className="courses-stats-title">Par mois</h2>
         <MonthChart months={months} current={month} />
       </section>
+
+      <TypologyBlock trips={trips} tripItems={tripItems} items={items} />
 
       <section className="courses-stats-block" aria-label="Par magasin">
         <h2 className="courses-stats-title">Par magasin</h2>
@@ -214,5 +217,71 @@ function PriceChart({ cents }: { cents: number[] }) {
         <circle key={i} cx={x(i)} cy={y(c)} r={5} className="courses-price-dot" />
       ))}
     </svg>
+  );
+}
+
+type Period = 'month' | 'year' | 'all';
+const PERIOD_LABELS: Record<Period, string> = { month: 'Ce mois-ci', year: '12 mois', all: 'Tout' };
+
+/**
+ * En quoi part l'argent des courses (docs/etude-courses-typologies.md) : par
+ * typologie, l'alimentation en essentiel, plaisir et alcool ; les remises à
+ * part. Seules les lignes qui ont un prix sont réparties.
+ */
+function TypologyBlock({ trips, tripItems, items }: Props) {
+  const [period, setPeriod] = useState<Period>('month');
+  const today = dayString();
+  const from = period === 'month' ? `${today.slice(0, 7)}-01` : period === 'year' ? `${Number(today.slice(0, 4)) - 1}${today.slice(4)}` : '';
+  const itemOf = new Map(items.map((i) => [i.id, i]));
+  const spends = trips.filter((t) => t.day >= from).map((t) => tripSpend(t.totalCents, spendLinesOf(t.id, tripItems, itemOf)));
+  const total = sumSpends(spends);
+  const rows = typologyRows(total.byKey);
+  const max = Math.max(...rows.map((r) => r.cents), 1);
+  return (
+    <section className="courses-stats-block" aria-label="Par typologie">
+      <h2 className="courses-stats-title">Par typologie</h2>
+      <div className="courses-typology-periods" role="radiogroup" aria-label="Période">
+        {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
+          <button key={p} type="button" role="radio" aria-checked={period === p} className={`btn btn-sm${period === p ? '' : ' btn-ghost'}`} onClick={() => setPeriod(p)}>
+            {PERIOD_LABELS[p]}
+          </button>
+        ))}
+      </div>
+      {rows.length === 0 ? (
+        <p className="courses-stats-hint">Aucune ligne avec un prix sur cette période.</p>
+      ) : (
+        <ul className="courses-typology-rows">
+          {rows.map((r) => (
+            <li key={r.typology}>
+              <div className="courses-typology-row">
+                <span>
+                  {TYPOLOGY_EMOJIS[r.typology]} {TYPOLOGY_LABELS[r.typology]}
+                </span>
+                <span className="courses-typology-bar" aria-hidden="true">
+                  <span style={{ width: `${(r.cents / max) * 100}%` }} />
+                </span>
+                <span className="courses-typology-amount">{formatEuros(r.cents)}</span>
+              </div>
+              {r.kinds.map((k) => (
+                <div key={k.kind} className="courses-typology-row courses-typology-kind">
+                  <span>{FOOD_KIND_LABELS[k.kind]}</span>
+                  <span className="courses-typology-bar" aria-hidden="true">
+                    <span style={{ width: `${(k.cents / max) * 100}%` }} />
+                  </span>
+                  <span className="courses-typology-amount">{formatEuros(k.cents)}</span>
+                </div>
+              ))}
+            </li>
+          ))}
+        </ul>
+      )}
+      {(total.adjustmentCents !== 0 || total.undetailedCents > 0) && (
+        <p className="courses-stats-hint">
+          {total.adjustmentCents < 0 && `Remises : −${formatEuros(-total.adjustmentCents)}. `}
+          {total.adjustmentCents > 0 && `Écart avec les tickets : ${formatEuros(total.adjustmentCents)}. `}
+          {total.undetailedCents > 0 && `Lignes sans prix : ${formatEuros(total.undetailedCents)}.`}
+        </p>
+      )}
+    </section>
   );
 }

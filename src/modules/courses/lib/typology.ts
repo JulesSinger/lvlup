@@ -11,7 +11,7 @@
  * pour les passés ») ; sinon, devinée de mots-clés, puis de son rayon.
  */
 import { normalize, singular } from './aisles';
-import type { Aisle } from './types';
+import type { Aisle, Item, TripItem } from './types';
 
 export const TYPOLOGIES = ['alimentation', 'hygiene', 'entretien', 'maison', 'bebe', 'animaux', 'autre'] as const;
 export type Typology = (typeof TYPOLOGIES)[number];
@@ -213,4 +213,26 @@ export function typologyRows(byKey: ReadonlyMap<string, number>): TypologyRow[] 
   })
     .filter((r) => r.cents !== 0)
     .sort((a, b) => b.cents - a.cents);
+}
+
+/** Les lignes d'une course, classées : la ligne, sinon son article, sinon devinée. */
+export function spendLinesOf(tripId: string, tripItems: readonly TripItem[], itemOf: ReadonlyMap<string, Item>): SpendLine[] {
+  return tripItems
+    .filter((l) => l.tripId === tripId)
+    .map((l) => {
+      const item = l.itemId ? itemOf.get(l.itemId) : undefined;
+      return {
+        id: l.id,
+        itemId: l.itemId,
+        name: l.name,
+        quantity: l.quantity,
+        cents: l.priceCents,
+        classification: classify(
+          l.typology ? { typology: l.typology, foodKind: l.foodKind ?? null } : null,
+          item?.typology ? { typology: item.typology, foodKind: item.foodKind ?? null } : null,
+          l.name,
+          l.aisle,
+        ),
+      };
+    });
 }

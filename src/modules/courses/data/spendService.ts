@@ -1,7 +1,7 @@
 import type { ShoppingSpendService, ShoppingSpendTrip } from '../../../core/lib/services';
 import { tripRef } from '../lib/budgetLink';
 import {
-  classify,
+  spendLinesOf,
   FOOD_KIND_LABELS,
   FOOD_KINDS,
   tripSpend,
@@ -35,24 +35,7 @@ export function createSpendService(store: CoursesStore): ShoppingSpendService {
       for (const trip of trips) {
         const ref = tripRef(trip);
         if (!wanted.has(ref)) continue;
-        const lines = tripItems
-          .filter((l) => l.tripId === trip.id)
-          .map((l) => {
-            const item = l.itemId ? itemOf.get(l.itemId) : undefined;
-            return {
-              id: l.id,
-              itemId: l.itemId,
-              name: l.name,
-              quantity: l.quantity,
-              cents: l.priceCents,
-              classification: classify(
-                l.typology ? { typology: l.typology, foodKind: l.foodKind ?? null } : null,
-                item?.typology ? { typology: item.typology, foodKind: item.foodKind ?? null } : null,
-                l.name,
-                l.aisle,
-              ),
-            };
-          });
+        const lines = spendLinesOf(trip.id, tripItems, itemOf);
         const spend = tripSpend(trip.totalCents, lines);
         result.push({
           ref,
