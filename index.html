@@ -19,9 +19,9 @@
       // Le thème avant le premier rendu, pour ne pas voir l'app en sombre
       // puis en clair. Même règle et même clé que src/core/lib/theme.ts.
       (function () {
-        var choice = 'dark';
+        var choice = 'system';
         try {
-          choice = localStorage.getItem('atlas.theme.v1') || 'dark';
+          choice = localStorage.getItem('atlas.theme.v1') || 'system';
         } catch (e) {}
         var theme =
           choice === 'light' || choice === 'dark'

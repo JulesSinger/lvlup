@@ -129,3 +129,74 @@
   color: var(--text-faint);
   margin: 18px 0 4px;
 }
+
+/* --- Le premier écran d'un compte neuf : choisir ses modules (15/10/2026) --- */
+.atlas-welcome-lead {
+  max-width: 620px;
+  margin: -8px 0 22px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.atlas-welcome-card {
+  padding: 22px 16px;
+  gap: 8px;
+  opacity: 0.72;
+}
+
+.atlas-welcome-card.on {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.atlas-welcome-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.atlas-welcome-card.on .atlas-welcome-check {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-color);
+}
+
+/* Toujours à portée, même au bas d'une longue grille sur téléphone. */
+.atlas-welcome-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 22px;
+  padding: 14px 0 calc(14px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+
+@media (max-width: 640px) {
+  .atlas-welcome-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .atlas-welcome-card {
+    padding: 16px 10px;
+  }
+  .atlas-welcome-card .hub-picker-description {
+    font-size: 12px;
+  }
+}
+
+.atlas-more-modules {
+  margin-top: 18px;
+  text-align: center;
+}

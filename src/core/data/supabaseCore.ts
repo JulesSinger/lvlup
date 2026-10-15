@@ -119,7 +119,8 @@ export class SupabaseCore implements CoreStore {
       .eq('user_id', userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    if (!data) return { ...DEFAULT_SETTINGS };
+    // Pas encore de ligne : un compte qui n'a jamais rien réglé, donc tout neuf — il choisit ses modules.
+    if (!data) return { ...DEFAULT_SETTINGS, hiddenModules: null };
     return {
       dailyGoal: data.daily_goal ?? DEFAULT_SETTINGS.dailyGoal,
       reminderEnabled: data.reminder_enabled ?? DEFAULT_SETTINGS.reminderEnabled,
@@ -128,6 +129,8 @@ export class SupabaseCore implements CoreStore {
       moduleOrder: Array.isArray(data.module_order) ? data.module_order : DEFAULT_SETTINGS.moduleOrder,
       workMode: typeof data.work_mode === 'boolean' ? data.work_mode : DEFAULT_SETTINGS.workMode,
       workModules: Array.isArray(data.work_modules) ? data.work_modules : DEFAULT_SETTINGS.workModules,
+      // Colonne absente (migration du 15/10/2026 pas encore appliquée) : tout visible, aucun écran de choix.
+      hiddenModules: Array.isArray(data.hidden_modules) ? data.hidden_modules : data.hidden_modules === null ? null : [],
     };
   }
 
@@ -142,6 +145,7 @@ export class SupabaseCore implements CoreStore {
     if (patch.moduleOrder !== undefined) row.module_order = patch.moduleOrder;
     if (patch.workMode !== undefined) row.work_mode = patch.workMode;
     if (patch.workModules !== undefined) row.work_modules = patch.workModules;
+    if (patch.hiddenModules !== undefined) row.hidden_modules = patch.hiddenModules;
     const { error } = await this.client
       .from('profiles')
       .upsert(row, { onConflict: 'user_id' });

@@ -26,12 +26,11 @@ export const THEME_BAR_COLORS: Record<Theme, string> = {
 };
 
 /**
- * Sans choix enregistré : sombre, le thème d'origine d'Atlas. Pas « Système »
- * tant que les modules n'ont pas tous été repris en clair (étape 2 du mode
- * clair) : un téléphone réglé en clair aurait basculé d'office sur des écrans
- * pas encore prêts. Le script d'`index.html` recopie ce défaut.
+ * Sans choix enregistré : celui de l'appareil (décision de Jules, 15/10/2026),
+ * maintenant que tous les modules existent en clair. Le script d'`index.html`
+ * recopie ce défaut.
  */
-export const DEFAULT_THEME_CHOICE: ThemeChoice = 'dark';
+export const DEFAULT_THEME_CHOICE: ThemeChoice = 'system';
 
 /** Une valeur inconnue ou absente revient au défaut. */
 export function parseThemeChoice(value: string | null | undefined): ThemeChoice {

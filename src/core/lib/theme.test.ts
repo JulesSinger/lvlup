@@ -9,10 +9,10 @@ describe('parseThemeChoice', () => {
     expect(parseThemeChoice('system')).toBe('system');
   });
 
-  test('revient au défaut, sombre, pour une valeur absente ou inconnue', () => {
-    expect(DEFAULT_THEME_CHOICE).toBe('dark');
-    expect(parseThemeChoice(null)).toBe('dark');
-    expect(parseThemeChoice('sepia')).toBe('dark');
+  test('revient au défaut, celui de l’appareil, pour une valeur absente ou inconnue', () => {
+    expect(DEFAULT_THEME_CHOICE).toBe('system');
+    expect(parseThemeChoice(null)).toBe('system');
+    expect(parseThemeChoice('sepia')).toBe('system');
   });
 });
 

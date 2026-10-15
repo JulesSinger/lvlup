@@ -8,6 +8,7 @@ import { PasswordRecovery } from './core/components/PasswordRecovery';
 import { SecondFactorScreen } from './core/components/SecondFactorScreen';
 import { SettingsPanel } from './core/components/SettingsPanel';
 import { Tour } from './core/components/Tour';
+import { WelcomeModules } from './core/components/WelcomeModules';
 import { coreStore } from './core/data';
 import { exportBackup, importBackup, readBackupFile } from './core/data/backup';
 import { DEFAULT_SETTINGS, type Settings } from './core/data/coreStore';
@@ -18,7 +19,7 @@ import { hashFor, initialModule, readLastModule, routeFromHash, saveLastModule }
 import { timezoneOffsetMinutes } from './core/lib/push';
 import { collectServices } from './core/lib/services';
 import type { AppUser } from './core/lib/types';
-import { visibleModules } from './core/lib/workMode';
+import { hiddenAfterChoice, visibleModules } from './core/lib/workMode';
 import { MODULES } from './modules';
 
 /** Ce que chaque module oublie de l'appareil à la déconnexion (`AtlasModule.forgetDevice`). */
@@ -62,6 +63,8 @@ export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  /** Les réglages du compte sont lus : avant, on ne sait pas encore s'il faut proposer de choisir ses modules. */
+  const [settingsReady, setSettingsReady] = useState(false);
   const [error, setError] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [recovering, setRecovering] = useState(false);
@@ -176,6 +179,7 @@ export default function App() {
     // Code de la double authentification pas encore donné : la base ne rendrait
     // rien ; les réglages se lisent une fois le code accepté (même compte, d'où
     // la seconde dépendance).
+    setSettingsReady(false);
     if (!user || user.needsSecondFactor) {
       setSettings(DEFAULT_SETTINGS);
       return;
@@ -183,7 +187,8 @@ export default function App() {
     void coreStore
       .getSettings()
       .then(setSettings)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Réglages illisibles.'));
+      .catch((err) => setError(err instanceof Error ? err.message : 'Réglages illisibles.'))
+      .finally(() => setSettingsReady(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.needsSecondFactor]);
 
@@ -319,6 +324,27 @@ export default function App() {
     return <SecondFactorScreen email={user.email} />;
   }
 
+  if (user && !settingsReady && !DEMO_MODULE) {
+    return <div className="auth-screen">Chargement…</div>;
+  }
+  // Un compte tout neuf choisit d'abord ses modules (15/10/2026), plutôt que d'arriver sur tous.
+  if (user && !DEMO_MODULE && settings.hiddenModules === null) {
+    return (
+      <WelcomeModules
+        modules={orderModules(MODULES, settings.moduleOrder)}
+        user={user}
+        onChoose={(chosen) => {
+          const hiddenModules = hiddenAfterChoice(MODULE_IDS, chosen);
+          setSettings((s) => ({ ...s, hiddenModules }));
+          void coreStore.updateSettings({ hiddenModules }).catch((err) => {
+            setError(err instanceof Error ? err.message : 'Choix des modules non enregistré.');
+          });
+          navigate(null);
+        }}
+      />
+    );
+  }
+
   // Le mode « au travail » (14/10/2026) : seuls ses modules restent ; un module caché ne s'ouvre pas.
   // En démo, le seul module de la démo.
   const shown = DEMO_MODULE ? [DEMO_MODULE] : visibleModules(MODULES, settings);
@@ -348,6 +374,7 @@ export default function App() {
           onOpenSettings={() => setShowSettings(true)}
           workMode={settings.workMode}
           onToggleWorkMode={toggleWorkMode}
+          hiddenCount={settings.hiddenModules?.filter((id) => MODULE_IDS.includes(id)).length ?? 0}
         />
       ) : (
         <div className="atlas-shell">

@@ -129,6 +129,37 @@ export function SettingsPanel({
           )}
 
           <section className="settings-block">
+            <h3 className="settings-title">Modules affichés</h3>
+            <p className="settings-hint">
+              Les modules décochés disparaissent de la liste et de la barre ; leurs données restent dans ton compte, et
+              reviennent en les recochant. Le même choix sur tous tes appareils.
+            </p>
+            <div className="settings-work-modules" role="group" aria-label="Modules affichés">
+              {allModules.map((m) => {
+                const hidden = settings.hiddenModules ?? [];
+                const shownCount = allModules.filter((x) => !hidden.includes(x.id)).length;
+                const on = !hidden.includes(m.id);
+                return (
+                  <label key={m.id} className="settings-switch-row">
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      // Le dernier module visible ne se cache pas : la liste ne reste jamais vide.
+                      disabled={on && shownCount <= 1}
+                      onChange={(e) =>
+                        onChange({ hiddenModules: e.target.checked ? hidden.filter((id) => id !== m.id) : [...hidden, m.id] })
+                      }
+                    />
+                    <span>
+                      {m.emoji} {m.label}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="settings-block">
             <h3 className="settings-title">Apparence</h3>
             <p className="settings-hint">
               Retenu sur cet appareil. « Système » suit le réglage clair ou sombre du téléphone ou de

@@ -66,6 +66,11 @@ const executablePath = [
   '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
 ].find((path) => path && existsSync(path));
 const browser = await chromium.launch({ executablePath });
+// Atlas suit le thème de l'appareil depuis le 15/10/2026, et Playwright simule
+// un appareil en clair : chaque contexte est en sombre, sauf s'il dit le
+// contraire — les suites, écrites en sombre, voient le même écran qu'avant.
+const newContext = browser.newContext.bind(browser);
+browser.newContext = (options = {}) => newContext({ colorScheme: 'dark', ...options });
 
 const core = await import('./core.mjs');
 const all = [{ name: 'socle', mod: core }, ...(await discoverModuleSuites())];

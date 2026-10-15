@@ -21,6 +21,7 @@ export function ModulePicker({
   onReorder,
   workMode,
   onToggleWorkMode,
+  hiddenCount = 0,
 }: {
   modules: readonly AtlasModule[];
   user: AppUser;
@@ -31,6 +32,8 @@ export function ModulePicker({
   /** Le mode « au travail » (14/10/2026). */
   workMode: boolean;
   onToggleWorkMode: () => void;
+  /** Les modules cachés par le compte (15/10/2026) : on dit où les retrouver. */
+  hiddenCount?: number;
 }) {
   const grid = useRef<HTMLDivElement>(null);
   const drag = useReorderDrag(
@@ -85,6 +88,13 @@ export function ModulePicker({
             </button>
           ))}
         </div>
+        {hiddenCount > 0 && (
+          <p className="atlas-more-modules">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenSettings}>
+              ＋ {hiddenCount} autre{hiddenCount > 1 ? 's' : ''} module{hiddenCount > 1 ? 's' : ''} à ajouter
+            </button>
+          </p>
+        )}
       </main>
     </div>
   );

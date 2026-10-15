@@ -52,7 +52,8 @@ export async function run({ browser, check, BASE }) {
   );
 
   // --- Thème clair / sombre (étape 1 du mode clair, 2026-09-29) -------------
-  // Sombre par défaut ; le choix se fait dans les réglages, vaut pour
+  // Le thème de l'appareil par défaut (15/10/2026 ; le lanceur simule un
+  // appareil en sombre) ; le choix se fait dans les réglages, vaut pour
   // l'appareil, et survit au rechargement sans passer d'abord par le sombre.
   {
     const theme = () => page.evaluate(() => document.documentElement.dataset.theme);
@@ -60,7 +61,15 @@ export async function run({ browser, check, BASE }) {
     const barColor = () =>
       page.evaluate(() => document.querySelector('meta[name="theme-color"]')?.getAttribute('content'));
 
-    check('Sombre par défaut, sans choix enregistré', (await theme()) === 'dark', await theme());
+    check('Sans choix enregistré, le thème de l’appareil (ici sombre)', (await theme()) === 'dark', await theme());
+    {
+      const lightDevice = await browser.newContext({ colorScheme: 'light' });
+      const p = await lightDevice.newPage();
+      await p.goto(BASE);
+      const t = await p.evaluate(() => document.documentElement.dataset.theme);
+      check('Sur un appareil en clair, Atlas s’ouvre en clair', t === 'light', t);
+      await lightDevice.close();
+    }
     check('Le fond sombre d’origine', (await bodyBg()) === 'rgb(11, 14, 20)', await bodyBg());
 
     await page.getByRole('button', { name: '⚙ Réglages' }).click();
@@ -106,6 +115,7 @@ export async function run({ browser, check, BASE }) {
   await reorderModules({ browser, check, BASE });
   await workMode({ browser, check, BASE });
   await demos({ browser, check, BASE });
+  await welcome({ browser, check, BASE });
 
   // Écran d'authentification : il n'apparaît qu'en mode Supabase, on le vérifie
   // donc sur un build de démonstration servi séparément si disponible.
@@ -572,4 +582,79 @@ async function demos({ browser, check, BASE }) {
   check('« Quitter la démo » ramène au module, sur les vraies données', (await page.locator('.atlas-demo-bar').count()) === 0 && (await real()) === before);
   check('Aucune erreur JavaScript dans les démos', errors.length === 0, errors.join(' | '));
   await context.close();
+}
+
+/**
+ * Le premier écran d'un compte neuf (15/10/2026) : choisir ses modules. En
+ * mode local il ne paraît jamais ; on simule un compte qui n'a jamais choisi
+ * (`hiddenModules: null`), comme Supabase le rend pour un compte sans réglages.
+ */
+async function welcome({ browser, check, BASE }) {
+  const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  await context.addInitScript(() => {
+    if (sessionStorage.getItem('welcome-seeded')) return;
+    sessionStorage.setItem('welcome-seeded', '1');
+    localStorage.setItem('palier.v1', JSON.stringify({ settings: { hiddenModules: null } }));
+  });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(BASE);
+  await page.waitForSelector('.atlas-welcome');
+  const cards = page.locator('.atlas-welcome-card');
+  const all = await cards.count();
+  const pressed = () => page.locator('.atlas-welcome-card[aria-pressed="true"] .hub-picker-label').allTextContents();
+  check('Un compte neuf choisit d’abord ses modules', all > 3 && (await page.locator('.atlas-rail, .hub-picker-grid:not(.atlas-welcome-grid)').count()) === 0);
+  check('Trois modules cochés d’office : Tâches, Calendar, Courses', JSON.stringify((await pressed()).sort()) === JSON.stringify(['Calendar', 'Courses', 'Tâches']), (await pressed()).join(', '));
+  const start = page.locator('.atlas-welcome-actions .btn-primary');
+  check('Le bouton dit combien', ((await start.textContent()) ?? '').includes('3 modules'), await start.textContent());
+
+  for (const label of await pressed()) await cards.filter({ hasText: label }).click();
+  check('Rien de coché : impossible de commencer', await start.isDisabled());
+  await cards.filter({ hasText: 'Tâches' }).click();
+  await cards.filter({ hasText: 'Budget' }).click();
+  check('Cocher met à jour le bouton', ((await start.textContent()) ?? '').includes('2 modules'), await start.textContent());
+  await start.click();
+
+  await page.waitForSelector('.hub-picker-card:not(.atlas-welcome-card)');
+  const labels = () => page.locator('.hub-picker-label').allTextContents();
+  check('La liste ne montre que les modules choisis', JSON.stringify((await labels()).sort()) === JSON.stringify(['Budget', 'Tâches']), (await labels()).join(', '));
+  const more = page.locator('.atlas-more-modules button');
+  check('La liste dit qu’il en reste à ajouter', ((await more.textContent()) ?? '').includes(`${all - 2} autres modules`), await more.textContent());
+
+  await page.reload();
+  await page.waitForSelector('.hub-picker-card');
+  check('Le choix est retenu, l’écran de choix ne revient pas', (await page.locator('.atlas-welcome').count()) === 0 && (await page.locator('.hub-picker-card').count()) === 2);
+
+  await more.click();
+  const group = page.getByRole('group', { name: 'Modules affichés' });
+  await group.getByLabel(/Courses/).check();
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.querySelectorAll('.hub-picker-card').length === 3).catch(() => {});
+  check('Un module s’ajoute depuis les réglages', (await labels()).includes('Courses') && (await page.locator('.hub-picker-card').count()) === 3);
+
+  await page.locator('.hub-picker-card', { hasText: 'Tâches' }).click();
+  await page.waitForSelector('.atlas-rail');
+  check('La barre de gauche ne montre que les modules affichés', (await page.locator('.atlas-rail-module').count()) === 3);
+  check('Aucune erreur JavaScript au premier écran', errors.length === 0, errors.join(' | '));
+  await context.close();
+
+  // « Tout afficher » garde tous les modules.
+  const context2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await context2.addInitScript(() => {
+    if (sessionStorage.getItem('welcome-seeded')) return;
+    sessionStorage.setItem('welcome-seeded', '1');
+    localStorage.setItem('palier.v1', JSON.stringify({ settings: { hiddenModules: null } }));
+  });
+  const phone = await context2.newPage();
+  await phone.goto(BASE);
+  await phone.waitForSelector('.atlas-welcome');
+  const overflow = await phone.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  check('Le premier écran tient sur un téléphone, sans défilement de côté', overflow <= 0, String(overflow));
+  const actions = await phone.locator('.atlas-welcome-actions').boundingBox();
+  check('Sur téléphone, le bouton reste à portée sans tout faire défiler', !!actions && actions.y + actions.height <= 844 + 1, JSON.stringify(actions));
+  await phone.getByRole('button', { name: 'Tout afficher' }).click();
+  await phone.waitForSelector('.hub-picker-card:not(.atlas-welcome-card)');
+  check('« Tout afficher » garde tous les modules', (await phone.locator('.hub-picker-card').count()) === all && (await phone.locator('.atlas-more-modules').count()) === 0);
+  await context2.close();
 }

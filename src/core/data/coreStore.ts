@@ -27,6 +27,13 @@ export interface Settings {
   workMode: boolean;
   /** Les modules visibles en mode travail, en identifiants. */
   workModules: string[];
+  /**
+   * Les modules cachés (15/10/2026), en identifiants ; vide = tous. `null` =
+   * jamais choisi : un compte tout neuf, à qui Atlas demande d'abord par quoi
+   * commencer plutôt que de lui montrer tous les modules. Un module ajouté plus
+   * tard au registre est donc visible d'office pour qui a déjà choisi.
+   */
+  hiddenModules: string[] | null;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -37,6 +44,8 @@ export const DEFAULT_SETTINGS: Settings = {
   moduleOrder: [],
   workMode: false,
   workModules: ['taches', 'calendrier'],
+  // Sans compte (mode local), aucun écran de choix : tout est visible.
+  hiddenModules: [],
 };
 
 /** Un navigateur abonné aux notifications (iPhone, Mac, Android…). */
