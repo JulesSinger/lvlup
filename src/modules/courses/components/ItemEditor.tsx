@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { recurrenceLabel, RECURRENCE_CHOICES } from '../lib/trip';
+import { TypologyPicker, type TypologyValue } from './TypologyPicker';
 import { AISLE_LABELS, AISLES, type Aisle, type Item, type ItemInput, type ListEntry, type ListEntryPatch } from '../lib/types';
 
 interface Props {
@@ -25,6 +26,7 @@ export function ItemEditor({ item, entry, onCancel, onSave, onRemoveFromList, on
   const [aisle, setAisle] = useState<Aisle>(item.aisle);
   const [recurrence, setRecurrence] = useState<number | null>(item.recurrence);
   const [defaultQuantity, setDefaultQuantity] = useState(item.defaultQuantity);
+  const [kind, setKind] = useState<TypologyValue>({ typology: item.typology ?? null, foodKind: item.foodKind ?? null });
   const [quantity, setQuantity] = useState(entry.quantity);
   const [note, setNote] = useState(entry.note);
   const [error, setError] = useState('');
@@ -57,7 +59,7 @@ export function ItemEditor({ item, entry, onCancel, onSave, onRemoveFromList, on
     }
     void run(() =>
       onSave(
-        { name: trimmed, aisle, recurrence, defaultQuantity: defaultQuantity.trim() },
+        { name: trimmed, aisle, recurrence, defaultQuantity: defaultQuantity.trim(), typology: kind.typology, foodKind: kind.foodKind },
         { quantity: quantity.trim(), note: note.trim() },
       ),
     );
@@ -123,6 +125,8 @@ export function ItemEditor({ item, entry, onCancel, onSave, onRemoveFromList, on
               </select>
             </div>
           </div>
+          <TypologyPicker value={kind} onChange={setKind} name={name} aisle={aisle} idPrefix="courses-item" />
+          <p className="field-hint">Ses courses passées suivent ce choix.</p>
           {recurrence !== null && (
             <div className="field">
               <label htmlFor="courses-default-quantity">Quantité habituelle</label>

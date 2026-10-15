@@ -124,6 +124,17 @@ describe('LocalCourses', () => {
     expect(raw.nutritionFoods).toEqual([{ id: 'x' }]);
     expect(raw.coursesItems).toHaveLength(1);
   });
+
+  it('garde la typologie choisie d’un article, et règle une ligne sans article (docs/etude-courses-typologies.md)', async () => {
+    const kit = await store.createItem({ name: 'Kit de préparation', aisle: 'epicerie_salee' });
+    expect(kit).toMatchObject({ typology: null, foodKind: null });
+    await store.updateItem(kit.id, { typology: 'alimentation', foodKind: 'plaisir' });
+    expect((await store.listItems()).find((i) => i.id === kit.id)).toMatchObject({ typology: 'alimentation', foodKind: 'plaisir' });
+    await store.closeTrip(plan({ items: [{ itemId: null, name: 'Abattant WC', aisle: 'autre', quantity: '1', priceCents: 2390 }] }));
+    const line = (await store.listTripItems()).find((t) => t.name === 'Abattant WC')!;
+    await store.classifyTripItem(line.id, 'maison', 'plaisir');
+    expect((await store.listTripItems()).find((t) => t.id === line.id)).toMatchObject({ typology: 'maison', foodKind: null });
+  });
 });
 
 /** Un plan de clôture minimal, à compléter par cas. */

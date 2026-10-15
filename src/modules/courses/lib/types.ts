@@ -11,6 +11,8 @@
  * `lib/schema.test.ts` compare les trois, même discipline que `TIER_KINDS`
  * (CLAUDE.md §5).
  */
+import type { FoodKind, Typology } from './typology';
+
 export const AISLES = [
   'fruits_legumes',
   'boulangerie',
@@ -59,10 +61,17 @@ export interface Item {
   defaultQuantity: string;
   /** Numéro de la dernière course où il a été acheté — l'horloge de la récurrence */
   lastTripNumber: number | null;
+  /**
+   * Sa typologie, choisie (docs/etude-courses-typologies.md) ; absente, elle
+   * est devinée. Ses courses passées la suivent.
+   */
+  typology?: Typology | null;
+  /** Pour l'alimentation : essentiel, plaisir, alcool */
+  foodKind?: FoodKind | null;
   createdAt: string;
 }
 
-export type ItemInput = Pick<Item, 'name'> & Partial<Pick<Item, 'aisle' | 'recurrence' | 'defaultQuantity'>>;
+export type ItemInput = Pick<Item, 'name'> & Partial<Pick<Item, 'aisle' | 'recurrence' | 'defaultQuantity' | 'typology' | 'foodKind'>>;
 
 export interface Store {
   id: string;
@@ -110,6 +119,9 @@ export interface TripItem {
   aisle: Aisle;
   quantity: string;
   priceCents: number | null;
+  /** Réglée sur la ligne elle-même (une ligne sans article du catalogue) ; sinon celle de l'article */
+  typology?: Typology | null;
+  foodKind?: FoodKind | null;
 }
 
 export type TripItemInput = Omit<TripItem, 'id' | 'tripId'>;

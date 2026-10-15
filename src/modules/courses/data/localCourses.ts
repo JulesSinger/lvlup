@@ -10,6 +10,7 @@ import type {
   Trip,
   TripItem,
 } from '../lib/types';
+import type { FoodKind, Typology } from '../lib/typology';
 import type { CoursesBackup, CoursesStore } from './coursesStore';
 
 interface Snapshot extends CoursesBackup {}
@@ -57,6 +58,8 @@ export class LocalCourses implements CoursesStore {
       recurrence: input.recurrence ?? null,
       defaultQuantity: input.defaultQuantity ?? '',
       lastTripNumber: null,
+      typology: input.typology ?? null,
+      foodKind: input.foodKind ?? null,
       createdAt: now(),
     };
     s.items.push(item);
@@ -69,6 +72,15 @@ export class LocalCourses implements CoursesStore {
     const item = s.items.find((i) => i.id === id);
     if (!item) return;
     Object.assign(item, patch);
+    write(s);
+  }
+
+  async classifyTripItem(id: string, typology: Typology | null, foodKind: FoodKind | null) {
+    const s = read();
+    const line = s.tripItems.find((t) => t.id === id);
+    if (!line) return;
+    line.typology = typology;
+    line.foodKind = typology === 'alimentation' ? foodKind : null;
     write(s);
   }
 

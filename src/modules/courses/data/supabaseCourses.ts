@@ -11,6 +11,7 @@ import type {
   Trip,
   TripItem,
 } from '../lib/types';
+import type { FoodKind, Typology } from '../lib/typology';
 import type { CoursesBackup, CoursesStore } from './coursesStore';
 
 interface ItemRow {
@@ -20,6 +21,8 @@ interface ItemRow {
   recurrence: number | null;
   default_quantity: string;
   last_trip_number: number | null;
+  typology?: Typology | null;
+  food_kind?: FoodKind | null;
   created_at: string;
 }
 
@@ -58,6 +61,8 @@ interface TripItemRow {
   aisle: Aisle;
   quantity: string;
   price_cents: number | null;
+  typology?: Typology | null;
+  food_kind?: FoodKind | null;
 }
 
 const toItem = (r: ItemRow): Item => ({
@@ -67,6 +72,8 @@ const toItem = (r: ItemRow): Item => ({
   recurrence: r.recurrence,
   defaultQuantity: r.default_quantity,
   lastTripNumber: r.last_trip_number,
+  typology: r.typology ?? null,
+  foodKind: r.food_kind ?? null,
   createdAt: r.created_at,
 });
 
@@ -101,6 +108,8 @@ const toTripItem = (r: TripItemRow): TripItem => ({
   aisle: r.aisle,
   quantity: r.quantity,
   priceCents: r.price_cents,
+  typology: r.typology ?? null,
+  foodKind: r.food_kind ?? null,
 });
 
 /** Colonnes d'un article, pour les seuls champs présents dans `patch`. */
@@ -110,6 +119,9 @@ function itemColumns(patch: Partial<ItemInput>): Record<string, unknown> {
   if (patch.aisle !== undefined) row.aisle = patch.aisle;
   if (patch.recurrence !== undefined) row.recurrence = patch.recurrence;
   if (patch.defaultQuantity !== undefined) row.default_quantity = patch.defaultQuantity;
+  if (patch.typology !== undefined) row.typology = patch.typology;
+  // Un sous-type n'a de sens que pour l'alimentation (la base le refuse ailleurs).
+  if (patch.foodKind !== undefined || patch.typology !== undefined) row.food_kind = patch.typology === undefined || patch.typology === 'alimentation' ? (patch.foodKind ?? null) : null;
   return row;
 }
 
@@ -160,6 +172,12 @@ export class SupabaseCourses implements CoursesStore {
 
   async updateItem(id: string, patch: Partial<ItemInput>) {
     check((await this.client.from('courses_items').update(itemColumns(patch)).eq('id', id)).error);
+  }
+
+  async classifyTripItem(id: string, typology: Typology | null, foodKind: FoodKind | null) {
+    check(
+      (await this.client.from('courses_trip_items').update({ typology, food_kind: typology === 'alimentation' ? foodKind : null }).eq('id', id)).error,
+    );
   }
 
   async deleteItem(id: string) {
@@ -338,6 +356,8 @@ export class SupabaseCourses implements CoursesStore {
             aisle: ti.aisle,
             quantity: ti.quantity,
             price_cents: ti.priceCents,
+            typology: ti.typology ?? null,
+            food_kind: ti.foodKind ?? null,
           })
         ).error,
       );

@@ -1,3 +1,4 @@
+import type { FoodKind, Typology } from '../lib/typology';
 import type {
   ClosePlan,
   Item,
@@ -52,6 +53,12 @@ export interface CoursesStore {
    * une même course ne peut pas être enregistrée deux fois.
    */
   closeTrip(plan: ClosePlan): Promise<Trip>;
+  /**
+   * Règle la typologie d'une ligne de course sans article du catalogue
+   * (`null` : revenir à la devinette). Pour une ligne qui a un article, on
+   * règle l'article (`updateItem`) : toutes ses courses le suivent.
+   */
+  classifyTripItem(id: string, typology: Typology | null, foodKind: FoodKind | null): Promise<void>;
   /** Supprime une course et ce qui y a été acheté ; la liste n'est pas touchée. */
   deleteTrip(id: string): Promise<void>;
 
