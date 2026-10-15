@@ -727,6 +727,53 @@ export async function run({ browser, check, BASE }) {
   check('Aucune erreur JavaScript à l’import', importErrors.length === 0, importErrors.join(' | '));
   await importing.close();
 
+  // --- Le mode « au travail » (14/10/2026) : les événements perso deviennent « Occupé » ----------------
+  const working = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  const wp = await working.newPage();
+  const workErrors = [];
+  wp.on('pageerror', (e) => workErrors.push(e.message));
+  await wp.goto(BASE);
+  await wp.evaluate((today) => {
+    const event = (id, title, from, to, work) => ({ id, title, allDay: false, startDay: today, endDay: today, startTime: from, endTime: to, timezone: 'Europe/Paris', recurrence: null, color: 'vert', location: 'Cabinet', note: 'Privé', reminders: null, work, createdAt: '' });
+    const task = (id, title, listId, time) => ({ id, listId, parentId: null, title, note: '', plannedDay: today, plannedTime: time, durationMinutes: 30, reminders: null, dueDay: null, priority: 'normale', recurrence: null, repeatFrom: 'schedule', position: 0, completedAt: null, createdAt: '' });
+    const list = (id, name, work) => ({ id, name, color: 'bleu', position: 0, archived: false, favorite: false, work, createdAt: '' });
+    const raw = JSON.parse(localStorage.getItem('palier.v1') ?? '{}');
+    Object.assign(raw, {
+      settings: { ...(raw.settings ?? {}), workMode: false, workModules: ['taches', 'calendrier'] },
+      calendarEvents: [event('e1', 'Dentiste', '10:00', '11:00', false), event('e2', 'Réunion d’équipe', '14:00', '15:00', true)],
+      tachesLists: [list('maison', 'Maison', false), list('boulot', 'Boulot', true)],
+      tachesTasks: [task('t1', 'Acheter du pain', 'maison', '17:00'), task('t2', 'Préparer la démo', 'boulot', '16:00')],
+    });
+    localStorage.setItem('palier.v1', JSON.stringify(raw));
+  }, day(0));
+  await openEclipse(wp, BASE);
+  await wp.locator('.fc-event', { hasText: 'Dentiste' }).first().waitFor();
+  check('Hors mode travail, tout s’affiche', (await wp.locator('.fc-event', { hasText: 'Acheter du pain' }).count()) > 0);
+  await wp.getByRole('button', { name: 'Mode travail' }).click();
+  await wp.locator('.calendrier-event-busy').first().waitFor();
+  check(
+    'Au travail, un événement perso devient « Occupé », sans titre ni lieu',
+    (await wp.locator('.fc-event', { hasText: 'Dentiste' }).count()) === 0 && (await text(wp.locator('.calendrier-event-busy').first())).includes('Occupé') && !(await text(wp.locator('.fc')).then((t) => t.includes('Cabinet'))),
+  );
+  check('L’événement de travail reste entier', (await wp.locator('.fc-event', { hasText: 'Réunion d’équipe' }).count()) > 0);
+  await wp.locator('.fc-event', { hasText: 'Préparer la démo' }).first().waitFor();
+  check('Le calque des tâches ne garde que les listes de travail', (await wp.locator('.fc-event', { hasText: 'Acheter du pain' }).count()) === 0);
+  await wp.locator('.calendrier-event-busy').first().click();
+  await wp.waitForTimeout(300);
+  check('Un bloc « Occupé » ne s’ouvre pas', (await wp.locator('.calendrier-editor').count()) === 0);
+  await wp.getByRole('button', { name: 'Nouvel événement' }).click();
+  await wp.waitForSelector('.calendrier-editor');
+  check('Créé au travail, un événement est « travail » d’office', await wp.locator('.calendrier-work-field input').isChecked());
+  await wp.locator('#calendrier-title').fill('Point client');
+  await wp.getByRole('button', { name: 'Enregistrer' }).click();
+  await wp.waitForSelector('.calendrier-editor', { state: 'detached' });
+  check('… et il le reste', await wp.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').calendarEvents.find((e) => e.title === 'Point client')?.work === true));
+  await wp.getByRole('button', { name: 'Mode travail' }).click();
+  await wp.locator('.fc-event', { hasText: 'Dentiste' }).first().waitFor();
+  check('Hors mode travail, le perso revient', (await wp.locator('.calendrier-event-busy').count()) === 0);
+  check('Aucune erreur JavaScript en mode travail', workErrors.length === 0, workErrors.join(' | '));
+  await working.close();
+
   // --- Téléphone ------------------------------------------------------------------------------
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const mobile = await phone.newPage();

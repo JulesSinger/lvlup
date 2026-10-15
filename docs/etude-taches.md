@@ -686,3 +686,21 @@ Demande de Jules : « pouvoir mettre des listes en favoris et qu'elles soient mi
 
 Suite de Tâches +6 vérifications (80 → 86), tests unitaires +4. **Migration à appliquer par Jules** : sans
 elle, les listes s'affichent comme avant, mais mettre une liste en favorite est refusé par la base.
+
+## 22. Le mode « au travail » (14-15/10/2026)
+
+Demande de Jules : un mode « au travail » qui ne montre ni toutes ses données perso ni tous les
+modules. Ses choix : **un interrupteur global, rangé avec le compte** ; Tâches et Calendar visibles ;
+dans Tâches, **seulement les listes marquées « travail »**.
+
+- **Une liste « travail »** (`TaskList.work`, migration `2026-10-14-work-mode.sql`) : une case
+  « 💼 Liste de travail » dans la fenêtre d'une liste, cochée d'office pour une liste créée en mode
+  travail ; hors mode travail, la liste porte un 💼 dans la barre.
+- **En mode travail** (`workScope`, `lib/views.ts`, testé) : seules ces listes et leurs tâches,
+  sous-tâches comprises. « À faire » (sans liste) est personnel : son onglet disparaît, on arrive sur
+  Aujourd'hui. Une tâche ajoutée sans liste va dans la première liste de travail (sinon elle
+  disparaîtrait aussitôt) ; sans liste de travail, l'ajout le dit.
+- **Seul l'affichage est filtré** : l'état garde toutes les tâches, et les rappels se calculent sur
+  toutes — le mode travail ne coupe pas les rappels perso.
+- Le calque dans Calendar suit (`marksBetween(…, { workMode })`), et la fenêtre de tâche prêtée au
+  calendrier ne propose que les listes de travail.

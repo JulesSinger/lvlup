@@ -163,6 +163,16 @@ export default function App() {
     if (!window.location.hash) window.history.replaceState(null, '', hashFor(startingModule()));
   }, []);
 
+  // Le mode travail cache le module ouvert (ou visé par l'adresse) : retour franc à la liste,
+  // sans entrée de plus. Gardé en mémoire, il se rouvrirait tout seul en redevenant visible.
+  useEffect(() => {
+    if (!moduleId || !MODULE_IDS.includes(moduleId)) return;
+    if (visibleModules(MODULES, settings).some((m) => m.id === moduleId)) return;
+    setModuleId(null);
+    saveLastModule(null);
+    window.history.replaceState(null, '', hashFor(null));
+  }, [moduleId, settings]);
+
   // Retour et avant du navigateur : l'adresse dit où aller.
   useEffect(() => {
     const onPop = () => {

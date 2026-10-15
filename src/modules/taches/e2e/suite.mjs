@@ -65,6 +65,7 @@ const titles = (page) => page.locator('.taches-row-title').allTextContents();
 const row = (page, title) => page.locator('.taches-row:not(.taches-forecast)', { has: page.locator('.taches-row-title', { hasText: title }) });
 
 export async function run({ browser, check, BASE }) {
+  await workMode({ browser, check, BASE });
   const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
   const page = await context.newPage();
   const errors = [];
@@ -141,7 +142,7 @@ export async function run({ browser, check, BASE }) {
   check('La favorite le reste après un rechargement', (await navNames()).join(',') === 'Travail,Maison');
   await page.getByRole('button', { name: /^Travail/ }).click();
   await page.getByRole('button', { name: 'Modifier la liste' }).click();
-  const favoriteBox = page.locator('.taches-list-editor input[type="checkbox"]');
+  const favoriteBox = page.locator('.taches-list-editor').getByLabel(/^Favorite/);
   check('La fenêtre de la liste montre la case cochée', await favoriteBox.isChecked());
   await favoriteBox.uncheck();
   await page.getByRole('button', { name: 'Enregistrer' }).click();
@@ -481,4 +482,45 @@ export async function run({ browser, check, BASE }) {
   check('Sur téléphone, la fenêtre d’une tâche tient dans l’écran', (await noOverflow()) && box !== null && box.x >= 0 && box.x + box.width <= 391);
   check('Aucune erreur JavaScript sur téléphone', mobileErrors.length === 0, mobileErrors.join(' | '));
   await phone.close();
+}
+
+/** Le mode « au travail » (14/10/2026) : seules les listes de travail et leurs tâches. */
+async function workMode({ browser, check, BASE }) {
+  const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(BASE);
+  await page.evaluate(() => {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const list = (id, name, work, position) => ({ id, name, color: 'bleu', position, archived: false, favorite: false, work, createdAt: '' });
+    const task = (id, title, listId, position) => ({ id, listId, parentId: null, title, note: '', plannedDay: today, plannedTime: null, durationMinutes: null, reminders: null, dueDay: null, priority: 'normale', recurrence: null, repeatFrom: 'schedule', position, completedAt: null, createdAt: '' });
+    const raw = JSON.parse(localStorage.getItem('palier.v1') ?? '{}');
+    Object.assign(raw, {
+      settings: { ...(raw.settings ?? {}), workMode: true, workModules: ['taches', 'calendrier'] },
+      tachesLists: [list('maison', 'Maison', false, 0), list('boulot', 'Boulot', true, 1)],
+      tachesTasks: [task('t1', 'Acheter du pain', 'maison', 0), task('t2', 'Préparer la démo', 'boulot', 0), task('t3', 'Idée de cadeau', null, 0)],
+    });
+    localStorage.setItem('palier.v1', JSON.stringify(raw));
+  });
+  await openTâches(page, BASE);
+  await page.locator('.taches-work-note').waitFor();
+  const lists = async () => (await page.locator('.taches-nav-list').allTextContents()).map((t) => t.replace(/\d/g, '').trim());
+  check('Mode travail : seules les listes de travail', JSON.stringify(await lists()) === JSON.stringify(['Boulot']), (await lists()).join(','));
+  check('« À faire » (sans liste, personnel) n’apparaît pas, on arrive sur Aujourd’hui', (await page.getByRole('button', { name: /^À faire/ }).count()) === 0 && (await text(page.locator('.taches-title'))).includes('Aujourd’hui'));
+  check('Aujourd’hui ne montre que les tâches du travail', (await row(page, 'Préparer la démo').isVisible()) && (await row(page, 'Acheter du pain').count()) === 0 && (await row(page, 'Idée de cadeau').count()) === 0);
+  await add(page, 'Appeler le client');
+  await row(page, 'Appeler le client').waitFor();
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') ?? '{}').tachesTasks.find((t) => t.title === 'Appeler le client')?.listId);
+  check('Une tâche ajoutée au travail va dans la liste de travail', stored === 'boulot', String(stored));
+
+  await page.getByRole('button', { name: 'Mode travail' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.taches-nav-list').length === 2);
+  check('Hors mode travail, tout revient, la liste de travail marquée 💼', JSON.stringify(await lists()) === JSON.stringify(['Maison', 'Boulot💼']), (await lists()).join(','));
+  await page.getByRole('button', { name: /^Maison/ }).click();
+  await page.getByRole('button', { name: 'Modifier la liste' }).click();
+  check('La fenêtre d’une liste dit si elle est de travail', !(await page.locator('.taches-list-editor').getByLabel(/Liste de travail/).isChecked()));
+  check('Aucune erreur JavaScript en mode travail', errors.length === 0, errors.join(' | '));
+  await context.close();
 }

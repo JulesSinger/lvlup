@@ -577,3 +577,19 @@ sans équivalent dans Atlas (2 jours avant, 1 semaine avant, 7 h avant).
 - Abonnement ICS : [webcal et abonnements](https://addcal.co/blog/what-is-webcal-subscription-calendar-urls),
   [fréquence de rafraîchissement de Google Calendar](https://usemooncal.com/en/guides/google-calendar-ics-refresh)
 - Rappels existants : `docs/rappels-mise-en-place.md` (pg_cron et Edge Functions dans l'offre gratuite)
+
+## 21. Le mode « au travail » (14-15/10/2026)
+
+Jules a laissé le choix pour les événements. Retenu :
+
+- **Un événement « 💼 Travail »** (`CalendarEvent.work`, migration `2026-10-14-work-mode.sql`), une
+  case dans sa fenêtre. **Pour toute la série** : le changer sur une seule occurrence change la
+  série plutôt que d'être ignoré (`planEdit`). Créé en mode travail, il est « travail » d'office.
+- **En mode travail, un événement perso devient un bloc « Occupé »** (`toCalendarItem(o, workMode)`)
+  : son créneau seulement, ni titre, ni couleur, ni lieu, ni note ; il ne s'ouvre ni ne se déplace.
+  On voit qu'on n'est pas libre, un collègue ne voit rien de privé. Plus tard, si le besoin vient :
+  de vrais agendas (Perso, Travail), comme Apple Calendrier.
+- Les calques des modules cachés disparaissent avec eux (le socle ne transmet que les services des
+  modules visibles) ; celui de Tâches ne garde que les listes de travail.
+- Le connecteur de Claude (`atlas-mcp/calendar.ts`) garde le champ dans ses copies des règles
+  (occurrences, modification d'une série), comparées au module par `mcpTools.test.ts`.

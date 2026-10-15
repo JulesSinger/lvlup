@@ -104,6 +104,7 @@ export async function run({ browser, check, BASE }) {
 
   await navigation({ browser, check, BASE });
   await reorderModules({ browser, check, BASE });
+  await workMode({ browser, check, BASE });
 
   // Écran d'authentification : il n'apparaît qu'en mode Supabase, on le vérifie
   // donc sur un build de démonstration servi séparément si disponible.
@@ -459,4 +460,47 @@ async function reorderModules({ browser, check, BASE }) {
   );
   check('… sans fermer la grille ni changer de module', await sheet.isVisible());
   await phone.close();
+}
+
+/**
+ * Le mode « au travail » (14/10/2026) : un interrupteur du compte, qui ne garde
+ * que les modules choisis (Tâches et Calendar d'office) partout où le socle les liste.
+ */
+async function workMode({ browser, check, BASE }) {
+  const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(BASE);
+  await page.waitForSelector('.hub-picker-card');
+  const all = await page.locator('.hub-picker-card').count();
+  const labels = () => page.locator('.hub-picker-label').allTextContents();
+
+  await page.getByRole('button', { name: '💼 Mode travail' }).click();
+  await page.locator('.atlas-work-banner').waitFor();
+  check('Mode travail : seuls Tâches et Calendar restent, et la liste le dit', JSON.stringify((await labels()).sort()) === JSON.stringify(['Calendar', 'Tâches']), (await labels()).join(', '));
+  await page.reload();
+  await page.waitForSelector('.hub-picker-card');
+  check('Le mode travail est retenu', (await page.locator('.hub-picker-card').count()) === 2);
+
+  await page.goto(`${BASE}/#/budget`);
+  await page.reload();
+  await page.waitForSelector('.hub-picker-card');
+  await page.waitForFunction(() => location.hash === '#/').catch(() => {});
+  check('Un module caché ne s’ouvre pas, même par son adresse : retour à la liste', (await page.locator('.atlas-rail').count()) === 0 && (await page.evaluate(() => location.hash)) === '#/');
+
+  await page.getByRole('button', { name: '⚙ Réglages' }).click();
+  await page.getByRole('group', { name: 'Modules visibles au travail' }).getByLabel(/Budget/).check();
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.querySelectorAll('.hub-picker-card').length === 3).catch(() => {});
+  check('Les réglages choisissent les modules du travail', (await labels()).includes('Budget') && (await page.locator('.hub-picker-card').count()) === 3);
+
+  await page.locator('.hub-picker-card', { hasText: 'Tâches' }).click();
+  await page.waitForSelector('.atlas-rail');
+  check('La barre de gauche ne montre que les modules du travail', (await page.locator('.atlas-rail-module').count()) === 3);
+  await page.getByRole('button', { name: 'Mode travail' }).click();
+  await page.waitForFunction((n) => document.querySelectorAll('.atlas-rail-module').length === n, all);
+  check('La barre bascule le mode travail : tous les modules reviennent', (await page.locator('.atlas-rail-module').count()) === all);
+  check('Aucune erreur JavaScript en mode travail', errors.length === 0, errors.join(' | '));
+  await context.close();
 }
