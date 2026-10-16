@@ -793,6 +793,35 @@ export async function run({ browser, check, BASE }) {
   await mobile.locator('#calendrier-title').fill('Café');
   await mobile.getByRole('button', { name: 'Enregistrer' }).click();
   await mobile.waitForSelector('.calendrier-editor', { state: 'detached' });
+  // Au doigt, toucher le rond d'une tâche la coche ; toucher son titre ouvre sa fenêtre (16/10/2026).
+  await mobile.getByRole('button', { name: 'Nouvel événement' }).click();
+  await mobile.getByRole('radio', { name: 'Tâche' }).tap();
+  await mobile.locator('.modal input').first().fill('Appeler Léa');
+  await mobile.getByRole('button', { name: 'Enregistrer' }).last().tap();
+  await mobile.waitForSelector('.modal', { state: 'detached' });
+  const mark = mobile.locator('.calendrier-mark', { hasText: 'Appeler Léa' }).first();
+  const ringBox = await mark.locator('.calendrier-mark-check').boundingBox();
+  await mobile.touchscreen.tap(ringBox.x + ringBox.width / 2, ringBox.y + ringBox.height / 2);
+  await mark.locator('.calendrier-mark-check[aria-checked="true"]').waitFor({ timeout: 3000 }).catch(() => {});
+  check(
+    'Sur téléphone, toucher le rond d’une tâche la coche, sans ouvrir sa fenêtre',
+    (await mark.locator('.calendrier-mark-check').getAttribute('aria-checked')) === 'true' && (await mobile.locator('.modal').count()) === 0,
+  );
+  const titleBox = await mark.locator('.calendrier-mark-title').boundingBox();
+  await mobile.touchscreen.tap(titleBox.x + titleBox.width / 2, titleBox.y + titleBox.height / 2);
+  check('Sur téléphone, toucher le titre d’une tâche ouvre sa fenêtre', await mobile.locator('.modal').waitFor({ timeout: 3000 }).then(() => true, () => false));
+  await mobile.keyboard.press('Escape');
+  await mobile.waitForSelector('.modal', { state: 'detached' });
+  check(
+    'Sur téléphone, un champ fait 16 px au moins (sinon Safari agrandit la page)',
+    (await mobile.evaluate(() => {
+      const input = document.createElement('input');
+      document.body.append(input);
+      const size = parseFloat(getComputedStyle(input).fontSize);
+      input.remove();
+      return size;
+    })) >= 16,
+  );
   await mobile.locator('.fc-footer-toolbar .fc-dayGridMonth-button').click();
   check('Sur téléphone, la vue Mois ne déborde pas', (await mobile.locator('.fc-dayGridMonth-view').isVisible()) && (await noOverflow(mobile)));
   check('Aucune erreur JavaScript sur téléphone', mobileErrors.length === 0, mobileErrors.join(' | '));

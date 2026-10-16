@@ -182,3 +182,17 @@
     letter-spacing: 0.02em;
   }
 }
+
+/* ------------------------------------------- iPhone : jamais d'agrandissement
+   Safari agrandit la page dès qu'on touche un champ écrit sous 16 px, et ne la
+   rend pas ensuite : il faut alors la faire défiler de côté (signalé par Jules
+   le 16/10/2026, dans la fenêtre d'un événement). Au doigt, un champ fait donc
+   16 px au moins, partout — `!important` parce que plusieurs modules écrivent
+   leurs champs plus petits (13 px…), et qu'aucun ne doit y échapper. */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+}

@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import frLocale from '@fullcalendar/core/locales/fr';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -43,6 +44,10 @@ interface Props {
  * heure lue, sans conversion.
  */
 export default function CalendarView({ items, initialView, narrow, onRangeChange, onSelect, onOpen, onToggleMark, onOpenMark, onMoveMark, onMove }: Props) {
+  // Le rond touché, retenu à l'appui : au doigt, Safari donne le clic qui suit à
+  // la marque entière, pas au rond (signalé par Jules le 16/10/2026, vérifié
+  // dans WebKit) — le clic seul ne dit donc pas si l'on visait le rond.
+  const checkPress = useRef<{ markId: string; at: number } | null>(null);
   return (
     <FullCalendar
       plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
@@ -95,6 +100,7 @@ export default function CalendarView({ items, initialView, narrow, onRangeChange
               role="checkbox"
               aria-checked={!!done}
               aria-label={`${done ? 'Décocher' : 'Cocher'} « ${arg.event.title} »`}
+              onPointerDown={() => (checkPress.current = { markId: arg.event.extendedProps.markId as string, at: Date.now() })}
             >
               {done ? '✓' : ''}
             </span>
@@ -116,7 +122,11 @@ export default function CalendarView({ items, initialView, narrow, onRangeChange
         // ouvre sa fenêtre — détail, cocher, et l'ouvrir dans son module.
         const { layer, checkable, sourceId, markId } = arg.event.extendedProps;
         if (layer) {
-          const onCheck = (arg.jsEvent.target as Element | null)?.closest('.calendrier-mark-check');
+          const press = checkPress.current;
+          checkPress.current = null;
+          const onCheck =
+            (press !== null && press.markId === markId && Date.now() - press.at < 1000) ||
+            !!(arg.jsEvent.target as Element | null)?.closest('.calendrier-mark-check');
           if (checkable && onCheck) onToggleMark(sourceId as string, markId as string);
           else onOpenMark(sourceId as string, markId as string);
           return;
