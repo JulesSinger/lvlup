@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { pause, remaining, resume, stepIngredients, type RunningTimer } from '../lib/cooking';
+import { pause, remaining, resume, stepIngredients, yieldText, type RunningTimer } from '../lib/cooking';
 import { isSectionHeading, scaleIngredient } from '../lib/ingredients';
 import { findTimers, formatClock } from '../lib/timers';
 import type { Recipe } from '../lib/types';
 import { beep, useWakeLock } from './kitchen';
+import { StepText } from './StepText';
 
 /**
  * Le mode cuisine (docs/etude-recettes.md §5, §19) — facultatif, ouvert
@@ -90,7 +91,7 @@ export function CookMode({ recipe, factor, servings, onClose, onKitchen }: {
         <div className="recettes-cook-title">
           <span className="recettes-cook-name">{recipe.title}</span>
           <span className="recettes-cook-sub">
-            {servings ? `Pour ${servings} ${recipe.yieldLabel} · ` : ''}
+            {servings ? `Pour ${yieldText(servings, recipe.yieldLabel)} · ` : ''}
             {wake === 'on' ? '🔆 L’écran reste allumé' : 'L’écran peut se mettre en veille'}
           </span>
         </div>
@@ -151,7 +152,9 @@ export function CookMode({ recipe, factor, servings, onClose, onKitchen }: {
             <p className="recettes-cook-label">
               Étape {index + 1} / {steps.length}
             </p>
-            <p className="recettes-cook-step">{step!.text}</p>
+            <p className="recettes-cook-step">
+              <StepText text={step!.text} ingredients={ingredients} factor={factor} />
+            </p>
             {stepTimers.length > 0 && (
               <div className="recettes-cook-timers-start">
                 {stepTimers.map((t, i) => (

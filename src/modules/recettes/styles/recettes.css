@@ -1649,8 +1649,22 @@
   font-size: 14px;
 }
 
-.recettes-kitchen-next li span:first-child {
+.recettes-kitchen-next li > span:first-child {
   color: var(--text-dim);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+/* Les quantités dans le texte d'une étape (16/10/2026) : à lire d'un coup d'œil, sans remonter à la liste. */
+.recettes-amount {
+  padding: 0 0.3em;
+  border-radius: 0.35em;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* La mise en place avant de lancer « En cuisine ». */
+.recettes-kitchen-gather {
+  margin-bottom: 16px;
 }

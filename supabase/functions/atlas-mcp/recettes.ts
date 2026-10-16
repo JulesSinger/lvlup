@@ -529,7 +529,7 @@ export const recettesTools: Tool<RecettesContext>[] = [
       'Règle le temps des étapes, pour les recettes où plusieurs choses se font en parallèle (l’eau qui chauffe pendant qu’on émince) : l’app en tire un plan et l’écran « En cuisine ». ' +
       'Pour chaque étape (son numéro, à partir de 1) : station (le poste : ' +
       STATIONS.join(', ') +
-      ', ou autre), minutes (la durée), hands (vrai : on est dessus ; faux : ça cuit tout seul), starts ("launch", "after_previous", { end_of: N } — « quand l’eau bout » —, ou { start_of: N, offset_minutes: M }). ' +
+      ', ou autre), minutes (la durée de TOUTE l’étape : chauffer la poêle compris, les deux faces d’une viande « 6 à 7 min par face » = 15, « 2 min puis 3 min » = 5 ; dans une fourchette, le haut), hands (vrai : on est dessus ; faux : ça cuit tout seul), starts ("launch", "after_previous", { end_of: N } — « quand l’eau bout » —, ou { start_of: N, offset_minutes: M }). ' +
       'Seules les étapes données changent ; un champ à null est retiré. Lis d’abord la recette.',
     inputSchema: {
       type: 'object',

@@ -8,6 +8,7 @@ import { isTimed, schedule } from '../lib/schedule';
 import type { Cooked, Ingredient, Recipe, RecipePhoto } from '../lib/types';
 import { PlanView } from './PlanView';
 import { RecipeCover } from './RecipePhotoImg';
+import { yieldText } from '../lib/cooking';
 
 /** Les ingrédients groupés par section, dans leur ordre. */
 function groups(ingredients: Ingredient[]): { section: string | null; items: Ingredient[] }[] {
@@ -133,7 +134,7 @@ export function RecipeSheet({ recipe, photo, cooked, today, servings, onServings
                   −
                 </button>
                 <span className="recettes-servings-value">
-                  {servings} {recipe.yieldLabel}
+                  {yieldText(servings, recipe.yieldLabel)}
                 </span>
                 <button type="button" className="btn btn-sm" aria-label="Une personne de plus" disabled={servings >= 100} onClick={() => onServings(servings + 1)}>
                   +
@@ -155,7 +156,7 @@ export function RecipeSheet({ recipe, photo, cooked, today, servings, onServings
               </div>
             ))
           )}
-          {factor !== 1 && <p className="recettes-hint">Quantités ajustées pour {servings} {recipe.yieldLabel} (recette pour {recipe.servings}).</p>}
+          {factor !== 1 && <p className="recettes-hint">Quantités ajustées pour {yieldText(servings ?? 0, recipe.yieldLabel)} (recette pour {recipe.servings}).</p>}
         </section>
 
         <section className="recettes-panel recettes-steps">

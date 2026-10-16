@@ -245,7 +245,7 @@ export async function run({ browser, check, BASE }) {
   await cook.locator('.recettes-cook-gather input').first().check();
   check('Un ingrédient réuni se coche', (await cook.locator('.recettes-cook-gather label.done').count()) === 1);
   await cook.getByRole('button', { name: 'Commencer ›' }).click();
-  check('Une étape à la fois, en grand', (await text(cook.locator('.recettes-cook-label'))) === 'Étape 1 / 2' && (await text(cook.locator('.recettes-cook-step'))) === 'Faire revenir les oignons.');
+  check('Une étape à la fois, en grand', (await text(cook.locator('.recettes-cook-label'))) === 'Étape 1 / 2' && (await text(cook.locator('.recettes-cook-step'))).replace(/\s+/g, ' ') === 'Faire revenir les oignons ×3.', await text(cook.locator('.recettes-cook-step')));
   check('Avec les ingrédients dont elle parle', (await text(cook.locator('.recettes-cook-used'))).includes('3 oignons'));
   await page.keyboard.press('ArrowRight');
   check('Les flèches du clavier passent d’une étape à l’autre', (await text(cook.locator('.recettes-cook-label'))) === 'Étape 2 / 2');
@@ -321,6 +321,7 @@ export async function run({ browser, check, BASE }) {
   const kitchen = page.locator('.recettes-kitchen');
   await kitchen.waitFor();
   check('« Cuisiner » ouvre « En cuisine » pour une recette minutée', (await text(kitchen.locator('.recettes-kitchen-big'))) === '21 min' && (await kitchen.getByRole('button', { name: '▶ Lancer' }).isVisible()));
+  check('Avant de lancer, la mise en place : tout ce qu’il faut sortir et peser', (await text(kitchen.locator('.recettes-kitchen-gather'))).includes('150 g de lardons'));
   await kitchen.getByRole('button', { name: '▶ Lancer' }).click();
   await kitchen.locator('.recettes-kitchen-working').waitFor();
   check(
@@ -330,6 +331,7 @@ export async function run({ browser, check, BASE }) {
   await kitchen.getByRole('button', { name: '✓ Fini' }).click();
   await kitchen.locator('.recettes-kitchen-due').waitFor();
   check('L’oignon fini, les lardons sont à faire maintenant', (await text(kitchen.locator('.recettes-kitchen-due'))).includes('lardons'));
+  check('La quantité est écrite dans l’étape, à côté de l’ingrédient', (await kitchen.locator('.recettes-kitchen-due .recettes-amount').allTextContents()).map((t) => t.trim()).includes('150 g'), await text(kitchen.locator('.recettes-kitchen-due')));
   await kitchen.getByRole('button', { name: 'C’est parti' }).click();
   await kitchen.locator('.recettes-kitchen-soon').waitFor();
   check('Puis la suite est annoncée, avec le temps qui reste', /Dans \d+:\d\d/.test(await text(kitchen.locator('.recettes-kitchen-soon .recettes-kitchen-label'))));

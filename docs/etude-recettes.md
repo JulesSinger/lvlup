@@ -742,3 +742,37 @@ Aucune migration. 1837 tests unitaires ; suite de Recettes +18 vérifications. *
 `atlas-mcp` (le connecteur), sans quoi une modification des étapes par Claude effacerait leurs
 temps. **À essayer sur l'iPhone** : les bips quand l'écran est allumé, et la reprise après que
 l'app a été mise en veille.
+
+## 21. Le mode cuisine, après une vraie cuisson (16/10/2026)
+
+Retour de Jules après la côte de porc sauce moutarde : « pas assez de précision sur les
+quantités », et « j'ai lancé trop tard la cuisson de la poêle ».
+
+**Pourquoi la poêle est partie trop tard** — vérifié en rejouant ses temps enregistrés dans
+`schedule` : la poêle durait **4 min** pour « chauffer l'huile… saisir la côte 6 à 7 min par
+face » (16 min en vrai), la sauce **2 min** pour « 2 min, puis… 3 min ». Le plan lançait donc la
+poêle avec le riz, et la voyait finir bien avant lui. Et « Égoutter le riz », sans départ dit,
+tombait à 21 min quand le riz cuisait jusqu'à 26.
+
+**Corrigé :**
+- **La durée de toute l'étape** (`textMinutes`, `lib/stepGuess.ts`) : chaque durée écrite compte
+  (« 2 min, puis… 3 min » = 5), une fourchette pour son haut, « par face » / « de chaque côté »
+  deux fois, chauffer la poêle ou la matière grasse 2 min de plus ; « sortir 15 min avant » est une
+  attente (ça se fait tout seul). La consigne du connecteur (`recettes_minuter`) dit la même chose
+  à Claude.
+- **Un poste ne fait qu'une chose à la fois** (`schedule`) : une étape sans départ dit attend
+  aussi que son poste soit libre, et c'est ce qu'elle affiche comme départ.
+- **Les quantités dans le texte** (`stepWithAmounts`, `StepText`) : « chauffer l'huile
+  `1 c. à soupe` et le beurre `10 g` », ajustées au nombre de personnes, à la première mention de
+  chaque ingrédient, après tout son nom ; « ×3 » pour un nombre sans unité, rien pour « 1 » seul.
+  Dans « En cuisine » (maintenant, en cours, à venir, ensuite) et l'étape par étape.
+- **La mise en place avant de lancer** « En cuisine » : tout ce qu'il faut sortir et peser,
+  à cocher.
+- **L'étape qui vient se voit plus tôt** : trois minutes avant, même quand on a les mains prises
+  (avant : seulement quand on n'avait rien à faire), avec ce qu'elle demande ; le bip d'annonce
+  une minute avant au lieu de 20 s.
+- « Pour 1 personne », accordé (`yieldText`).
+
+**Les temps déjà enregistrés ne changent pas** : la proposition ne remplace jamais un réglage. Pour
+une recette réglée avant, « ⏱ Régler les temps » → « Tout effacer » → « ✨ Compléter d'après le
+texte ».

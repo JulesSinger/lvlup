@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { stepIngredients } from '../lib/cooking';
+import { stepIngredients, yieldText } from '../lib/cooking';
 import { isSectionHeading, scaleIngredient } from '../lib/ingredients';
 import { minutesLabel, schedule, stepKey, withIds, type Live, type Slot } from '../lib/schedule';
 import { formatClock } from '../lib/timers';
 import type { Recipe } from '../lib/types';
 import { beep, useWakeLock } from './kitchen';
 import { clockLabel, extraStations, PlanView, stationColor } from './PlanView';
+import { StepText } from './StepText';
 
 /**
  * La cuisine en cours, gardée sur l'appareil : un rechargement (ou le
@@ -15,8 +16,13 @@ import { clockLabel, extraStations, PlanView, stationColor } from './PlanView';
 const STORAGE_KEY = 'recettes.kitchen.v1';
 /** Au-delà, une cuisine oubliée n'est plus reprise. */
 const STALE_MS = 12 * 3600_000;
-/** L'annonce d'une étape, avant son heure. */
-const HEADS_UP_MIN = 20 / 60;
+/**
+ * L'annonce d'une étape, avant son heure : une minute, le temps de poser ce
+ * qu'on fait et de sortir la poêle (16/10/2026 : 20 s, c'était trop court).
+ */
+const HEADS_UP_MIN = 1;
+/** Même quand on a les mains prises, l'étape qui vient se montre aussi tôt. */
+const SHOW_NEXT_MIN = 3;
 
 interface Saved {
   recipeId: string;
@@ -65,6 +71,7 @@ export function KitchenMode({ recipe, factor, servings, onClose, onStepByStep }:
   const ingredients = recipe.ingredients.filter((i) => !isSectionHeading(i.text));
   const [saved, setSaved] = useState<Saved | null>(() => readSaved(recipe.id));
   const [now, setNow] = useState(() => Date.now());
+  const [gathered, setGathered] = useState<Set<number>>(new Set());
   const wake = useWakeLock();
   const rang = useRef(new Set<string>());
 
@@ -142,6 +149,7 @@ export function KitchenMode({ recipe, factor, servings, onClose, onStepByStep }:
   const cooking = plan.slots.filter((s) => s.state === 'running' && !s.hands);
   const upcoming = plan.slots.filter((s) => s.state === 'pending' && s.start > nowMin + 1e-6).sort((a, b) => a.start - b.start);
   const next = upcoming[0];
+  const showsNext = !!next && (due.length + working.length === 0 || next.start - nowMin <= SHOW_NEXT_MIN);
   const finished = launched && plan.slots.every((s) => s.state === 'done');
   const launchAt = launched ? new Date(launched.launchedAt) : null;
   const tableAt = new Date((launched?.launchedAt ?? now) + Math.ceil(plan.total) * 60_000);
@@ -154,13 +162,13 @@ export function KitchenMode({ recipe, factor, servings, onClose, onStepByStep }:
         {s.station && <span> · {s.station}</span>}
       </p>
       <p className="recettes-kitchen-what">
-        {s.index + 1}. {s.text}
+        {s.index + 1}. <StepText text={s.text} ingredients={ingredients} factor={factor} />
       </p>
       <p className="recettes-kitchen-meta">
         {s.hands ? '✋ tu es dessus' : '🔥 ça cuit tout seul'} · {minutesLabel(s.minutes)}
       </p>
-      {kind !== 'soon' && usedOf(s).length > 0 && (
-        <ul className="recettes-cook-used" aria-label="Ingrédients de cette étape">
+      {kind === 'soon' && usedOf(s).length > 0 && (
+        <ul className="recettes-cook-used" aria-label="À préparer pour cette étape">
           {usedOf(s).map((u, i) => (
             <li key={i}>{scaleIngredient(u.text, factor)}</li>
           ))}
@@ -186,7 +194,7 @@ export function KitchenMode({ recipe, factor, servings, onClose, onStepByStep }:
         <div className="recettes-cook-title">
           <span className="recettes-cook-name">{recipe.title}</span>
           <span className="recettes-cook-sub">
-            {servings ? `Pour ${servings} ${recipe.yieldLabel} · ` : ''}
+            {servings ? `Pour ${yieldText(servings, recipe.yieldLabel)} · ` : ''}
             {wake === 'on' ? '🔆 L’écran reste allumé' : 'L’écran peut se mettre en veille'}
           </span>
         </div>
@@ -205,6 +213,32 @@ export function KitchenMode({ recipe, factor, servings, onClose, onStepByStep }:
               <span className="recettes-kitchen-big">{minutesLabel(Math.ceil(plan.total))}</span>
               <span className="recettes-hint">Lancé maintenant, à table vers {hhmm(tableAt)}</span>
             </div>
+            {ingredients.length > 0 && (
+              <section className="recettes-kitchen-gather" aria-label="Mise en place">
+                <p className="recettes-kitchen-label">Avant de lancer : sors et pèse tout</p>
+                <ul className="recettes-cook-gather">
+                  {ingredients.map((ing, i) => (
+                    <li key={i}>
+                      <label className={gathered.has(i) ? 'done' : ''}>
+                        <input
+                          type="checkbox"
+                          checked={gathered.has(i)}
+                          onChange={() =>
+                            setGathered((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(i)) next.delete(i);
+                              else next.add(i);
+                              return next;
+                            })
+                          }
+                        />
+                        <span>{scaleIngredient(ing.text, factor)}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             <button type="button" className="btn btn-primary recettes-kitchen-launch" onClick={launch}>
               ▶ Lancer
             </button>
@@ -229,7 +263,8 @@ export function KitchenMode({ recipe, factor, servings, onClose, onStepByStep }:
 
             {due.map((s) => card(s, 'due'))}
             {working.map((s) => card(s, 'working'))}
-            {due.length === 0 && working.length === 0 && next && card(next, 'soon')}
+            {/* L'étape qui vient : toujours quand on a les mains libres, et trois minutes avant même quand on est occupé. */}
+            {showsNext && card(next, 'soon')}
             {due.length === 0 && working.length === 0 && !next && <p className="recettes-hint">Rien à faire de tes mains : ça cuit.</p>}
 
             {cooking.length > 0 && (
@@ -258,15 +293,15 @@ export function KitchenMode({ recipe, factor, servings, onClose, onStepByStep }:
               </ul>
             )}
 
-            {upcoming.length > (due.length === 0 && working.length === 0 ? 1 : 0) && (
+            {upcoming.length > (showsNext ? 1 : 0) && (
               <section aria-label="Ensuite">
                 <p className="recettes-kitchen-label">Ensuite</p>
                 <ul className="recettes-kitchen-next">
-                  {upcoming.slice(due.length === 0 && working.length === 0 ? 1 : 0).map((s) => (
+                  {upcoming.slice(showsNext ? 1 : 0).map((s) => (
                     <li key={s.key}>
                       <span>{clockLabel(s.start, launchAt)}</span>
                       <span>
-                        {s.index + 1}. {s.text}
+                        {s.index + 1}. <StepText text={s.text} ingredients={ingredients} factor={factor} />
                       </span>
                     </li>
                   ))}

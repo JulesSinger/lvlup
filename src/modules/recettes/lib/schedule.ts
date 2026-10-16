@@ -171,6 +171,9 @@ export function schedule(steps: readonly Step[], live?: Live): Schedule {
     return i === 0 ? null : { key: keys[i - 1], kind: 'end', offset: 0 };
   };
   const minutesOf = (i: number) => steps[i].minutes ?? DEFAULT_MINUTES;
+  /** Le poste occupé qui a retardé une étape : c'est lui qu'elle attend vraiment. */
+  const waited: (Slot['after'] | undefined)[] = Array.from({ length: steps.length });
+  const linkOf = (i: number): Slot['after'] => waited[i] ?? link(i);
 
   const resolve = (i: number): void => {
     if (startAt[i] !== undefined) return;
@@ -192,6 +195,19 @@ export function schedule(steps: readonly Step[], live?: Live): Schedule {
         const j = indexOf.get(l.key)!;
         resolve(j);
         base = (l.kind === 'end' ? endAt[j]! : startAt[j]!) + l.offset;
+      }
+      // Sans départ dit, une étape attend aussi que son poste soit libre (16/10/2026) : « Égoutter
+      // le riz » ne se fait pas avant la fin du riz, même si l'étape d'avant, ailleurs, finit plus tôt.
+      const station = steps[i].station;
+      if (!steps[i].start && station) {
+        for (let j = 0; j < i; j++) {
+          if (steps[j].station !== station) continue;
+          resolve(j);
+          if (endAt[j]! > base + EPSILON) {
+            base = endAt[j]!;
+            waited[i] = { key: keys[j], kind: 'end', offset: 0 };
+          }
+        }
       }
       // Une étape pas encore commencée ne commence pas dans le passé.
       start = live ? Math.max(base, live.now) : base;
@@ -218,7 +234,7 @@ export function schedule(steps: readonly Step[], live?: Live): Schedule {
   for (let pass = 0; pass < steps.length + 1; pass++) {
     let changed = false;
     steps.forEach((_, d) => {
-      const l = link(d);
+      const l = linkOf(d);
       if (!l || loops.has(keys[d])) return;
       const x = indexOf.get(l.key)!;
       const bound = l.kind === 'end' ? latest[d] - l.offset - (endAt[x]! - startAt[x]!) : latest[d] - l.offset;
@@ -251,7 +267,7 @@ export function schedule(steps: readonly Step[], live?: Live): Schedule {
       end: endAt[i]!,
       critical: latest[i] - startAt[i]! < EPSILON,
       state,
-      after: link(i),
+      after: linkOf(i),
     };
   });
 
