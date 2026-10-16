@@ -310,6 +310,25 @@ export async function run({ browser, check, BASE }) {
   await renfo.getByRole('checkbox', { name: 'Cocher « Gainage »' }).click();
   await renfo.getByRole('checkbox', { name: 'Décocher « Gainage »' }).waitFor();
   check('Il se coche à la main, et compte comme fait', ((await renfo.getAttribute('class')) ?? '').includes('sport-session-faite'));
+
+  // --- Ajouter une séance d'escalade à la semaine (16/10/2026) --------------------------------
+  const before = await page.locator('.sport-plan-current .sport-session').count();
+  await page.locator('.sport-plan-current').getByRole('button', { name: '＋ Ajouter une séance' }).click();
+  await page.waitForSelector('#sport-session-kind');
+  check('Une séance ajoutée part sur l’escalade, sans distance ni allure', (await page.locator('#sport-session-kind').inputValue()) === 'escalade' && (await page.locator('#sport-session-km').count()) === 0 && (await page.locator('#sport-session-pacemin').count()) === 0);
+  check('Une séance nouvelle ne se « retire » pas', (await modal.getByRole('button', { name: 'Retirer' }).count()) === 0);
+  const now = new Date();
+  const sunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + ((7 - now.getDay()) % 7));
+  const sundayDay = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
+  await page.locator('#sport-session-duration').fill('90');
+  await page.locator('#sport-session-day').fill(sundayDay);
+  await modal.getByRole('button', { name: 'Enregistrer' }).click();
+  const climb = page.locator('.sport-plan-current .sport-session', { hasText: 'Escalade' });
+  await climb.waitFor();
+  check('L’escalade s’ajoute à la semaine, nommée d’après sa sorte, le dimanche', (await page.locator('.sport-plan-current .sport-session').count()) === before + 1 && (await climb.count()) === 1, await text(climb));
+  await climb.getByRole('checkbox', { name: 'Cocher « Escalade »' }).click();
+  await climb.getByRole('checkbox', { name: 'Décocher « Escalade »' }).waitFor();
+  check('Elle se coche à la main, comme le renfo', ((await climb.getAttribute('class')) ?? '').includes('sport-session-faite'));
   await page.getByRole('button', { name: /^Journal/ }).click();
 
   // --- Rechargement, puis téléphone ----------------------------------------------------------

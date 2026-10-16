@@ -24,7 +24,7 @@ import {
 const SQL_DIR = new URL('../../../../supabase', import.meta.url).pathname;
 
 function lastDefinition(constraint: string): string | null {
-  const pattern = new RegExp(`constraint\\s+${constraint}\\s+check\\s*\\(([\\s\\S]*?)\\)\\s*(?:,|\\n\\s*\\))`, 'gi');
+  const pattern = new RegExp(`constraint\\s+${constraint}\\s+check\\s*\\(([\\s\\S]*?)\\)\\s*(?:,|;|\\n\\s*\\))`, 'gi');
   let last: string | null = null;
   for (const name of readdirSync(SQL_DIR).filter((f) => f.endsWith('.sql')).sort()) {
     for (const match of readFileSync(join(SQL_DIR, name), 'utf8').matchAll(pattern)) last = match[1];

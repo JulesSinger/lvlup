@@ -84,11 +84,13 @@ export function SessionLine({ status, next, onEdit, onOpenRun, onToggleDone, act
  * rebours, la semaine en cours avec la séance suivante, puis toutes les
  * semaines, la passée repliée. Toucher une séance la modifie.
  */
-export function PlanView({ plan, weeks, today, onEditSession, onToggleDone, activities, onOpenActivity, onOpenRun, onChangeDate, onDelete }: {
+export function PlanView({ plan, weeks, today, onEditSession, onAddSession, onToggleDone, activities, onOpenActivity, onOpenRun, onChangeDate, onDelete }: {
   plan: Plan;
   weeks: WeekStatus[];
   today: string;
   onEditSession: (session: PlanSession) => void;
+  /** Ajouter une séance à une semaine (16/10/2026) : une escalade, un renfo que le plan n'avait pas prévus. */
+  onAddSession?: (week: number) => void;
   /** Cocher une séance de renforcement ou de vélo. */
   onToggleDone: (session: PlanSession) => void;
   /** Les séances de renfo et de vélo de Strava, par séance du plan cochée. */
@@ -143,6 +145,11 @@ export function PlanView({ plan, weeks, today, onEditSession, onToggleDone, acti
             <b>{formatKm(current.doneM)}</b> courus sur <b>{formatKm(current.plannedM)}</b> prévus
           </p>
           <ol className="sport-sessions">{current.sessions.map(line)}</ol>
+          {onAddSession && (
+            <button type="button" className="btn btn-ghost btn-sm sport-session-add" onClick={() => onAddSession(current.week)}>
+              ＋ Ajouter une séance
+            </button>
+          )}
         </section>
       )}
 
@@ -168,6 +175,11 @@ export function PlanView({ plan, weeks, today, onEditSession, onToggleDone, acti
                   )}
                 </summary>
                 <ol className="sport-sessions">{w.sessions.map(line)}</ol>
+                {onAddSession && w.when === 'a-venir' && (
+                  <button type="button" className="btn btn-ghost btn-sm sport-session-add" onClick={() => onAddSession(w.week)}>
+                    ＋ Ajouter une séance
+                  </button>
+                )}
               </details>
             );
           })}

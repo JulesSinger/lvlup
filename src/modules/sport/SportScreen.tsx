@@ -82,6 +82,8 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
   const [sessions, setSessions] = useState<PlanSession[]>([]);
   const [creatingPlan, setCreatingPlan] = useState(false);
   const [editingSession, setEditingSession] = useState<PlanSession | null>(null);
+  /** La séance ouverte est une nouvelle, pas encore rangée. */
+  const [addingSession, setAddingSession] = useState(false);
   const [changingDate, setChangingDate] = useState(false);
   const today = dayString();
 
@@ -273,11 +275,54 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
     for (const a of activities.filter((x) => x.sessionId === sessionId)) await store.unlinkActivity(a.id);
   }
 
+  /** Une séance de plus dans une semaine du plan, ouverte dans la même fenêtre qu'une séance à modifier. */
+  function addSession(week: number) {
+    if (!plan) return;
+    const inWeek = sessions.filter((s) => s.planId === plan.id && s.week === week);
+    setAddingSession(true);
+    setEditingSession({
+      id: newId(),
+      planId: plan.id,
+      week,
+      position: inWeek.reduce((max, s) => Math.max(max, s.position), -1) + 1,
+      kind: 'escalade',
+      title: '',
+      distanceM: null,
+      durationS: null,
+      paceMinS: null,
+      paceMaxS: null,
+      hrZone: null,
+      instructions: '',
+      day: null,
+      doneAt: null,
+      createdAt: '',
+    });
+  }
+
+  function closeSession() {
+    setEditingSession(null);
+    setAddingSession(false);
+  }
+
   async function saveSession(patch: PlanSessionPatch) {
-    if (!editingSession) return;
+    if (!editingSession || !plan) return;
+    // Un jour choisi range la séance dans SA semaine : sinon elle resterait affichée dans une autre.
+    if (patch.day) {
+      const week = weekOfPlan(plan.startDay, patch.day);
+      if (week < 1 || week > weeks.length) throw new Error('Ce jour est en dehors du plan.');
+      patch = { ...patch, week };
+    }
+    if (addingSession) {
+      const { doneAt, createdAt: _createdAt, ...draft } = { ...editingSession, ...patch };
+      await store.addSessions([draft]);
+      if (doneAt) await store.updateSession(draft.id, { doneAt });
+      closeSession();
+      await refresh();
+      return;
+    }
     await store.updateSession(editingSession.id, patch);
     if (patch.doneAt === null && editingSession.doneAt !== null) await unlinkFrom(editingSession.id);
-    setEditingSession(null);
+    closeSession();
     await refresh();
   }
 
@@ -403,6 +448,7 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
               weeks={weeks}
               today={today}
               onEditSession={setEditingSession}
+              onAddSession={addSession}
               activities={activityBySession}
               onOpenActivity={(a) => setOpenActivityId(a.id)}
               onToggleDone={(session) => void write(() => toggleCross(session))}
@@ -487,11 +533,12 @@ export function SportScreen({ error, onError, onOpenSettings, onSwitchModule, re
         {editingSession && (
           <SessionEditor
             session={editingSession}
-            onClose={() => setEditingSession(null)}
+            isNew={addingSession}
+            onClose={closeSession}
             onSave={saveSession}
             onDelete={async () => {
               await store.deleteSession(editingSession.id);
-              setEditingSession(null);
+              closeSession();
               await refresh();
             }}
           />

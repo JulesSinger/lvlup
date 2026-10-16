@@ -1210,3 +1210,11 @@
 .sport-session-done-field input {
   width: auto;
 }
+
+/* Ajouter une séance à une semaine (16/10/2026) : une escalade, un renfo hors du plan généré. */
+.sport-session-add {
+  margin-top: 8px;
+}
+.sport-week-item .sport-session-add {
+  margin: 0 0 10px 12px;
+}

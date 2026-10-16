@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { sessionKindLabel } from '../lib/kinds';
 import { paceInput, parseDuration, parseKm, parsePace } from '../lib/runForm';
-import { isRunningSession, SESSION_KINDS, SESSION_TITLE_MAX, type PlanSession, type PlanSessionPatch, type SessionKind } from '../lib/types';
+import { hasDistance, isRunningSession, SESSION_KINDS, SESSION_TITLE_MAX, type PlanSession, type PlanSessionPatch, type SessionKind } from '../lib/types';
 import { ZONE_LABELS } from '../lib/zones';
 import { Modal } from './Modal';
 
@@ -11,8 +11,10 @@ import { Modal } from './Modal';
  * recalcule pas le reste du plan. Un renforcement ou du vélo (12/10/2026) n'a
  * pas d'allure de course, et se coche « faite » ici ou dans le plan.
  */
-export function SessionEditor({ session, onClose, onSave, onDelete }: {
+export function SessionEditor({ session, isNew = false, onClose, onSave, onDelete }: {
   session: PlanSession;
+  /** Une séance ajoutée à la main (16/10/2026) : sans titre, elle prend le nom de sa sorte. */
+  isNew?: boolean;
   onClose: () => void;
   onSave: (patch: PlanSessionPatch) => Promise<void>;
   onDelete: () => Promise<void>;
@@ -31,7 +33,8 @@ export function SessionEditor({ session, onClose, onSave, onDelete }: {
   const [error, setError] = useState('');
 
   async function submit() {
-    if (!title.trim() || title.trim().length > SESSION_TITLE_MAX) return setError('Donne un nom à la séance.');
+    const name = title.trim() || (isNew ? sessionKindLabel(kind) : '');
+    if (!name || name.length > SESSION_TITLE_MAX) return setError('Donne un nom à la séance.');
     const distanceM = km.trim() ? parseKm(km) : null;
     if (km.trim() && distanceM === null) return setError('La distance se tape en kilomètres (« 8,5 »).');
     const durationS = duration.trim() ? parseDuration(duration) : null;
@@ -43,9 +46,9 @@ export function SessionEditor({ session, onClose, onSave, onDelete }: {
     setError('');
     try {
       await onSave({
-        title: title.trim(),
+        title: name,
         kind,
-        distanceM: kind === 'renfo' ? null : distanceM,
+        distanceM: hasDistance(kind) ? distanceM : null,
         durationS,
         // Une séance de course est faite par une sortie ; seules les séances d'à côté se cochent.
         doneAt: running ? null : done ? (session.doneAt ?? new Date().toISOString()) : null,
@@ -62,13 +65,15 @@ export function SessionEditor({ session, onClose, onSave, onDelete }: {
 
   return (
     <Modal
-      title={`Séance · semaine ${session.week}`}
+      title={`${isNew ? 'Nouvelle séance' : 'Séance'} · semaine ${session.week}`}
       onClose={onClose}
       footer={
         <>
-          <button className="btn btn-ghost btn-sm btn-danger" onClick={() => window.confirm('Retirer cette séance du plan ?') && void onDelete()}>
-            Retirer
-          </button>
+          {!isNew && (
+            <button className="btn btn-ghost btn-sm btn-danger" onClick={() => window.confirm('Retirer cette séance du plan ?') && void onDelete()}>
+              Retirer
+            </button>
+          )}
           <span className="sport-spacer" />
           <button className="btn" onClick={onClose}>
             Annuler
@@ -82,7 +87,7 @@ export function SessionEditor({ session, onClose, onSave, onDelete }: {
       <div className="sport-field-row">
         <div className="field">
           <label htmlFor="sport-session-title">Séance</label>
-          <input id="sport-session-title" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input id="sport-session-title" placeholder={isNew ? sessionKindLabel(kind) : undefined} value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
         <div className="field">
           <label htmlFor="sport-session-kind">Sorte</label>
@@ -96,7 +101,7 @@ export function SessionEditor({ session, onClose, onSave, onDelete }: {
         </div>
       </div>
       <div className="sport-field-row">
-        {kind !== 'renfo' && (
+        {hasDistance(kind) && (
           <div className="field">
             <label htmlFor="sport-session-km">Distance (km)</label>
             <input id="sport-session-km" inputMode="decimal" value={km} onChange={(e) => setKm(e.target.value)} />

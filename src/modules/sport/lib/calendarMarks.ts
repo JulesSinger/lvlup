@@ -10,7 +10,7 @@
 import type { CalendarMark } from '../../../core/lib/services';
 import { shiftDay } from '../../../core/lib/day';
 import { formatDuration, formatKm, formatPace, formatPaceRange } from './format';
-import { CROSS_LABELS, KIND_LABELS, sessionKindLabel } from './kinds';
+import { CROSS_EMOJI, CROSS_LABELS, KIND_LABELS, sessionKindLabel } from './kinds';
 import { paceOf } from './pace';
 import { PHASE_LABELS } from './plan';
 import { planWeeks, tickedByActivities } from './planView';
@@ -67,7 +67,7 @@ export function sportMarks(data: SportCalendarData, from: string, to: string, to
     marks.push({
       id: `activity:${a.id}`,
       day: a.day,
-      title: `✓ ${a.sport === 'renfo' ? '💪' : '🚴'} ${a.title || CROSS_LABELS[a.sport]}`,
+      title: `✓ ${CROSS_EMOJI[a.sport]} ${a.title || CROSS_LABELS[a.sport]}`,
       detail: [CROSS_LABELS[a.sport], formatDuration(a.durationS), a.distanceM ? formatKm(a.distanceM) : null, a.avgHr ? `${a.avgHr} bpm` : null].filter(Boolean).join(' · '),
       time: `${two(start.getHours())}:${two(start.getMinutes())}`,
       duration: Math.min(1440, Math.max(15, Math.round(a.durationS / 60))),

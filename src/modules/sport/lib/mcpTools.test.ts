@@ -181,6 +181,16 @@ describe('les outils de Sport pour Claude, en coach', () => {
     expect((await use(data, 'sport_seance_cocher', { id: footing.id })).text).toMatch(/faite par une sortie/);
   });
 
+  it('ajoutent une séance d’escalade, sans distance, cochée à la main', async () => {
+    const { db, data } = memory();
+    await use(data, 'sport_plan_creer', { title: 'Marathon', race_day: '2027-04-25' });
+    const added = await use(data, 'sport_seance_ajouter', { day: '2026-10-18', kind: 'escalade', title: 'Escalade en salle', duration: '1:30:00', distance_km: 3, pace_min: '5:00', instructions: 'Blocs, puis voies' });
+    expect(added.value.session).toMatchObject({ kind: 'escalade', done: false });
+    const climb = db.sessions.find((s) => s.kind === 'escalade')!;
+    expect(climb).toMatchObject({ day: '2026-10-18', duration_s: 5400, distance_m: null, pace_min_s: null });
+    expect((await use(data, 'sport_seance_cocher', { id: climb.id })).value.session.done).toBe(true);
+  });
+
   it('refusent une semaine mal faite, sans rien écrire', async () => {
     const { db, data } = memory();
     await use(data, 'sport_plan_creer', { title: 'Marathon', race_day: '2027-04-25' });

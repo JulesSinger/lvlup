@@ -184,7 +184,7 @@ export function syncMessage(added: number, known: number, cross = 0): string {
   if (added === 0 && cross === 0) return known > 0 ? 'Rien de nouveau sur Strava.' : 'Aucune course récente sur Strava.';
   const parts = [
     added > 0 ? `${added} sortie${added > 1 ? 's' : ''}` : null,
-    cross > 0 ? `${cross} séance${cross > 1 ? 's' : ''} de renfo ou de vélo` : null,
+    cross > 0 ? `${cross} séance${cross > 1 ? 's' : ''} de renfo, de vélo ou d’escalade` : null,
   ].filter(Boolean);
   const plural = added + cross > 1;
   return `${parts.join(' et ')} reçue${plural ? 's' : ''} de Strava.`;
@@ -195,13 +195,17 @@ export function syncMessage(added: number, known: number, cross = 0): string {
 /** Les sortes d'activité Strava reprises comme renforcement, puis comme vélo. */
 export const RENFO_TYPES = ['WeightTraining', 'Workout', 'Crossfit', 'HighIntensityIntervalTraining', 'Pilates'] as const;
 export const VELO_TYPES = ['Ride', 'VirtualRide', 'EBikeRide', 'MountainBikeRide', 'GravelRide', 'EMountainBikeRide'] as const;
+/** L'escalade (16/10/2026) : Strava n'a qu'une sorte, salle et falaise confondues. */
+export const ESCALADE_TYPES = ['RockClimbing'] as const;
+export type CrossSport = 'renfo' | 'velo' | 'escalade';
 /** La première fois qu'on reprend renfo et vélo, on regarde ce mois-ci en arrière. */
 export const CROSS_BACKFILL_DAYS = 30;
 
-export function crossSport(a: StravaActivity): 'renfo' | 'velo' | null {
+export function crossSport(a: StravaActivity): CrossSport | null {
   const type = a.sport_type ?? a.type ?? '';
   if ((RENFO_TYPES as readonly string[]).includes(type)) return 'renfo';
   if ((VELO_TYPES as readonly string[]).includes(type)) return 'velo';
+  if ((ESCALADE_TYPES as readonly string[]).includes(type)) return 'escalade';
   return null;
 }
 
@@ -209,7 +213,7 @@ export function crossSport(a: StravaActivity): 'renfo' | 'velo' | null {
 export interface StravaCrossActivity {
   started_at: string;
   day: string;
-  sport: 'renfo' | 'velo';
+  sport: CrossSport;
   duration_s: number;
   distance_m: number | null;
   elevation_m: number | null;
@@ -272,7 +276,7 @@ export interface CrossSessionRow {
  * `null` si rien ne correspond : l'activité est seulement notée.
  */
 export function pickSession(
-  activity: { day: string; sport: 'renfo' | 'velo' },
+  activity: { day: string; sport: CrossSport },
   startDay: string,
   sessions: readonly CrossSessionRow[],
   taken: ReadonlySet<string>,

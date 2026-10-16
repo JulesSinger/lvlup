@@ -900,3 +900,25 @@ Signalé ensuite : le renfo apparaissait dans Calendar **en journée entière**.
 réparation ne se fait qu'à l'ouverture de Sport. Désormais `tickedByActivities` (`lib/planView.ts`)
 tient pour faite toute séance rattachée à une activité, **partout** : le plan, Calendar, les
 rappels ; la séance prévue disparaît du calendrier, l'activité y est à son heure, comme une course.
+
+## 26. L'escalade, et ajouter une séance depuis l'app (16/10/2026)
+
+Demande de Jules : « je vais faire une séance d'escalade dimanche, il faudrait que ça puisse être
+ajouté ; gère le MCP aussi ».
+
+- **Une troisième séance d'à côté**, `escalade` 🧗 (`CROSS_SESSION_KINDS`), comme le renfo : une
+  durée et une consigne, **ni distance ni allure** (`hasDistance`), hors des kilomètres de course,
+  cochée à la main. Migration `2026-10-16-sport-escalade.sql` (les deux contraintes : séances du
+  plan et activités).
+- **Strava** : le type `RockClimbing` (salle et falaise confondues chez Strava) devient une
+  activité `escalade`, et coche la séance d'escalade du jour comme le renfo et le vélo.
+- **« ＋ Ajouter une séance »** sous la semaine en cours et sous chaque semaine à venir : jusqu'ici,
+  seul Claude pouvait ajouter une séance au plan. La fenêtre est celle d'une séance à modifier ;
+  elle part sur l'escalade, et sans titre prend le nom de sa sorte. **Un jour choisi range la
+  séance dans sa semaine** (vaut aussi en modifiant une séance : avant, changer le jour la
+  laissait affichée dans son ancienne semaine), et un jour hors du plan est refusé.
+- **Connecteur** : `escalade` accepté par `sport_seance_ajouter`, `sport_semaine_programmer`,
+  `sport_seance_cocher` ; `sport_resume` et `sport_plan_lire` rendent les séances d'à côté sous
+  `cross_training…` (au lieu de `renfo_and_bike…`) ; le bilan compte `climbing_sessions`.
+
+Sans plan en cours, une séance ne s'ajoute pas (elle appartient à une semaine du plan).

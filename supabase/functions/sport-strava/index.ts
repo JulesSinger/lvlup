@@ -251,7 +251,7 @@ async function syncCross(userId: string, found: StravaCrossActivity[]): Promise<
       .select('id, kind, week, position, day, done_at')
       .eq('user_id', userId)
       .eq('plan_id', plan.id)
-      .in('kind', ['renfo', 'velo']);
+      .in('kind', ['renfo', 'velo', 'escalade']);
     sessions = (data ?? []) as CrossSessionRow[];
     const { data: linked } = await admin.from('sport_activities').select('session_id').eq('user_id', userId).not('session_id', 'is', null);
     for (const r of linked ?? []) taken.add(r.session_id as string);

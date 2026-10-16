@@ -1,5 +1,5 @@
 import { formatDuration, formatKm, formatPace } from '../lib/format';
-import { CROSS_LABELS, KIND_LABELS } from '../lib/kinds';
+import { CROSS_EMOJI, CROSS_LABELS, KIND_LABELS } from '../lib/kinds';
 import { paceOf } from '../lib/pace';
 import type { Activity, Run } from '../lib/types';
 
@@ -48,7 +48,7 @@ export function ActivityRow({ activity, onOpen }: { activity: Activity; onOpen: 
       <span className="sport-run-day">{shortDay(activity.day)}</span>
       <span className="sport-run-main">
         <span className="sport-run-title">
-          <span aria-hidden="true">{activity.sport === 'renfo' ? '💪 ' : '🚴 '}</span>
+          <span aria-hidden="true">{CROSS_EMOJI[activity.sport]} </span>
           {title}
         </span>
         {title !== label && <span className={`sport-kind sport-kind-${activity.sport}`}>{label}</span>}

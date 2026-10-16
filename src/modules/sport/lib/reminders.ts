@@ -12,6 +12,7 @@
 import type { ReminderInput } from '../../../core/data/coreStore';
 import { dayString, shiftDay } from '../../../core/lib/day';
 import { formatDuration, formatKm, formatPaceRange } from './format';
+import { CROSS_EMOJI } from './kinds';
 import { PHASE_LABELS } from './plan';
 import { planWeeks, tickedByActivities } from './planView';
 import { isRunningSession, type Activity, type Plan, type PlanSession, type Run } from './types';
@@ -39,7 +40,7 @@ function sessionLine(s: PlanSession): string {
 }
 
 /** L'emoji du rappel d'une séance : la course, le renforcement, le vélo. */
-const sessionEmoji = (s: PlanSession) => (s.kind === 'renfo' ? '💪' : s.kind === 'velo' ? '🚴' : '🏃');
+const sessionEmoji = (s: PlanSession) => (isRunningSession(s.kind) ? '🏃' : CROSS_EMOJI[s.kind]);
 
 export function plannedReminders(
   data: { runs: Run[]; plans: Plan[]; sessions: PlanSession[]; activities?: Activity[] },
