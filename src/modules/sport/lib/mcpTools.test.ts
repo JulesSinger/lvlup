@@ -189,6 +189,8 @@ describe('les outils de Sport pour Claude, en coach', () => {
     const climb = db.sessions.find((s) => s.kind === 'escalade')!;
     expect(climb).toMatchObject({ day: '2026-10-18', duration_s: 5400, distance_m: null, pace_min_s: null });
     expect((await use(data, 'sport_seance_cocher', { id: climb.id })).value.session.done).toBe(true);
+    await use(data, 'sport_seance_ajouter', { day: '2026-10-21', kind: 'foot', title: 'Five en salle', duration: 60, distance_km: 6 });
+    expect(db.sessions.find((s) => s.kind === 'foot')).toMatchObject({ duration_s: 3600, distance_m: null, pace_min_s: null });
   });
 
   it('refusent une semaine mal faite, sans rien écrire', async () => {

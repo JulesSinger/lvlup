@@ -16,6 +16,7 @@ export const CROSS_LABELS: Record<CrossSessionKind, string> = {
   renfo: 'Renforcement',
   velo: 'Vélo',
   escalade: 'Escalade',
+  foot: 'Foot',
 };
 
 /** L'icône d'une séance d'à côté. */
@@ -23,6 +24,7 @@ export const CROSS_EMOJI: Record<CrossSessionKind, string> = {
   renfo: '💪',
   velo: '🚴',
   escalade: '🧗',
+  foot: '⚽',
 };
 
 /** Le nom d'une sorte de séance, de course ou d'à côté. */

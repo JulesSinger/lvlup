@@ -184,7 +184,7 @@ export function syncMessage(added: number, known: number, cross = 0): string {
   if (added === 0 && cross === 0) return known > 0 ? 'Rien de nouveau sur Strava.' : 'Aucune course récente sur Strava.';
   const parts = [
     added > 0 ? `${added} sortie${added > 1 ? 's' : ''}` : null,
-    cross > 0 ? `${cross} séance${cross > 1 ? 's' : ''} de renfo, de vélo ou d’escalade` : null,
+    cross > 0 ? `${cross} séance${cross > 1 ? 's' : ''} d’à côté (renfo, vélo, escalade, foot)` : null,
   ].filter(Boolean);
   const plural = added + cross > 1;
   return `${parts.join(' et ')} reçue${plural ? 's' : ''} de Strava.`;
@@ -197,7 +197,9 @@ export const RENFO_TYPES = ['WeightTraining', 'Workout', 'Crossfit', 'HighIntens
 export const VELO_TYPES = ['Ride', 'VirtualRide', 'EBikeRide', 'MountainBikeRide', 'GravelRide', 'EMountainBikeRide'] as const;
 /** L'escalade (16/10/2026) : Strava n'a qu'une sorte, salle et falaise confondues. */
 export const ESCALADE_TYPES = ['RockClimbing'] as const;
-export type CrossSport = 'renfo' | 'velo' | 'escalade';
+/** Le foot (un five en salle, 16/10/2026). */
+export const FOOT_TYPES = ['Soccer'] as const;
+export type CrossSport = 'renfo' | 'velo' | 'escalade' | 'foot';
 /** La première fois qu'on reprend renfo et vélo, on regarde ce mois-ci en arrière. */
 export const CROSS_BACKFILL_DAYS = 30;
 
@@ -206,6 +208,7 @@ export function crossSport(a: StravaActivity): CrossSport | null {
   if ((RENFO_TYPES as readonly string[]).includes(type)) return 'renfo';
   if ((VELO_TYPES as readonly string[]).includes(type)) return 'velo';
   if ((ESCALADE_TYPES as readonly string[]).includes(type)) return 'escalade';
+  if ((FOOT_TYPES as readonly string[]).includes(type)) return 'foot';
   return null;
 }
 

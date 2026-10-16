@@ -108,6 +108,7 @@ describe('lien avec Strava', () => {
     expect(crossSport(renfo)).toBe('renfo');
     expect(crossSport({ ...run, sport_type: 'VirtualRide' })).toBe('velo');
     expect(crossSport({ ...run, sport_type: 'RockClimbing' })).toBe('escalade');
+    expect(crossSport({ ...run, sport_type: 'Soccer' })).toBe('foot');
     expect(crossSport(run)).toBeNull();
     expect(toRun(renfo)).toBeNull();
     expect(toCrossActivity(renfo)).toMatchObject({ sport: 'renfo', day: '2026-10-04', duration_s: 2_400, distance_m: null, avg_hr: 118, title: 'Renfo du soir', source_ref: 'strava:77' });
@@ -135,8 +136,8 @@ describe('lien avec Strava', () => {
   });
 
   it('dit ce qui est arrivé, sorties et séances d’à côté', () => {
-    expect(syncMessage(1, 0, 1)).toBe('1 sortie et 1 séance de renfo, de vélo ou d’escalade reçues de Strava.');
-    expect(syncMessage(0, 2, 2)).toBe('2 séances de renfo, de vélo ou d’escalade reçues de Strava.');
-    expect(syncMessage(0, 0, 1)).toBe('1 séance de renfo, de vélo ou d’escalade reçue de Strava.');
+    expect(syncMessage(1, 0, 1)).toBe('1 sortie et 1 séance d’à côté (renfo, vélo, escalade, foot) reçues de Strava.');
+    expect(syncMessage(0, 2, 2)).toBe('2 séances d’à côté (renfo, vélo, escalade, foot) reçues de Strava.');
+    expect(syncMessage(0, 0, 1)).toBe('1 séance d’à côté (renfo, vélo, escalade, foot) reçue de Strava.');
   });
 });

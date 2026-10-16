@@ -922,3 +922,7 @@ ajouté ; gère le MCP aussi ».
   `cross_training…` (au lieu de `renfo_and_bike…`) ; le bilan compte `climbing_sessions`.
 
 Sans plan en cours, une séance ne s'ajoute pas (elle appartient à une semaine du plan).
+
+**Le foot** ⚽ (`foot`, le même jour, demande de Jules : « un five la semaine prochaine ») suit
+exactement le même chemin : une durée sans distance, migration `2026-10-16-sport-foot.sql`, type
+Strava `Soccer`, accepté par le connecteur, `football_sessions` au bilan.

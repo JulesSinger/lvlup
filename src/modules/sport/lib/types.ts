@@ -22,17 +22,17 @@ export type RunningSessionKind = (typeof RUNNING_SESSION_KINDS)[number];
  * Les séances d'à côté (demande de Jules, 12/10/2026 : son coach programme
  * aussi du renforcement et du vélo). Elles ne comptent pas dans les
  * kilomètres de course, aucune sortie ne les fait : on les coche à la main
- * (`PlanSession.doneAt`). L'escalade s'y ajoute le 16/10/2026 (demande de Jules).
+ * (`PlanSession.doneAt`). L'escalade s'y ajoute le 16/10/2026, puis le foot (un five en salle), demandes de Jules.
  */
-export const CROSS_SESSION_KINDS = ['renfo', 'velo', 'escalade'] as const;
+export const CROSS_SESSION_KINDS = ['renfo', 'velo', 'escalade', 'foot'] as const;
 export type CrossSessionKind = (typeof CROSS_SESSION_KINDS)[number];
 
 /** Les séances qui n'ont pas de distance : une durée, et la consigne. */
-export const hasDistance = (kind: SessionKind): boolean => kind !== 'renfo' && kind !== 'escalade';
+export const hasDistance = (kind: SessionKind): boolean => kind !== 'renfo' && kind !== 'escalade' && kind !== 'foot';
 
 export const SESSION_KINDS = [...RUNNING_SESSION_KINDS, ...CROSS_SESSION_KINDS] as const;
 
-/** D'où vient une séance d'à côté (renfo, vélo, escalade) (`sport_activities`, 12/10/2026) : Strava, ou la main. */
+/** D'où vient une séance d'à côté (renfo, vélo, escalade, foot) (`sport_activities`, 12/10/2026) : Strava, ou la main. */
 export const ACTIVITY_SOURCES = ['strava', 'manuel'] as const;
 export type ActivitySource = (typeof ACTIVITY_SOURCES)[number];
 

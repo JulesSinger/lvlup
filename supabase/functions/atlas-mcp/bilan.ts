@@ -72,6 +72,7 @@ export function buildBilan(rows: BilanRows, from: string, to: string) {
       strength_sessions: activities.filter((a) => a.sport === 'renfo').length,
       bike_sessions: activities.filter((a) => a.sport === 'velo').length,
       climbing_sessions: activities.filter((a) => a.sport === 'escalade').length,
+      football_sessions: activities.filter((a) => a.sport === 'foot').length,
       plan_sessions: sessions.length ? { planned: sessions.length, done: sessions.filter((s) => s.done).length } : null,
     };
   }
@@ -159,7 +160,7 @@ export const bilanTools: Tool<{ data: BilanData; today: string }>[] = [
     name: 'atlas_bilan',
     title: 'Bilan d’une période, tous modules',
     description:
-      'Le bilan d’une semaine ou d’un mois sur tout Atlas, en lecture seule : Objectifs (coches, PP, jours actifs, par objectif), Sport (sorties et km de course, renfo, vélo et escalade à part, séances du plan faites), Budget (dépensé, entré, solde, catégories, à classer), Tâches (faites, en retard), Recettes (cuisinées), Courses (nombre, total), Nutrition (jours notés, kcal moyennes), Hauts faits. Un module absent n’a rien sur la période. Fais-en un récit court, avec ce qui progresse et ce qui coince.',
+      'Le bilan d’une semaine ou d’un mois sur tout Atlas, en lecture seule : Objectifs (coches, PP, jours actifs, par objectif), Sport (sorties et km de course, renfo, vélo, escalade et foot à part, séances du plan faites), Budget (dépensé, entré, solde, catégories, à classer), Tâches (faites, en retard), Recettes (cuisinées), Courses (nombre, total), Nutrition (jours notés, kcal moyennes), Hauts faits. Un module absent n’a rien sur la période. Fais-en un récit court, avec ce qui progresse et ce qui coince.',
     inputSchema: {
       type: 'object',
       properties: {

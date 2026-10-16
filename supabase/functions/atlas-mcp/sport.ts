@@ -22,7 +22,7 @@ import type { Tool, ToolResult } from './mcp.ts';
 
 export const RUNNING_SESSION_KINDS = ['footing', 'fractionne', 'seuil', 'longue', 'allure', 'course'] as const;
 /** Les séances d'à côté (12/10/2026) : cochées à la main, hors des kilomètres de course. */
-export const CROSS_SESSION_KINDS = ['renfo', 'velo', 'escalade'] as const;
+export const CROSS_SESSION_KINDS = ['renfo', 'velo', 'escalade', 'foot'] as const;
 export const SESSION_KINDS = [...RUNNING_SESSION_KINDS, ...CROSS_SESSION_KINDS] as const;
 const isRunning = (kind: string) => (RUNNING_SESSION_KINDS as readonly string[]).includes(kind);
 export const RUN_KINDS = ['footing', 'fractionne', 'seuil', 'longue', 'allure', 'course', 'autre'] as const;
@@ -117,7 +117,7 @@ export interface RunRow {
   splits_s: number[] | null;
 }
 
-/** Une séance de renfo, de vélo ou d'escalade venue de Strava (`sport_activities`, 12/10/2026). */
+/** Une séance d'à côté (renfo, vélo, escalade, foot) venue de Strava (`sport_activities`, 12/10/2026). */
 export interface ActivityRow {
   id: string;
   started_at: string;
@@ -307,8 +307,8 @@ export function sessionColumns(raw: unknown, plan: PlanRow, i: number): Record<s
     throw new Refused(`${what} : la sorte est l’une de ${SESSION_KINDS.join(', ')}.`);
   }
   const running = isRunning(String(o.kind));
-  // Ni le renforcement ni l'escalade n'ont de distance : une durée et la consigne.
-  const distance = o.kind === 'renfo' || o.kind === 'escalade' ? null : number(o.distance_km, `${what} : la distance (km)`, 0.1, 500);
+  // Ni le renforcement, ni l'escalade, ni le foot n'ont de distance : une durée et la consigne.
+  const distance = o.kind === 'renfo' || o.kind === 'escalade' || o.kind === 'foot' ? null : number(o.distance_km, `${what} : la distance (km)`, 0.1, 500);
   // Une allure de course n'a pas de sens pour une séance d'à côté.
   const paceMin = running ? readPace(o.pace_min, `${what} : l’allure la plus rapide`) : null;
   const paceMax = running ? readPace(o.pace_max, `${what} : l’allure la plus lente`) : null;
@@ -357,7 +357,7 @@ const SESSION_SCHEMA = {
       type: 'string',
       enum: [...SESSION_KINDS],
       description:
-        'Course : footing (endurance), fractionne, seuil, longue (sortie longue), allure (allure marathon), course (une compétition). À côté : renfo (renforcement, gainage, PPG — une durée et les exercices dans les consignes), velo (une durée, une distance si tu veux), escalade (une durée, salle ou falaise et le programme dans les consignes, pas de distance). Renfo, vélo et escalade ne comptent pas dans les km de course et se cochent à la main (sport_seance_cocher), ou tout seuls quand Strava les reçoit.',
+        'Course : footing (endurance), fractionne, seuil, longue (sortie longue), allure (allure marathon), course (une compétition). À côté : renfo (renforcement, gainage, PPG — une durée et les exercices dans les consignes), velo (une durée, une distance si tu veux), escalade (une durée, salle ou falaise et le programme dans les consignes, pas de distance), foot (un match, un five en salle : une durée, pas de distance). Ces séances d’à côté ne comptent pas dans les km de course et se cochent à la main (sport_seance_cocher), ou tout seuls quand Strava les reçoit.',
     },
     title: { type: 'string', maxLength: SESSION_TITLE_MAX, description: '« Footing en aisance », « 6 × 1 000 m », « Sortie longue 24 km dont 8 à allure marathon ».' },
     distance_km: { type: 'number', minimum: 0.1 },
@@ -383,7 +383,7 @@ export const sportTools: Tool<SportContext>[] = [
     name: 'sport_resume',
     title: 'Résumé de Sport : plan, semaine, volume, FC',
     description:
-      'À lire en premier : le plan en cours (course, date, objectif, semaine actuelle sur le total), les séances de la semaine en cours et de la suivante, les kilomètres des 8 dernières semaines, les sorties des 14 derniers jours, les séances de renfo, de vélo et d’escalade venues de Strava, la FC max et de repos et les zones de FC.',
+      'À lire en premier : le plan en cours (course, date, objectif, semaine actuelle sur le total), les séances de la semaine en cours et de la suivante, les kilomètres des 8 dernières semaines, les sorties des 14 derniers jours, les séances d’à côté (renfo, vélo, escalade, foot) venues de Strava, la FC max et de repos et les zones de FC.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
     async run(_args, { data, today }) {
@@ -466,7 +466,7 @@ export const sportTools: Tool<SportContext>[] = [
     description: [
       'Met dans le plan de Sport les séances que tu as préparées pour une semaine : elles REMPLACENT celles déjà prévues cette semaine-là (celles du générateur, ou une version précédente).',
       'Donne n’importe quel jour de la semaine visée (week_of) et les séances, chacune avec son jour, sa sorte, un titre court, et ce que tu sais : distance, durée, allures, zone de FC, consignes détaillées.',
-      'Course à pied, renforcement (renfo), vélo (velo) et escalade (escalade) : mets toute la semaine, les séances d’à côté comprises.',
+      'Course à pied, renforcement (renfo), vélo (velo), escalade (escalade) et foot (foot) : mets toute la semaine, les séances d’à côté comprises.',
     ].join(' '),
     inputSchema: {
       type: 'object',
@@ -567,9 +567,9 @@ export const sportTools: Tool<SportContext>[] = [
   },
   {
     name: 'sport_seance_cocher',
-    title: 'Cocher une séance de renfo, de vélo ou d’escalade',
+    title: 'Cocher une séance d’à côté (renfo, vélo, escalade, foot)',
     description:
-      'Marque faite (ou pas faite) une séance de renforcement, de vélo ou d’escalade : aucune sortie ne la fait. Les séances de course, elles, sont faites par les sorties (Strava), rattachées toutes seules.',
+      'Marque faite (ou pas faite) une séance de renforcement, de vélo, d’escalade ou de foot : aucune sortie ne la fait. Les séances de course, elles, sont faites par les sorties (Strava), rattachées toutes seules.',
     inputSchema: { type: 'object', properties: { id: S.id, done: { type: 'boolean', description: 'Faite (par défaut), ou false pour décocher.' } }, required: ['id'] },
     annotations: { idempotentHint: true },
     async run(args, { data }) {
@@ -794,7 +794,7 @@ async function runPatch(args: Record<string, unknown>, data: SportData): Promise
       const sessionId = id(args.session_id, 'session_id');
       const target = (await data.listSessions(plan.id)).find((s) => s.id === sessionId);
       if (!target) throw new Refused('session_id : pas une séance du plan en cours.');
-      if (!isRunning(target.kind)) throw new Refused('Une sortie de course ne fait qu’une séance de course : un renfo, du vélo ou de l’escalade se coche (sport_seance_cocher).');
+      if (!isRunning(target.kind)) throw new Refused('Une sortie de course ne fait qu’une séance de course : une séance d’à côté (renfo, vélo, escalade, foot) se coche (sport_seance_cocher).');
       row.session_id = sessionId;
     }
   }

@@ -329,6 +329,16 @@ export async function run({ browser, check, BASE }) {
   await climb.getByRole('checkbox', { name: 'Cocher « Escalade »' }).click();
   await climb.getByRole('checkbox', { name: 'Décocher « Escalade »' }).waitFor();
   check('Elle se coche à la main, comme le renfo', ((await climb.getAttribute('class')) ?? '').includes('sport-session-faite'));
+  // Le foot (un five en salle) : pareil, une durée sans distance.
+  await page.locator('.sport-plan-current').getByRole('button', { name: '＋ Ajouter une séance' }).click();
+  await page.locator('#sport-session-kind').selectOption('foot');
+  check('Le foot n’a ni distance ni allure', (await page.locator('#sport-session-km').count()) === 0 && (await page.locator('#sport-session-pacemin').count()) === 0);
+  await page.locator('#sport-session-title').fill('Five en salle');
+  await page.locator('#sport-session-duration').fill('60');
+  await modal.getByRole('button', { name: 'Enregistrer' }).click();
+  const five = page.locator('.sport-plan-current .sport-session', { hasText: 'Five en salle' });
+  await five.waitFor();
+  check('Le foot s’ajoute à la semaine, avec sa sorte', (await text(five)).includes('Foot'), await text(five));
   await page.getByRole('button', { name: /^Journal/ }).click();
 
   // --- Rechargement, puis téléphone ----------------------------------------------------------

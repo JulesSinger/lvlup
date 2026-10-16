@@ -388,7 +388,7 @@ function bilanData(userId: string): BilanData {
           return {
             runs,
             activities,
-            sessions: sessions.map((x) => ({ kind: x.kind, done: x.done_at !== null || (x.kind !== 'renfo' && x.kind !== 'velo' && x.kind !== 'escalade' && runDays.has(x.day as string)) })),
+            sessions: sessions.map((x) => ({ kind: x.kind, done: x.done_at !== null || (!['renfo', 'velo', 'escalade', 'foot'].includes(x.kind as string) && runDays.has(x.day as string)) })),
           } as never;
         }
         case 'budget':

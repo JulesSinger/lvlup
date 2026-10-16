@@ -59,7 +59,7 @@ export function RaceDateEditor({ plan, today, onClose, onSave }: {
       {moved && (
         <p className="sport-hint">
           Les semaines passées restent comme tu les as vécues. La semaine en cours et les suivantes sont recalculées pour la nouvelle date,
-          y compris une séance de course que tu aurais modifiée à la main. Le renforcement, le vélo et l’escalade restent tels quels.
+          y compris une séance de course que tu aurais modifiée à la main. Les séances d’à côté (renfo, vélo, escalade, foot) restent telles quelles.
         </p>
       )}
       {error && <p className="sport-error" role="alert">{error}</p>}
