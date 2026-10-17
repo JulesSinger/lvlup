@@ -13,6 +13,7 @@
  * objets, qui garderaient la dernière seulement ; et la date est écrite en
  * toutes lettres (« Jan 2, 2024, 7:30:00 AM »), en UTC.
  */
+import { stepsPerMinute } from './cadence';
 import { dayString, mondayOf } from '../../../core/lib/day';
 import { parseCsvRows } from '../../../core/lib/csv';
 import type { RunImport } from './types';
@@ -92,6 +93,7 @@ export function readStravaActivities(csv: string): ArchiveReading {
   const avgHr = first('average heart rate', 'fréquence cardiaque moyenne');
   const maxHr = first('max heart rate', 'fréquence cardiaque max', 'fréquence cardiaque max.', 'fréquence cardiaque maximale');
   const elevation = first('elevation gain', 'dénivelé positif');
+  const cadence = first('average cadence', 'cadence moyenne');
   const workout = first('workout type', 'type d’entraînement', "type d'entraînement");
   const file = first('filename', 'nom du fichier');
 
@@ -127,6 +129,7 @@ export function readStravaActivities(csv: string): ArchiveReading {
       elevationM: gain === null ? null : Math.round(gain),
       avgHr: hrAvg === null ? null : Math.round(hrAvg),
       maxHr: hrMax === null ? null : Math.round(hrMax),
+      avgCadence: stepsPerMinute(number(row[cadence])),
       // « Workout Type » 1 = une course (compétition) sur Strava.
       kind: number(row[workout]) === 1 ? 'course' : 'footing',
       title: (row[name] ?? '').trim().slice(0, 120),

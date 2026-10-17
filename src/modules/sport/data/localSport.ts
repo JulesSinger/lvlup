@@ -36,7 +36,8 @@ interface Snapshot {
 function read(): Snapshot {
   const raw = readRaw();
   return {
-    runs: arrayOf<Run>(raw.sportRuns),
+    // Une sortie rangée avant le 17/10/2026 n'a pas de cadence.
+    runs: arrayOf<Run>(raw.sportRuns).map((r) => ({ ...r, avgCadence: r.avgCadence ?? null })),
     plans: arrayOf<Plan>(raw.sportPlans),
     // Une séance rangée avant le 12/10/2026 n'a pas de `doneAt` : jamais cochée.
     sessions: arrayOf<PlanSession>(raw.sportSessions).map((x) => ({ ...x, doneAt: x.doneAt ?? null })),
@@ -73,6 +74,7 @@ function toRun(input: RunInput, id: string, createdAt: string): Run {
     elevationM: input.elevationM ?? null,
     avgHr: input.avgHr ?? null,
     maxHr: input.maxHr ?? null,
+    avgCadence: input.avgCadence ?? null,
     kind: input.kind ?? 'footing',
     effort: input.effort ?? null,
     title: input.title ?? '',

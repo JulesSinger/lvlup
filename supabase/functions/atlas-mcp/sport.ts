@@ -108,6 +108,8 @@ export interface RunRow {
   elevation_m: number | null;
   avg_hr: number | null;
   max_hr: number | null;
+  /** En pas par minute ; absente avant la migration du 17/10/2026. */
+  avg_cadence?: number | null;
   kind: string;
   effort: number | null;
   title: string;
@@ -276,6 +278,7 @@ const runOut = (r: RunRow) => {
     elevation_m: r.elevation_m,
     avg_hr: r.avg_hr,
     max_hr: r.max_hr,
+    cadence_spm: r.avg_cadence ?? null,
     effort: r.effort,
     note: r.note,
     source: r.source,
@@ -664,7 +667,7 @@ export const sportTools: Tool<SportContext>[] = [
   {
     name: 'sport_sorties_lister',
     title: 'Lire les sorties',
-    description: 'Les sorties entre deux jours (par défaut les 28 derniers), avec allure, FC, dénivelé, ressenti, note et temps au kilomètre.',
+    description: 'Les sorties entre deux jours (par défaut les 28 derniers), avec allure, FC, cadence (pas par minute), dénivelé, ressenti, note et temps au kilomètre.',
     inputSchema: { type: 'object', properties: { from: S.day, to: S.day } },
     annotations: { readOnlyHint: true },
     async run(args, { data, today }) {
@@ -689,6 +692,7 @@ export const sportTools: Tool<SportContext>[] = [
         duration: { type: ['number', 'string'], description: 'En minutes (52), ou « 1:05:30 ».' },
         avg_hr: { type: 'integer', minimum: 30, maximum: 250 },
         max_hr: { type: 'integer', minimum: 30, maximum: 250 },
+        cadence_spm: { type: 'integer', minimum: 100, maximum: 260, description: 'La cadence moyenne, en pas par minute (les deux pieds : « 172 »).' },
         elevation_m: { type: 'integer', minimum: 0 },
         ...RUN_FIELDS,
       },
@@ -709,6 +713,7 @@ export const sportTools: Tool<SportContext>[] = [
       const avg = number(args.avg_hr, 'La FC moyenne', 30, 250);
       const max = number(args.max_hr, 'La FC max', 30, 250);
       if (avg !== null && max !== null && avg > max) throw new Refused('La FC moyenne dépasse la FC max.');
+      const cadence = number(args.cadence_spm, 'La cadence (pas par minute)', 100, 260);
       const created = await data.insertRun({
         started_at: startedAt,
         day: d,
@@ -716,6 +721,7 @@ export const sportTools: Tool<SportContext>[] = [
         duration_s: duration,
         avg_hr: avg === null ? null : Math.round(avg),
         max_hr: max === null ? null : Math.round(max),
+        ...(cadence === null ? {} : { avg_cadence: Math.round(cadence) }),
         elevation_m: args.elevation_m === undefined ? null : Math.round(number(args.elevation_m, 'Le dénivelé', 0, 20_000) ?? 0),
         ...(await runPatch(args, data)),
         source: 'manuel',

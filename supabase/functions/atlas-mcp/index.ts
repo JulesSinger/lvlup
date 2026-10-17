@@ -253,7 +253,8 @@ function coursesData(userId: string): CoursesData {
 function sportData(userId: string): SportData {
   const t = (table: string) => admin.from(table);
   const SESSION = 'id, plan_id, week, position, kind, title, distance_m, duration_s, pace_min_s, pace_max_s, hr_zone, instructions, day, done_at';
-  const RUN = 'id, started_at, day, distance_m, duration_s, elevation_m, avg_hr, max_hr, kind, effort, title, note, source, session_id, splits_s';
+  // Toutes les colonnes : la cadence (17/10/2026) n'existe qu'après sa migration, et la nommer ferait échouer toute lecture avant.
+  const RUN = '*';
   type Page<R> = PromiseLike<{ data: R[] | null; error: { message: string } | null }>;
   return {
     listPlans: () =>

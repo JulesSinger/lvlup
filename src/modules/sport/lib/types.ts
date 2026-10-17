@@ -96,6 +96,8 @@ export interface Run {
   elevationM: number | null;
   avgHr: number | null;
   maxHr: number | null;
+  /** La cadence moyenne, en pas par minute, les deux pieds (17/10/2026, `lib/cadence.ts`). */
+  avgCadence: number | null;
   kind: RunKind;
   /** Le ressenti, de 1 à 10. */
   effort: number | null;
@@ -122,6 +124,7 @@ export interface RunInput {
   elevationM?: number | null;
   avgHr?: number | null;
   maxHr?: number | null;
+  avgCadence?: number | null;
   kind?: RunKind;
   effort?: number | null;
   title?: string;

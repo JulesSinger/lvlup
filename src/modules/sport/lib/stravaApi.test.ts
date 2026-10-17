@@ -12,8 +12,12 @@ import {
   syncMessage,
   toRun,
   verifyState,
+  stepsPerMinute as serverStepsPerMinute,
+  CADENCE_MIN as SERVER_CADENCE_MIN,
+  CADENCE_MAX as SERVER_CADENCE_MAX,
   type StravaActivity,
 } from '../../../../supabase/functions/sport-strava/strava.ts';
+import { CADENCE_MAX, CADENCE_MIN, stepsPerMinute } from './cadence';
 import { weekOfPlan } from './plan';
 
 const run: StravaActivity = {
@@ -28,6 +32,7 @@ const run: StravaActivity = {
   total_elevation_gain: 54.2,
   average_heartrate: 151.6,
   max_heartrate: 172,
+  average_cadence: 86.4,
   workout_type: 0,
 };
 
@@ -41,6 +46,8 @@ describe('lien avec Strava', () => {
       elevation_m: 54,
       avg_hr: 152,
       max_hr: 172,
+      // Strava compte une jambe : 86,4 foulées, 173 pas par minute.
+      avg_cadence: 173,
       kind: 'footing',
       title: 'Course à pied le matin',
       source: 'strava',
@@ -141,3 +148,13 @@ describe('lien avec Strava', () => {
     expect(syncMessage(0, 0, 1)).toBe('1 séance d’à côté (renfo, vélo, escalade, foot) reçue de Strava.');
   });
 });
+
+describe('la cadence, recopiée dans la fonction (17/10/2026)', () => {
+  it('dit la même chose que la règle du module', () => {
+    expect([SERVER_CADENCE_MIN, SERVER_CADENCE_MAX]).toEqual([CADENCE_MIN, CADENCE_MAX]);
+    for (const v of [0, -3, 40, 49.9, 50, 62, 86.4, 99, 124.9, 125, 150, 172, 199.6, 260, 261, 400, '86,5', '172', 'abc', null, undefined, Number.NaN]) {
+      expect(serverStepsPerMinute(v)).toBe(stepsPerMinute(v));
+    }
+  });
+});
+

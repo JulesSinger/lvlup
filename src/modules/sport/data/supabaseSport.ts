@@ -34,6 +34,7 @@ interface RunRow {
   elevation_m: number | null;
   avg_hr: number | null;
   max_hr: number | null;
+  avg_cadence: number | null;
   kind: RunKind;
   effort: number | null;
   title: string;
@@ -134,6 +135,8 @@ const toRun = (r: RunRow): Run => ({
   elevationM: r.elevation_m,
   avgHr: r.avg_hr,
   maxHr: r.max_hr,
+  // Avant la migration du 17/10/2026, la colonne n'existe pas : aucune cadence.
+  avgCadence: r.avg_cadence ?? null,
   kind: r.kind,
   effort: r.effort,
   title: r.title,
@@ -190,6 +193,7 @@ function runColumns(p: Partial<RunInput>): Record<string, unknown> {
   if (p.elevationM !== undefined) row.elevation_m = p.elevationM;
   if (p.avgHr !== undefined) row.avg_hr = p.avgHr;
   if (p.maxHr !== undefined) row.max_hr = p.maxHr;
+  if (p.avgCadence !== undefined) row.avg_cadence = p.avgCadence;
   if (p.kind !== undefined) row.kind = p.kind;
   if (p.effort !== undefined) row.effort = p.effort;
   if (p.title !== undefined) row.title = p.title;

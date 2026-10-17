@@ -3,6 +3,7 @@
  * dénivelé, fréquence cardiaque, temps au kilomètre. Bibliothèque pure, sans
  * `DOMParser` (absent des tests, et inutile pour deux formats aussi réguliers).
  */
+import { stepsPerMinute } from './cadence';
 
 export interface TrackPoint {
   /** Instant, en millisecondes depuis 1970. */
@@ -11,6 +12,8 @@ export interface TrackPoint {
   lon?: number;
   ele?: number;
   hr?: number;
+  /** La cadence telle que le fichier la donne (souvent une jambe) ; `stepsPerMinute` la remet en pas. */
+  cad?: number;
   /** Distance cumulée donnée par le fichier (TCX), en mètres. */
   dist?: number;
 }
@@ -33,6 +36,7 @@ export function parseGpx(xml: string): TrackPoint[] {
       lon: num(/lon="([^"]+)"/.exec(m[1])?.[1]),
       ele: num(tag(m[2], 'ele')),
       hr: num(tag(m[2], 'hr')),
+      cad: num(tag(m[2], 'cad')),
     });
   }
   return points;
@@ -54,6 +58,7 @@ export function parseTcx(xml: string): TrackPoint[] {
       ele: num(tag(m[1], 'AltitudeMeters')),
       dist: num(tag(m[1], 'DistanceMeters')),
       hr: hrBlock ? num(tag(hrBlock, 'Value')) : undefined,
+      cad: num(tag(m[1], 'RunCadence') ?? tag(m[1], 'Cadence')),
     });
   }
   return points;
@@ -76,6 +81,8 @@ export interface TrackSummary {
   elevationM: number | null;
   avgHr: number | null;
   maxHr: number | null;
+  /** En pas par minute ; arrêts (cadence nulle) écartés. */
+  avgCadence: number | null;
   splitsS: number[];
 }
 
@@ -132,6 +139,7 @@ export function summarizeTrack(input: TrackPoint[]): TrackSummary | null {
     }
   }
 
+  const cads = points.map((p) => p.cad).filter((v): v is number => typeof v === 'number' && v > 0);
   const hrs = points.map((p) => p.hr).filter((v): v is number => typeof v === 'number' && v > 0);
   return {
     startedAt: new Date(points[0].t).toISOString(),
@@ -140,6 +148,7 @@ export function summarizeTrack(input: TrackPoint[]): TrackSummary | null {
     elevationM: elevation === null ? null : Math.round(elevation),
     avgHr: hrs.length > 0 ? Math.round(hrs.reduce((s, v) => s + v, 0) / hrs.length) : null,
     maxHr: hrs.length > 0 ? Math.max(...hrs) : null,
+    avgCadence: cads.length > 0 ? stepsPerMinute(cads.reduce((sum, v) => sum + v, 0) / cads.length) : null,
     splitsS,
   };
 }

@@ -31,6 +31,8 @@ export interface StravaActivity {
   total_elevation_gain?: number;
   average_heartrate?: number;
   max_heartrate?: number;
+  /** En foulées par minute, une jambe, pour la course (Strava affiche le double). */
+  average_cadence?: number;
   /** 1 : course (compétition), 2 : sortie longue, 3 : séance. */
   workout_type?: number | null;
 }
@@ -44,6 +46,7 @@ export interface StravaRun {
   elevation_m: number | null;
   avg_hr: number | null;
   max_hr: number | null;
+  avg_cadence: number | null;
   kind: 'footing' | 'longue' | 'course';
   title: string;
   source: 'strava';
@@ -54,6 +57,23 @@ export function isRun(a: StravaActivity): boolean {
   const type = a.sport_type ?? a.type ?? '';
   return (RUN_TYPES as readonly string[]).includes(type);
 }
+
+/**
+ * Une cadence en pas par minute, les deux pieds — copie de `stepsPerMinute`
+ * (`src/modules/sport/lib/cadence.ts`), comparée par `stravaApi.test.ts`.
+ * Strava compte une jambe pour la course : on double ce qui est sous 125.
+ */
+export const CADENCE_MIN = 100;
+export const CADENCE_MAX = 260;
+export function stepsPerMinute(raw: unknown): number | null {
+  const v = typeof raw === 'string' ? Number(raw.replace(',', '.')) : raw;
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return null;
+  const steps = Math.round(v < 125 ? v * 2 : v);
+  return steps >= CADENCE_MIN && steps <= CADENCE_MAX ? steps : null;
+}
+
+/** La reprise de la cadence des sorties déjà rangées : jusqu'à 1 000 activités en arrière, une seule fois. */
+export const CADENCE_BACKFILL_PAGES = 5;
 
 const hr = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 30 && v <= 250 ? Math.round(v) : null);
 
@@ -82,6 +102,7 @@ export function toRun(a: StravaActivity): StravaRun | null {
     elevation_m: elevation !== null && elevation >= 0 && elevation <= 20_000 ? elevation : null,
     avg_hr: hr(a.average_heartrate),
     max_hr: hr(a.max_heartrate),
+    avg_cadence: stepsPerMinute(a.average_cadence),
     kind,
     title: (a.name ?? '').trim().slice(0, 120),
     source: 'strava',

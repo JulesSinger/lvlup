@@ -24,7 +24,7 @@ const run = (day: string, km: number, minutes: number, extra: Partial<Run> = {})
   durationS: Math.round(minutes * 60),
   elevationM: null,
   avgHr: null,
-  maxHr: null,
+  maxHr: null, avgCadence: null,
   kind: 'footing',
   effort: null,
   title: '',

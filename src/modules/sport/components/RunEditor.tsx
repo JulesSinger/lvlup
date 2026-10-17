@@ -108,6 +108,10 @@ export function RunEditor({ run, onClose, onSave }: Props) {
           <input id="sport-run-maxhr" inputMode="numeric" placeholder="172" value={form.maxHr} onChange={(e) => set({ maxHr: e.target.value })} />
         </div>
         <div className="field">
+          <label htmlFor="sport-run-cadence">Cadence (ppm)</label>
+          <input id="sport-run-cadence" inputMode="numeric" placeholder="172" value={form.cadence} onChange={(e) => set({ cadence: e.target.value })} />
+        </div>
+        <div className="field">
           <label htmlFor="sport-run-elevation">Dénivelé (m)</label>
           <input id="sport-run-elevation" inputMode="numeric" placeholder="85" value={form.elevation} onChange={(e) => set({ elevation: e.target.value })} />
         </div>

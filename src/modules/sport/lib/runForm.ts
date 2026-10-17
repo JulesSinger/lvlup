@@ -13,6 +13,8 @@ export interface RunForm {
   duration: string;
   avgHr: string;
   maxHr: string;
+  /** En pas par minute. */
+  cadence: string;
   elevation: string;
   kind: RunKind;
   effort: string;
@@ -59,6 +61,7 @@ export function emptyRunForm(now = new Date()): RunForm {
     duration: '',
     avgHr: '',
     maxHr: '',
+    cadence: '',
     elevation: '',
     kind: 'footing',
     effort: '',
@@ -82,6 +85,7 @@ export function runToForm(run: Run): RunForm {
     duration: h > 0 ? `${h}:${two(m)}:${two(sec)}` : `${m}:${two(sec)}`,
     avgHr: run.avgHr === null ? '' : String(run.avgHr),
     maxHr: run.maxHr === null ? '' : String(run.maxHr),
+    cadence: run.avgCadence === null ? '' : String(run.avgCadence),
     elevation: run.elevationM === null ? '' : String(run.elevationM),
     kind: run.kind,
     effort: run.effort === null ? '' : String(run.effort),
@@ -104,7 +108,8 @@ export function formToRun(form: RunForm): { input: RunInput } | { error: string 
   const maxHr = intOrNull(form.maxHr);
   const elevationM = intOrNull(form.elevation);
   const effort = intOrNull(form.effort);
-  if ([avgHr, maxHr, elevationM, effort].some((v) => Number.isNaN(v))) return { error: 'Un nombre entier est attendu (FC, dénivelé, ressenti).' };
+  const avgCadence = intOrNull(form.cadence);
+  if ([avgHr, maxHr, elevationM, effort, avgCadence].some((v) => Number.isNaN(v))) return { error: 'Un nombre entier est attendu (FC, cadence, dénivelé, ressenti).' };
   return {
     input: {
       startedAt: start.toISOString(),
@@ -113,6 +118,7 @@ export function formToRun(form: RunForm): { input: RunInput } | { error: string 
       durationS,
       avgHr,
       maxHr,
+      avgCadence,
       elevationM,
       kind: form.kind,
       effort,

@@ -3,6 +3,7 @@
  * 07/10/2026) dites en français, avant l'envoi, pour qu'un refus de Postgres
  * ne soit jamais la première nouvelle.
  */
+import { CADENCE_MAX, CADENCE_MIN } from './cadence';
 import {
   PLAN_TITLE_MAX,
   RUN_DISTANCE_MAX_M,
@@ -31,6 +32,10 @@ export function validateRun(input: RunInput): string | null {
   }
   if (!hrOk(input.avgHr) || !hrOk(input.maxHr)) return 'Une fréquence cardiaque se situe entre 30 et 250.';
   if (input.avgHr && input.maxHr && input.avgHr > input.maxHr) return 'La FC moyenne dépasse la FC maximale.';
+  const cadence = input.avgCadence;
+  if (cadence !== null && cadence !== undefined && !(Number.isInteger(cadence) && cadence >= CADENCE_MIN && cadence <= CADENCE_MAX)) {
+    return `Une cadence se compte en pas par minute, entre ${CADENCE_MIN} et ${CADENCE_MAX} (« 172 »).`;
+  }
   if (input.effort !== null && input.effort !== undefined && !(Number.isInteger(input.effort) && input.effort >= 1 && input.effort <= 10)) {
     return 'Le ressenti va de 1 à 10.';
   }

@@ -14,9 +14,9 @@ function buildFit(): Uint8Array {
   // Point 2 : en-tête compressé (type local 0), 10 s plus tard, 1 000 m.
   const offset = (start + 10) & 0x1f;
   body.push(0x80 | offset, ...u32(0xffffffff), ...u32(100_000), 0xff, ...u16((110 + 500) * 5));
-  // Définition du type local 1 : séance (18) — FC moyenne, max, dénivelé.
-  body.push(0x41, 0, 0, ...u16(18), 3, 16, 1, 0x02, 17, 1, 0x02, 22, 2, 0x84);
-  body.push(0x01, 152, 171, ...u16(35));
+  // Définition du type local 1 : séance (18) — FC moyenne, max, dénivelé, cadence (une jambe : 86) et sa fraction (½ = 64/128).
+  body.push(0x41, 0, 0, ...u16(18), 5, 16, 1, 0x02, 17, 1, 0x02, 22, 2, 0x84, 18, 1, 0x02, 92, 1, 0x02);
+  body.push(0x01, 152, 171, ...u16(35), 86, 64);
   const header = [14, 0x10, ...u16(2100), ...u32(body.length), 0x2e, 0x46, 0x49, 0x54, 0, 0];
   return new Uint8Array([...header, ...body, 0, 0]);
 }
@@ -31,7 +31,8 @@ describe('lire un FIT', () => {
     expect(points[1].t - points[0].t).toBe(10_000);
     expect(points[1]).toMatchObject({ dist: 1000, ele: 110 });
     expect(points[1].hr).toBeUndefined();
-    expect(session).toEqual({ avgHr: 152, maxHr: 171, ascentM: 35 });
+    // La cadence d'une jambe (86,5 foulées) devient des pas : 173 par minute.
+    expect(session).toEqual({ avgHr: 152, maxHr: 171, ascentM: 35, avgCadence: 173 });
   });
 
   it('refuse ce qui n’est pas un FIT', () => {

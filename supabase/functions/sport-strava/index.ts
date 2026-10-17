@@ -38,6 +38,9 @@ import {
   STATE_TTL_MS,
   STRAVA_SCOPE,
   canReadActivities,
+  CADENCE_BACKFILL_PAGES,
+  isRun,
+  stepsPerMinute,
   safeReturn,
   signState,
   splitsFrom,
@@ -53,7 +56,7 @@ import {
   type StravaRun,
 } from './strava.ts';
 
-const VERSION = '2026-10-12.2';
+const VERSION = '2026-10-17.1';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -97,6 +100,8 @@ interface Link {
   scope: string;
   last_sync_at: string | null;
   last_activity_at: string | null;
+  /** Absent avant la migration du 17/10/2026 : la reprise de la cadence attend. */
+  cadence_backfilled_at?: string | null;
 }
 
 /** Une erreur dont le message peut être montré tel quel. */
@@ -209,9 +214,16 @@ async function sync(userId: string, force: boolean) {
   }
   if (rows.length > 0) {
     // La contrainte unique (compte, référence) reste le dernier rempart contre un doublon.
-    const { error } = await admin.from('sport_runs').upsert(rows, { onConflict: 'user_id,source_ref', ignoreDuplicates: true });
+    let { error } = await admin.from('sport_runs').upsert(rows, { onConflict: 'user_id,source_ref', ignoreDuplicates: true });
+    // La fonction redéployée avant la migration du 17/10/2026 : les sorties arrivent quand même, sans cadence.
+    if (error && error.message.includes('avg_cadence')) {
+      ({ error } = await admin
+        .from('sport_runs')
+        .upsert(rows.map(({ avg_cadence: _cadence, ...rest }) => rest), { onConflict: 'user_id,source_ref', ignoreDuplicates: true }));
+    }
     if (error) throw new Error(error.message);
   }
+  await backfillCadence(userId, token, link);
   const cross = crossError ? 0 : await syncCross(userId, activities.map(toCrossActivity).filter((a): a is StravaCrossActivity => a !== null));
   const latest = activities.map((a) => Date.parse(a.start_date ?? '')).filter(Number.isFinite);
   const lastActivity = latest.length ? new Date(Math.max(...latest)).toISOString() : link.last_activity_at;
@@ -220,6 +232,37 @@ async function sync(userId: string, force: boolean) {
     .update({ last_sync_at: new Date().toISOString(), last_activity_at: lastActivity })
     .eq('user_id', userId);
   return { added: rows.length + cross, known, message: syncMessage(rows.length, known, cross) };
+}
+
+/**
+ * La cadence des sorties rangées avant qu'Atlas la lise (17/10/2026) : relue
+ * une seule fois dans la liste des activités de Strava, qui la donne pour
+ * chacune (un appel pour 200). Une sortie sans capteur reste sans cadence.
+ * Sans la migration (colonnes absentes), rien ne se fait, et rien ne casse.
+ */
+async function backfillCadence(userId: string, token: string, link: Link): Promise<void> {
+  if (link.cadence_backfilled_at !== null) return;
+  const { data, error } = await admin
+    .from('sport_runs')
+    .select('id, source_ref')
+    .eq('user_id', userId)
+    .is('avg_cadence', null)
+    .like('source_ref', 'strava:%');
+  if (error) return;
+  const missing = new Map((data ?? []).map((r) => [r.source_ref as string, r.id as string]));
+  for (let pageNo = 1; pageNo <= CADENCE_BACKFILL_PAGES && missing.size > 0; pageNo++) {
+    const batch = (await stravaGet(`/athlete/activities?per_page=200&page=${pageNo}`, token, userId)) as StravaActivity[];
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    for (const a of batch) {
+      const id = isRun(a) ? missing.get(`strava:${a.id}`) : undefined;
+      const cadence = stepsPerMinute(a.average_cadence);
+      if (!id || cadence === null) continue;
+      await admin.from('sport_runs').update({ avg_cadence: cadence }).eq('user_id', userId).eq('id', id);
+      missing.delete(`strava:${a.id}`);
+    }
+    if (batch.length < 200) break;
+  }
+  await admin.from('sport_strava_links').update({ cadence_backfilled_at: new Date().toISOString() }).eq('user_id', userId);
 }
 
 /**

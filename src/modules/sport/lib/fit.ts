@@ -15,6 +15,7 @@
  * en-tête « compressé » porte un écart de temps sur 5 bits. Un champ dont la
  * valeur est la valeur « invalide » de son type est absent.
  */
+import { stepsPerMinute } from './cadence';
 import type { TrackPoint } from './track';
 
 /** Les secondes FIT comptent depuis le 31/12/1989 à 0 h UTC. */
@@ -41,6 +42,8 @@ export interface FitSession {
   avgHr: number | null;
   maxHr: number | null;
   ascentM: number | null;
+  /** En pas par minute (FIT : foulées d'une jambe, plus une fraction). */
+  avgCadence: number | null;
 }
 
 export interface FitReading {
@@ -168,6 +171,8 @@ export function parseFit(bytes: Uint8Array): FitReading {
       if (dist != null) point.dist = dist / 100;
       const hr = values.get(3);
       if (hr != null && hr > 0) point.hr = hr;
+      const cad = values.get(4);
+      if (cad != null && cad > 0) point.cad = cad + (values.get(53) ?? 0) / 128;
       const alt = values.get(78) ?? values.get(2);
       if (alt != null) point.ele = alt / 5 - 500;
       const lat = values.get(0);
@@ -182,6 +187,7 @@ export function parseFit(bytes: Uint8Array): FitReading {
         avgHr: values.get(16) ?? null,
         maxHr: values.get(17) ?? null,
         ascentM: values.get(22) ?? null,
+        avgCadence: stepsPerMinute((values.get(18) ?? 0) + (values.get(92) ?? 0) / 128),
       };
     }
   }

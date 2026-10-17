@@ -58,6 +58,7 @@ export function planArchiveImport(
       splitsS: track.splitsS.length > 0 ? track.splitsS : null,
       avgHr: run.avgHr ?? track.avgHr,
       maxHr: run.maxHr ?? track.maxHr,
+      avgCadence: run.avgCadence ?? track.avgCadence,
       elevationM: run.elevationM ?? track.elevationM,
     };
   });

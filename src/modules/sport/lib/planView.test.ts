@@ -28,7 +28,7 @@ const sessions: PlanSession[] = planDrafts(
 
 let r = 0;
 const run = (day: string, km: number, extra: Partial<Run> = {}): Run => ({
-  id: `r${r++}`, startedAt: `${day}T07:00:00Z`, day, distanceM: km * 1000, durationS: km * 360, elevationM: null, avgHr: null, maxHr: null,
+  id: `r${r++}`, startedAt: `${day}T07:00:00Z`, day, distanceM: km * 1000, durationS: km * 360, elevationM: null, avgHr: null, maxHr: null, avgCadence: null,
   kind: 'footing', effort: null, title: '', note: '', source: 'manuel', sourceRef: null, sessionId: null, splitsS: null, createdAt: '', ...extra,
 });
 

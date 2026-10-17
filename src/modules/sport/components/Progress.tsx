@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { cadenceByPace, cadenceChange, cadenceSummary, cadenceTrend } from '../lib/cadence';
 import { formatDuration, formatKm, formatPace, formatTime } from '../lib/format';
 import { paceOf } from '../lib/pace';
 import {
@@ -36,6 +37,11 @@ const BEFORE_LABELS: Record<Period, string> = {
   tout: 'Avant',
 };
 const PACE_KINDS: readonly RunKind[] = ['footing', 'longue', 'seuil', 'fractionne'];
+/** La courbe de la cadence : les sorties faciles, comparables d'une semaine à l'autre (la cadence monte avec la vitesse). */
+const CADENCE_KINDS: readonly RunKind[] = ['footing', 'longue'];
+const ppm = (v: number) => `${v} ppm`;
+const paceBand = (fromS: number, toS: number) =>
+  fromS === 0 ? `plus vite que ${formatPace(toS)}` : toS === Infinity ? `plus lent que ${formatPace(fromS)}` : `${formatPace(fromS).replace(' /km', '')} – ${formatPace(toS)}`;
 
 function savedPeriod(): Period {
   try {
@@ -119,6 +125,10 @@ export function Progress({ runs, settings, today, targetS, onOpen }: {
   const maxVol = Math.max(...vol.map((v) => v.distanceM), 1);
   const pace = paceTrend(runs, list, [paceKind]);
   const z2 = zone2Trend(runs, list, zones);
+  const cadence = cadenceTrend(runs, list, CADENCE_KINDS);
+  const cadenceNow = cadenceSummary(runs, from, to);
+  const cadenceDelta = cadenceChange(cadence);
+  const byPace = cadenceByPace(runs, from, to);
   const zt = zoneTime(runs, list, zones);
   const easy = easyShare(zt);
   const maxZone = Math.max(...zt.map((p) => p.byZone.reduce((a, v) => a + v, 0) + p.unknownS), 1);
@@ -198,6 +208,63 @@ export function Progress({ runs, settings, today, targetS, onOpen }: {
             </>
           ) : (
             <p className="sport-hint">Aucune sortie de cette sorte sur la période.</p>
+          )}
+        </section>
+
+        <section className="sport-panel sport-cadence">
+          <h2 className="sport-panel-title">Cadence</h2>
+          {!cadenceNow ? (
+            <p className="sport-hint">
+              Aucune cadence sur la période. Elle vient de la montre, par Strava, l’archive ou un fichier ; tu peux aussi la noter dans une sortie.
+            </p>
+          ) : (
+            <>
+              <div className="sport-stats">
+                <div className="sport-stat">
+                  <span className="sport-stat-value">{ppm(cadenceNow.average)}</span>
+                  <span className="sport-stat-label">
+                    en moyenne · {cadenceNow.runs} sortie{cadenceNow.runs > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="sport-stat">
+                  <span className="sport-stat-value">
+                    {cadenceNow.lowest} – {cadenceNow.highest}
+                  </span>
+                  <span className="sport-stat-label">de la plus basse à la plus haute</span>
+                </div>
+              </div>
+              {cadence.some((p) => p.cadence !== null) && (
+                <TrendChart points={asPoints(cadence.map((p) => p.cadence))} format={ppm} label="Cadence des footings et sorties longues" />
+              )}
+              {cadenceDelta ? (
+                <p className="sport-progress-change">
+                  Footings et sorties longues : <b>{ppm(cadenceDelta.from)}</b> → <b>{ppm(cadenceDelta.to)}</b>
+                  {Math.abs(cadenceDelta.delta) < 2 ? ', stable.' : ` (${cadenceDelta.delta > 0 ? '+' : '−'}${Math.abs(cadenceDelta.delta)}).`}
+                </p>
+              ) : (
+                <p className="sport-hint">La courbe suit les footings et sorties longues ; encore quelques semaines pour dire une tendance.</p>
+              )}
+              {byPace.length > 0 && (
+                <>
+                  <h3 className="sport-cadence-sub">À allure égale</h3>
+                  <ul className="sport-cadence-bands">
+                    {byPace.map((b) => (
+                      <li key={b.fromS}>
+                        <span>{paceBand(b.fromS, b.toS)}</span>
+                        <b>{ppm(b.cadence)}</b>
+                        <span className="sport-cadence-count">
+                          {b.runs} sortie{b.runs > 1 ? 's' : ''}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <p className="sport-hint">
+                Les pas par minute, les deux pieds. La cadence monte avec la vitesse : c’est à allure égale qu’elle se compare. Pour la relever, on
+                conseille de petites marches, quelques pour cent à la fois.
+              </p>
+            </>
           )}
         </section>
 

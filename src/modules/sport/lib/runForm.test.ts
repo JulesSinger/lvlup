@@ -53,12 +53,12 @@ describe('saisir une sortie', () => {
 describe('préparer l’import de l’archive', () => {
   it('ne reprend que les nouvelles sorties, complétées de leur tracé', () => {
     let n = 0;
-    const tracks = new Map([['activities/2.gpx.gz', { startedAt: '', distanceM: 0, durationS: 0, elevationM: 40, avgHr: 150, maxHr: 170, splitsS: [300, 310] }]]);
+    const tracks = new Map([['activities/2.gpx.gz', { startedAt: '', distanceM: 0, durationS: 0, elevationM: 40, avgHr: 150, maxHr: 170, avgCadence: 172, splitsS: [300, 310] }]]);
     const plan = planArchiveImport(archiveRunsFixture, new Set(['strava:1']), tracks, () => `id${n++}`);
     expect(plan.alreadyKnown).toBe(1);
     expect(plan.runs.map((r) => r.sourceRef)).toEqual(['strava:2', 'strava:3', 'strava:4']);
     // La FC du CSV l'emporte ; le fichier comble ce qui manque.
-    expect(plan.runs[0]).toMatchObject({ id: 'id0', splitsS: [300, 310], avgHr: 140, maxHr: 170, elevationM: 40 });
+    expect(plan.runs[0]).toMatchObject({ id: 'id0', splitsS: [300, 310], avgHr: 140, maxHr: 170, avgCadence: 172, elevationM: 40 });
     expect(plan.runs[0]).not.toHaveProperty('file');
     expect(plan.withTrack).toBe(1);
     // La plus longue de sa semaine, 18 km : une sortie longue.

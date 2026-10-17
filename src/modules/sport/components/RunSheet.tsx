@@ -5,6 +5,7 @@ import type { PlanSession, Run } from '../lib/types';
 import { runTitle } from './Journal';
 import { zoneOf, ZONE_LABELS, type HrZone } from '../lib/zones';
 import { Modal } from './Modal';
+import { strideCm } from '../lib/cadence';
 
 /** « jeudi 1 octobre 2026 à 07:30 » */
 export function longDate(run: Run): string {
@@ -28,6 +29,7 @@ export function RunSheet({ run, zones, onClose, onEdit, onDelete, plan }: {
 }) {
   const pace = paceOf(run.distanceM, run.durationS);
   const zone = run.avgHr !== null ? zoneOf(run.avgHr, zones) : null;
+  const stride = strideCm(run);
   const splits = run.splitsS ?? [];
   const fastest = splits.length > 0 ? Math.min(...splits) : 0;
 
@@ -77,6 +79,12 @@ export function RunSheet({ run, zones, onClose, onEdit, onDelete, plan }: {
           <div className="sport-stat">
             <span className="sport-stat-value">{run.maxHr} bpm</span>
             <span className="sport-stat-label">FC max</span>
+          </div>
+        )}
+        {run.avgCadence !== null && (
+          <div className="sport-stat">
+            <span className="sport-stat-value">{run.avgCadence} ppm</span>
+            <span className="sport-stat-label">cadence{stride !== null ? ` · pas de ${stride} cm` : ''}</span>
           </div>
         )}
         {run.elevationM !== null && (

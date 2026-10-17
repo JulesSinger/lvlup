@@ -926,3 +926,35 @@ Sans plan en cours, une séance ne s'ajoute pas (elle appartient à une semaine 
 **Le foot** ⚽ (`foot`, le même jour, demande de Jules : « un five la semaine prochaine ») suit
 exactement le même chemin : une durée sans distance, migration `2026-10-16-sport-foot.sql`, type
 Strava `Soccer`, accepté par le connecteur, `football_sessions` au bilan.
+
+## 27. La cadence (17/10/2026)
+
+Demande de Jules : « ajoute l'analyse de la cadence (ppm) ».
+
+**Une colonne, en pas par minute, les deux pieds** (`sport_runs.avg_cadence`, migration
+`2026-10-17-sport-cadence.sql`, bornée de 100 à 260). Strava et les fichiers FIT comptent souvent
+**une jambe** (86 foulées pour 172 pas) : tout ce qui entre passe par `stepsPerMinute`
+(`lib/cadence.ts`), qui double une valeur sous 125 — personne ne court sous 120 pas par minute,
+personne à 240 foulées d'une jambe. Règle recopiée dans `sport-strava/strava.ts`, comparée par
+`stravaApi.test.ts`.
+
+**D'où elle vient :**
+- l'API de Strava (`average_cadence` de chaque activité) ;
+- **les sorties déjà là** : reprises une seule fois dans la liste des activités de Strava (200 par
+  appel, 1 000 au plus), la date rangée sur le lien (`cadence_backfilled_at`). Une sortie sans
+  capteur reste sans cadence ;
+- l'archive Strava (« Average Cadence » / « Cadence moyenne »), les fichiers FIT (séance : champs
+  18 et 92 ; points : 4 et 53), GPX (`cad`) et TCX (`RunCadence`) ;
+- la saisie à la main, et le connecteur de Claude (`cadence_spm`).
+
+**L'analyse** (Progression) : la moyenne de la période pondérée par le temps couru, la plus basse
+et la plus haute ; la courbe **des footings et sorties longues** (la cadence monte avec la vitesse :
+mêler les fractionnés ferait mentir la pente) et ce qu'elle a changé ; **la cadence à allure
+égale**, par tranche de 30 s/km — c'est là qu'une cadence qui progresse se voit. Dans la fiche d'une
+sortie, la cadence et **la longueur du pas** (vitesse ÷ cadence). Aucune cible imposée : un repère
+prudent (« de petites marches, quelques pour cent à la fois »), pas de « 180 » à atteindre.
+
+**Avant la migration**, rien ne casse : les lectures prennent toutes les colonnes (`select('*')`,
+y compris le connecteur), la synchronisation Strava range les sorties sans cadence, et la reprise
+attend. **Ce que Strava a vraiment pour les sorties de Jules reste à voir** : 4 sorties sur 71
+ont une FC ; si la montre passe par Santé, la cadence peut manquer aussi.

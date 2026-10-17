@@ -85,6 +85,7 @@ export async function run({ browser, check, BASE }) {
   await page.locator('#sport-run-duration').fill('52:30');
   await page.locator('#sport-run-avghr').fill('148');
   await page.locator('#sport-run-maxhr').fill('171');
+  await page.locator('#sport-run-cadence').fill('172');
   await page.locator('#sport-run-title').fill('Tour du lac');
   await modal.getByRole('button', { name: 'Ajouter', exact: true }).click();
   await page.waitForSelector('.sport-dash');
@@ -96,6 +97,8 @@ export async function run({ browser, check, BASE }) {
   await page.locator('.sport-run').first().click();
   await page.waitForSelector('.sport-modal .sport-stats');
   check('La fiche dit distance, durée, allure et FC', (await text(modal.locator('.sport-stats'))).includes('148 bpm'));
+  // 10,2 km en 52:30 : 194 m/min, ÷ 172 pas = 113 cm.
+  check('Et la cadence, avec la longueur du pas', (await text(modal.locator('.sport-stats'))).includes('172 ppm') && (await text(modal.locator('.sport-stats'))).includes('pas de 113 cm'), await text(modal.locator('.sport-stats')));
   await modal.getByRole('button', { name: 'Modifier' }).click();
   await page.locator('#sport-run-kind').selectOption('seuil');
   await page.locator('#sport-run-effort').selectOption('7');
@@ -231,6 +234,8 @@ export async function run({ browser, check, BASE }) {
   await page.getByRole('button', { name: '1 an', exact: true }).click();
   check('Sur un an, le volume se compte par mois', (await volTitle()).includes('par mois') && (await page.locator('.sport-progress-bars .sport-weeks-col').count()) === 12);
   check('L’allure des footings a sa courbe', (await page.locator('.sport-trend svg').count()) >= 1);
+  const cadencePanel = page.locator('.sport-cadence');
+  check('La cadence : la moyenne des sorties qui en ont une, et à allure égale', (await text(cadencePanel)).includes('172 ppm') && (await cadencePanel.locator('.sport-cadence-bands li').count()) === 1, await text(cadencePanel));
   check('Le temps par zone a ses cinq zones et les sorties sans FC', (await page.locator('.sport-zone-legend li').count()) === 6);
   check('La prédiction au marathon est dite comme une estimation', (await text(page.locator('.sport-panel', { hasText: 'Prédiction au marathon' }))).includes('≈'));
   const recordLine = page.locator('.sport-record-history summary').first();

@@ -55,6 +55,7 @@ export async function summarizeFile(path: string, data: Uint8Array): Promise<Tra
         ...summary,
         avgHr: fit.session?.avgHr ?? summary.avgHr,
         maxHr: fit.session?.maxHr ?? summary.maxHr,
+        avgCadence: fit.session?.avgCadence ?? summary.avgCadence,
         elevationM: fit.session?.ascentM ?? summary.elevationM,
       };
     }
