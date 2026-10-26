@@ -151,6 +151,50 @@ export async function run({ browser, check, BASE }) {
       'Le héros affiche son champ d’étoiles',
       (await authPage.locator('.lp-starfield canvas').count()) === 1,
     );
+    // Remise à jour du 26/10/2026 : les démos s'essaient sans compte depuis
+    // la page, les modules disent ce qu'ils font les uns chez les autres, et
+    // ce que le socle apporte à tous a sa section.
+    const demoLinks = await authPage.locator('.lp-module-demo').evaluateAll((els) =>
+      els.map((el) => el.getAttribute('href') ?? ''),
+    );
+    check(
+      'Les modules qui ont une démo la proposent depuis la page d’accueil',
+      demoLinks.length >= 3 && demoLinks.every((href) => /\?demo=[a-z]+#\/[a-z]+$/.test(href)),
+      demoLinks.join(' | '),
+    );
+    check(
+      'La page dit comment les modules se parlent',
+      (await authPage.locator('.lp-link').count()) >= 3,
+      String(await authPage.locator('.lp-link').count()),
+    );
+    check(
+      'La page dit ce qu’Atlas fait pour tous les modules',
+      (await authPage.locator('.lp-feature').count()) === 6,
+    );
+    {
+      const phone = await browser.newContext({ viewport: { width: 320, height: 640 } });
+      const p = await phone.newPage();
+      await p.goto(process.env.AUTH_BASE);
+      await p.waitForSelector('.lp-hero');
+      const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      check('La page d’accueil ne déborde pas sur un petit téléphone', overflow <= 0, String(overflow));
+      await phone.close();
+    }
+    // Essayer une démo depuis la page : sans compte, sur des exemples.
+    {
+      const demoContext = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+      const demoPage = await demoContext.newPage();
+      await demoPage.goto(process.env.AUTH_BASE);
+      await demoPage.waitForSelector('.lp-module-demo');
+      await demoPage.locator('.lp-module-demo').first().click();
+      await demoPage.waitForSelector('.atlas-demo-bar', { timeout: 10000 }).catch(() => {});
+      check(
+        'Une démo ouverte depuis la page d’accueil s’ouvre sans compte',
+        (await demoPage.locator('.atlas-demo-bar').count()) === 1 &&
+          (await demoPage.locator('.lp-hero').count()) === 0,
+      );
+      await demoContext.close();
+    }
 
     // Chaque bouton de la présentation doit ouvrir le formulaire qu'il annonce.
     // « Créer mon compte » qui tombait sur la connexion obligeait à recliquer

@@ -300,3 +300,171 @@
     transition: none;
   }
 }
+
+/* ===================================== ajouts du 26/10/2026 (page remise à jour) */
+
+/* Les chiffres en bref sous le héros : une ligne de repères, pas des cartes. */
+.lp-facts {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 22px;
+  margin: 34px 0 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.lp-facts li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.lp-facts li + li::before {
+  content: '·';
+  margin-right: 17px;
+  color: var(--border-strong);
+}
+
+.lp-facts b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.lp-section-sub {
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 520px;
+  margin: 12px auto 0;
+}
+
+.lp-module-demo {
+  align-self: flex-start;
+  color: var(--accent);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  padding-bottom: 1px;
+}
+
+.lp-module-demo:hover {
+  border-bottom-color: var(--accent);
+}
+
+.lp-module-demo span {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.lp-module-demo:hover span {
+  transform: translateX(3px);
+}
+
+/* --------------------------------------------------- les modules se parlent */
+.lp-links {
+  padding-bottom: 76px;
+}
+
+.lp-links-list {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  max-width: 860px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 12px;
+}
+
+.lp-link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  padding: 14px 16px;
+}
+
+.lp-link-pair {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.lp-link-end {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.lp-link-arrow {
+  color: var(--text-faint);
+}
+
+.lp-link-text {
+  font-size: 13.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ------------------------------------------------------- pour tous les modules */
+.lp-features {
+  padding-bottom: 76px;
+}
+
+.lp-features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 26px 30px;
+}
+
+.lp-feature-icon {
+  font-size: 22px;
+}
+
+.lp-feature-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  margin: 10px 0 6px;
+}
+
+.lp-feature-text {
+  font-size: 13.5px;
+  color: var(--text-dim);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.lp-final-sub {
+  color: var(--text-dim);
+  font-size: 14.5px;
+  margin: -12px 0 24px;
+}
+
+@media (max-width: 560px) {
+  .lp-links-list {
+    grid-template-columns: 1fr;
+  }
+  /* Sur deux lignes, un « · » se retrouverait seul en tête de la seconde. */
+  .lp-facts li + li::before {
+    content: none;
+  }
+  .lp-facts {
+    gap: 6px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-module-demo span {
+    transition: none;
+  }
+}

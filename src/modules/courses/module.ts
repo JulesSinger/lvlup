@@ -23,6 +23,9 @@ export const coursesModule: AtlasModule = {
   data: coursesStore,
   Screen: CoursesScreen,
   LandingPreview: CometeLandingPreview,
+  landingLinks: [
+    { to: 'budget', text: 'Une course terminée devient une dépense, détaillée par typologie : essentiel, plaisir, hygiène…' },
+  ],
   // La démo (15/10/2026) : des exemples et une visite, proposées à la première ouverture.
   demo: coursesDemo,
   // Les courses faites, en calque dans le calendrier (Éclipse).

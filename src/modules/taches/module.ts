@@ -32,6 +32,9 @@ export const tachesModule: AtlasModule = {
     calendarSources: [{ ...createCalendarSource(tachesStore, () => syncReminders()), Editor: CalendarTaskEditor, createLabel: 'Tâche' }],
   },
   LandingPreview: PolarisLandingPreview,
+  landingLinks: [
+    { to: 'calendrier', text: "Tes tâches datées s'affichent dans l'agenda, et s'y cochent ou s'y déplacent." },
+  ],
   // La démo (15/10/2026) : des exemples et une visite, proposées à la première ouverture.
   demo: tachesDemo,
 };

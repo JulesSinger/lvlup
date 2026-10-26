@@ -21,5 +21,9 @@ export const sportModule: AtlasModule = {
   data: sportStore,
   Screen: SportScreen,
   LandingPreview: SportLandingPreview,
+  landingLinks: [
+    { to: 'objectifs', text: 'Chaque jour couru coche ton objectif, kilomètres compris.' },
+    { to: 'calendrier', text: "Les séances du plan marathon se posent dans l'agenda." },
+  ],
   provides: { calendarSources: [createCalendarSource(sportStore, () => syncReminders())] },
 };

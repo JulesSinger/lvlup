@@ -22,6 +22,10 @@ export const recettesModule: AtlasModule = {
   data: recettesStore,
   Screen: RecettesScreen,
   LandingPreview: RecettesLandingPreview,
+  landingLinks: [
+    { to: 'courses', text: "Les ingrédients d'une recette partent sur la liste, après ta relecture." },
+    { to: 'calendrier', text: "Le menu de la semaine s'affiche midi et soir." },
+  ],
   // La démo (15/10/2026) : des exemples et une visite, proposées à la première ouverture.
   demo: recettesDemo,
   provides: { calendarSources: [createCalendarSource(recettesStore)] },

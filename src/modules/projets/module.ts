@@ -25,4 +25,7 @@ export const projetsModule: AtlasModule = {
   // un geste dans le calendrier recalcule les rappels, comme dans l'écran.
   provides: { calendarSources: [createCalendarSource(projetsStore, () => syncReminders())] },
   LandingPreview: ProjetsLandingPreview,
+  landingLinks: [
+    { to: 'budget', text: 'Un paiement client reçu arrive en entrée, prêt pour le livre des recettes.' },
+  ],
 };

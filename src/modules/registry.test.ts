@@ -20,4 +20,17 @@ describe('le registre des modules', () => {
     expect(new Set(MODULES.map((m) => m.label)).size).toBe(MODULES.length);
     expect(new Set(MODULES.map((m) => m.emoji)).size).toBe(MODULES.length);
   });
+
+  // La page d'accueil (26/10/2026) montre ce qu'un module fait chez un autre :
+  // une phrase qui viserait un identifiant mal écrit disparaîtrait sans bruit.
+  it('chaque lien annoncé sur la page d’accueil vise un autre module du registre', () => {
+    const ids = new Set(MODULES.map((m) => m.id));
+    for (const module of MODULES) {
+      for (const link of module.landingLinks ?? []) {
+        expect(ids.has(link.to), `${module.id} → ${link.to}`).toBe(true);
+        expect(link.to).not.toBe(module.id);
+        expect(link.text.length).toBeGreaterThan(10);
+      }
+    }
+  });
 });

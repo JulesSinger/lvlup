@@ -100,6 +100,16 @@ export interface ModuleDemo {
   tour: TourStep[];
 }
 
+/**
+ * Ce qu'un module fait chez un autre, dit en une phrase pour la page
+ * d'accueil publique (26/10/2026). `to` est l'identifiant technique du module
+ * visé : un lien vers un module absent du registre n'est pas montré.
+ */
+export interface ModuleLink {
+  to: string;
+  text: string;
+}
+
 export interface AtlasModule {
   /**
    * Nom technique : dossier, préfixe des tables et des classes CSS, clé dans
@@ -159,4 +169,10 @@ export interface AtlasModule {
   forgetDevice?(): void | Promise<void>;
   /** La démo du module (15/10/2026) : proposée à la première ouverture, rejouable. */
   demo?: ModuleDemo;
+  /**
+   * Ce que le module envoie aux autres, en clair, pour la section « Les
+   * modules se parlent » de la page d'accueil. Le module le dit de lui-même,
+   * comme sa description : la page ne connaît aucun domaine.
+   */
+  landingLinks?: ModuleLink[];
 }

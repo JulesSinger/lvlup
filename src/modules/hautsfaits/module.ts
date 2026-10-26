@@ -23,5 +23,8 @@ export const hautsfaitsModule: AtlasModule = {
   Screen: HautsFaitsScreen,
   SettingsSection: HautsFaitsSettingsSection,
   LandingPreview: HautsFaitsLandingPreview,
+  landingLinks: [
+    { to: 'calendrier', text: 'Les anniversaires de tes grands moments reviennent chaque année.' },
+  ],
   provides: { calendarSources: [createCalendarSource(hautsFaitsStore)] },
 };
