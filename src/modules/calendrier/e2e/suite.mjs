@@ -382,6 +382,47 @@ export async function run({ browser, check, BASE }) {
   for (let i = 0; i < 7; i++) standup.push(await dayColumn(page, weekDay(i)).locator('.fc-timegrid-event', { hasText: 'Standup' }).count());
   check('La série est là du lundi au vendredi, pas le week-end', standup.join('') === '1111100', standup.join(''));
 
+  // --- Les variantes : au bureau ou en télétravail (26/10/2026) -------------------------------
+  const standupOn = (i) => dayColumn(page, weekDay(i)).locator('.fc-timegrid-event', { hasText: 'Standup' });
+  await standupOn(0).click();
+  await page.waitForSelector('.calendrier-editor');
+  await page.getByRole('button', { name: '+ Ajouter une variante' }).click();
+  await page.getByLabel('Nom de la variante 1').fill('Bureau');
+  await page.getByRole('button', { name: '+ Ajouter une variante' }).click();
+  await page.getByLabel('Nom de la variante 2').fill('Télétravail');
+  await page.getByRole('group', { name: 'Jours de la variante Télétravail' }).getByRole('button', { name: 'vendredi' }).click();
+  await page.getByRole('radiogroup', { name: 'Couleur de la variante Télétravail' }).getByRole('radio', { name: 'Vert' }).click();
+  check('« Ce jour-là » propose chaque variante, et aucune', (await page.getByRole('radiogroup', { name: 'Variante de ce jour-là' }).getByRole('radio').allTextContents()).join('|') === 'Sans variante|Bureau|Télétravail');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForSelector('.calendrier-scope');
+  await page.locator('.calendrier-scope').getByRole('button', { name: 'Tous les événements', exact: true }).click();
+  await page.waitForSelector('.calendrier-editor', { state: 'detached' });
+  await standupOn(4).filter({ hasText: 'Télétravail' }).waitFor();
+  check('Une variante prise d’office un jour se lit dans le titre de ce jour-là', (await text(standupOn(4))).includes('Standup · Télétravail'), await text(standupOn(4)));
+  check('… dans sa couleur', ((await standupOn(4).getAttribute('class')) ?? '').includes('calendrier-event-vert'));
+  check('… et pas les autres jours', !(await text(standupOn(1))).includes('Télétravail'));
+
+  await standupOn(2).click();
+  await page.waitForSelector('.calendrier-editor');
+  await page.getByRole('radiogroup', { name: 'Variante de ce jour-là' }).getByRole('radio', { name: 'Télétravail' }).click();
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  // Seule la variante du jour a changé : rien à demander.
+  await page.waitForSelector('.calendrier-editor', { state: 'detached' });
+  check('Choisir la variante d’un seul jour ne demande pas « lequel »', (await page.locator('.calendrier-scope').count()) === 0);
+  await standupOn(2).filter({ hasText: 'Télétravail' }).waitFor();
+  check('… et ne change que ce jour-là', (await text(standupOn(2))).includes('Télétravail') && !(await text(standupOn(3))).includes('Télétravail'));
+  const savedVariants = await page.evaluate(() => {
+    const raw = JSON.parse(localStorage.getItem('palier.v1') ?? '{}');
+    const ev = raw.calendarEvents.find((e) => e.title === 'Standup');
+    return { variants: ev.variants.map((v) => v.name), choice: raw.calendarExceptions.filter((x) => x.eventId === ev.id).map((x) => x.override) };
+  });
+  check('La série garde ses variantes, le jour son choix', savedVariants.variants.join('|') === 'Bureau|Télétravail' && savedVariants.choice.length === 1 && Object.keys(savedVariants.choice[0]).join() === 'variant', JSON.stringify(savedVariants));
+  await standupOn(2).click();
+  await page.waitForSelector('.calendrier-editor');
+  check('Rouvert, le jour montre sa variante', (await page.getByRole('radio', { name: 'Télétravail' }).getAttribute('aria-checked')) === 'true');
+  await page.getByRole('button', { name: 'Annuler' }).click();
+  await page.waitForSelector('.calendrier-editor', { state: 'detached' });
+
   await page.getByRole('button', { name: 'Nouvel événement' }).click();
   await page.waitForSelector('.calendrier-editor');
   await page.locator('#calendrier-repeat').selectOption('monthly');

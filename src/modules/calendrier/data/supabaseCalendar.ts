@@ -10,6 +10,7 @@ import {
   type EventInput,
   type EventOverride,
   type ExceptionKind,
+  type EventVariant,
   type Recurrence,
 } from '../lib/types';
 import type { ImportedEvent } from '../lib/ics';
@@ -32,6 +33,8 @@ interface EventRow {
   source_uid?: string | null;
   /** Absente tant que la migration du 14/10/2026 n'est pas appliquée. */
   work?: boolean;
+  /** Absente tant que la migration du 26/10/2026 n'est pas appliquée. */
+  variants?: EventVariant[];
   created_at: string;
 }
 
@@ -63,6 +66,7 @@ const toEvent = (r: EventRow): CalendarEvent => ({
   reminders: r.reminders ?? null,
   sourceUid: r.source_uid ?? null,
   work: r.work ?? false,
+  variants: r.variants ?? [],
   createdAt: r.created_at,
 });
 
@@ -76,7 +80,7 @@ const toException = (r: ExceptionRow): EventException => ({
 });
 
 /** Colonnes d'un événement, pour les seuls champs présents dans `patch`. */
-function eventColumns(patch: Partial<EventInput>): Record<string, unknown> {
+function eventColumns(patch: Partial<EventInput>, insert = false): Record<string, unknown> {
   const row: Record<string, unknown> = {};
   if (patch.title !== undefined) row.title = patch.title;
   if (patch.allDay !== undefined) row.all_day = patch.allDay;
@@ -92,6 +96,9 @@ function eventColumns(patch: Partial<EventInput>): Record<string, unknown> {
   if (patch.reminders !== undefined) row.reminders = patch.reminders;
   if (patch.sourceUid !== undefined) row.source_uid = patch.sourceUid;
   if (patch.work !== undefined) row.work = patch.work;
+  // Un événement créé sans variante n'écrit pas la colonne (son défaut) : avant
+  // la migration du 26/10/2026, créer un événement ne casse pas.
+  if (patch.variants !== undefined && (patch.variants.length > 0 || !insert)) row.variants = patch.variants;
   // Journée entière : pas d'heure, sinon la contrainte de la base refuse.
   if (patch.allDay === true) {
     row.start_time = null;
@@ -129,7 +136,7 @@ export class SupabaseCalendar implements CalendarStore {
     const row = unwrap(
       await this.client
         .from('calendar_events')
-        .insert({ user_id: userId, timezone: deviceTimezone(), ...eventColumns(input) })
+        .insert({ user_id: userId, timezone: deviceTimezone(), ...eventColumns(input, true) })
         .select()
         .single(),
     ) as EventRow;
@@ -227,7 +234,7 @@ export class SupabaseCalendar implements CalendarStore {
       const rows = unwrap(
         await this.client
           .from('calendar_events')
-          .insert(chunk.map((item) => ({ user_id: userId, ...eventColumns({ ...item.event, sourceUid: item.uid }) })))
+          .insert(chunk.map((item) => ({ user_id: userId, ...eventColumns({ ...item.event, sourceUid: item.uid }, true) })))
           .select('id, source_uid'),
       ) as { id: string; source_uid: string }[];
       const idOf = new Map(rows.map((r) => [r.source_uid, r.id]));
@@ -274,7 +281,7 @@ export class SupabaseCalendar implements CalendarStore {
       const row = unwrap(
         await this.client
           .from('calendar_events')
-          .insert({ user_id: userId, ...eventColumns(event) })
+          .insert({ user_id: userId, ...eventColumns(event, true) })
           .select('id')
           .single(),
       ) as { id: string };

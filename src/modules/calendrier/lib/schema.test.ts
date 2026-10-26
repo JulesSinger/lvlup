@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FREQUENCIES } from '../../../core/lib/recurrence';
+import { VARIANTS_MAX } from './variants';
 import { ALL_DAY_REMINDERS, EVENT_COLORS, EXCEPTION_KINDS, MAX_REMINDERS, REMINDER_OFFSETS, TIMED_REMINDERS } from './types';
 
 /**
@@ -55,5 +56,10 @@ describe('le type et la base disent la même chose (Éclipse)', () => {
     expect(numbers(event![2])).toEqual(sorted(REMINDER_OFFSETS));
     expect(numbers(/timed_reminders <@ array\[([^\]]*)\]/.exec(sql)![1])).toEqual(sorted(TIMED_REMINDERS));
     expect(numbers(/all_day_reminders <@ array\[([^\]]*)\]/.exec(sql)![1])).toEqual(sorted(ALL_DAY_REMINDERS));
+  });
+
+  it('le nombre de variantes d’une série (26/10/2026)', () => {
+    const sql = readFileSync(join(SQL_DIR, '2026-10-26-calendar-variants.sql'), 'utf8');
+    expect(Number(/jsonb_array_length\(variants\) <= (\d+)/.exec(sql)![1])).toBe(VARIANTS_MAX);
   });
 });

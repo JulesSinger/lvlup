@@ -24,10 +24,19 @@ const occurrence = (overrides: Partial<Occurrence> = {}): Occurrence => ({
   work: false,
   recurring: false,
   modified: false,
+  variant: null,
   ...overrides,
 });
 
 describe('toCalendarItem', () => {
+  it('une variante se lit dans le titre, et prend sa couleur si elle en a une (26/10/2026)', () => {
+    const tt = { id: 'tt', name: '🏠 Télétravail', color: 'vert' as const, weekdays: [] };
+    expect(toCalendarItem(occurrence({ title: 'Travail', variant: tt }))).toMatchObject({ title: 'Travail · 🏠 Télétravail', classNames: ['calendrier-event-vert', 'calendrier-event-variant'] });
+    expect(toCalendarItem(occurrence({ title: 'Travail', variant: { ...tt, color: null } })).classNames[0]).toBe('calendrier-event-bleu');
+    // En mode travail, un événement perso reste « Occupé », variante ou pas.
+    expect(toCalendarItem(occurrence({ variant: tt }), true).title).toBe('Occupé');
+  });
+
   it('une occurrence ponctuelle : dates locales, couleur, déplaçable', () => {
     expect(toCalendarItem(occurrence())).toEqual({
       id: 'e1|2026-09-29',

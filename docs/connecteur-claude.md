@@ -248,6 +248,11 @@ s'applique à la série, et la nouvelle série est créée avant que l'ancienne 
 heure sans fin donne une heure ; 22 h → 1 h passe au lendemain. Les jours de la semaine d'une
 répétition : **0 = dimanche** (la convention du moteur).
 
+**Les variantes** (26/10/2026, `docs/etude-calendrier.md` §22) : `variants` dans `calendrier_ajouter`
+et `calendrier_modifier` (la liste entière, pour toute la série), la variante de chaque occurrence
+dans `calendrier_evenements`, et **`calendrier_variante`** pour choisir celle de un à 31 jours, sans
+question de portée — « je suis en télétravail mardi et jeudi ».
+
 ## 15. Objectifs
 
 `objectifs.ts` : `objectifs_resume` (rang, prochain palier et sa progression — `tierProgress`

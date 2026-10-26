@@ -18,7 +18,7 @@
  */
 import type { Tool, ToolResult } from './mcp.ts';
 import { zonedDay, zonedInstant } from './zone.ts';
-import { daysBetween, describeRecurrence, ruleDays, shiftDay, splitSeries, validateRecurrence, FREQUENCIES, type Recurrence } from './recurrence.ts';
+import { daysBetween, describeRecurrence, ruleDays, shiftDay, splitSeries, validateRecurrence, weekday, FREQUENCIES, type Recurrence } from './recurrence.ts';
 
 export const EVENT_COLORS = ['bleu', 'vert', 'orange', 'rose', 'violet', 'gris'] as const;
 export const TIMED_REMINDERS = [0, 5, 10, 15, 30, 60, 120, 1440] as const;
@@ -47,15 +47,76 @@ export interface CalendarEvent {
   reminders: number[] | null;
   /** « Travail » (14/10/2026), pour toute la série ; absent : personnel. */
   work?: boolean;
+  /** Les variantes de la série (26/10/2026) ; absent : aucune. */
+  variants?: EventVariant[];
   createdAt: string;
 }
 
 export type EventInput = Pick<CalendarEvent, 'title' | 'allDay' | 'startDay' | 'endDay' | 'startTime' | 'endTime'> &
-  Partial<Pick<CalendarEvent, 'timezone' | 'recurrence' | 'color' | 'location' | 'note' | 'reminders' | 'work'>>;
+  Partial<Pick<CalendarEvent, 'timezone' | 'recurrence' | 'color' | 'location' | 'note' | 'reminders' | 'work' | 'variants'>>;
 
 export type EventOverride = Partial<
   Pick<CalendarEvent, 'title' | 'allDay' | 'startDay' | 'endDay' | 'startTime' | 'endTime' | 'color' | 'location' | 'note' | 'reminders'>
->;
+> & { variant?: string | null };
+
+// --- Variantes (copie de `lib/variants.ts`) ------------------------------------
+
+export interface EventVariant {
+  id: string;
+  name: string;
+  color: EventColor | null;
+  weekdays: number[];
+}
+
+export const VARIANTS_MAX = 6;
+export const VARIANT_NAME_MAX = 40;
+
+export function defaultVariantId(variants: readonly EventVariant[] | undefined, day: string): string | null {
+  const wd = weekday(day);
+  return (variants ?? []).find((v) => v.weekdays.includes(wd))?.id ?? null;
+}
+
+export function variantOf(variants: readonly EventVariant[] | undefined, day: string, chosen: string | null | undefined): EventVariant | null {
+  const list = variants ?? [];
+  if (chosen === null) return null;
+  const picked = chosen === undefined ? undefined : list.find((v) => v.id === chosen);
+  if (picked) return picked;
+  const id = defaultVariantId(list, day);
+  return list.find((v) => v.id === id) ?? null;
+}
+
+const foldName = (s: string) => s.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+const nameWords = (s: string) => foldName(s).replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+export function findVariant(variants: readonly EventVariant[] | undefined, name: string): EventVariant | undefined {
+  const list = variants ?? [];
+  return list.find((v) => foldName(v.name) === foldName(name)) ?? (nameWords(name) ? list.find((v) => nameWords(v.name) === nameWords(name)) : undefined);
+}
+
+export function validateVariants(variants: readonly EventVariant[] | undefined): string | null {
+  const list = variants ?? [];
+  if (list.length > VARIANTS_MAX) return `${VARIANTS_MAX} variantes au plus.`;
+  const names = new Set<string>();
+  const days = new Set<number>();
+  for (const v of list) {
+    if (!v.id || v.id.length > 40) return 'Une variante n’a pas d’identifiant.';
+    const name = v.name.trim();
+    if (!name) return 'Donne un nom à chaque variante.';
+    if (name.length > VARIANT_NAME_MAX) return `Le nom d’une variante est trop long (${VARIANT_NAME_MAX} caractères au plus).`;
+    if (names.has(foldName(name))) return `Deux variantes s’appellent « ${name} ».`;
+    names.add(foldName(name));
+    if (v.color !== null && !(EVENT_COLORS as readonly string[]).includes(v.color)) return 'Choisis la couleur d’une variante dans la liste.';
+    for (const d of v.weekdays) {
+      if (!Number.isInteger(d) || d < 0 || d > 6) return 'Un jour de variante n’existe pas.';
+      if (days.has(d)) return 'Un même jour ne peut être d’office que dans une variante.';
+      days.add(d);
+    }
+  }
+  return null;
+}
+
+export const newVariantId = () => Math.random().toString(36).slice(2, 10);
 
 export interface EventException {
   id: string;
@@ -97,6 +158,7 @@ export interface Occurrence {
   recurring: boolean;
   modified: boolean;
   work: boolean;
+  variant: EventVariant | null;
 }
 
 export const baseOccurrence = (event: CalendarEvent, day: string): Occurrence => occurrenceOf(event, day, null);
@@ -119,9 +181,12 @@ function occurrenceOf(event: CalendarEvent, day: string, override: EventOverride
     recurring: event.recurrence !== null,
     modified: override !== null,
     work: event.work ?? false,
+    variant: variantOf(event.variants, day, override?.variant),
   };
   if (!override) return base;
-  const merged = { ...base, ...override };
+  const { variant: _chosen, ...fields } = override;
+  if (Object.keys(fields).length === 0) return { ...base, modified: false };
+  const merged = { ...base, ...fields };
   if (merged.allDay) {
     merged.startTime = null;
     merged.endTime = null;
@@ -183,6 +248,8 @@ export function validateEvent(input: EventInput): string | null {
   }
   const reminders = validateReminders(input.reminders ?? null);
   if (reminders) return reminders;
+  const variants = validateVariants(input.variants);
+  if (variants) return variants;
   return input.recurrence ? validateRecurrence(input.recurrence, input.startDay) : null;
 }
 
@@ -198,21 +265,38 @@ export function validateReminders(reminders: readonly number[] | null): string |
 
 export const SCOPES = ['this', 'following', 'all'] as const;
 export type Scope = (typeof SCOPES)[number];
-export type OccurrenceValues = Required<EventOverride> & { work?: boolean };
+/** Ce que la fenêtre montre d'une occurrence, exception appliquée. */
+export type OccurrenceValues = Required<Omit<EventOverride, 'variant'>> & { work?: boolean; variants?: EventVariant[] };
 
+/**
+ * Ce qu'on enregistre : un événement, et la variante choisie pour le jour
+ * touché (`variantId`, 26/10/2026) — absente, celle du jour ne change pas.
+ */
+export type EditInput = EventInput & { variantId?: string | null };
+
+/** Les écritures à faire, dans cet ordre : créer, modifier, poser, retirer, supprimer. */
 export interface SeriesPlan {
   create?: EventInput;
   update?: { id: string; patch: Partial<EventInput> };
   setException?: { eventId: string; occurrenceDay: string; kind: 'skip' | 'override'; override?: EventOverride };
+  /** Exceptions devenues sans objet */
   deleteExceptions: string[];
+  /**
+   * Les variantes choisies à la main, posées APRÈS les retraits sur la série
+   * nouvelle (`create`) s'il y en a une, sinon sur celle modifiée (`update`) :
+   * décaler une série ou la couper ne doit pas perdre les jours de télétravail.
+   */
+  carry?: { occurrenceDay: string; override: EventOverride }[];
   deleteEvent?: string;
 }
 
 const OVERRIDABLE = ['title', 'allDay', 'startDay', 'endDay', 'startTime', 'endTime', 'color', 'location', 'note', 'reminders'] as const;
-const PLAIN = ['title', 'color', 'location', 'note', 'allDay', 'startTime', 'endTime', 'reminders', 'work'] as const;
+const PLAIN = ['title', 'color', 'location', 'note', 'allDay', 'startTime', 'endTime', 'reminders', 'work', 'variants'] as const;
 
+/** Les rappels sont une liste : deux listes égales ne sont pas le même objet. */
 const same = (a: unknown, b: unknown) => (Array.isArray(a) || Array.isArray(b) ? JSON.stringify(a ?? null) === JSON.stringify(b ?? null) : a === b);
 
+/** Une règle sans ses champs vides, jours de la semaine triés : deux règles égales s'écrivent pareil. */
 function normalizeRule(rule: Recurrence | null | undefined): string {
   if (!rule) return 'null';
   return JSON.stringify({
@@ -224,14 +308,22 @@ function normalizeRule(rule: Recurrence | null | undefined): string {
   });
 }
 
-export const sameRule = (a: Recurrence | null | undefined, b: Recurrence | null | undefined) => normalizeRule(a) === normalizeRule(b);
+export const sameRule = (a: Recurrence | null | undefined, b: Recurrence | null | undefined) =>
+  normalizeRule(a) === normalizeRule(b);
 
+/** Une journée entière n'a pas d'heure : on le dit une fois pour toutes, avant de comparer. */
 function normalize<T extends { allDay: boolean; startTime: string | null; endTime: string | null }>(v: T): T {
   return v.allDay ? { ...v, startTime: null, endTime: null } : v;
 }
 
-const exceptionsOf = (event: CalendarEvent, exceptions: readonly EventException[]) => exceptions.filter((x) => x.eventId === event.id);
+const exceptionsOf = (event: CalendarEvent, exceptions: readonly EventException[]) =>
+  exceptions.filter((x) => x.eventId === event.id);
 
+/**
+ * La série telle que la veut la fenêtre : les champs changés s'appliquent,
+ * les jours sont décalés d'autant que l'occurrence l'a été, et la durée en
+ * jours ne change que si on l'a changée.
+ */
 function reshaped(event: CalendarEvent, from: string, before: OccurrenceValues, after: EventInput) {
   const b = normalize(before);
   const a = normalize({ ...before, ...after });
@@ -246,47 +338,106 @@ function reshaped(event: CalendarEvent, from: string, before: OccurrenceValues, 
   return { changed, startDay, endDay: shiftDay(startDay, length), moved: shift !== 0 || length !== daysBetween(event.startDay, event.endDay) };
 }
 
+/**
+ * Les variantes choisies à la main à partir de `fromDay`, reportées d'autant
+ * de jours que la série a bougé (`shift`). Le jour touché prend `chosen` s'il
+ * est dit. Un choix égal à celui des jours n'est pas reporté : il n'en est
+ * pas un.
+ */
+function carried(
+  own: readonly EventException[],
+  fromDay: string,
+  shift: number,
+  variants: readonly EventVariant[] | undefined,
+  touched: { day: string; chosen: string | null | undefined },
+): { occurrenceDay: string; override: EventOverride }[] {
+  const choices = new Map<string, string | null>();
+  for (const x of own) {
+    const v = x.kind === 'override' ? x.override?.variant : undefined;
+    if (x.occurrenceDay >= fromDay && v !== undefined) choices.set(x.occurrenceDay, v);
+  }
+  if (touched.chosen !== undefined) choices.set(touched.day, touched.chosen);
+  const out: { occurrenceDay: string; override: EventOverride }[] = [];
+  for (const [day, variant] of [...choices].sort(([a], [b]) => a.localeCompare(b))) {
+    const occurrenceDay = shiftDay(day, shift);
+    if (variant !== defaultVariantId(variants, occurrenceDay)) out.push({ occurrenceDay, override: { variant } });
+  }
+  return out;
+}
+
 function checked(input: EventInput): EventInput {
   const problem = validateEvent(input);
   if (problem) throw new Error(problem);
   return input;
 }
 
+/**
+ * Enregistrer les valeurs `after` d'une occurrence (le jour `occurrenceDay`
+ * de la série), que la fenêtre affichait avec les valeurs `before`.
+ * Lève une erreur lisible si la série qui en résulterait n'a pas de sens.
+ */
 export function planEdit(
   event: CalendarEvent,
   exceptions: readonly EventException[],
   occurrenceDay: string,
   before: OccurrenceValues,
-  after: EventInput,
+  { variantId: chosen, ...after }: EditInput,
   scope: Scope,
 ): SeriesPlan {
   const own = exceptionsOf(event, exceptions);
+  const existing = own.find((x) => x.occurrenceDay === occurrenceDay);
+  const variants = after.variants ?? event.variants;
 
   if (scope === 'this') {
+    // L'exception décrit l'occurrence par rapport à la règle, pas par rapport
+    // à ce qu'une exception précédente disait : elle la remplace entière.
     const base = normalize(baseOccurrence(event, occurrenceDay));
     const next = normalize({ ...before, ...after, recurrence: undefined });
     const override: EventOverride = {};
     for (const f of OVERRIDABLE) if (!same(next[f], base[f])) (override as Record<string, unknown>)[f] = next[f];
+    // La variante du jour : celle choisie, sinon celle déjà choisie — jamais perdue en route.
+    const variant = chosen !== undefined ? chosen : existing?.override?.variant;
+    if (variant !== undefined && variant !== defaultVariantId(variants, occurrenceDay)) override.variant = variant;
     checked({ ...next, recurrence: null });
-    const existing = own.find((x) => x.occurrenceDay === occurrenceDay);
-    const work = after.work !== undefined && after.work !== (event.work ?? false) ? { update: { id: event.id, patch: { work: after.work } } } : {};
-    if (Object.keys(override).length === 0) return { ...work, deleteExceptions: existing ? [existing.id] : [] };
-    return { ...work, setException: { eventId: event.id, occurrenceDay, kind: 'override', override }, deleteExceptions: [] };
+    // « Travail » et les variantes valent pour toute la série (14/10, 26/10/2026) :
+    // changés sur une occurrence, ils changent la série.
+    const patch: Partial<EventInput> = {};
+    if (after.work !== undefined && after.work !== (event.work ?? false)) patch.work = after.work;
+    if (after.variants !== undefined && !same(after.variants, event.variants ?? [])) patch.variants = after.variants;
+    const series = Object.keys(patch).length > 0 ? { update: { id: event.id, patch } } : {};
+    if (Object.keys(override).length === 0) return { ...series, deleteExceptions: existing ? [existing.id] : [] };
+    return { ...series, setException: { eventId: event.id, occurrenceDay, kind: 'override', override }, deleteExceptions: [] };
   }
 
   const split = scope === 'following' ? splitSeries(event, occurrenceDay) : null;
 
   if (!split || split.before === null) {
+    // « Tous », ou « les suivants » depuis la toute première : la série entière.
     const { changed, startDay, endDay, moved } = reshaped(event, event.startDay, before, after);
     const patch: Partial<EventInput> = { ...changed };
     if (moved) Object.assign(patch, { startDay, endDay });
     const ruleChanged = !sameRule(after.recurrence, event.recurrence);
     if (ruleChanged) patch.recurrence = after.recurrence ?? null;
     checked({ ...event, ...patch });
-    const stale = startDay !== event.startDay || ruleChanged ? own.map((x) => x.id) : [];
-    return { update: { id: event.id, patch }, deleteExceptions: stale };
+    // Décaler la série ou changer sa règle rend ses exceptions sans objet :
+    // elles désignent des jours qui n'y sont plus.
+    if (startDay !== event.startDay || ruleChanged) {
+      const carry = carried(own, event.startDay, daysBetween(event.startDay, startDay), variants, { day: occurrenceDay, chosen });
+      return { update: { id: event.id, patch }, deleteExceptions: own.map((x) => x.id), ...(carry.length ? { carry } : {}) };
+    }
+    // Les exceptions restent : seule celle du jour touché change, si sa variante change.
+    const kept = existing?.kind === 'override' ? existing.override?.variant : undefined;
+    if (chosen === undefined || chosen === (kept !== undefined ? kept : defaultVariantId(variants, occurrenceDay))) {
+      return { update: { id: event.id, patch }, deleteExceptions: [] };
+    }
+    const { variant: _old, ...fields } = existing?.kind === 'override' ? (existing.override ?? {}) : {};
+    const override: EventOverride = chosen === defaultVariantId(variants, occurrenceDay) ? fields : { ...fields, variant: chosen };
+    if (Object.keys(override).length === 0) return { update: { id: event.id, patch }, deleteExceptions: existing ? [existing.id] : [] };
+    return { update: { id: event.id, patch }, deleteExceptions: [], carry: [{ occurrenceDay, override }] };
   }
 
+  // « Cet événement et les suivants » : la série s'arrête la veille, une
+  // nouvelle repart de cette occurrence avec les changements.
   const { changed, startDay, endDay } = reshaped(event, occurrenceDay, before, after);
   const recurrence = sameRule(after.recurrence, event.recurrence) ? split.after : (after.recurrence ?? null);
   const create = checked({
@@ -300,15 +451,18 @@ export function planEdit(
     reminders: event.reminders ?? null,
     timezone: event.timezone,
     work: event.work ?? false,
+    variants: event.variants ?? [],
     ...changed,
     startDay,
     endDay,
     recurrence,
   });
+  const carry = carried(own, occurrenceDay, daysBetween(occurrenceDay, startDay), create.variants, { day: occurrenceDay, chosen });
   return {
     create,
     update: { id: event.id, patch: { recurrence: split.before } },
     deleteExceptions: own.filter((x) => x.occurrenceDay >= occurrenceDay).map((x) => x.id),
+    ...(carry.length ? { carry } : {}),
   };
 }
 
@@ -474,6 +628,27 @@ function readReminders(v: unknown): number[] | null {
   return list;
 }
 
+/**
+ * Les variantes données par Claude : `[{ name, color?, weekdays? }]`, la liste
+ * entière. Une variante qui garde son nom garde son identifiant — et donc les
+ * jours qui l'ont déjà prise.
+ */
+export function readVariants(v: unknown, existing: readonly EventVariant[] | undefined): EventVariant[] {
+  if (!Array.isArray(v)) throw new Refused('variants : une liste de { name, color?, weekdays? }.');
+  const out = v.map((raw): EventVariant => {
+    if (!raw || typeof raw !== 'object') throw new Refused('variants : chaque variante est un objet { name, color?, weekdays? }.');
+    const r = raw as Record<string, unknown>;
+    const name = str(r.name, 'Le nom d’une variante', VARIANT_NAME_MAX).trim();
+    const color = r.color === undefined || r.color === null ? null : readColor(r.color);
+    const weekdays = r.weekdays === undefined ? [] : r.weekdays;
+    if (!Array.isArray(weekdays) || weekdays.some((d) => !Number.isInteger(d))) throw new Refused('weekdays : des jours de 0 (dimanche) à 6 (samedi).');
+    return { id: findVariant(existing, name)?.id ?? newVariantId(), name, color, weekdays: [...new Set(weekdays as number[])].sort() };
+  });
+  const problem = validateVariants(out);
+  if (problem) throw new Refused(problem);
+  return out;
+}
+
 function readColor(v: unknown): EventColor {
   if (!(EVENT_COLORS as readonly string[]).includes(String(v))) throw new Refused(`color : ${EVENT_COLORS.join(', ')}.`);
   return v as EventColor;
@@ -556,6 +731,8 @@ const occurrenceOut = (o: Occurrence, events: readonly CalendarEvent[]) => {
     reminders: o.reminders ?? 'défaut',
     repeat: e?.recurrence ? describeRecurrence(e.recurrence, e.startDay) : undefined,
     modified_occurrence: o.modified || undefined,
+    variant: o.variant?.name,
+    variants: e?.variants?.length ? e.variants.map((v) => ({ name: v.name, color: v.color ?? undefined, weekdays: v.weekdays.length ? v.weekdays : undefined })) : undefined,
   };
 };
 
@@ -565,6 +742,8 @@ async function applyPlan(data: CalendarData, plan: SeriesPlan, timezone: string)
   if (plan.update) await data.updateEvent(plan.update.id, plan.update.patch);
   if (plan.setException) await data.setException(plan.setException.eventId, plan.setException.occurrenceDay, plan.setException.kind, plan.setException.override);
   for (const x of plan.deleteExceptions) await data.deleteException(x);
+  const target = created?.id ?? plan.update?.id;
+  if (target) for (const c of plan.carry ?? []) await data.setException(target, c.occurrenceDay, 'override', c.override);
   if (plan.deleteEvent) await data.deleteEvent(plan.deleteEvent);
   return created;
 }
@@ -618,6 +797,13 @@ const FIELDS = {
     type: ['object', 'null'],
     description: 'Répétition : { freq: daily|weekly|monthly|yearly, interval?, by_weekday? (0 = dimanche, 1 = lundi … 6 = samedi), nth? (1-4 ou -1) + nth_weekday?, until? (AAAA-MM-JJ), count? }. null = ne se répète plus.',
   },
+  variants: {
+    type: 'array',
+    maxItems: VARIANTS_MAX,
+    description:
+      'Seulement pour un événement répété : ses variantes, la liste ENTIÈRE (elle remplace l’ancienne ; [] = aucune), pour toute la série. Chacune { name (« Bureau », « 🏠 Télétravail »), color? (une couleur de la liste, sinon celle de l’événement), weekdays? (jours où elle est prise d’office, 0 = dimanche … 6 = samedi ; un jour dans une seule variante) }. Une variante qui garde son nom garde les jours déjà choisis. Le choix d’un jour précis : calendrier_variante.',
+    items: { type: 'object', properties: { name: { type: 'string', maxLength: VARIANT_NAME_MAX }, color: { type: ['string', 'null'], enum: [...EVENT_COLORS, null] }, weekdays: { type: 'array', items: { type: 'integer', minimum: 0, maximum: 6 } } }, required: ['name'] },
+  },
 };
 
 export const calendarTools: Tool<CalendarContext>[] = [
@@ -663,6 +849,10 @@ export const calendarTools: Tool<CalendarContext>[] = [
       };
       const v = applyFields(empty, args);
       const input: EventInput = { ...v, timezone: ctx.timezone, recurrence: args.repeat === undefined ? null : readRepeat(args.repeat, v.startDay) };
+      if (args.variants !== undefined) {
+        if (!input.recurrence) throw new Refused('Les variantes sont pour un événement répété (repeat).');
+        input.variants = readVariants(args.variants, []);
+      }
       const problem = validateEvent(input);
       if (problem) throw new Refused(problem);
       const created = await ctx.data.createEvent(input);
@@ -674,7 +864,7 @@ export const calendarTools: Tool<CalendarContext>[] = [
     name: 'calendrier_modifier',
     title: 'Modifier un événement',
     description:
-      'Change un événement : titre, jour (le déplace), heures, lieu, note, couleur, rappels, répétition. Pour une série : occurrence_day et scope (cet_evenement, les_suivants, tous) — comme dans l’app, seul ce qui change est appliqué à la série. Ne donne que les champs à changer.',
+      'Change un événement : titre, jour (le déplace), heures, lieu, note, couleur, rappels, répétition, variantes (la liste, pour toute la série). Pour une série : occurrence_day et scope (cet_evenement, les_suivants, tous) — comme dans l’app, seul ce qui change est appliqué à la série. Ne donne que les champs à changer.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -703,10 +893,13 @@ export const calendarTools: Tool<CalendarContext>[] = [
         location: occurrence.location,
         note: occurrence.note,
         reminders: occurrence.reminders,
+        variants: event.variants ?? [],
       };
       const values = applyFields(before, args);
+      if (args.variants !== undefined) values.variants = readVariants(args.variants, event.variants);
       if (args.repeat !== undefined && scope === 'this') throw new Refused('Changer la répétition vaut pour les suivants ou toute la série, pas pour un seul événement.');
       const recurrence = args.repeat === undefined ? event.recurrence : readRepeat(args.repeat, scope === 'following' ? values.startDay : event.startDay);
+      if (args.variants !== undefined && !recurrence) throw new Refused('Les variantes sont pour un événement répété.');
       let plan: SeriesPlan;
       try {
         plan = planEdit(event, exceptions, occurrenceDay, before, { ...values, recurrence }, scope);
@@ -716,6 +909,67 @@ export const calendarTools: Tool<CalendarContext>[] = [
       await applyPlan(ctx.data, plan, event.timezone);
       const warning = await resync(ctx);
       return json({ message: scope === 'this' ? 'Cet événement est modifié.' : scope === 'following' ? 'Cet événement et les suivants sont modifiés.' : 'Événement modifié.', warning });
+    },
+  },
+  {
+    name: 'calendrier_variante',
+    title: 'Choisir la variante de certains jours',
+    description:
+      'Pour un événement répété qui a des variantes (« Travail » au bureau ou en télétravail…) : choisit la variante de un ou plusieurs jours, pour ces jours seulement — le reste de l’événement ne change pas, rien à demander sur la portée. variant = le nom d’une variante, ou null = sans variante ce jour-là ; reset: true = revenir à la variante prévue par ses jours. Les variantes et leurs jours d’office se règlent avec calendrier_modifier (variants).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        event_id: { type: 'string' },
+        days: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 31, description: 'AAAA-MM-JJ, des occurrences de la série (occurrence_day).' },
+        variant: { type: ['string', 'null'] },
+        reset: { type: 'boolean' },
+      },
+      required: ['event_id', 'days'],
+    },
+    annotations: { idempotentHint: true },
+    async run(args, ctx) {
+      const eventId = id(args.event_id);
+      const [events, exceptions] = await Promise.all([ctx.data.listEvents(), ctx.data.listExceptions()]);
+      const event = events.find((e) => e.id === eventId);
+      if (!event) throw new Refused('Aucun événement avec cet identifiant.');
+      if (!event.recurrence || !event.variants?.length) throw new Refused('Cet événement n’a pas de variantes : ajoute-les d’abord (calendrier_modifier, variants, scope tous).');
+      if (!Array.isArray(args.days) || args.days.length === 0 || args.days.length > 31) throw new Refused('days : de 1 à 31 jours.');
+      const reset = args.reset === true;
+      let chosen: string | null = null;
+      if (!reset) {
+        if (args.variant === undefined) throw new Refused('Donne variant (un nom, ou null pour aucune) ou reset: true.');
+        if (args.variant !== null) {
+          const found = findVariant(event.variants, str(args.variant, 'variant', VARIANT_NAME_MAX));
+          if (!found) throw new Refused(`Variante inconnue. Celles de « ${event.title} » : ${event.variants.map((v) => v.name).join(', ')}.`);
+          chosen = found.id;
+        }
+      }
+      const days = [...new Set(args.days.map((d) => day(d, 'days')))].sort();
+      for (const d of days) {
+        if (!ruleDays(event, d, d).includes(d)) throw new Refused(`Le ${d} n’est pas une occurrence de « ${event.title} ».`);
+        const own = exceptions.find((x) => x.eventId === event.id && x.occurrenceDay === d);
+        if (own?.kind === 'skip') throw new Refused(`L’occurrence du ${d} a été supprimée.`);
+      }
+      for (const d of days) {
+        const own = exceptions.find((x) => x.eventId === event.id && x.occurrenceDay === d);
+        const o = occurrenceOf(event, d, own?.kind === 'override' ? own.override : null);
+        const before: OccurrenceValues = {
+          title: o.title,
+          allDay: o.allDay,
+          startDay: o.startDay,
+          endDay: o.endDay,
+          startTime: o.startTime,
+          endTime: o.endTime,
+          color: o.color,
+          location: o.location,
+          note: o.note,
+          reminders: o.reminders,
+        };
+        const variantId = reset ? defaultVariantId(event.variants, d) : chosen;
+        await applyPlan(ctx.data, planEdit(event, exceptions, d, before, { ...before, recurrence: event.recurrence, variantId }, 'this'), event.timezone);
+      }
+      const what = reset ? 'la variante prévue par ses jours' : chosen === null ? 'sans variante' : `« ${findVariant(event.variants, String(args.variant))!.name} »`;
+      return json({ message: `« ${event.title} » : ${what}, ${days.length === 1 ? `le ${days[0]}` : `les ${days.join(', ')}`}.` });
     },
   },
   {

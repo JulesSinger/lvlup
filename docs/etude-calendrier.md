@@ -593,3 +593,43 @@ Jules a laissé le choix pour les événements. Retenu :
   modules visibles) ; celui de Tâches ne garde que les listes de travail.
 - Le connecteur de Claude (`atlas-mcp/calendar.ts`) garde le champ dans ses copies des règles
   (occurrences, modification d'une série), comparées au module par `mcpTools.test.ts`.
+
+## 22. Les variantes d'une série (26/10/2026)
+
+Demande de Jules : « un événement travail répété tous les jours de la semaine ; une variante
+"télétravail" — ça reste le même événement, mais que je sache les jours où je suis en TT ou au
+bureau. Il faut que le MCP puisse le modifier. »
+
+**Le modèle** (`lib/variants.ts`, pur et testé) :
+
+- Une série porte ses **variantes** (`calendar_events.variants`, jsonb, six au plus) :
+  `{ id, name, color, weekdays }`. Pour toute la série, comme « Travail ».
+- Une variante peut avoir des **jours d'office** (« Télétravail le lundi et le vendredi ») ; un jour
+  n'est d'office que dans une seule variante (sinon, laquelle ?).
+- Le **choix d'un jour** vit dans l'exception de l'occurrence (`override.variant`, l'identifiant ;
+  `null` = sans variante ce jour-là), et seulement s'il diffère de celui des jours. Aucune colonne
+  de plus côté exceptions : `override` est déjà du jsonb.
+- Un choix seul ne rend pas l'occurrence « modifiée ». Un choix vers une variante retirée depuis
+  retombe sur la règle des jours.
+- L'identifiant d'une variante est choisi par l'app : la renommer garde les jours qui l'ont prise.
+
+**À l'écran** : « Travail · 🏠 Télétravail » dans le calendrier, dans la couleur de la variante si
+elle en a une. Dans la fenêtre d'une série, la section « Variantes » (nom, jours d'office, couleur)
+et, pour l'occurrence touchée, « Ce jour-là ». **Ne changer que la variante du jour ne pose pas la
+question « cet événement / les suivants / tous »** : elle ne vaut que pour ce jour.
+
+**Les jours choisis ne se perdent pas** quand la série change (`SeriesPlan.carry`) : « les
+suivants » les reporte sur la nouvelle série, décaler toute la série les décale d'autant, et
+modifier autre chose ce jour-là garde sa variante. Avant, ces gestes effaçaient toutes les
+exceptions concernées — c'est voulu pour une heure ou un titre (la série change), pas pour un
+télétravail posé la semaine d'avant.
+
+**Le connecteur** : `variants` dans `calendrier_ajouter` et `calendrier_modifier` (la liste entière ;
+un nom gardé garde son identifiant), la variante de chaque occurrence dans `calendrier_evenements`, et
+un outil à part, **`calendrier_variante`** — plusieurs jours d'un coup, un nom (retrouvé sans casse,
+accents ni emoji : « télétravail » trouve « 🏠 Télétravail »), `null` pour aucune, `reset` pour revenir
+aux jours d'office. Règles recopiées, comparées par `mcpTools.test.ts`. Au passage, le connecteur ne
+lisait ni n'écrivait la colonne `work` : une série coupée par Claude perdait « Travail » — corrigé.
+
+Migration `2026-10-26-calendar-variants.sql`. Avant elle, rien ne casse tant qu'on ne crée pas de
+variante : la colonne n'est écrite que pour une série qui en a (ou qui en avait).

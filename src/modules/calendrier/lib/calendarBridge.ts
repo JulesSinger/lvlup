@@ -9,6 +9,7 @@ import type { CalendarMark, CalendarSource, MarkMove, MarkSlot } from '../../../
 import { dayString, shiftDay } from '../../../core/lib/day';
 import { occurrenceRange, type Occurrence } from './recurrence';
 import type { EventColor, EventInput } from './types';
+import { variantTitle } from './variants';
 
 /** « 09:05 » : l'heure LOCALE d'une date. */
 export function timeString(date: Date): string {
@@ -57,9 +58,14 @@ export function toCalendarItem(o: Occurrence, workMode = false): CalendarItem {
   }
   return {
     id: `${o.eventId}|${o.occurrenceDay}`,
-    title: o.title,
+    // La variante du jour (26/10/2026) : dans le titre, et dans sa couleur si elle en a une.
+    title: variantTitle(o.title, o.variant),
     ...occurrenceRange(o),
-    classNames: [`calendrier-event-${o.color}`, ...(o.recurring ? ['calendrier-event-recurring'] : [])],
+    classNames: [
+      `calendrier-event-${o.variant?.color ?? o.color}`,
+      ...(o.variant ? ['calendrier-event-variant'] : []),
+      ...(o.recurring ? ['calendrier-event-recurring'] : []),
+    ],
     extendedProps: { order: 0, eventId: o.eventId, occurrenceDay: o.occurrenceDay },
   };
 }

@@ -11,6 +11,7 @@
 import { daysBetween, shiftDay } from '../../../core/lib/day';
 import { ruleDays } from '../../../core/lib/recurrence';
 import type { CalendarEvent, EventException, EventOverride } from './types';
+import { variantOf, type EventVariant } from './variants';
 
 /** Une occurrence, telle que l'écran l'affiche. */
 export interface Occurrence {
@@ -34,6 +35,8 @@ export interface Occurrence {
   modified: boolean;
   /** Celle de sa série (14/10/2026) */
   work: boolean;
+  /** La variante du jour (26/10/2026), choisie ou d'office par ses jours */
+  variant: EventVariant | null;
 }
 
 /** L'occurrence d'un jour de la série, telle que la règle la donne, sans son exception éventuelle. */
@@ -58,9 +61,14 @@ function occurrenceOf(event: CalendarEvent, day: string, override: EventOverride
     recurring: event.recurrence !== null,
     modified: override !== null,
     work: event.work ?? false,
+    variant: variantOf(event.variants, day, override?.variant),
   };
   if (!override) return base;
-  const merged = { ...base, ...override };
+  // La variante n'est pas un champ de l'occurrence : elle a été lue plus haut.
+  const { variant: _chosen, ...fields } = override;
+  // Seule la variante choisie : l'occurrence n'est pas « modifiée ».
+  if (Object.keys(fields).length === 0) return { ...base, modified: false };
+  const merged = { ...base, ...fields };
   // Passer en journée entière efface les heures, comme la contrainte de la base.
   if (merged.allDay) {
     merged.startTime = null;

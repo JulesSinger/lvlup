@@ -24,7 +24,7 @@ function read(): Snapshot {
   return {
     // Un événement enregistré avant les rappels n'a pas le champ : il suit le défaut.
     // Ni la marque « travail » (14/10/2026) : un événement d'avant est personnel.
-    events: arrayOf<CalendarEvent>(raw.calendarEvents).map((e) => ({ ...e, reminders: e.reminders ?? null, work: e.work ?? false })),
+    events: arrayOf<CalendarEvent>(raw.calendarEvents).map((e) => ({ ...e, reminders: e.reminders ?? null, work: e.work ?? false, variants: e.variants ?? [] })),
     exceptions: arrayOf<EventException>(raw.calendarExceptions),
     settings,
   };
@@ -65,6 +65,7 @@ export class LocalCalendar implements CalendarStore {
       reminders: input.reminders ?? null,
       sourceUid: input.sourceUid ?? null,
       work: input.work ?? false,
+      variants: input.variants ?? [],
       createdAt: new Date().toISOString(),
     };
     s.events.push(event);

@@ -41,7 +41,7 @@ import { budgetTools, type BudgetData, type CategoryRow as BudgetCategoryRow, ty
 import { bilanTools, type BilanData } from './bilan.ts';
 import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from './recettes.ts';
 
-const VERSION = '2026-10-14.1';
+const VERSION = '2026-10-26.1';
 /** Le fuseau de Jules : « aujourd'hui » et la semaine en cours se comptent ici. */
 const TIME_ZONE = 'Europe/Paris';
 /** Une requête plus grosse est refusée avant d'être lue (une recette tient en quelques Ko). */
@@ -465,16 +465,21 @@ function calendarData(userId: string): CalendarData {
     location: r.location,
     note: r.note,
     reminders: r.reminders ?? null,
+    work: r.work ?? false,
+    // Absente avant la migration du 26/10/2026.
+    variants: r.variants ?? [],
     createdAt: r.created_at,
   });
-  const columns = (p: Partial<CalendarEventInput>) => {
+  const columns = (p: Partial<CalendarEventInput>, insert = false) => {
     const row: Record<string, unknown> = {};
     const map: [keyof CalendarEventInput, string][] = [
       ['title', 'title'], ['allDay', 'all_day'], ['startDay', 'start_day'], ['endDay', 'end_day'], ['startTime', 'start_time'],
       ['endTime', 'end_time'], ['timezone', 'timezone'], ['recurrence', 'recurrence'], ['color', 'color'], ['location', 'location'],
-      ['note', 'note'], ['reminders', 'reminders'],
+      ['note', 'note'], ['reminders', 'reminders'], ['work', 'work'],
     ];
     for (const [k, c] of map) if (p[k] !== undefined) row[c] = p[k];
+    // Sans variante, une création n'écrit pas la colonne : rien ne casse avant la migration.
+    if (p.variants !== undefined && (p.variants.length > 0 || !insert)) row.variants = p.variants;
     if (p.allDay === true) {
       row.start_time = null;
       row.end_time = null;
@@ -494,7 +499,7 @@ function calendarData(userId: string): CalendarData {
         | null;
       return row ? { timedReminders: row.timed_reminders, allDayReminders: row.all_day_reminders } : { timedReminders: [], allDayReminders: [] };
     },
-    createEvent: async (input) => toEvent(check(await t('calendar_events').insert({ ...columns(input), user_id: userId }).select('*').single()) as Record<string, any>),
+    createEvent: async (input) => toEvent(check(await t('calendar_events').insert({ ...columns(input, true), user_id: userId }).select('*').single()) as Record<string, any>),
     updateEvent: async (id, patch) => {
       check(await t('calendar_events').update(columns(patch)).eq('user_id', userId).eq('id', id));
     },
@@ -737,7 +742,7 @@ function serverInfo(day: string): ServerInfo {
       '- Courses (courses_*) : la liste, le catalogue, l’historique. Une photo de ticket de caisse : lis-la, puis courses_catalogue, puis courses_enregistrer_ticket.',
       '- Sport (sport_*) : la course à pied, le plan marathon, le renforcement et le vélo. Commence par sport_resume ; pour les séances d’une semaine, sport_semaine_programmer (elles remplacent celles de la semaine).',
       '- Tâches (taches_*) : la to-do list. Lis toi-même les dates (« demain 9 h » → planned_day et planned_time).',
-      '- Calendar (calendrier_*) : les rendez-vous et événements. Une série répétée se modifie ou se supprime pour cet événement, les suivants ou tous : demande si ce n’est pas clair.',
+      '- Calendar (calendrier_*) : les rendez-vous et événements. Une série répétée se modifie ou se supprime pour cet événement, les suivants ou tous : demande si ce n’est pas clair. Une série peut avoir des variantes (« Travail » au bureau ou en télétravail) : la variante d’un jour se choisit avec calendrier_variante, sans toucher au reste.',
       '- Objectifs (objectifs_*) : les habitudes et leurs paliers (rangs Fer → Challenger). « J’ai lu 30 pages » : objectifs_cocher avec la quantité. Un palier atteint est validé par l’app à son ouverture.',
       '- Flashcards (flashcards_*) : des paquets de cartes à réviser. « Fais-moi des cartes sur ce cours » : une idée par carte, recto court, verso précis, puis flashcards_cartes_ajouter.',
       '- Nutrition (nutrition_*) : le journal des repas, calories et macros. Cherche chaque aliment (nutrition_chercher) avant de l’ajouter ; une estimation seulement à défaut, dite comme telle.',

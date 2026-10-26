@@ -7,6 +7,7 @@ import { planDelete, planEdit, type OccurrenceValues } from './seriesEdit';
 import * as types from './types';
 import type { CalendarEvent, EventException } from './types';
 import { validateEvent } from './validation';
+import * as variants from './variants';
 
 // Les outils de Calendar du connecteur (docs/connecteur-claude.md §14) : la fonction recopie les
 // règles du module (occurrences, validation, séries, rappels) — chaque copie est comparée ici.
@@ -163,7 +164,94 @@ function memory(initial: CalendarEvent[] = [], initialExceptions: EventException
   return { list, xs, call, scheduled: () => scheduled };
 }
 
+// « Travail » du lundi au vendredi, télétravail d'office le lundi et le vendredi (26/10/2026).
+const job = event({
+  title: 'Travail',
+  startDay: '2026-10-12',
+  endDay: '2026-10-12',
+  startTime: '09:00',
+  endTime: '18:00',
+  recurrence: { freq: 'weekly', interval: 1, byWeekday: [1, 2, 3, 4, 5] },
+  variants: [
+    { id: 'b', name: 'Bureau', color: null, weekdays: [] },
+    { id: 'tt', name: '🏠 Télétravail', color: 'vert', weekdays: [1, 5] },
+  ],
+});
+const jobExceptions: EventException[] = [
+  { id: uuid(), eventId: job.id, occurrenceDay: '2026-10-14', kind: 'override', override: { variant: 'tt' }, createdAt: '' },
+  { id: uuid(), eventId: job.id, occurrenceDay: '2026-10-16', kind: 'override', override: { variant: 'b', note: 'réunion' }, createdAt: '' },
+];
+
+describe('connecteur — Calendar : les variantes suivent le module', () => {
+  it('mêmes bornes, mêmes règles', () => {
+    expect([server.VARIANTS_MAX, server.VARIANT_NAME_MAX]).toEqual([variants.VARIANTS_MAX, variants.VARIANT_NAME_MAX]);
+    for (const list of [job.variants, [{ id: 'a', name: 'A', color: null, weekdays: [1] }, { id: 'c', name: 'a', color: null, weekdays: [] }], [{ id: 'a', name: '', color: null, weekdays: [] }], [{ id: 'a', name: 'A', color: null, weekdays: [1] }, { id: 'c', name: 'C', color: null, weekdays: [1] }]])
+      expect(server.validateVariants(list)).toBe(variants.validateVariants(list));
+    for (const d of ['2026-10-12', '2026-10-13', '2026-10-18']) expect(server.defaultVariantId(job.variants, d)).toBe(variants.defaultVariantId(job.variants, d));
+    for (const name of ['teletravail', '🏠 télétravail', ' BUREAU', '🏠', 'plage'])
+      expect(server.findVariant(job.variants, name)).toEqual(variants.findVariant(job.variants, name));
+    expect(variants.findVariant(job.variants, 'teletravail')?.id).toBe('tt');
+  });
+
+  it('déplie et modifie pareil', () => {
+    expect(server.expandEvents([job], jobExceptions, '2026-10-12', '2026-10-30')).toEqual(expandEvents([job], jobExceptions, '2026-10-12', '2026-10-30'));
+    const o = expandEvents([job], jobExceptions, '2026-10-14', '2026-10-14')[0];
+    const before = { ...values(o), variants: job.variants };
+    const changes = [
+      { ...before, recurrence: job.recurrence, variantId: 'b' },
+      { ...before, recurrence: job.recurrence, startTime: '08:00', variantId: null },
+      { ...before, recurrence: job.recurrence, startDay: '2026-10-15', endDay: '2026-10-15' },
+      { ...before, recurrence: job.recurrence, variants: [job.variants![1]] },
+    ];
+    for (const after of changes)
+      for (const scope of ['this', 'following', 'all'] as const)
+        expect(server.planEdit(job, jobExceptions, '2026-10-14', before, after, scope)).toEqual(planEdit(job, jobExceptions, '2026-10-14', before, after, scope));
+  });
+});
+
 describe('connecteur — Calendar : les outils', () => {
+  it('les variantes : les définir, les lire, choisir celle de certains jours (26/10/2026)', async () => {
+    const m = memory();
+    await expect(m.call('calendrier_ajouter', { title: 'X', day: '2026-10-12', variants: [{ name: 'A' }] })).rejects.toThrow(/répété/);
+    await m.call('calendrier_ajouter', {
+      title: 'Travail',
+      day: '2026-10-12',
+      start_time: '09:00',
+      end_time: '18:00',
+      repeat: { freq: 'weekly', by_weekday: [1, 2, 3, 4, 5] },
+      variants: [{ name: 'Bureau' }, { name: '🏠 Télétravail', color: 'vert', weekdays: [5, 1] }],
+    });
+    const series = m.list[0];
+    expect(series.variants).toEqual([
+      { id: expect.any(String), name: 'Bureau', color: null, weekdays: [] },
+      { id: expect.any(String), name: '🏠 Télétravail', color: 'vert', weekdays: [1, 5] },
+    ]);
+    const read = async () =>
+      (await m.call('calendrier_evenements', { from: '2026-10-12', to: '2026-10-16' })).events.map((e: { day: string; variant?: string }) => `${e.day} ${e.variant ?? '—'}`);
+    expect(await read()).toEqual(['2026-10-12 🏠 Télétravail', '2026-10-13 —', '2026-10-14 —', '2026-10-15 —', '2026-10-16 🏠 Télétravail']);
+
+    const res = await m.call('calendrier_variante', { event_id: series.id, days: ['2026-10-14', '2026-10-13'], variant: 'télétravail ' });
+    expect(res.message).toMatch(/« 🏠 Télétravail », les 2026-10-13, 2026-10-14/);
+    await m.call('calendrier_variante', { event_id: series.id, days: ['2026-10-16'], variant: 'bureau' });
+    await m.call('calendrier_variante', { event_id: series.id, days: ['2026-10-12'], variant: null });
+    expect(await read()).toEqual(['2026-10-12 —', '2026-10-13 🏠 Télétravail', '2026-10-14 🏠 Télétravail', '2026-10-15 —', '2026-10-16 Bureau']);
+    await m.call('calendrier_variante', { event_id: series.id, days: ['2026-10-12', '2026-10-13'], reset: true });
+    expect(await read()).toEqual(['2026-10-12 🏠 Télétravail', '2026-10-13 —', '2026-10-14 🏠 Télétravail', '2026-10-15 —', '2026-10-16 Bureau']);
+    // Un choix seul n'est pas une occurrence modifiée, et le reste de l'événement ne bouge pas.
+    const wed = (await m.call('calendrier_evenements', { from: '2026-10-14', to: '2026-10-14' })).events[0];
+    expect(wed).toMatchObject({ title: 'Travail', start_time: '09:00', variant: '🏠 Télétravail' });
+    expect(wed.modified_occurrence).toBeUndefined();
+
+    await expect(m.call('calendrier_variante', { event_id: series.id, days: ['2026-10-17'], variant: 'Bureau' })).rejects.toThrow(/pas une occurrence/);
+    await expect(m.call('calendrier_variante', { event_id: series.id, days: ['2026-10-15'], variant: 'Plage' })).rejects.toThrow(/Bureau, 🏠 Télétravail/);
+
+    // Redéfinir les variantes garde celles qui gardent leur nom, et leurs jours choisis.
+    const ttId = series.variants![1].id;
+    await m.call('calendrier_modifier', { event_id: series.id, occurrence_day: '2026-10-15', scope: 'tous', variants: [{ name: '🏠 Télétravail', weekdays: [1] }] });
+    expect(m.list[0].variants).toEqual([{ id: ttId, name: '🏠 Télétravail', color: null, weekdays: [1] }]);
+    expect(await read()).toEqual(['2026-10-12 🏠 Télétravail', '2026-10-13 —', '2026-10-14 🏠 Télétravail', '2026-10-15 —', '2026-10-16 —']);
+  });
+
   it('ajoute un rendez-vous d’une heure, et pose son rappel à l’heure de Paris', async () => {
     const m = memory();
     const res = await m.call('calendrier_ajouter', { title: 'Dentiste', day: '2026-10-15', start_time: '14h', reminders: [30], location: 'Annecy' });

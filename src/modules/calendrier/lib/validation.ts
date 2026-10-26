@@ -5,6 +5,7 @@
  */
 import { validateRecurrence } from '../../../core/lib/recurrence';
 import { MAX_REMINDERS, REMINDER_OFFSETS, type EventInput } from './types';
+import { validateVariants } from './variants';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -25,6 +26,8 @@ export function validateEvent(input: EventInput): string | null {
   }
   const reminders = validateReminders(input.reminders ?? null);
   if (reminders) return reminders;
+  const variants = validateVariants(input.variants);
+  if (variants) return variants;
   return input.recurrence ? validateRecurrence(input.recurrence, input.startDay) : null;
 }
 

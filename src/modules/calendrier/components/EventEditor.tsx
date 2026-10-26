@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { COLOR_LABELS, type EventSpan } from '../lib/calendarBridge';
 import { daysBetween, shiftDay, weekday } from '../../../core/lib/day';
-import { sameRule, type Scope } from '../lib/seriesEdit';
+import { sameRule, type EditInput, type Scope } from '../lib/seriesEdit';
 import { effectiveReminders } from '../lib/reminders';
-import { ALL_DAY_REMINDERS, EVENT_COLORS, TIMED_REMINDERS, type CalendarSettings, type EventColor, type EventInput, type Recurrence } from '../lib/types';
+import { ALL_DAY_REMINDERS, EVENT_COLORS, TIMED_REMINDERS, type CalendarSettings, type EventColor, type Recurrence } from '../lib/types';
+import type { EventVariant } from '../lib/variants';
 import { validateEvent } from '../lib/validation';
 import { RecurrenceFields } from './RecurrenceFields';
 import { KindSwitch, type Kind } from './KindSwitch';
 import { ReminderPicker } from './ReminderPicker';
 import { ScopeDialog } from './ScopeDialog';
+import { VariantFields } from './VariantFields';
 
 export interface EditorValues extends EventSpan {
   title: string;
@@ -20,6 +22,10 @@ export interface EditorValues extends EventSpan {
   reminders: number[] | null;
   /** Un événement « travail » (14/10/2026), pour toute la série */
   work: boolean;
+  /** Les variantes de la série (26/10/2026) */
+  variants: EventVariant[];
+  /** La variante du jour touché (`null` : aucune) ; absente hors d'une occurrence */
+  variantId?: string | null;
 }
 
 interface Props {
@@ -27,6 +33,8 @@ interface Props {
   eventId: string | null;
   /** Une occurrence d'une série déjà enregistrée : enregistrer ou supprimer demande « laquelle ? » */
   inSeries: boolean;
+  /** Le jour de l'occurrence touchée dans sa série, pour choisir sa variante */
+  occurrenceDay?: string | null;
   initial: EditorValues;
   /** Les rappels par défaut, pour montrer ceux que l'événement prendra */
   defaults: CalendarSettings;
@@ -34,7 +42,7 @@ interface Props {
   local: boolean;
   onCancel: () => void;
   /** Rejette en cas d'échec : la fenêtre reste ouverte et remplie. `scope` : seulement pour une série. */
-  onSave: (input: EventInput, scope?: Scope) => Promise<void>;
+  onSave: (input: EditInput, scope?: Scope) => Promise<void>;
   onDelete?: (scope?: Scope) => Promise<void>;
   /**
    * À la création, ce qu'on peut créer d'autre sur le créneau (« Tâche »,
@@ -54,11 +62,11 @@ interface Props {
  * occurrence d'une série, enregistrer ou supprimer demande d'abord si c'est
  * cet événement, les suivants ou tous (`ScopeDialog`).
  */
-export function EventEditor({ eventId, inSeries, initial, defaults, local, onCancel, onSave, onDelete, kinds = [], onSwitchKind }: Props) {
+export function EventEditor({ eventId, inSeries, occurrenceDay = null, initial, defaults, local, onCancel, onSave, onDelete, kinds = [], onSwitchKind }: Props) {
   const [v, setV] = useState<EditorValues>(initial);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [asking, setAsking] = useState<null | { action: 'edit'; input: EventInput } | { action: 'delete' }>(null);
+  const [asking, setAsking] = useState<null | { action: 'edit'; input: EditInput } | { action: 'delete' }>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -111,13 +119,21 @@ export function EventEditor({ eventId, inSeries, initial, defaults, local, onCan
   }
 
   function submit() {
-    const input: EventInput = { ...v, title: v.title.trim(), location: v.location.trim(), note: v.note.trim() };
+    const { variantId, ...rest } = v;
+    const variants = v.recurrence ? v.variants.map((x) => ({ ...x, name: x.name.trim() })) : [];
+    const input: EditInput = { ...rest, variants, title: v.title.trim(), location: v.location.trim(), note: v.note.trim() };
+    // La variante du jour ne part que si on l'a changée : sinon, celle des jours décide.
+    const dayChanged = variantId !== undefined && variantId !== initial.variantId;
+    if (dayChanged) input.variantId = variantId;
     const problem = validateEvent(input);
     if (problem) {
       setError(problem);
       return;
     }
-    if (inSeries) setAsking({ action: 'edit', input });
+    // Seule la variante du jour a changé : elle ne vaut que pour ce jour, rien à demander.
+    const strip = ({ variantId: _d, ...x }: EditorValues) => JSON.stringify(x);
+    if (inSeries && dayChanged && strip(v) === strip(initial)) void run(() => onSave(input, 'this'));
+    else if (inSeries) setAsking({ action: 'edit', input });
     else void run(() => onSave(input));
   }
 
@@ -206,6 +222,16 @@ export function EventEditor({ eventId, inSeries, initial, defaults, local, onCan
           </div>
 
           <RecurrenceFields value={v.recurrence} startDay={v.startDay} onChange={(rule) => set('recurrence', rule)} />
+
+          {v.recurrence && (
+            <VariantFields
+              variants={v.variants}
+              onChange={(variants) => set('variants', variants)}
+              occurrenceDay={inSeries ? occurrenceDay : null}
+              variantId={v.variantId ?? null}
+              onChooseVariant={(id) => set('variantId', id)}
+            />
+          )}
 
           <ReminderPicker
             label="Rappels"

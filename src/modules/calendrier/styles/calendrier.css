@@ -760,3 +760,81 @@
   width: auto;
   margin-top: 3px;
 }
+
+/* --- Variantes d'une série (26/10/2026) ---------------------------------- */
+
+.calendrier-variants > label {
+  display: block;
+}
+
+.calendrier-variant-day {
+  margin: 4px 0 12px;
+}
+
+.calendrier-variant-day-label,
+.calendrier-variant-row-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.calendrier-variant-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.calendrier-variant-choice {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.calendrier-variant-choice.on {
+  background: color-mix(in srgb, var(--lavender) 20%, transparent);
+  border-color: var(--lavender);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.calendrier-variant {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.calendrier-variant-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.calendrier-variant-head input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.calendrier-variant-row .calendrier-weekdays {
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.calendrier-variant-row .calendrier-colors {
+  flex-wrap: wrap;
+}
+
+.calendrier-color-same {
+  background: transparent;
+  border: 2px dashed var(--text-dim);
+}
+
+.calendrier-variant-add {
+  align-self: flex-start;
+}

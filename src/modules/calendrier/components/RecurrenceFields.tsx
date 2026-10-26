@@ -22,7 +22,7 @@ const UNITS: Record<Frequency, [string, string]> = {
 };
 
 /** Lundi d'abord, comme le calendrier ; valeurs de `Date.getDay`. */
-const WEEKDAYS: { day: number; short: string; name: string }[] = [
+export const WEEKDAYS: { day: number; short: string; name: string }[] = [
   { day: 1, short: 'L', name: 'lundi' },
   { day: 2, short: 'M', name: 'mardi' },
   { day: 3, short: 'M', name: 'mercredi' },

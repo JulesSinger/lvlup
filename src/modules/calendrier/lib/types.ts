@@ -1,8 +1,9 @@
 import type { Recurrence } from '../../../core/lib/recurrence';
+import type { EventVariant } from './variants';
 
 // La règle de récurrence vit dans le socle depuis le 27/09/2026, partagée avec
 // Polaris ; réexportée ici parce qu'elle fait partie d'un événement.
-export type { Recurrence };
+export type { Recurrence, EventVariant };
 
 /**
  * Types du module calendrier (Éclipse). Conception complète :
@@ -55,11 +56,17 @@ export interface CalendarEvent {
    * en entier ; les autres deviennent des blocs « Occupé ». Pour toute la série.
    */
   work: boolean;
+  /**
+   * Les variantes de la série (26/10/2026, `lib/variants.ts`) : « Bureau »,
+   * « Télétravail »… `[]` ou absent (un événement d'avant) : aucune. Pour
+   * toute la série, comme `work`.
+   */
+  variants?: EventVariant[];
   createdAt: string;
 }
 
 export type EventInput = Pick<CalendarEvent, 'title' | 'allDay' | 'startDay' | 'endDay' | 'startTime' | 'endTime'> &
-  Partial<Pick<CalendarEvent, 'timezone' | 'recurrence' | 'color' | 'location' | 'note' | 'reminders' | 'sourceUid' | 'work'>>;
+  Partial<Pick<CalendarEvent, 'timezone' | 'recurrence' | 'color' | 'location' | 'note' | 'reminders' | 'sourceUid' | 'work' | 'variants'>>;
 
 /**
  * Les rappels possibles, en minutes avant le début (01/10/2026). Avec une
@@ -92,10 +99,14 @@ export const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = { timedReminders: [],
 export const EXCEPTION_KINDS = ['skip', 'override'] as const;
 export type ExceptionKind = (typeof EXCEPTION_KINDS)[number];
 
-/** Ce qu'une occurrence modifiée remplace ; le reste vient de la série. */
+/**
+ * Ce qu'une occurrence modifiée remplace ; le reste vient de la série.
+ * `variant` : la variante choisie ce jour-là (son identifiant, `null` pour
+ * aucune), seulement quand elle diffère de celle de ses jours.
+ */
 export type EventOverride = Partial<
   Pick<CalendarEvent, 'title' | 'allDay' | 'startDay' | 'endDay' | 'startTime' | 'endTime' | 'color' | 'location' | 'note' | 'reminders'>
->;
+> & { variant?: string | null };
 
 /**
  * Une occurrence d'une série supprimée ou modifiée, désignée par le jour

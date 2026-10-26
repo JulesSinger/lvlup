@@ -14,7 +14,7 @@ import { defaultSpan, markItem, slotFromValues, toCalendarItem, type EventSpan }
 import { dayString, shiftDay } from '../../core/lib/day';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { expandEvents, type Occurrence } from './lib/recurrence';
-import { planDelete, planEdit, type OccurrenceValues, type Scope } from './lib/seriesEdit';
+import { planDelete, planEdit, type EditInput, type OccurrenceValues, type Scope } from './lib/seriesEdit';
 import { DEFAULT_CALENDAR_SETTINGS, type CalendarEvent, type CalendarSettings, type EventException, type EventInput } from './lib/types';
 
 /**
@@ -223,7 +223,7 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
       occurrenceDay: null,
       inSeries: false,
       // Créé en mode travail, un événement est « travail » d'office.
-      values: { ...span, title, color: 'bleu', location: '', note: '', recurrence: null, reminders: null, work: workMode },
+      values: { ...span, title, color: 'bleu', location: '', note: '', recurrence: null, reminders: null, work: workMode, variants: [] },
       before: null,
     });
   }
@@ -233,8 +233,14 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
     const occurrence = occurrences.find((o) => o.eventId === eventId && o.occurrenceDay === occurrenceDay);
     if (!event || !occurrence) return;
     // La fenêtre montre l'occurrence touchée (exception comprise), avec la règle de sa série.
-    const before = valuesOf(occurrence);
-    setEditing({ eventId, occurrenceDay, inSeries: event.recurrence !== null, values: { ...before, work: before.work ?? false, recurrence: event.recurrence }, before });
+    const before = { ...valuesOf(occurrence), variants: event.variants ?? [] };
+    setEditing({
+      eventId,
+      occurrenceDay,
+      inSeries: event.recurrence !== null,
+      values: { ...before, work: before.work ?? false, recurrence: event.recurrence, variants: event.variants ?? [], variantId: occurrence.variant?.id ?? null },
+      before,
+    });
   }
 
   /**
@@ -260,12 +266,15 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
     if (changed) setMarksVersion((v) => v + 1);
   }
 
-  async function save(input: EventInput, scope: Scope = 'all') {
+  async function save(input: EditInput, scope: Scope = 'all') {
     const event = editing?.eventId ? events.find((e) => e.id === editing.eventId) : undefined;
-    if (!editing?.eventId) await calendarStore.createEvent(input);
+    const { variantId: _day, ...fields } = input;
+    // Sans variante avant ni après, la colonne n'est pas écrite (elle peut manquer avant la migration).
+    const plain: EventInput = fields.variants?.length || event?.variants?.length ? fields : { ...fields, variants: undefined };
+    if (!editing?.eventId) await calendarStore.createEvent(plain);
     else if (event && editing.inSeries && editing.occurrenceDay && editing.before) {
       await applyPlan(calendarStore, planEdit(event, exceptions, editing.occurrenceDay, editing.before, input, scope));
-    } else await calendarStore.updateEvent(editing.eventId, input);
+    } else await calendarStore.updateEvent(editing.eventId, plain);
     setEditing(null);
     await refresh();
   }
@@ -310,7 +319,7 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
     const event = events.find((e) => e.id === pending.eventId);
     const occurrence = occurrences.find((o) => o.eventId === pending.eventId && o.occurrenceDay === pending.occurrenceDay);
     if (!event || !occurrence) return pending.reject(new Error('Événement introuvable.'));
-    const before = valuesOf(occurrence);
+    const before = { ...valuesOf(occurrence), variants: event.variants ?? [] };
     write(() =>
       applyPlan(
         calendarStore,
@@ -471,6 +480,7 @@ export function CalendarScreen({ user, error, onError, onOpenSettings, onSwitchM
           <EventEditor
             eventId={editing.eventId}
             inSeries={editing.inSeries}
+            occurrenceDay={editing.occurrenceDay}
             initial={editing.values}
             defaults={settings}
             local={!user || user.isLocal}

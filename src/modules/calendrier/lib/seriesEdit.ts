@@ -16,12 +16,19 @@ import { splitSeries } from '../../../core/lib/recurrence';
 import { baseOccurrence } from './recurrence';
 import type { CalendarEvent, EventException, EventInput, EventOverride, ExceptionKind, Recurrence } from './types';
 import { validateEvent } from './validation';
+import { defaultVariantId, type EventVariant } from './variants';
 
 export const SCOPES = ['this', 'following', 'all'] as const;
 export type Scope = (typeof SCOPES)[number];
 
 /** Ce que la fenêtre montre d'une occurrence, exception appliquée. */
-export type OccurrenceValues = Required<EventOverride> & { work?: boolean };
+export type OccurrenceValues = Required<Omit<EventOverride, 'variant'>> & { work?: boolean; variants?: EventVariant[] };
+
+/**
+ * Ce qu'on enregistre : un événement, et la variante choisie pour le jour
+ * touché (`variantId`, 26/10/2026) — absente, celle du jour ne change pas.
+ */
+export type EditInput = EventInput & { variantId?: string | null };
 
 /** Les écritures à faire, dans cet ordre : créer, modifier, poser, retirer, supprimer. */
 export interface SeriesPlan {
@@ -30,11 +37,17 @@ export interface SeriesPlan {
   setException?: { eventId: string; occurrenceDay: string; kind: ExceptionKind; override?: EventOverride };
   /** Exceptions devenues sans objet */
   deleteExceptions: string[];
+  /**
+   * Les variantes choisies à la main, posées APRÈS les retraits sur la série
+   * nouvelle (`create`) s'il y en a une, sinon sur celle modifiée (`update`) :
+   * décaler une série ou la couper ne doit pas perdre les jours de télétravail.
+   */
+  carry?: { occurrenceDay: string; override: EventOverride }[];
   deleteEvent?: string;
 }
 
 const OVERRIDABLE = ['title', 'allDay', 'startDay', 'endDay', 'startTime', 'endTime', 'color', 'location', 'note', 'reminders'] as const;
-const PLAIN = ['title', 'color', 'location', 'note', 'allDay', 'startTime', 'endTime', 'reminders', 'work'] as const;
+const PLAIN = ['title', 'color', 'location', 'note', 'allDay', 'startTime', 'endTime', 'reminders', 'work', 'variants'] as const;
 
 /** Les rappels sont une liste : deux listes égales ne sont pas le même objet. */
 const same = (a: unknown, b: unknown) => (Array.isArray(a) || Array.isArray(b) ? JSON.stringify(a ?? null) === JSON.stringify(b ?? null) : a === b);
@@ -81,6 +94,33 @@ function reshaped(event: CalendarEvent, from: string, before: OccurrenceValues, 
   return { changed, startDay, endDay: shiftDay(startDay, length), moved: shift !== 0 || length !== daysBetween(event.startDay, event.endDay) };
 }
 
+/**
+ * Les variantes choisies à la main à partir de `fromDay`, reportées d'autant
+ * de jours que la série a bougé (`shift`). Le jour touché prend `chosen` s'il
+ * est dit. Un choix égal à celui des jours n'est pas reporté : il n'en est
+ * pas un.
+ */
+function carried(
+  own: readonly EventException[],
+  fromDay: string,
+  shift: number,
+  variants: readonly EventVariant[] | undefined,
+  touched: { day: string; chosen: string | null | undefined },
+): { occurrenceDay: string; override: EventOverride }[] {
+  const choices = new Map<string, string | null>();
+  for (const x of own) {
+    const v = x.kind === 'override' ? x.override?.variant : undefined;
+    if (x.occurrenceDay >= fromDay && v !== undefined) choices.set(x.occurrenceDay, v);
+  }
+  if (touched.chosen !== undefined) choices.set(touched.day, touched.chosen);
+  const out: { occurrenceDay: string; override: EventOverride }[] = [];
+  for (const [day, variant] of [...choices].sort(([a], [b]) => a.localeCompare(b))) {
+    const occurrenceDay = shiftDay(day, shift);
+    if (variant !== defaultVariantId(variants, occurrenceDay)) out.push({ occurrenceDay, override: { variant } });
+  }
+  return out;
+}
+
 function checked(input: EventInput): EventInput {
   const problem = validateEvent(input);
   if (problem) throw new Error(problem);
@@ -97,10 +137,12 @@ export function planEdit(
   exceptions: readonly EventException[],
   occurrenceDay: string,
   before: OccurrenceValues,
-  after: EventInput,
+  { variantId: chosen, ...after }: EditInput,
   scope: Scope,
 ): SeriesPlan {
   const own = exceptionsOf(event, exceptions);
+  const existing = own.find((x) => x.occurrenceDay === occurrenceDay);
+  const variants = after.variants ?? event.variants;
 
   if (scope === 'this') {
     // L'exception décrit l'occurrence par rapport à la règle, pas par rapport
@@ -109,12 +151,18 @@ export function planEdit(
     const next = normalize({ ...before, ...after, recurrence: undefined });
     const override: EventOverride = {};
     for (const f of OVERRIDABLE) if (!same(next[f], base[f])) (override as Record<string, unknown>)[f] = next[f];
+    // La variante du jour : celle choisie, sinon celle déjà choisie — jamais perdue en route.
+    const variant = chosen !== undefined ? chosen : existing?.override?.variant;
+    if (variant !== undefined && variant !== defaultVariantId(variants, occurrenceDay)) override.variant = variant;
     checked({ ...next, recurrence: null });
-    const existing = own.find((x) => x.occurrenceDay === occurrenceDay);
-    // « Travail » vaut pour toute la série (14/10/2026) : changé sur une occurrence, il change la série.
-    const work = after.work !== undefined && after.work !== (event.work ?? false) ? { update: { id: event.id, patch: { work: after.work } } } : {};
-    if (Object.keys(override).length === 0) return { ...work, deleteExceptions: existing ? [existing.id] : [] };
-    return { ...work, setException: { eventId: event.id, occurrenceDay, kind: 'override', override }, deleteExceptions: [] };
+    // « Travail » et les variantes valent pour toute la série (14/10, 26/10/2026) :
+    // changés sur une occurrence, ils changent la série.
+    const patch: Partial<EventInput> = {};
+    if (after.work !== undefined && after.work !== (event.work ?? false)) patch.work = after.work;
+    if (after.variants !== undefined && !same(after.variants, event.variants ?? [])) patch.variants = after.variants;
+    const series = Object.keys(patch).length > 0 ? { update: { id: event.id, patch } } : {};
+    if (Object.keys(override).length === 0) return { ...series, deleteExceptions: existing ? [existing.id] : [] };
+    return { ...series, setException: { eventId: event.id, occurrenceDay, kind: 'override', override }, deleteExceptions: [] };
   }
 
   const split = scope === 'following' ? splitSeries(event, occurrenceDay) : null;
@@ -129,8 +177,19 @@ export function planEdit(
     checked({ ...event, ...patch });
     // Décaler la série ou changer sa règle rend ses exceptions sans objet :
     // elles désignent des jours qui n'y sont plus.
-    const stale = startDay !== event.startDay || ruleChanged ? own.map((x) => x.id) : [];
-    return { update: { id: event.id, patch }, deleteExceptions: stale };
+    if (startDay !== event.startDay || ruleChanged) {
+      const carry = carried(own, event.startDay, daysBetween(event.startDay, startDay), variants, { day: occurrenceDay, chosen });
+      return { update: { id: event.id, patch }, deleteExceptions: own.map((x) => x.id), ...(carry.length ? { carry } : {}) };
+    }
+    // Les exceptions restent : seule celle du jour touché change, si sa variante change.
+    const kept = existing?.kind === 'override' ? existing.override?.variant : undefined;
+    if (chosen === undefined || chosen === (kept !== undefined ? kept : defaultVariantId(variants, occurrenceDay))) {
+      return { update: { id: event.id, patch }, deleteExceptions: [] };
+    }
+    const { variant: _old, ...fields } = existing?.kind === 'override' ? (existing.override ?? {}) : {};
+    const override: EventOverride = chosen === defaultVariantId(variants, occurrenceDay) ? fields : { ...fields, variant: chosen };
+    if (Object.keys(override).length === 0) return { update: { id: event.id, patch }, deleteExceptions: existing ? [existing.id] : [] };
+    return { update: { id: event.id, patch }, deleteExceptions: [], carry: [{ occurrenceDay, override }] };
   }
 
   // « Cet événement et les suivants » : la série s'arrête la veille, une
@@ -148,15 +207,18 @@ export function planEdit(
     reminders: event.reminders ?? null,
     timezone: event.timezone,
     work: event.work ?? false,
+    variants: event.variants ?? [],
     ...changed,
     startDay,
     endDay,
     recurrence,
   });
+  const carry = carried(own, occurrenceDay, daysBetween(occurrenceDay, startDay), create.variants, { day: occurrenceDay, chosen });
   return {
     create,
     update: { id: event.id, patch: { recurrence: split.before } },
     deleteExceptions: own.filter((x) => x.occurrenceDay >= occurrenceDay).map((x) => x.id),
+    ...(carry.length ? { carry } : {}),
   };
 }
 
