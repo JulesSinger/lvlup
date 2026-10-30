@@ -98,6 +98,12 @@ export interface BudgetEntry {
   /** Empreinte de dédoublonnage d'une ligne importée ; nulle en saisie manuelle. */
   importKey: string | null;
   note: string;
+  /**
+   * Le compte d'où part l'argent (30/10/2026). `null` = le compte principal :
+   * tout ce qui précède les comptes, le relevé importé, et ce qu'écrit une
+   * version de l'app qui ne les connaît pas encore. Voir `BudgetAccount`.
+   */
+  accountId: string | null;
   createdAt: string;
 }
 
@@ -109,6 +115,7 @@ export interface BudgetEntryInput {
   source?: BudgetEntrySource;
   importKey?: string | null;
   note?: string;
+  accountId?: string | null;
 }
 
 /** Une règle de catégorisation automatique, appliquée à l'import. */
@@ -238,3 +245,51 @@ export interface IgnoredRecurring {
   label: string;
   createdAt: string;
 }
+
+/**
+ * Un compte : d'où part l'argent, et où il arrive (demande de Jules,
+ * 30/10/2026 — la carte Pluxee de ses titres-restaurant, avec son solde et
+ * ses transactions, à côté du compte BoursoBank). Voir docs/etude-astra.md §17.
+ *
+ * Un compte ne change rien au reste du budget : un déjeuner payé avec la carte
+ * Pluxee reste une dépense « Restaurants », dans le même camembert. Il dit
+ * seulement d'où il est parti, pour suivre le solde de chaque compte.
+ *
+ * Le compte principal (`isDefault`) est celui des écritures sans compte
+ * (`accountId: null`) : rien de ce qui existait avant n'a eu à être réécrit.
+ * Tant qu'on ne l'a pas nommé, il n'existe pas en base (`accountList` le montre
+ * quand même, sous le nom « Compte courant »).
+ *
+ * Le solde n'est jamais stocké : on garde le solde connu à un jour
+ * (`balanceCents` au `balanceDay`, celui que montre l'appli de la banque), et
+ * l'on y ajoute les écritures des jours suivants — même principe que le solde
+ * d'une enveloppe. `null` = solde pas suivi (le compte principal, tant que
+ * Jules ne l'a pas donné).
+ */
+export interface BudgetAccount {
+  id: string;
+  name: string;
+  emoji: string;
+  isDefault: boolean;
+  balanceCents: number | null;
+  balanceDay: string | null;
+  /**
+   * Quand le solde a été donné. Une écriture du jour même compte si elle a été
+   * notée après (le déjeuner saisi une heure plus tard), pas si elle l'a été
+   * avant (elle est déjà dans le solde que montrait l'appli).
+   */
+  balanceSetAt: string | null;
+  position: number;
+}
+
+export interface BudgetAccountInput {
+  name: string;
+  emoji?: string;
+  isDefault?: boolean;
+  balanceCents?: number | null;
+  balanceDay?: string | null;
+  balanceSetAt?: string | null;
+}
+
+/** Comparé à la contrainte `budget_accounts_name_check` par `schema.test.ts`. */
+export const ACCOUNT_NAME_MAX = 40;

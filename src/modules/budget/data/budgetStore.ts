@@ -1,4 +1,6 @@
 import type {
+  BudgetAccount,
+  BudgetAccountInput,
   BudgetCategory,
   BudgetCategoryInput,
   BudgetEntry,
@@ -28,6 +30,8 @@ export interface BudgetBackup {
   /** Depuis le 2026-10-07 ; absents d'une sauvegarde plus ancienne. */
   subscriptions?: BudgetSubscription[];
   ignoredRecurring?: IgnoredRecurring[];
+  /** Depuis le 2026-10-30 ; absents d'une sauvegarde plus ancienne (tout est alors au compte principal). */
+  accounts?: BudgetAccount[];
 }
 
 /** Contrat de stockage du module budget (Astra). */
@@ -47,6 +51,8 @@ export interface BudgetStore {
    */
   importEntries(inputs: BudgetEntryInput[]): Promise<{ written: number; skipped: number }>;
   updateEntry(id: string, patch: Partial<BudgetEntryInput>): Promise<void>;
+  /** Passer des écritures sur un autre compte (`null` = le compte principal). */
+  setEntriesAccount(ids: string[], accountId: string | null): Promise<void>;
   /** Ranger plusieurs écritures dans une catégorie d'un coup (classer un groupe d'« à classer »). */
   setEntriesCategory(ids: string[], categoryId: string | null): Promise<void>;
   deleteEntry(id: string): Promise<void>;
@@ -79,6 +85,16 @@ export interface BudgetStore {
   /** Rejouable : écarter deux fois la même clé n'en garde qu'une. */
   ignoreRecurring(key: string, label: string): Promise<void>;
   unignoreRecurring(key: string): Promise<void>;
+
+  /**
+   * Les comptes (docs/etude-astra.md §17). Le compte principal n'existe en
+   * base qu'une fois nommé ; un seul. Supprimer un compte rend ses écritures
+   * au compte principal ; le principal lui-même ne se supprime pas.
+   */
+  listAccounts(): Promise<BudgetAccount[]>;
+  createAccount(input: BudgetAccountInput): Promise<BudgetAccount>;
+  updateAccount(id: string, patch: Partial<BudgetAccountInput>): Promise<void>;
+  deleteAccount(id: string): Promise<void>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
   exportData(): Promise<BudgetBackup>;

@@ -1309,7 +1309,10 @@ export async function run({ browser, check, BASE }) {
     await p.waitForSelector('.empty h3');
     await p.evaluate(() => {
       const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const monthsAgo = (n, day = 12) => {
+      // Le jour du mois suit celui d'aujourd'hui (borné à 28) : avec un 12 fixe, la
+      // dernière échéance tombait à plus de 45 jours dès la fin du mois, et Netflix
+      // passait pour « plus vu » (§14 : un abonnement mensuel reste actif 1,5 mois).
+      const monthsAgo = (n, day = Math.min(new Date().getDate(), 28)) => {
         const d = new Date();
         d.setDate(day);
         d.setMonth(d.getMonth() - n);
@@ -1523,4 +1526,103 @@ export async function run({ browser, check, BASE }) {
     check('Aucune erreur JavaScript (rapprochement)', matchErrors.length === 0, matchErrors.join(' | '));
     await ctx.close();
   }
+
+  // --- Les comptes : la carte Pluxee à côté de la banque (2026-10-30) --------
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const p = await ctx.newPage();
+    const errors = [];
+    p.on('pageerror', (e) => errors.push(e.message));
+    p.on('dialog', (d) => void d.accept());
+    await enterBudget(p, BASE);
+    await p.waitForSelector('.budget-tab');
+    await p.evaluate(() => {
+      const d = new Date();
+      const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      snap.budgetEntries = [
+        { id: 'b1', day, label: 'Essence', amountCents: -6000, categoryId: null, source: 'manuelle', importKey: null, note: '', createdAt: '2026-01-01T00:00:00.000Z' },
+      ];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await reloadBudget(p);
+    await p.waitForSelector('.budget-accounts-bar');
+    const text = async (loc) => ((await loc.textContent()) ?? '').replace(/\s/g, ' ');
+    check('Un seul compte : pas de pastilles, un lien pour en ajouter un', (await p.locator('.budget-account-chip').count()) === 0);
+
+    await p.getByRole('button', { name: /Un autre compte/ }).click();
+    await p.waitForSelector('.budget-accounts-dialog');
+    await p.getByRole('button', { name: /Nouveau compte/ }).click();
+    await p.locator('#budget-account-name').fill('Pluxee');
+    await p.locator('#budget-account-balance').fill('50,00');
+    await p.getByRole('button', { name: 'Ajouter le compte' }).click();
+    await p.waitForFunction(() => document.querySelectorAll('.budget-account-row').length === 2);
+    check('Le compte apparaît avec son solde, à côté du compte principal', (await text(p.locator('.budget-account-row').nth(1))).includes('50,00'));
+    await p.locator('.budget-accounts-dialog .modal-foot .btn-primary').click();
+
+    const chips = p.locator('.budget-account-chip');
+    await p.waitForFunction(() => document.querySelectorAll('.budget-account-chip').length === 3);
+    check('Deux comptes : « Tous », le principal et Pluxee en pastilles', (await chips.count()) === 3);
+    const pluxeeChip = p.locator('.budget-account-chip', { hasText: 'Pluxee' });
+    check('La pastille Pluxee dit son solde', (await text(pluxeeChip)).includes('50,00'));
+
+    // Une dépense saisie en regardant Pluxee part de Pluxee, et le solde baisse.
+    await pluxeeChip.click();
+    check('Pluxee choisi : le mois ne montre que ses écritures', (await p.locator('.budget-entry-row').count()) === 0);
+    await p.keyboard.press('n');
+    await p.waitForSelector('.budget-entry-editor');
+    check(
+      'La nouvelle écriture part du compte regardé',
+      (await p.locator('.budget-entry-editor [aria-label="Compte"] [aria-pressed="true"]').textContent())?.includes('Pluxee'),
+    );
+    await p.locator('#budget-entry-label').fill('Boulangerie');
+    await p.locator('#budget-entry-amount').fill('12,00');
+    await p.locator('.budget-entry-editor .btn-primary').click();
+    await p.waitForSelector('.budget-entry-editor', { state: 'detached' });
+    await p.waitForFunction(() => document.querySelectorAll('.budget-entry-row').length === 1);
+    check('Le solde de Pluxee baisse d’une dépense notée après lui', (await text(pluxeeChip)).includes('38,00'), await text(pluxeeChip));
+    check('Le mois de Pluxee : 12,00 € dépensés', (await text(p.locator('.budget-month-stat-amount.expense'))).includes('12,00'));
+
+    await p.getByRole('button', { name: 'Tous les comptes' }).click();
+    await p.waitForFunction(() => document.querySelectorAll('.budget-entry-row').length === 2);
+    const row = p.locator('.budget-entry-row', { hasText: 'Boulangerie' });
+    check('Tous les comptes : les deux écritures, celle de Pluxee marquée', (await text(row)).includes('🍽️ Pluxee'));
+    check('… et l’autre sans marque (compte principal)', !(await text(p.locator('.budget-entry-row', { hasText: 'Essence' }))).includes('Pluxee'));
+
+    // Vérifier le solde : l'appli dit 30,00 €, il manque 8,00 €.
+    await p.getByRole('button', { name: 'Gérer', exact: true }).click();
+    await p.locator('.budget-account-row', { hasText: 'Pluxee' }).getByRole('button', { name: 'Vérifier' }).click();
+    await p.locator('#budget-account-real').fill('30,00');
+    check('Vérifier dit l’écart avec le solde réel', (await text(p.locator('.budget-account-gap'))).includes('8,00'));
+    await p.getByRole('button', { name: /Noter l’écart/ }).click();
+    await p.waitForFunction(() => !document.querySelector('.budget-account-gap'));
+    await p.locator('.budget-accounts-dialog .modal-foot .btn-primary').click();
+    await p.waitForFunction(() => document.querySelectorAll('.budget-entry-row').length === 3);
+    check('L’écart devient une écriture à classer, et le solde colle', (await text(pluxeeChip)).includes('30,00'));
+
+    await reloadBudget(p);
+    await p.waitForSelector('.budget-account-chip');
+    check('Les comptes et le solde survivent au rechargement', (await text(p.locator('.budget-account-chip', { hasText: 'Pluxee' }))).includes('30,00'));
+
+    // Plusieurs à la fois : un compte pour tout le tableau.
+    await p.locator('.budget-account-chip', { hasText: 'Pluxee' }).click();
+    await p.keyboard.press('n');
+    await p.getByRole('button', { name: 'Plusieurs à la fois' }).click();
+    check(
+      'Le tableau de plusieurs écritures part du compte regardé',
+      (await p.locator('.budget-bulk-account [aria-pressed="true"]').textContent())?.includes('Pluxee'),
+    );
+    await p.getByRole('button', { name: 'Annuler' }).click();
+
+    // Supprimer le compte rend ses écritures au principal.
+    await p.getByRole('button', { name: 'Gérer', exact: true }).click();
+    await p.locator('.budget-account-row', { hasText: 'Pluxee' }).getByRole('button', { name: 'Supprimer' }).click();
+    await p.waitForFunction(() => document.querySelectorAll('.budget-account-row').length === 1);
+    await p.locator('.budget-accounts-dialog .modal-foot .btn-primary').click();
+    await p.waitForFunction(() => document.querySelectorAll('.budget-entry-row').length === 3);
+    check('Supprimer Pluxee rend ses écritures au compte principal, sans rien effacer', (await p.locator('.budget-account-chip').count()) === 0);
+    check('Aucune erreur JavaScript (comptes)', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
 }
+

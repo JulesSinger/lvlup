@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ExpenseAccount } from '../../core/lib/services';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
 import { AddItemBar } from './components/AddItemBar';
@@ -50,6 +51,20 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
   /** La liste, ou l'historique des courses (étape 4). */
   const [view, setView] = useState<'list' | 'trips' | 'stats'>('list');
   const [closing, setClosing] = useState(false);
+  /** Les comptes du budget, demandés en ouvrant « Terminer la course » (« Payé avec »). */
+  const [budgetAccounts, setBudgetAccounts] = useState<ExpenseAccount[]>([]);
+  useEffect(() => {
+    if (!closing || !expenses?.accounts) return;
+    let alive = true;
+    // Un échec ne gêne rien : la course part au compte principal, comme avant les comptes.
+    expenses
+      .accounts()
+      .then((list) => alive && setBudgetAccounts(list))
+      .catch(() => alive && setBudgetAccounts([]));
+    return () => {
+      alive = false;
+    };
+  }, [closing, expenses]);
   /** Le compte rendu de la dernière course terminée, jusqu'à la prochaine action. */
   const [notice, setNotice] = useState('');
 
@@ -166,8 +181,9 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
       // rattrape depuis l'historique (« Ajouter au budget »), sans rien
       // ressaisir — la référence rend l'envoi rejouable sans doublon.
       try {
-        await expenses.record(expenseForTrip(trip));
-        budget = ' Ajoutée au budget.';
+        await expenses.record({ ...expenseForTrip(trip), ...(form.accountId ? { accountId: form.accountId } : {}) });
+        const paidWith = budgetAccounts.find((a) => a.id === form.accountId && !a.isDefault);
+        budget = paidWith ? ` Ajoutée au budget, payée avec ${paidWith.name}.` : ' Ajoutée au budget.';
       } catch (err) {
         budget = ` Pas encore dans le budget (${err instanceof Error ? err.message : 'erreur'}) : réessaie depuis l’onglet Courses.`;
       }
@@ -327,6 +343,7 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
             stores={stores}
             trips={trips}
             canSendToBudget={expenses !== undefined}
+            accounts={budgetAccounts}
             onCancel={() => setClosing(false)}
             onConfirm={closeTrip}
           />

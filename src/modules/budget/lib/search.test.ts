@@ -12,6 +12,7 @@ const entry = (id: string, day: string, label: string, amountCents: number, over
   source: 'manuelle',
   importKey: null,
   note: '',
+  accountId: null,
   createdAt: `${day}T10:00:00Z`,
   ...over,
 });

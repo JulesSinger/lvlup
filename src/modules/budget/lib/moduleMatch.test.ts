@@ -12,6 +12,7 @@ const entry = (id: string, day: string, amountCents: number, importKey: string |
   source: 'manuelle',
   importKey,
   note: '',
+  accountId: null,
   createdAt: '',
 });
 const row = (importKey: string, day: string, amountCents: number) => ({
@@ -54,5 +55,11 @@ describe('reconnaître un paiement déjà enregistré par un module', () => {
     const preview = buildImportPreview(rows, new Set(), [], [], [entry('c12', '2026-10-12', -5420, 'comete:course:12')]);
     expect(preview.dejaParModule.map((d) => d.row.importKey)).toEqual(['r1']);
     expect(preview.nouvelles.map((n) => n.row.importKey)).toEqual(['r2']);
+  });
+
+  it('une course payée avec un autre compte (Pluxee) n’avale pas une ligne du relevé', () => {
+    const pluxee = { ...entry('p', '2026-10-30', -4210, 'comete:course:9'), accountId: 'pluxee' };
+    const matches = matchModuleEntries([row('r1', '2026-10-31', -4210)], [pluxee]);
+    expect(matches.size).toBe(0);
   });
 });

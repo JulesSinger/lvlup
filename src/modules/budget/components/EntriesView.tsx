@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { budgetStore } from '../data';
+import { accountOf } from '../lib/accounts';
 import { formatCents } from '../lib/amount';
 import { linkedMove, linkPlan } from '../lib/envelopes';
-import type { BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetEnvelope, BudgetEnvelopeMove, BudgetRule } from '../lib/types';
+import type { BudgetAccount, BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetEnvelope, BudgetEnvelopeMove, BudgetRule } from '../lib/types';
 import { BulkEntryEditor } from './BulkEntryEditor';
 import { EntryEditor } from './EntryEditor';
 
@@ -30,6 +31,8 @@ export function EntriesView({
   onChanged,
   emptyTitle,
   emptyBody,
+  accounts = [],
+  defaultAccountId = '',
 }: {
   entries: BudgetEntry[];
   categories: BudgetCategory[];
@@ -43,7 +46,12 @@ export function EntriesView({
   onChanged: () => Promise<void>;
   emptyTitle: string;
   emptyBody?: string;
+  /** Les comptes, le principal en tête (`accountList`) ; un seul, et le compte ne se montre nulle part. */
+  accounts?: BudgetAccount[];
+  /** Le compte d'une nouvelle écriture : celui qu'on regarde, sinon le principal. */
+  defaultAccountId?: string;
 }) {
+  const multiAccounts = accounts.length > 1;
   const [editing, setEditing] = useState<BudgetEntry | 'new' | 'bulk' | null>(null);
 
   // Raccourci « N » : ouvre une nouvelle écriture sans passer par la souris.
@@ -145,6 +153,11 @@ export function EntriesView({
                     {entry.label}
                     <span className="budget-row-category">
                       {category ? category.name : 'À classer'}
+                      {multiAccounts &&
+                        (() => {
+                          const account = accountOf(entry, accounts);
+                          return account.isDefault ? null : ` · ${account.emoji} ${account.name}`;
+                        })()}
                       {(() => {
                         const paid = linkedMove(moves, entry.id);
                         const envelope = paid && envelopes.find((e) => e.id === paid.envelopeId);
@@ -187,6 +200,8 @@ export function EntriesView({
         <BulkEntryEditor
           categories={categories}
           rules={rules}
+          accounts={accounts}
+          defaultAccountId={defaultAccountId}
           onCancel={() => setEditing(null)}
           onSave={saveBulk}
         />
@@ -200,6 +215,8 @@ export function EntriesView({
           envelopes={envelopes}
           moves={moves}
           history={history}
+          accounts={accounts}
+          defaultAccountId={defaultAccountId}
           onCancel={() => setEditing(null)}
           onSave={saveEntry}
           onSwitchToBulk={() => setEditing('bulk')}

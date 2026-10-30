@@ -37,9 +37,26 @@ export interface ExpenseRequest {
   /** Catégorie souhaitée, par son nom ; « à classer » si le budget ne la connaît pas */
   categoryName: string;
   note?: string;
+  /**
+   * Le compte d'où part l'argent, parmi ceux que rend `accounts()` (depuis le
+   * 2026-10-30 : une course payée avec la carte Pluxee). Absent ou inconnu :
+   * le compte principal.
+   */
+  accountId?: string;
+}
+
+/** Un compte du budget, tel qu'un autre module peut le proposer (« Payé avec »). */
+export interface ExpenseAccount {
+  id: string;
+  name: string;
+  emoji: string;
+  /** Le compte principal, celui qu'on prend sans rien dire. */
+  isDefault: boolean;
 }
 
 export interface ExpenseService {
+  /** Les comptes du budget, le principal en tête ; un seul = rien à choisir. */
+  accounts?(): Promise<ExpenseAccount[]>;
   /** Enregistre la dépense ; sans effet si `ref` l'est déjà. */
   record(request: ExpenseRequest): Promise<void>;
   /** Retire la dépense portant cette référence ; sans effet si elle n'existe pas. */

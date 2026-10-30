@@ -15,6 +15,7 @@ function entry(patch: Partial<BudgetEntry> = {}): BudgetEntry {
     source: 'manuelle',
     importKey: null,
     note: '',
+    accountId: null,
     createdAt: '2026-08-01T08:00:00.000Z',
     ...patch,
   };

@@ -35,7 +35,10 @@ export function matchModuleEntries(
   rows: readonly { importKey: string; day: string; amountCents: number }[],
   entries: readonly BudgetEntry[],
 ): Map<string, ModuleMatch> {
-  const candidates = entries.filter(isModuleEntry);
+  // Seulement les écritures du compte principal, celui du relevé : une course
+  // payée avec la carte Pluxee (docs/etude-astra.md §17) n'est jamais sur le
+  // relevé bancaire, elle ne doit pas en avaler une ligne du même montant.
+  const candidates = entries.filter((e) => isModuleEntry(e) && (e.accountId ?? null) === null);
   const used = new Set<string>();
   const matches = new Map<string, ModuleMatch>();
   for (const row of [...rows].sort((a, b) => a.day.localeCompare(b.day))) {

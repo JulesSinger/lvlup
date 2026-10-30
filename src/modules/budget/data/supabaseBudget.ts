@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchAll, getClient, requireUserId, unwrap } from '../../../core/data/supabaseClient';
 import { hasChildren, isValidParent } from '../lib/categoryHierarchy';
 import type {
+  BudgetAccount,
+  BudgetAccountInput,
   BudgetCategory,
   BudgetCategoryInput,
   BudgetEntry,
@@ -39,8 +41,44 @@ interface EntryRow {
   source: string;
   import_key: string | null;
   note: string | null;
+  /** Absente tant que la migration du 2026-10-30 n'est pas appliquée. */
+  account_id?: string | null;
   created_at: string;
 }
+
+interface AccountRow {
+  id: string;
+  name: string;
+  emoji: string | null;
+  is_default: boolean;
+  balance_cents: number | string | null;
+  balance_day: string | null;
+  balance_set_at: string | null;
+  position: number;
+}
+
+function toAccount(row: AccountRow): BudgetAccount {
+  return {
+    id: row.id,
+    name: row.name,
+    emoji: row.emoji ?? '🏦',
+    isDefault: row.is_default,
+    // `bigint` revient en texte de PostgREST au-delà de ce qu'un nombre JS tient ; ici, toujours bien en deçà.
+    balanceCents: row.balance_cents === null ? null : Number(row.balance_cents),
+    balanceDay: row.balance_day,
+    balanceSetAt: row.balance_set_at,
+    position: row.position,
+  };
+}
+
+/** La table des comptes n'existe pas encore (migration du 2026-10-30 pas appliquée). */
+const missingAccounts = (message: string) => /budget_accounts|account_id|schema cache|does not exist/i.test(message);
+
+/**
+ * La colonne `account_id` n'est envoyée que pour un autre compte que le
+ * principal : avant la migration, écrire au compte principal marche encore.
+ */
+const accountColumn = (accountId: string | null | undefined): Record<string, string> => (accountId ? { account_id: accountId } : {});
 
 interface RuleRow {
   id: string;
@@ -90,6 +128,7 @@ function toEntry(row: EntryRow): BudgetEntry {
     source: row.source as BudgetEntry['source'],
     importKey: row.import_key,
     note: row.note ?? '',
+    accountId: row.account_id ?? null,
     createdAt: row.created_at,
   };
 }
@@ -278,6 +317,7 @@ export class SupabaseBudget implements BudgetStore {
           source: input.source ?? 'manuelle',
           import_key: input.importKey ?? null,
           note: input.note ?? '',
+          ...accountColumn(input.accountId),
         })
         .select()
         .single(),
@@ -314,6 +354,7 @@ export class SupabaseBudget implements BudgetStore {
       source: input.source ?? 'manuelle',
       import_key: input.importKey ?? null,
       note: input.note ?? '',
+      ...accountColumn(input.accountId),
     });
     for (let i = 0; i < fresh.length; i += 500) {
       const chunk = fresh.slice(i, i + 500);
@@ -343,6 +384,13 @@ export class SupabaseBudget implements BudgetStore {
     }
   }
 
+  async setEntriesAccount(ids: string[], accountId: string | null) {
+    for (let i = 0; i < ids.length; i += 150) {
+      const { error } = await this.client.from('budget_entries').update({ account_id: accountId }).in('id', ids.slice(i, i + 150));
+      if (error) throw new Error(error.message);
+    }
+  }
+
   async updateEntry(id: string, patch: Partial<BudgetEntryInput>) {
     const row: Record<string, unknown> = {};
     if (patch.day !== undefined) row.day = patch.day;
@@ -352,6 +400,7 @@ export class SupabaseBudget implements BudgetStore {
     if (patch.source !== undefined) row.source = patch.source;
     if (patch.importKey !== undefined) row.import_key = patch.importKey;
     if (patch.note !== undefined) row.note = patch.note;
+    if (patch.accountId !== undefined) row.account_id = patch.accountId;
     const { error } = await this.client.from('budget_entries').update(row).eq('id', id);
     if (error) throw new Error(error.message);
   }
@@ -530,6 +579,64 @@ export class SupabaseBudget implements BudgetStore {
     if (error) throw new Error(error.message);
   }
 
+  async listAccounts(): Promise<BudgetAccount[]> {
+    const { data, error } = await this.client.from('budget_accounts').select('*').order('position').order('id');
+    if (error) {
+      // Avant la migration, Budget marche comme avant : un seul compte.
+      if (missingAccounts(error.message)) return [];
+      throw new Error(error.message);
+    }
+    return (data as AccountRow[]).map(toAccount);
+  }
+
+  async createAccount(input: BudgetAccountInput): Promise<BudgetAccount> {
+    const userId = await this.requireUserId();
+    const { count } = await this.client.from('budget_accounts').select('id', { count: 'exact', head: true });
+    const { data, error } = await this.client
+      .from('budget_accounts')
+      .insert({
+        user_id: userId,
+        name: input.name.trim(),
+        emoji: input.emoji ?? '🏦',
+        is_default: input.isDefault ?? false,
+        balance_cents: input.balanceCents ?? null,
+        balance_day: input.balanceDay ?? null,
+        balance_set_at: input.balanceCents != null ? (input.balanceSetAt ?? new Date().toISOString()) : null,
+        position: count ?? 0,
+      })
+      .select()
+      .single();
+    if (error) {
+      if (missingAccounts(error.message)) {
+        throw new Error('Les comptes demandent une mise à jour de la base (migration du 30/10/2026) : rien n’a été enregistré.');
+      }
+      if (/budget_accounts_one_default|duplicate/i.test(error.message)) throw new Error('Il y a déjà un compte principal.');
+      throw new Error(error.message);
+    }
+    return toAccount(data as AccountRow);
+  }
+
+  async updateAccount(id: string, patch: Partial<BudgetAccountInput>) {
+    const row: Record<string, unknown> = {};
+    if (patch.name !== undefined) row.name = patch.name.trim();
+    if (patch.emoji !== undefined) row.emoji = patch.emoji;
+    if (patch.balanceCents !== undefined) row.balance_cents = patch.balanceCents;
+    if (patch.balanceDay !== undefined) row.balance_day = patch.balanceDay;
+    if (patch.balanceCents !== undefined) {
+      row.balance_set_at = patch.balanceCents === null ? null : (patch.balanceSetAt ?? new Date().toISOString());
+    }
+    const { error } = await this.client.from('budget_accounts').update(row).eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteAccount(id: string) {
+    const { data } = await this.client.from('budget_accounts').select('is_default').eq('id', id).maybeSingle();
+    if ((data as { is_default: boolean } | null)?.is_default) throw new Error('Le compte principal ne se supprime pas.');
+    // Les écritures reviennent au compte principal : `on delete set null`.
+    const { error } = await this.client.from('budget_accounts').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
   async exportData(): Promise<BudgetBackup> {
     // Les abonnements à part : des tables manquantes (migration du 2026-10-07 pas
     // encore appliquée) ne doivent pas empêcher de sauvegarder tout le reste.
@@ -545,6 +652,7 @@ export class SupabaseBudget implements BudgetStore {
       envelopeMoves: await this.listEnvelopeMoves(),
       subscriptions,
       ignoredRecurring,
+      accounts: await this.listAccounts(),
     };
   }
 
@@ -563,6 +671,13 @@ export class SupabaseBudget implements BudgetStore {
     // Les mouvements d'enveloppe partent avec elles (`on delete cascade`) ;
     // supprimer les enveloppes suffit.
     await this.client.from('budget_envelopes').delete().eq('user_id', userId);
+    // Les comptes après les écritures (elles y renvoient) ; table absente avant la migration.
+    if (data.accounts !== undefined) await this.client.from('budget_accounts').delete().eq('user_id', userId);
+    const accountIdMap = new Map<string, string>();
+    for (const account of data.accounts ?? []) {
+      const created = await this.createAccount(account);
+      accountIdMap.set(account.id, created.id);
+    }
 
     // Les catégories normales d'abord, pour que leurs sous-catégories
     // puissent résoudre le nouvel id de leur parent au second passage.
@@ -604,6 +719,7 @@ export class SupabaseBudget implements BudgetStore {
       source: entry.source,
       import_key: entry.importKey,
       note: entry.note,
+      ...accountColumn(entry.accountId ? accountIdMap.get(entry.accountId) : null),
     });
     const plain = (data.entries ?? []).filter((e) => !linked.has(e.id));
     for (let i = 0; i < plain.length; i += 500) {

@@ -1,4 +1,5 @@
 import type { ExpenseRequest, ExpenseService } from '../../../core/lib/services';
+import { accountList, entryAccountId } from '../lib/accounts';
 import type { BudgetStore } from './budgetStore';
 
 /**
@@ -35,10 +36,17 @@ export function createExpenseService(store: BudgetStore): ExpenseService {
   }
 
   return {
+    async accounts() {
+      return accountList(await store.listAccounts()).map(({ id, name, emoji, isDefault }) => ({ id, name, emoji, isDefault }));
+    },
+
     async record(request: ExpenseRequest) {
       if ((await entriesWith([request.ref])).length > 0) return; // déjà là : rejouer ne double rien
       const categories = await store.listCategories();
       const category = categories.find((c) => key(c.name) === key(request.categoryName));
+      // Un autre compte que le principal, seulement s'il existe : sinon le principal.
+      const account = request.accountId ? (await store.listAccounts()).find((a) => a.id === request.accountId) : undefined;
+      const accountId = account ? entryAccountId(account) : null;
       await store.createEntry({
         day: request.day,
         label: request.label,
@@ -50,6 +58,7 @@ export function createExpenseService(store: BudgetStore): ExpenseService {
         source: 'manuelle',
         importKey: request.ref,
         note: request.note ?? '',
+        ...(accountId ? { accountId } : {}),
       });
     },
 

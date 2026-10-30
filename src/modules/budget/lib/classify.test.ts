@@ -11,6 +11,7 @@ const entry = (id: string, label: string, amountCents: number, categoryId: strin
   source: 'import',
   importKey: id,
   note: '',
+  accountId: null,
   createdAt: '2026-10-01T10:00:00Z',
 });
 

@@ -376,4 +376,43 @@ export async function run({ browser, check, BASE }) {
     await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   );
   await mobile.close();
+
+  // --- « Payé avec » : une course payée avec la carte Pluxee (Budget, comptes, 2026-10-30) ---
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const p = await ctx.newPage();
+    const errors = [];
+    p.on('pageerror', (e) => errors.push(e.message));
+    await openComete(p, BASE);
+    await p.evaluate(() => {
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      snap.budgetAccounts = [
+        { id: 'acc-pluxee', name: 'Pluxee', emoji: '🍽️', isDefault: false, balanceCents: null, balanceDay: null, balanceSetAt: null, position: 0 },
+      ];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await openComete(p, BASE);
+    await addItem(p, 'Baguette');
+    await p.locator('.courses-line', { hasText: 'Baguette' }).getByRole('checkbox').click();
+    await p.getByRole('button', { name: 'Terminer la course' }).click();
+    await p.waitForSelector('.courses-close-dialog');
+    await p.waitForSelector('.courses-pay-chip');
+    const chips = await p.locator('.courses-pay-chip').allTextContents();
+    check('Deux comptes au budget : « Payé avec » propose les deux, le principal choisi', chips.length === 2 && (await p.locator('.courses-pay-chip.on').textContent())?.includes('Compte courant'), chips.join(' | '));
+    await p.locator('.courses-pay-chip', { hasText: 'Pluxee' }).click();
+    await p.getByLabel('Magasin').fill('Boulangerie');
+    await p.locator('#courses-close-total').fill('3,20');
+    await p.locator('.courses-close-dialog').getByRole('button', { name: 'Terminer la course' }).click();
+    await p.waitForSelector('.courses-close-dialog', { state: 'detached' });
+    check('Le compte rendu dit le compte', (await text(p.locator('.courses-notice'))).includes('payée avec Pluxee'), await text(p.locator('.courses-notice')));
+    const spent = await p.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') || '{}').budgetEntries ?? []);
+    check(
+      'La dépense est au budget, sur le compte Pluxee',
+      spent.length === 1 && spent[0].accountId === 'acc-pluxee' && spent[0].amountCents === -320,
+      JSON.stringify(spent),
+    );
+    check('Aucune erreur JavaScript (payé avec)', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
 }
+

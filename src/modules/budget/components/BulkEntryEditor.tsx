@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
+import { entryAccountId } from '../lib/accounts';
 import { centsToInputValue, parsePositiveAmountToCents } from '../lib/amount';
 import { matchRule } from '../lib/boursobankImport';
 import { isBlankRow, newBulkRow, validateBulkRows, type BulkRow } from '../lib/bulkEntries';
 import { menuKindOrder } from '../lib/categoryPicker';
-import type { BudgetCategory, BudgetEntryInput, BudgetRule } from '../lib/types';
+import type { BudgetAccount, BudgetCategory, BudgetEntryInput, BudgetRule } from '../lib/types';
 import { CategorySelect } from './CategorySelect';
 
 function today(): string {
@@ -32,9 +33,14 @@ export function BulkEntryEditor({
   rules,
   onCancel,
   onSave,
+  accounts = [],
+  defaultAccountId = '',
 }: {
   categories: BudgetCategory[];
   rules: BudgetRule[];
+  /** Les comptes (`accountList`) : un seul compte pour tout le tableau, choisi en haut. */
+  accounts?: BudgetAccount[];
+  defaultAccountId?: string;
   onCancel: () => void;
   onSave: (inputs: BudgetEntryInput[]) => Promise<void>;
 }) {
@@ -48,6 +54,8 @@ export function BulkEntryEditor({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const multiAccounts = accounts.length > 1;
+  const [accountId, setAccountId] = useState(defaultAccountId);
   const allBlank = rows.every(isBlankRow);
 
   function cancel() {
@@ -114,7 +122,8 @@ export function BulkEntryEditor({
     setSaving(true);
     setError('');
     try {
-      await onSave(result.inputs);
+      const account = accounts.find((a) => a.id === accountId) ?? accounts[0];
+      await onSave(multiAccounts && account ? result.inputs.map((input) => ({ ...input, accountId: entryAccountId(account) })) : result.inputs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Enregistrement impossible.');
       setSaving(false);
@@ -132,6 +141,21 @@ export function BulkEntryEditor({
         </div>
 
         <div className="modal-body">
+          {multiAccounts && (
+            <div className="budget-category-chips budget-bulk-account" role="group" aria-label="Compte de toutes les lignes">
+              {accounts.map((a) => (
+                <button
+                  key={a.id || 'principal'}
+                  type="button"
+                  className={`budget-category-chip${accountId === a.id ? ' on' : ''}`}
+                  aria-pressed={accountId === a.id}
+                  onClick={() => setAccountId(a.id)}
+                >
+                  <span aria-hidden="true">{a.emoji}</span> {a.name}
+                </button>
+              ))}
+            </div>
+          )}
           <ol className="budget-bulk-rows">
             {rows.map((row, index) => {
               const last = index === rows.length - 1;

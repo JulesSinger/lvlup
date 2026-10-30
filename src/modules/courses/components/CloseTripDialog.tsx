@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { ExpenseAccount } from '../../../core/lib/services';
 import { findStoreByName, storesByUse } from '../lib/catalog';
 import { dayString } from '../lib/day';
 import { centsToInput, formatEuros, parseEurosToCents } from '../lib/money';
@@ -13,6 +14,8 @@ export interface CloseForm {
   note: string;
   /** Ajouter la course comme dépense au budget (Astra), étape 6 */
   sendToBudget: boolean;
+  /** Payée avec quel compte du budget (30/10/2026) ; absent = le compte principal. */
+  accountId?: string;
 }
 
 interface Props {
@@ -21,6 +24,8 @@ interface Props {
   trips: Trip[];
   /** Le budget sait-il enregistrer une dépense ? (service du socle présent) */
   canSendToBudget: boolean;
+  /** Les comptes du budget (le principal en tête) : à partir de deux, « Payé avec ». */
+  accounts?: ExpenseAccount[];
   onCancel: () => void;
   /** Rejette en cas d'échec : la fenêtre reste ouverte et remplie. */
   onConfirm: (form: CloseForm) => Promise<void>;
@@ -36,7 +41,7 @@ interface Props {
  * fait foi** : une promotion au total, un article sans prix, et on corrige
  * ici sans tout ressaisir.
  */
-export function CloseTripDialog({ entries, stores, trips, canSendToBudget, onCancel, onConfirm }: Props) {
+export function CloseTripDialog({ entries, stores, trips, canSendToBudget, accounts = [], onCancel, onConfirm }: Props) {
   const ranked = storesByUse(stores, trips);
   const suggestion = suggestedTotal(entries);
   const [storeId, setStoreId] = useState<string | null>(ranked[0]?.id ?? null);
@@ -47,6 +52,9 @@ export function CloseTripDialog({ entries, stores, trips, canSendToBudget, onCan
   // Coché par défaut : c'est ce que Jules a demandé (26/09/2026). Décocher
   // sert le jour où le relevé bancaire a déjà amené ce paiement.
   const [sendToBudget, setSendToBudget] = useState(true);
+  // Les comptes arrivent un instant après l'ouverture : sans choix, le principal (le premier).
+  const [picked, setAccountId] = useState<string | null>(null);
+  const accountId = picked ?? accounts[0]?.id ?? '';
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -82,6 +90,7 @@ export function CloseTripDialog({ entries, stores, trips, canSendToBudget, onCan
         totalCents,
         note: note.trim(),
         sendToBudget: canSendToBudget && sendToBudget,
+        ...(accounts.length > 1 && accountId ? { accountId } : {}),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Enregistrement impossible.');
@@ -187,6 +196,25 @@ export function CloseTripDialog({ entries, stores, trips, canSendToBudget, onCan
               <input type="checkbox" checked={sendToBudget} onChange={(e) => setSendToBudget(e.target.checked)} />
               Ajouter la dépense au Budget (catégorie Courses)
             </label>
+          )}
+
+          {canSendToBudget && sendToBudget && accounts.length > 1 && (
+            <div className="field">
+              <label>Payé avec</label>
+              <div className="courses-pay-with" role="group" aria-label="Payé avec">
+                {accounts.map((account) => (
+                  <button
+                    key={account.id || 'principal'}
+                    type="button"
+                    className={`courses-pay-chip${accountId === account.id ? ' on' : ''}`}
+                    aria-pressed={accountId === account.id}
+                    onClick={() => setAccountId(account.id)}
+                  >
+                    <span aria-hidden="true">{account.emoji}</span> {account.name}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           {error && <div className="notice error">{error}</div>}

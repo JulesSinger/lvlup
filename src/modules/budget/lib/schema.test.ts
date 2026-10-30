@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { BUDGET_CATEGORY_KINDS, BUDGET_ENTRY_SOURCES, SUBSCRIPTION_FREQUENCIES, SUBSCRIPTION_NAME_MAX, SUBSCRIPTION_REMIND_DAYS } from './types';
+import { ACCOUNT_NAME_MAX, BUDGET_CATEGORY_KINDS, BUDGET_ENTRY_SOURCES, SUBSCRIPTION_FREQUENCIES, SUBSCRIPTION_NAME_MAX, SUBSCRIPTION_REMIND_DAYS } from './types';
 
 /**
  * Le type TypeScript et la contrainte Postgres doivent dire la même chose —
@@ -77,5 +77,14 @@ describe('hygiène des migrations (Astra)', () => {
         ).toBe(true);
       }
     }
+  });
+
+  it('les comptes : le nom, le solde avec son jour, le compte principal unique (30/10/2026)', () => {
+    const sql = readFileSync(join(SQL_DIR, '2026-10-30-budget-accounts.sql'), 'utf8');
+    expect(sql).toContain(`constraint budget_accounts_name_check\n                check (char_length(name) between 1 and ${ACCOUNT_NAME_MAX})`);
+    expect(sql).toContain('alter table public.budget_accounts enable row level security');
+    expect(sql).toContain('on public.budget_accounts (user_id) where is_default');
+    expect(sql).toContain('references public.budget_accounts (id) on delete set null');
+    expect(sql).toContain('"budget_accounts_mfa"');
   });
 });

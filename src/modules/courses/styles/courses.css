@@ -735,3 +735,32 @@
     grid-template-columns: minmax(0, 9em) 1fr auto;
   }
 }
+
+/* « Payé avec » : le compte du budget d'où part la course (30/10/2026). */
+.courses-pay-with {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.courses-pay-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.courses-pay-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.courses-pay-chip.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  font-weight: 600;
+}

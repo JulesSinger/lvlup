@@ -253,4 +253,44 @@ describe('LocalBudget', () => {
     expect(await store.listEnvelopes()).toEqual([envelope]);
     expect(await store.listEnvelopeMoves()).toEqual([move2]);
   });
+
+  it('les comptes : une écriture sans compte est au principal, supprimer un compte lui rend ses écritures', async () => {
+    const pluxee = await store.createAccount({ name: ' Pluxee ', emoji: '🍽️', balanceCents: 4720, balanceDay: '2026-10-30' });
+    expect(pluxee).toMatchObject({ name: 'Pluxee', isDefault: false, balanceCents: 4720, balanceDay: '2026-10-30' });
+    const avant = await store.createEntry({ day: '2026-10-01', label: 'Salaire', amountCents: 200000 });
+    const dej = await store.createEntry({ day: '2026-10-31', label: 'Boulangerie', amountCents: -850, accountId: pluxee.id });
+    expect(avant.accountId).toBeNull();
+    expect(dej.accountId).toBe(pluxee.id);
+
+    await store.setEntriesAccount([avant.id], pluxee.id);
+    expect((await store.listEntries()).every((e) => e.accountId === pluxee.id)).toBe(true);
+
+    await store.deleteAccount(pluxee.id);
+    expect(await store.listAccounts()).toEqual([]);
+    expect((await store.listEntries()).map((e) => e.accountId)).toEqual([null, null]);
+  });
+
+  it('un seul compte principal, qui ne se supprime pas', async () => {
+    const main = await store.createAccount({ name: 'BoursoBank', isDefault: true });
+    await expect(store.createAccount({ name: 'Autre', isDefault: true })).rejects.toThrow(/principal/);
+    await expect(store.deleteAccount(main.id)).rejects.toThrow(/principal/);
+    await store.updateAccount(main.id, { balanceCents: 12345, balanceDay: '2026-10-30' });
+    expect((await store.listAccounts())[0]).toMatchObject({ name: 'BoursoBank', balanceCents: 12345 });
+  });
+
+  it('une sauvegarde garde les comptes, et une plus ancienne se relit sans eux', async () => {
+    const pluxee = await store.createAccount({ name: 'Pluxee' });
+    await store.createEntry({ day: '2026-10-31', label: 'Dej', amountCents: -850, accountId: pluxee.id });
+    const backup = await store.exportData();
+    memory.clear();
+    await store.importData(backup);
+    expect(await store.listAccounts()).toEqual([pluxee]);
+    expect((await store.listEntries())[0].accountId).toBe(pluxee.id);
+
+    const { accounts: _accounts, ...older } = backup;
+    void _accounts;
+    await store.importData({ ...older, entries: older.entries.map(({ accountId: _a, ...e }) => e as typeof e & { accountId: null }) });
+    expect(await store.listAccounts()).toEqual([]);
+    expect((await store.listEntries())[0].accountId).toBeNull();
+  });
 });

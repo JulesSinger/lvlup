@@ -87,4 +87,20 @@ describe('le service de dépenses d’Astra', () => {
     await createExpenseService(store).remove('comete:course:1');
     expect(await store.listEntries()).toHaveLength(1);
   });
+
+  it('les comptes : le principal en tête, et une course payée avec Pluxee part de Pluxee', async () => {
+    const service = createExpenseService(store);
+    expect(await service.accounts!()).toEqual([{ id: '', name: 'Compte courant', emoji: '🏦', isDefault: true }]);
+    const pluxee = await store.createAccount({ name: 'Pluxee', emoji: '🍽️' });
+    const accounts = await service.accounts!();
+    expect(accounts.map((a) => a.name)).toEqual(['Compte courant', 'Pluxee']);
+
+    await service.record({ ...request, accountId: pluxee.id });
+    await service.record({ ...request, ref: 'comete:course:2' }); // sans compte : le principal
+    await service.record({ ...request, ref: 'comete:course:3', accountId: 'inconnu' }); // inconnu : le principal
+    const byRef = new Map((await store.listEntries()).map((e) => [e.importKey, e.accountId]));
+    expect(byRef.get('comete:course:1')).toBe(pluxee.id);
+    expect(byRef.get('comete:course:2')).toBeNull();
+    expect(byRef.get('comete:course:3')).toBeNull();
+  });
 });

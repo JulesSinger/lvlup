@@ -739,3 +739,52 @@ course rend la ligne importable.
 
 Ce qui n'est pas couvert : un ticket payé en deux fois (carte et titres-restaurant) ne correspond
 au centime à aucune ligne — il reste alors deux lignes, à départager à la main, comme avant.
+
+## 17. Les comptes : la carte Pluxee à côté de la banque (30/10/2026)
+
+*Demande de Jules : ses titres-restaurant arrivent sur une carte Pluxee, qui a son solde et ses
+transactions comme une carte bancaire. Jusqu'ici, la recharge mensuelle était une entrée et les
+repas payés avec la carte des dépenses saisies à la main, sans rien qui dise d'où partait l'argent.
+Ses choix : **des comptes en général** (pas un cas à part pour Pluxee), la **saisie par capture
+d'écran donnée à Claude**, et **« Payé avec » dans Courses**.*
+
+**Le modèle.** Une table `budget_accounts` (migration `2026-10-30-budget-accounts.sql`) et une
+colonne `budget_entries.account_id`. `null` = le **compte principal** : tout ce qui existait, le
+relevé BoursoBank importé, et ce qu'écrit une version de l'app d'avant les comptes — rien n'a été
+réécrit, et l'app ne remplit la colonne que pour un autre compte (une base sans la migration
+continue d'accepter les écritures du principal). Le principal n'existe en base qu'une fois nommé
+(« Compte courant » sinon) ; un seul par compte d'Atlas (index unique partiel). Supprimer un compte
+rend ses écritures au principal (`on delete set null`).
+
+**Le solde n'est jamais stocké** (comme celui d'une enveloppe) : le solde donné à un jour, plus les
+écritures des jours suivants **et celles du jour même notées après** (`balance_set_at`). Première
+version : « les jours suivants seulement » — le déjeuner noté une heure après avoir donné le solde
+n'aurait jamais été déduit, la dépense la plus courante. Le cas inverse (rattraper une dépense du
+matin déjà dans le solde) compte en trop ; **« Vérifier »** le rattrape : on tape le solde réel, Atlas
+dit l'écart, et propose de le **noter comme une écriture à classer** (le compte reste juste, l'écart
+visible) ou de **repartir de ce solde** (oublié).
+
+**À l'écran.** Un seul compte : un lien « ＋ Un autre compte ». Deux ou plus : des pastilles en haut
+de l'Aperçu (« Tous les comptes », puis chacun avec son solde) ; en choisir une filtre le mois —
+chiffres, camemberts, liste. Une nouvelle écriture part du compte regardé (choix en pastilles dans
+la fenêtre ; un compte pour tout le tableau de « Plusieurs à la fois »). Dans « Tous », une écriture
+d'un autre compte que le principal porte son nom. Une dépense garde sa catégorie : un repas payé
+avec Pluxee reste « Restaurants », dans le même camembert.
+
+**Le relevé.** L'import BoursoBank écrit au compte principal. Le rapprochement des paiements de
+modules (§16) ne regarde plus que le principal : une course payée avec Pluxee n'avale pas une
+ligne du relevé du même montant.
+
+**Courses.** Le service `expenses` du socle gagne `accounts()` et `ExpenseRequest.accountId` :
+« Terminer la course » propose « Payé avec » dès deux comptes. Courses ne sait rien des comptes :
+il montre ce que Budget lui rend.
+
+**Claude.** `budget_comptes` (les comptes, leurs soldes, leurs dernières opérations) ;
+`compte` dans `budget_ecritures` (filtre), `budget_ecriture_ajouter` et `budget_ecriture_modifier`,
+et `courses_enregistrer_ticket`. Une capture de l'appli Pluxee : Claude relit d'abord les opérations
+du compte sur la période, et n'ajoute que les absentes. Pluxee n'offre aucun export de l'historique
+aux particuliers (vérifié le 30/10/2026) : la capture est le chemin le plus court.
+
+**Pas fait.** Les règles des titres-restaurant (25 € par jour, pas le dimanche, l'expiration du
+solde) : non demandées. Ranger les dépenses Pluxee déjà saisies avant les comptes : à faire une
+fois (dans l'app, ou par Claude avec `budget_ecriture_modifier`).

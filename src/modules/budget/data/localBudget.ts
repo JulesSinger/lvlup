@@ -2,6 +2,8 @@ import { newId } from '../../../core/data/coreStore';
 import { readRaw, writeRaw } from '../../../core/data/localSnapshot';
 import { hasChildren, isValidParent, reindexPositions } from '../lib/categoryHierarchy';
 import type {
+  BudgetAccount,
+  BudgetAccountInput,
   BudgetCategory,
   BudgetCategoryInput,
   BudgetEntry,
@@ -32,7 +34,11 @@ function read(): Snapshot {
     categories: (Array.isArray(raw.budgetCategories) ? (raw.budgetCategories as BudgetCategory[]) : []).map(
       (c) => ({ ...c, parentId: c.parentId ?? null }),
     ),
-    entries: Array.isArray(raw.budgetEntries) ? (raw.budgetEntries as BudgetEntry[]) : [],
+    // Une écriture d'avant les comptes (2026-10-30) n'a pas d'`accountId` : le compte principal.
+    entries: (Array.isArray(raw.budgetEntries) ? (raw.budgetEntries as BudgetEntry[]) : []).map((e) => ({
+      ...e,
+      accountId: e.accountId ?? null,
+    })),
     rules: Array.isArray(raw.budgetRules) ? (raw.budgetRules as BudgetRule[]) : [],
     envelopes: Array.isArray(raw.budgetEnvelopes) ? (raw.budgetEnvelopes as BudgetEnvelope[]) : [],
     // Un mouvement d'avant le lien avec les dépenses (2026-10-07) n'a pas d'`entryId`.
@@ -41,6 +47,7 @@ function read(): Snapshot {
     ),
     subscriptions: Array.isArray(raw.budgetSubscriptions) ? (raw.budgetSubscriptions as BudgetSubscription[]) : [],
     ignoredRecurring: Array.isArray(raw.budgetIgnoredRecurring) ? (raw.budgetIgnoredRecurring as IgnoredRecurring[]) : [],
+    accounts: Array.isArray(raw.budgetAccounts) ? (raw.budgetAccounts as BudgetAccount[]) : [],
   };
 }
 
@@ -55,6 +62,7 @@ function write(snapshot: Snapshot) {
     budgetEnvelopeMoves: snapshot.envelopeMoves,
     budgetSubscriptions: snapshot.subscriptions,
     budgetIgnoredRecurring: snapshot.ignoredRecurring,
+    budgetAccounts: snapshot.accounts,
   });
 }
 
@@ -153,6 +161,7 @@ export class LocalBudget implements BudgetStore {
       source: input.source ?? 'manuelle',
       importKey: input.importKey ?? null,
       note: input.note ?? '',
+      accountId: input.accountId ?? null,
       createdAt: new Date().toISOString(),
     };
     snapshot.entries.push(entry);
@@ -181,6 +190,7 @@ export class LocalBudget implements BudgetStore {
         source: input.source ?? 'manuelle',
         importKey: input.importKey ?? null,
         note: input.note ?? '',
+        accountId: input.accountId ?? null,
         createdAt: new Date().toISOString(),
       });
       written++;
@@ -196,6 +206,13 @@ export class LocalBudget implements BudgetStore {
     write(snapshot);
   }
 
+  async setEntriesAccount(ids: string[], accountId: string | null) {
+    const snapshot = read();
+    const wanted = new Set(ids);
+    for (const entry of snapshot.entries) if (wanted.has(entry.id)) entry.accountId = accountId;
+    write(snapshot);
+  }
+
   async updateEntry(id: string, patch: Partial<BudgetEntryInput>) {
     const snapshot = read();
     const entry = snapshot.entries.find((e) => e.id === id);
@@ -207,6 +224,7 @@ export class LocalBudget implements BudgetStore {
     if (patch.source !== undefined) entry.source = patch.source;
     if (patch.importKey !== undefined) entry.importKey = patch.importKey;
     if (patch.note !== undefined) entry.note = patch.note;
+    if (patch.accountId !== undefined) entry.accountId = patch.accountId;
     write(snapshot);
   }
 
@@ -372,8 +390,57 @@ export class LocalBudget implements BudgetStore {
     write(snapshot);
   }
 
+  async listAccounts(): Promise<BudgetAccount[]> {
+    return read().accounts.slice().sort((a, b) => a.position - b.position);
+  }
+
+  async createAccount(input: BudgetAccountInput): Promise<BudgetAccount> {
+    const snapshot = read();
+    // Comme l'index unique côté base : un seul compte principal.
+    if (input.isDefault && snapshot.accounts.some((a) => a.isDefault)) {
+      throw new Error('Il y a déjà un compte principal.');
+    }
+    const account: BudgetAccount = {
+      id: newId(),
+      name: input.name.trim(),
+      emoji: input.emoji ?? '🏦',
+      isDefault: input.isDefault ?? false,
+      balanceCents: input.balanceCents ?? null,
+      balanceDay: input.balanceDay ?? null,
+      balanceSetAt: input.balanceCents != null ? (input.balanceSetAt ?? new Date().toISOString()) : null,
+      position: snapshot.accounts.length,
+    };
+    snapshot.accounts.push(account);
+    write(snapshot);
+    return account;
+  }
+
+  async updateAccount(id: string, patch: Partial<BudgetAccountInput>) {
+    const snapshot = read();
+    const account = snapshot.accounts.find((a) => a.id === id);
+    if (!account) return;
+    if (patch.name !== undefined) account.name = patch.name.trim();
+    if (patch.emoji !== undefined) account.emoji = patch.emoji;
+    if (patch.balanceCents !== undefined) account.balanceCents = patch.balanceCents;
+    if (patch.balanceDay !== undefined) account.balanceDay = patch.balanceDay;
+    // Un solde redonné : le moment compte pour les écritures du jour même.
+    if (patch.balanceCents !== undefined) account.balanceSetAt = patch.balanceCents === null ? null : (patch.balanceSetAt ?? new Date().toISOString());
+    write(snapshot);
+  }
+
+  async deleteAccount(id: string) {
+    const snapshot = read();
+    if (snapshot.accounts.find((a) => a.id === id)?.isDefault) {
+      throw new Error('Le compte principal ne se supprime pas.');
+    }
+    snapshot.accounts = snapshot.accounts.filter((a) => a.id !== id);
+    // Ses écritures reviennent au compte principal (`on delete set null` côté base).
+    snapshot.entries = snapshot.entries.map((e) => (e.accountId === id ? { ...e, accountId: null } : e));
+    write(snapshot);
+  }
+
   async exportData(): Promise<BudgetBackup> {
-    const { categories, entries, rules, envelopes, envelopeMoves, subscriptions, ignoredRecurring } = read();
+    const { categories, entries, rules, envelopes, envelopeMoves, subscriptions, ignoredRecurring, accounts } = read();
     return {
       categories: categories.slice(),
       entries: entries.slice(),
@@ -382,6 +449,7 @@ export class LocalBudget implements BudgetStore {
       envelopeMoves: envelopeMoves.slice(),
       subscriptions: subscriptions.slice(),
       ignoredRecurring: ignoredRecurring.slice(),
+      accounts: accounts.slice(),
     };
   }
 
@@ -394,6 +462,7 @@ export class LocalBudget implements BudgetStore {
       envelopeMoves: data.envelopeMoves ?? [],
       subscriptions: data.subscriptions ?? [],
       ignoredRecurring: data.ignoredRecurring ?? [],
+      accounts: data.accounts ?? [],
     });
   }
 }

@@ -37,7 +37,7 @@ import { nutritionTools, type CiqualRow, type EntryRow as NutritionEntryRow, typ
 import { flashcardsTools, type CardRow as FlashCardRow, type DeckRow as FlashDeckRow, type FlashcardsData } from './flashcards.ts';
 import { objectifsTools, type ObjectifsData, type Checkin as GoalCheckin } from './objectifs.ts';
 import { calendarTools, type CalendarData, type CalendarEvent, type EventInput as CalendarEventInput, type EventException } from './calendar.ts';
-import { budgetTools, type BudgetData, type CategoryRow as BudgetCategoryRow, type EntryRow as BudgetEntryRow, type RuleRow as BudgetRuleRow } from './budget.ts';
+import { budgetTools, type AccountRow as BudgetAccountRow, type BudgetData, type CategoryRow as BudgetCategoryRow, type EntryRow as BudgetEntryRow, type RuleRow as BudgetRuleRow } from './budget.ts';
 import { bilanTools, type BilanData } from './bilan.ts';
 import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from './recettes.ts';
 
@@ -227,6 +227,15 @@ function coursesData(userId: string): CoursesData {
       if ((await budgetWith([request.ref])).length > 0) return; // déjà là : rejouer ne double rien
       const categories = check(await t('budget_categories').select('id, name').eq('user_id', userId)) as { id: string; name: string }[];
       const category = categories.find((c) => categoryKey(c.name) === categoryKey(request.categoryName));
+      // Le compte demandé, par son nom ; inconnu (ou table absente) : le principal, sans colonne.
+      let accountId: string | null = null;
+      if (request.accountName) {
+        const { data: accounts } = await t('budget_accounts').select('id, name, is_default').eq('user_id', userId);
+        const found = ((accounts ?? []) as { id: string; name: string; is_default: boolean }[]).find(
+          (a) => categoryKey(a.name) === categoryKey(request.accountName ?? ''),
+        );
+        accountId = found && !found.is_default ? found.id : null;
+      }
       check(
         await t('budget_entries').insert({
           user_id: userId,
@@ -237,6 +246,7 @@ function coursesData(userId: string): CoursesData {
           source: 'manuelle',
           import_key: request.ref,
           note: request.note,
+          ...(accountId ? { account_id: accountId } : {}),
         }),
       );
     },
@@ -443,6 +453,12 @@ function budgetData(userId: string): BudgetData {
     listRules: () => fetchAll<BudgetRuleRow>((first, last) => t('budget_rules').select('*').eq('user_id', userId).order('priority').order('id').range(first, last)),
     insertRule: async (row) => check(await t('budget_rules').insert({ ...row, user_id: userId }).select('*').single()) as BudgetRuleRow,
     deleteRule: async (id) => (check(await t('budget_rules').delete().eq('user_id', userId).eq('id', id).select('id')) as unknown[]).length > 0,
+    async listAccounts() {
+      const { data, error } = await t('budget_accounts').select('*').eq('user_id', userId).order('position').order('id');
+      // Avant la migration du 2026-10-30 : un seul compte, le principal.
+      if (error) return [];
+      return data as BudgetAccountRow[];
+    },
   };
 }
 
@@ -748,7 +764,7 @@ function serverInfo(day: string): ServerInfo {
       '- Nutrition (nutrition_*) : le journal des repas, calories et macros. Cherche chaque aliment (nutrition_chercher) avant de l’ajouter ; une estimation seulement à défaut, dite comme telle.',
       '- Projets (projets_*) : les projets clients du freelance (sites pour commerçants). Après un rendez-vous : une note au journal, les tâches, le temps passé, ce qu’on attend du client. Un paiement reçu va aussi à Budget.',
       '- Hauts faits (hautsfaits_*) : les grands moments d’une vie, sur une frise. Un souvenir raconté devient un haut fait, daté à la précision connue ; les photos s’ajoutent dans l’app.',
-      '- Budget (budget_*) : les opérations et leurs catégories. Pour les « à classer » : budget_ecritures (a_classer), budget_classer, puis une règle pour les suivantes.',
+      '- Budget (budget_*) : les opérations et leurs catégories. Pour les « à classer » : budget_ecritures (a_classer), budget_classer, puis une règle pour les suivantes. Plusieurs comptes (la banque, la carte Pluxee des titres-restaurant) : budget_comptes ; une capture de l’appli Pluxee = ses transactions, notées sur ce compte (compte: « Pluxee ») après avoir relu celles déjà là.',
       '- atlas_bilan : le bilan d’une semaine ou d’un mois, tous modules d’un coup.',
       'Entre modules : une recette vers les courses = recettes_lire, sans les ingrédients « toujours là » (recettes_toujours_la), quantités ajustées aux personnes, montrées à Jules avant courses_liste_ajouter — jamais sans sa relecture. Un ticket de caisse et un paiement de projet vont seuls dans Budget ; une sortie de Sport coche seule Objectifs.',
       `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ, les heures HH:MM.`,

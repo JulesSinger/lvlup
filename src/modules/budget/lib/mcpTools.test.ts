@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import * as server from '../../../../supabase/functions/atlas-mcp/budget.ts';
-import { budgetTools, type BudgetData, type CategoryRow, type EntryRow, type RuleRow } from '../../../../supabase/functions/atlas-mcp/budget.ts';
+import { budgetTools, type AccountRow, type BudgetData, type CategoryRow, type EntryRow, type RuleRow } from '../../../../supabase/functions/atlas-mcp/budget.ts';
+import { accountBalance, accountList } from './accounts';
 import { matchRule } from './boursobankImport';
-import { BUDGET_CATEGORY_KINDS, BUDGET_ENTRY_SOURCES } from './types';
+import { BUDGET_CATEGORY_KINDS, BUDGET_ENTRY_SOURCES, type BudgetAccount, type BudgetEntry } from './types';
 
 // Les outils de Budget du connecteur (docs/connecteur-claude.md §13) : la fonction ne peut pas
 // importer le module, elle en recopie les bornes et la règle — comparées ici.
@@ -14,7 +15,9 @@ function memory() {
   const categories: CategoryRow[] = [];
   const entries: EntryRow[] = [];
   const rules: RuleRow[] = [];
+  const accounts: AccountRow[] = [];
   const data: BudgetData = {
+    listAccounts: async () => accounts,
     listEntries: async (from, to) => entries.filter((e) => e.day >= from && e.day <= to),
     getEntry: async (id) => entries.find((e) => e.id === id) ?? null,
     insertEntry: async (row) => {
@@ -63,7 +66,7 @@ function memory() {
     const result = await tool.run(args, { data, today: '2026-10-13' });
     return JSON.parse(result.text.startsWith('{') ? result.text : JSON.stringify({ text: result.text }));
   };
-  return { data, categories, entries, rules, cat, entry, call };
+  return { data, categories, entries, rules, accounts, cat, entry, call };
 }
 
 describe('connecteur — Budget', () => {
@@ -181,5 +184,39 @@ describe('connecteur — Budget', () => {
     const res = await m.call('budget_ecriture_supprimer', { id: e.id });
     expect(res.text).toMatch(/supprimée/);
     expect(m.entries).toHaveLength(0);
+  });
+
+  it('les comptes : une capture de Pluxee notée sur son compte, et le solde comme dans l’app', async () => {
+    const m = memory();
+    m.cat('Restaurants', 'variable');
+    m.accounts.push({ id: uuid(), name: 'Pluxee', emoji: '🍽️', is_default: false, balance_cents: 5000, balance_day: '2026-10-10', balance_set_at: '2026-10-10T12:00:00.000Z' });
+    const pluxee = m.accounts[0];
+    const res = await m.call('budget_ecriture_ajouter', { day: '2026-10-12', label: 'Boulangerie', amount: 8.5, direction: 'depense', category: 'Restaurants', compte: 'pluxee' });
+    expect(res.message).toContain('Pluxee');
+    expect(res.entry.account).toBe('Pluxee');
+    expect(m.entries[0].account_id).toBe(pluxee.id);
+    await m.call('budget_ecriture_ajouter', { day: '2026-10-12', label: 'Essence', amount: 60, direction: 'depense' });
+    expect(m.entries[1].account_id).toBeUndefined(); // le principal : aucune colonne écrite
+
+    const comptes = await m.call('budget_comptes', {});
+    expect(comptes.accounts.map((a: { name: string }) => a.name)).toEqual(['Compte courant', 'Pluxee']);
+    expect(comptes.accounts[1].balance).toBe(41.5);
+
+    const seulement = await m.call('budget_ecritures', { month: '2026-10', compte: 'Pluxee' });
+    expect(seulement.entries.map((e: { label: string }) => e.label)).toEqual(['Boulangerie']);
+    await expect(m.call('budget_ecritures', { month: '2026-10', compte: 'Livret' })).rejects.toThrow(/Aucun compte/);
+
+    // Même solde que l'app, jour même compris (noté avant / après le solde donné).
+    const sample: EntryRow[] = [
+      { id: 'a', day: '2026-10-10', label: 'x', amount_cents: -700, category_id: null, source: 'manuelle', import_key: null, note: '', account_id: pluxee.id, created_at: '2026-10-10T08:00:00.000Z' },
+      { id: 'b', day: '2026-10-10', label: 'x', amount_cents: -900, category_id: null, source: 'manuelle', import_key: null, note: '', account_id: pluxee.id, created_at: '2026-10-10T13:00:00.000Z' },
+      { id: 'c', day: '2026-10-11', label: 'x', amount_cents: 12000, category_id: null, source: 'manuelle', import_key: null, note: '', account_id: pluxee.id, created_at: '' },
+      { id: 'd', day: '2026-10-11', label: 'x', amount_cents: -5000, category_id: null, source: 'import', import_key: 'k', note: '', account_id: null, created_at: '' },
+    ];
+    const asModule: BudgetAccount = { id: pluxee.id, name: 'Pluxee', emoji: '🍽️', isDefault: false, balanceCents: 5000, balanceDay: '2026-10-10', balanceSetAt: '2026-10-10T12:00:00.000Z', position: 0 };
+    const moduleEntries: BudgetEntry[] = sample.map((e) => ({ id: e.id, day: e.day, label: e.label, amountCents: e.amount_cents, categoryId: null, source: e.source, importKey: e.import_key, note: '', accountId: e.account_id ?? null, createdAt: e.created_at ?? '' }));
+    const serverList = server.accountList(m.accounts);
+    expect(server.accountBalance(serverList[1], sample, serverList)).toBe(accountBalance(asModule, moduleEntries, accountList([asModule])));
+    expect(server.MAIN_NAME).toBe(accountList([])[0].name);
   });
 });

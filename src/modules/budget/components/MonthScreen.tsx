@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ShoppingSpendService } from '../../../core/lib/services';
 import { budgetStore } from '../data';
+import { accountBalance, accountList, entriesOf } from '../lib/accounts';
 import { currentMonthKey, monthKeyOf, monthLabel, shiftMonthKey } from '../lib/month';
 import { computeMonthlyBreakdown, deltaMap, formatMonthDelta, monthDelta, subcategoryBreakdown } from '../lib/monthlyBreakdown';
 import { centsToInputValue, formatCents } from '../lib/amount';
 import { searchEntries, summarize } from '../lib/search';
-import type { BudgetCategory, BudgetEntry, BudgetEnvelope, BudgetEnvelopeMove, BudgetRule } from '../lib/types';
+import type { BudgetAccount, BudgetCategory, BudgetEntry, BudgetEnvelope, BudgetEnvelopeMove, BudgetRule } from '../lib/types';
+import { AccountsDialog } from './AccountsDialog';
 import { ClassifyDialog } from './ClassifyDialog';
 import { EntriesView } from './EntriesView';
 import { PieChart } from './PieChart';
@@ -46,15 +48,21 @@ export function MonthScreen({
   /** Une recherche dans toutes les écritures, tous mois confondus ; vide, l'écran du mois. */
   const [query, setQuery] = useState('');
   const [classifying, setClassifying] = useState(false);
+  /** Les comptes (docs/etude-astra.md §17), et celui qu'on regarde : `null` = tous. */
+  const [accounts, setAccounts] = useState<BudgetAccount[]>([]);
+  const [accountFilter, setAccountFilter] = useState<string | null>(null);
+  const [managingAccounts, setManagingAccounts] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      const [nextEntries, nextRules, nextEnvelopes, nextMoves] = await Promise.all([
+      const [nextEntries, nextRules, nextEnvelopes, nextMoves, nextAccounts] = await Promise.all([
         budgetStore.listEntries(),
         budgetStore.listRules(),
         budgetStore.listEnvelopes(),
         budgetStore.listEnvelopeMoves(),
+        budgetStore.listAccounts(),
       ]);
+      setAccounts(nextAccounts);
       setEntries(nextEntries);
       setRules(nextRules);
       setEnvelopes(nextEnvelopes);
@@ -85,17 +93,24 @@ export function MonthScreen({
 
   if (loading) return <p>Chargement…</p>;
 
-  const monthEntries = entries.filter((e) => monthKeyOf(e.day) === monthKey);
-  const breakdown = computeMonthlyBreakdown(entries, categories, monthKey);
+  // Un compte choisi : le mois ne montre que ses écritures — chiffres, camemberts et liste.
+  const accountsList = accountList(accounts);
+  const multiAccounts = accountsList.length > 1;
+  const selectedAccount = multiAccounts && accountFilter !== null ? (accountsList.find((a) => a.id === accountFilter) ?? null) : null;
+  const scoped = selectedAccount ? entriesOf(entries, selectedAccount, accountsList) : entries;
+  const defaultAccountId = (selectedAccount ?? accountsList[0]).id;
+
+  const monthEntries = scoped.filter((e) => monthKeyOf(e.day) === monthKey);
+  const breakdown = computeMonthlyBreakdown(scoped, categories, monthKey);
   const netCents = breakdown.totalIncomeCents - breakdown.totalSpentCents;
 
   // Comparatif au mois précédent (demandé par Jules le 06/09/2026) — masqué
   // en bloc tant qu'aucune écriture n'existe avant ce mois-ci : le tout
   // premier mois utilisé n'a rien à comparer, un « nouveau » sur chaque
   // ligne n'apprendrait rien.
-  const hasHistory = entries.some((e) => monthKeyOf(e.day) < monthKey);
+  const hasHistory = scoped.some((e) => monthKeyOf(e.day) < monthKey);
   const previousBreakdown = hasHistory
-    ? computeMonthlyBreakdown(entries, categories, shiftMonthKey(monthKey, -1))
+    ? computeMonthlyBreakdown(scoped, categories, shiftMonthKey(monthKey, -1))
     : null;
   const expenseDeltas = previousBreakdown ? deltaMap(breakdown.slices, previousBreakdown.slices) : undefined;
   const incomeDeltas = previousBreakdown ? deltaMap(breakdown.incomeSlices, previousBreakdown.incomeSlices) : undefined;
@@ -126,7 +141,7 @@ export function MonthScreen({
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
   const subdetail =
     selectedCategoryId != null && childIds.length > 0
-      ? subcategoryBreakdown(entries, categories, selectedCategoryId, monthKey)
+      ? subcategoryBreakdown(scoped, categories, selectedCategoryId, monthKey)
       : null;
 
   const unclassifiedCount = entries.filter((e) => e.categoryId === null).length;
@@ -148,6 +163,50 @@ export function MonthScreen({
           {unclassifiedCount} à classer
         </button>
       )}
+    </div>
+  );
+
+  const accountsDialog = managingAccounts && (
+    <AccountsDialog accounts={accounts} entries={entries} onClose={() => setManagingAccounts(false)} onChanged={refresh} />
+  );
+
+  // Les comptes en pastilles, chacune avec son solde : choisir une pastille
+  // filtre le mois. Un seul compte : un simple lien pour en ajouter un.
+  const accountsBar = multiAccounts ? (
+    <div className="budget-accounts-bar" role="group" aria-label="Comptes">
+      <button
+        type="button"
+        className={`budget-account-chip${selectedAccount === null ? ' on' : ''}`}
+        aria-pressed={selectedAccount === null}
+        onClick={() => setAccountFilter(null)}
+      >
+        Tous les comptes
+      </button>
+      {accountsList.map((account) => {
+        const balance = accountBalance(account, entries, accountsList);
+        const on = selectedAccount?.id === account.id;
+        return (
+          <button
+            key={account.id || 'principal'}
+            type="button"
+            className={`budget-account-chip${on ? ' on' : ''}`}
+            aria-pressed={on}
+            onClick={() => setAccountFilter(on ? null : account.id)}
+          >
+            <span aria-hidden="true">{account.emoji}</span> {account.name}
+            {balance !== null && <b className={balance < 0 ? 'negative' : undefined}>{formatCents(balance)}</b>}
+          </button>
+        );
+      })}
+      <button type="button" className="btn btn-ghost btn-sm budget-accounts-manage" onClick={() => setManagingAccounts(true)}>
+        Gérer
+      </button>
+    </div>
+  ) : (
+    <div className="budget-accounts-bar budget-accounts-bar-single">
+      <button type="button" className="btn btn-ghost btn-sm budget-accounts-manage" onClick={() => setManagingAccounts(true)}>
+        ＋ Un autre compte (carte titres-restaurant, espèces…)
+      </button>
     </div>
   );
 
@@ -194,6 +253,8 @@ export function MonthScreen({
             envelopes={envelopes}
             moves={moves}
             history={entries}
+            accounts={accountsList}
+            defaultAccountId={defaultAccountId}
             onError={onError}
             onChanged={refresh}
             emptyTitle="Rien ne correspond"
@@ -208,6 +269,8 @@ export function MonthScreen({
     <div className="budget-month">
       {searchBar}
       {classifyDialog}
+      {accountsDialog}
+      {accountsBar}
       <div className="budget-month-selector">
         <button
           type="button"
@@ -320,6 +383,8 @@ export function MonthScreen({
           envelopes={envelopes}
           moves={moves}
           history={entries}
+          accounts={accountsList}
+          defaultAccountId={defaultAccountId}
           onError={onError}
           onChanged={refresh}
           emptyTitle={monthEntries.length === 0 ? 'Aucune écriture ce mois-ci' : 'Aucune écriture pour cette part'}

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import { accountOf, entryAccountId } from '../lib/accounts';
 import { centsToInputValue, parsePositiveAmountToCents } from '../lib/amount';
 import { matchRule } from '../lib/boursobankImport';
 import { frequentCategoryIds, menuKindOrder } from '../lib/categoryPicker';
 import { suggestedPattern, validateRulePattern } from '../lib/classify';
 import { availableForEntry, linkedMove, withdrawalProblem } from '../lib/envelopes';
-import type { BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetEnvelope, BudgetEnvelopeMove, BudgetRule } from '../lib/types';
+import type { BudgetAccount, BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetEnvelope, BudgetEnvelopeMove, BudgetRule } from '../lib/types';
 import { CategorySelect } from './CategorySelect';
 
 function today(): string {
@@ -33,6 +34,9 @@ interface Props {
   moves?: BudgetEnvelopeMove[];
   /** Passer à la saisie de plusieurs écritures d'un coup (nouvelle écriture seulement). */
   onSwitchToBulk?: () => void;
+  /** Les comptes (`accountList`) : un seul, et le champ n'apparaît pas. */
+  accounts?: BudgetAccount[];
+  defaultAccountId?: string;
 }
 
 /**
@@ -47,7 +51,21 @@ interface Props {
  * existantes dès que le libellé matche l'une d'elles, et les catégories les
  * plus utilisées sont proposées en pastilles avant même d'ouvrir le menu.
  */
-export function EntryEditor({ entry, categories, rules, history, onCancel, onSave, envelopes = [], moves = [], onSwitchToBulk }: Props) {
+export function EntryEditor({
+  entry,
+  categories,
+  rules,
+  history,
+  onCancel,
+  onSave,
+  envelopes = [],
+  moves = [],
+  onSwitchToBulk,
+  accounts = [],
+  defaultAccountId = '',
+}: Props) {
+  const multiAccounts = accounts.length > 1;
+  const [accountId, setAccountId] = useState(entry ? accountOf(entry, accounts).id : defaultAccountId);
   const isEdit = entry !== null;
   const [day, setDay] = useState(entry?.day ?? today());
   const [label, setLabel] = useState(entry?.label ?? '');
@@ -122,6 +140,8 @@ export function EntryEditor({ entry, categories, rules, history, onCancel, onSav
           categoryId: categoryId || null,
           // Une écriture importée le reste quand on la corrige.
           source: entry?.source ?? 'manuelle',
+          // Seulement quand il y a des comptes : avant la migration, la colonne n'existe pas.
+          ...(multiAccounts ? { accountId: entryAccountId(accounts.find((a) => a.id === accountId) ?? accounts[0]) } : {}),
         },
         canRemember && remember ? pattern : undefined,
         // Une entrée d'argent n'est jamais payée par une enveloppe ; sans enveloppe du tout, rien à dire.
@@ -248,6 +268,25 @@ export function EntryEditor({ entry, categories, rules, history, onCancel, onSav
               }}
             />
           </div>
+
+          {multiAccounts && (
+            <div className="field">
+              <label>Compte</label>
+              <div className="budget-category-chips" role="group" aria-label="Compte">
+                {accounts.map((a) => (
+                  <button
+                    key={a.id || 'principal'}
+                    type="button"
+                    className={`budget-category-chip${accountId === a.id ? ' on' : ''}`}
+                    aria-pressed={accountId === a.id}
+                    onClick={() => setAccountId(a.id)}
+                  >
+                    <span aria-hidden="true">{a.emoji}</span> {a.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {isExpense && envelopes.length > 0 && (
             <div className="field">

@@ -168,6 +168,8 @@ export interface ExpenseRequest {
   amountCents: number;
   categoryName: string;
   note: string;
+  /** Le compte du budget qui paie (son nom, « Pluxee ») ; absent ou inconnu : le principal (30/10/2026). */
+  accountName?: string;
 }
 
 /** Ce que les outils peuvent faire, toujours sur le seul compte du jeton. */
@@ -431,6 +433,7 @@ export const coursesTools: Tool<CoursesContext>[] = [
         },
         note: { type: 'string', maxLength: NOTE_MAX },
         budget: { type: 'boolean', description: 'Créer la dépense dans Budget (oui par défaut).' },
+        compte: { type: 'string', description: 'Le compte du budget qui a payé, si ce n’est pas le principal : « Pluxee » pour la carte titres-restaurant (budget_comptes).' },
       },
       required: ['store', 'day', 'total', 'items'],
     },
@@ -462,8 +465,9 @@ export const coursesTools: Tool<CoursesContext>[] = [
       let budget = 'non demandée';
       if (args.budget !== false) {
         try {
-          await data.recordExpense(expenseForTrip(trip));
-          budget = 'créée dans Budget';
+          const accountName = typeof args.compte === 'string' && args.compte.trim() ? args.compte.trim() : undefined;
+          await data.recordExpense({ ...expenseForTrip(trip), ...(accountName ? { accountName } : {}) });
+          budget = accountName ? `créée dans Budget (compte demandé : ${accountName})` : 'créée dans Budget';
         } catch (err) {
           budget = `pas créée (${err instanceof Error ? err.message : 'erreur'}) : « Ajouter au budget » dans l’historique de Courses`;
         }

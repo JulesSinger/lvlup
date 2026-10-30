@@ -13,6 +13,7 @@ const entry = (day: string, label: string, amountCents: number, categoryId: stri
   source: 'import',
   importKey: null,
   note: '',
+  accountId: null,
   createdAt: `${day}T10:00:00Z`,
 });
 const monthly = (label: string, amount: number, months: string[], day = '12') => months.map((m) => entry(`2026-${m}-${day}`, `${label} ${day}/${m}`, -amount));

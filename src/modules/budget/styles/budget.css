@@ -1559,3 +1559,147 @@
     grid-column: 1 / -1;
   }
 }
+
+/* ===================================================== les comptes (30/10/2026) */
+
+.budget-accounts-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.budget-accounts-bar-single {
+  justify-content: flex-end;
+  margin-top: -6px;
+}
+
+.budget-account-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.budget-account-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.budget-account-chip.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  font-weight: 600;
+}
+
+.budget-account-chip b {
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-account-chip b.negative,
+.budget-account-balance.negative {
+  color: var(--red);
+}
+
+.budget-accounts-manage {
+  margin-left: auto;
+}
+
+.budget-accounts-list {
+  list-style: none;
+  margin: 10px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.budget-account-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+}
+
+.budget-account-emoji {
+  font-size: 20px;
+}
+
+.budget-account-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+}
+
+.budget-account-meta {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+.budget-account-balance {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.budget-account-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.budget-account-form {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.budget-account-form .budget-category-chips {
+  margin-bottom: 0;
+}
+
+.budget-account-form-foot,
+.budget-account-gap-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.budget-account-gap {
+  margin: 0;
+  font-size: 14px;
+}
+
+.budget-bulk-account {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 520px) {
+  .budget-account-row {
+    flex-wrap: wrap;
+  }
+  .budget-account-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

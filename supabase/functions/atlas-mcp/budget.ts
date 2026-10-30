@@ -10,7 +10,13 @@
  * la photo d'une addition.
  *
  * Une écriture importée du relevé garde son jour et son montant (ceux de la
- * banque) : on n'en change que la catégorie, le libellé et la note. Les
+ * banque) : on n'en change que la catégorie, le libellé et la note.
+ *
+ * Les comptes (30/10/2026, docs/etude-astra.md §17) : la carte Pluxee des
+ * titres-restaurant à côté de la banque. Une capture de l'appli Pluxee donnée
+ * à Claude devient des opérations de ce compte — après avoir relu celles qui y
+ * sont déjà, pour ne rien noter deux fois. Le solde se calcule comme dans
+ * l'app (`accountBalance`, comparé par le test). Les
  * enveloppes et les abonnements restent à l'app pour l'instant. Colonnes :
  * `2026-08-23-budget-tables.sql` et suivantes.
  */
@@ -34,6 +40,19 @@ export interface EntryRow {
   source: (typeof BUDGET_ENTRY_SOURCES)[number];
   import_key: string | null;
   note: string;
+  /** Absente avant la migration du 2026-10-30 ; nulle = le compte principal. */
+  account_id?: string | null;
+  created_at?: string;
+}
+
+export interface AccountRow {
+  id: string;
+  name: string;
+  emoji: string;
+  is_default: boolean;
+  balance_cents: number | string | null;
+  balance_day: string | null;
+  balance_set_at: string | null;
 }
 
 export interface CategoryRow {
@@ -61,6 +80,8 @@ export interface BudgetData {
   listRules(): Promise<RuleRow[]>;
   insertRule(row: Record<string, unknown>): Promise<RuleRow>;
   deleteRule(id: string): Promise<boolean>;
+  /** Les comptes ; aucun (table absente comprise) = le seul compte principal. */
+  listAccounts(): Promise<AccountRow[]>;
 }
 
 export interface BudgetContext {
@@ -74,6 +95,34 @@ export function matchRule(label: string, rules: readonly RuleRow[]): RuleRow | n
   const matching = rules.filter((r) => r.pattern.trim() !== '' && haystack.includes(r.pattern.trim().toLowerCase()));
   if (matching.length === 0) return null;
   return matching.reduce((best, r) => (r.priority > best.priority ? r : best));
+}
+
+/** Le compte principal tant qu'il n'est pas nommé (`VIRTUAL_MAIN` du module). */
+export const MAIN_NAME = 'Compte courant';
+
+/** Les comptes, le principal en tête — comme `accountList` du module. */
+export function accountList(accounts: readonly AccountRow[]): AccountRow[] {
+  const main = accounts.find((a) => a.is_default) ?? { id: '', name: MAIN_NAME, emoji: '🏦', is_default: true, balance_cents: null, balance_day: null, balance_set_at: null };
+  return [main, ...accounts.filter((a) => !a.is_default)];
+}
+
+/** Le compte d'une écriture : sans compte, ou d'un compte disparu, le principal. */
+export function accountOf(e: Pick<EntryRow, 'account_id'>, list: readonly AccountRow[]): AccountRow {
+  return (e.account_id && list.find((a) => a.id === e.account_id)) || list[0];
+}
+
+/**
+ * Le solde d'un compte, ou null s'il n'est pas suivi : celui donné, plus les
+ * écritures des jours suivants et celles du jour même notées après (`accountBalance` du module).
+ */
+export function accountBalance(account: AccountRow, entries: readonly EntryRow[], list: readonly AccountRow[]): number | null {
+  if (account.balance_cents === null || account.balance_day === null) return null;
+  const since = account.balance_day;
+  const setAt = account.balance_set_at;
+  return entries
+    .filter((e) => accountOf(e, list).id === account.id)
+    .filter((e) => e.day > since || (e.day === since && setAt !== null && (e.created_at ?? '') > setAt))
+    .reduce((sum, e) => sum + e.amount_cents, Number(account.balance_cents));
 }
 
 class Refused extends Error {}
@@ -131,6 +180,17 @@ export function resolveCategory(categories: readonly CategoryRow[], v: unknown):
   throw new Refused(`Aucune catégorie « ${v} » : choisis parmi budget_categories (les catégories se créent dans l’app).`);
 }
 
+/** Un compte par son nom (sans casse ni accents) ou son id. */
+function resolveAccount(list: readonly AccountRow[], v: unknown): AccountRow {
+  if (typeof v !== 'string' || !v.trim()) throw new Refused('compte : le nom ou l’id d’un compte (budget_comptes).');
+  const found = list.find((a) => a.id !== '' && a.id === v.toLowerCase()) ?? list.find((a) => fold(a.name) === fold(v));
+  if (!found) throw new Refused(`Aucun compte « ${v} » : choisis parmi ${list.map((a) => a.name).join(', ')} (les comptes se créent dans l’app).`);
+  return found;
+}
+
+/** La colonne à écrire : rien pour le compte principal (une base d'avant la migration l'accepte ainsi). */
+const accountColumn = (account: AccountRow) => (account.is_default ? {} : { account_id: account.id });
+
 function shiftMonths(d: string, months: number): string {
   const t = new Date(`${d}T00:00:00Z`);
   t.setUTCMonth(t.getUTCMonth() + months, 1);
@@ -144,7 +204,7 @@ function monthRange(month: string): { from: string; to: string } {
   return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, '0')}` };
 }
 
-const entryOut = (e: EntryRow, categories: readonly CategoryRow[]) => {
+const entryOut = (e: EntryRow, categories: readonly CategoryRow[], accounts: readonly AccountRow[] = []) => {
   const c = e.category_id ? categories.find((x) => x.id === e.category_id) : undefined;
   const parent = c?.parent_id ? categories.find((x) => x.id === c.parent_id) : undefined;
   return {
@@ -154,6 +214,8 @@ const entryOut = (e: EntryRow, categories: readonly CategoryRow[]) => {
     amount: euros(e.amount_cents),
     category: c ? (parent ? `${parent.name} › ${c.name}` : c.name) : null,
     source: e.source === 'import' ? 'relevé' : e.import_key ? 'module' : 'saisie',
+    // Le compte, seulement quand il y en a plusieurs.
+    account: accounts.length > 1 ? accountOf(e, accounts).name : undefined,
     note: e.note || undefined,
   };
 };
@@ -161,6 +223,38 @@ const entryOut = (e: EntryRow, categories: readonly CategoryRow[]) => {
 const S = { id: { type: 'string', description: 'Identifiant (uuid), tel que rendu par un autre outil.' } };
 
 export const budgetTools: Tool<BudgetContext>[] = [
+  {
+    name: 'budget_comptes',
+    title: 'Les comptes et leurs soldes',
+    description:
+      'Les comptes du budget (la banque, la carte Pluxee des titres-restaurant…), le principal en tête, avec leur solde quand il est suivi et leurs dernières opérations. Le solde se calcule : celui donné dans l’app à un jour, plus les opérations notées depuis.',
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
+    async run(_args, { data, today }) {
+      const list = accountList(await data.listAccounts());
+      const oldest = list.map((a) => a.balance_day).filter((d): d is string => !!d).sort()[0] ?? shiftMonths(today, -1);
+      const [entries, categories] = await Promise.all([data.listEntries(oldest < shiftMonths(today, -1) ? oldest : shiftMonths(today, -1), '9999-12-31'), data.listCategories()]);
+      return json({
+        accounts: list.map((a) => {
+          const balance = accountBalance(a, entries, list);
+          const recent = entries
+            .filter((e) => accountOf(e, list).id === a.id)
+            .sort((x, y) => y.day.localeCompare(x.day))
+            .slice(0, 8);
+          return {
+            id: a.id || undefined,
+            name: a.name,
+            emoji: a.emoji,
+            principal: a.is_default || undefined,
+            balance: balance === null ? null : euros(balance),
+            balance_known: a.balance_day ? { amount: euros(Number(a.balance_cents)), day: a.balance_day } : undefined,
+            recent: recent.map((e) => entryOut(e, categories)),
+          };
+        }),
+        hint: list.length === 1 ? 'Un seul compte : les autres (Pluxee, espèces…) se créent dans l’app, Budget → « Un autre compte ».' : undefined,
+      });
+    },
+  },
   {
     name: 'budget_categories',
     title: 'Les catégories de Budget',
@@ -195,20 +289,24 @@ export const budgetTools: Tool<BudgetContext>[] = [
         a_classer: { type: 'boolean' },
         query: { type: 'string' },
         category: { type: 'string', description: 'Le nom ou l’id d’une catégorie (ses sous-catégories comprises).' },
+        compte: { type: 'string', description: 'Le nom d’un compte (Pluxee…) : seulement ses opérations.' },
       },
     },
     annotations: { readOnlyHint: true },
     async run(args, { data, today }) {
       const { from, to } =
         typeof args.from === 'string' && typeof args.to === 'string' ? { from: day(args.from, 'from'), to: day(args.to, 'to') } : monthRange(String(args.month ?? today.slice(0, 7)));
-      const [entries, categories] = await Promise.all([data.listEntries(from, to), data.listCategories()]);
+      const [entries, categories, accounts] = await Promise.all([data.listEntries(from, to), data.listCategories(), data.listAccounts()]);
+      const list = accountList(accounts);
+      const account = args.compte === undefined ? null : resolveAccount(list, args.compte);
       const words = fold(text(args.query, 'query', 200)).split(/\s+/).filter(Boolean);
       const cat = args.category === undefined ? null : resolveCategory(categories, args.category);
       const inCat = (e: EntryRow) => !cat || e.category_id === cat.id || categories.find((c) => c.id === e.category_id)?.parent_id === cat.id;
       const found = entries
         .filter((e) => (args.a_classer !== true || e.category_id === null) && inCat(e) && words.every((w) => fold(`${e.label} ${e.note}`).includes(w)))
+        .filter((e) => !account || accountOf(e, list).id === account.id)
         .sort((a, b) => b.day.localeCompare(a.day));
-      return json({ from, to, total: found.length, shown: Math.min(found.length, LIST_LIMIT), entries: found.slice(0, LIST_LIMIT).map((e) => entryOut(e, categories)) });
+      return json({ from, to, total: found.length, shown: Math.min(found.length, LIST_LIMIT), entries: found.slice(0, LIST_LIMIT).map((e) => entryOut(e, categories, list)) });
     },
   },
   {
@@ -263,7 +361,7 @@ export const budgetTools: Tool<BudgetContext>[] = [
     name: 'budget_ecriture_ajouter',
     title: 'Noter une opération',
     description:
-      'Note une dépense ou une entrée à la main (une addition, un remboursement d’un ami…). Le relevé importé en fin de mois reconnaîtra seulement les courses et les paiements de Projets : une dépense notée ici puis importée apparaîtra deux fois, préviens l’utilisateur.',
+      'Note une dépense ou une entrée à la main (une addition, un remboursement d’un ami…). Le relevé importé en fin de mois reconnaîtra seulement les courses et les paiements de Projets : une dépense notée ici puis importée apparaîtra deux fois, préviens l’utilisateur. « compte » : d’où part l’argent (Pluxee pour un repas payé avec la carte titres-restaurant ; le compte principal sinon). Ce qui n’est pas sur le compte principal n’arrive jamais par le relevé : pas de doublon à craindre. Une capture de l’appli Pluxee : lis d’abord budget_ecritures avec ce compte sur la période, et n’ajoute que les transactions absentes ; la recharge mensuelle est une entrée (catégorie des titres-restaurant).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -273,13 +371,16 @@ export const budgetTools: Tool<BudgetContext>[] = [
         direction: { type: 'string', enum: ['depense', 'entree'] },
         category: { type: ['string', 'null'] },
         note: { type: 'string', maxLength: NOTE_MAX },
+        compte: { type: 'string', description: 'Le nom du compte (budget_comptes) ; le compte principal par défaut.' },
       },
       required: ['day', 'label', 'amount', 'direction'],
     },
     annotations: {},
     async run(args, { data }) {
       if (args.direction !== 'depense' && args.direction !== 'entree') throw new Refused('direction : depense ou entree.');
-      const categories = await data.listCategories();
+      const [categories, accounts] = await Promise.all([data.listCategories(), data.listAccounts()]);
+      const list = accountList(accounts);
+      const account = args.compte === undefined ? list[0] : resolveAccount(list, args.compte);
       const category = args.category === undefined ? null : resolveCategory(categories, args.category);
       const cents = readAmount(args.amount);
       const created = await data.insertEntry({
@@ -289,8 +390,9 @@ export const budgetTools: Tool<BudgetContext>[] = [
         category_id: category?.id ?? null,
         source: 'manuelle',
         note: text(args.note, 'La note', NOTE_MAX),
+        ...accountColumn(account),
       });
-      return json({ message: 'Opération notée.', entry: entryOut(created, categories) });
+      return json({ message: account.is_default ? 'Opération notée.' : `Opération notée sur ${account.name}.`, entry: entryOut(created, categories, list) });
     },
   },
   {
@@ -308,6 +410,7 @@ export const budgetTools: Tool<BudgetContext>[] = [
         day: { type: 'string' },
         amount: { type: 'number', exclusiveMinimum: 0 },
         direction: { type: 'string', enum: ['depense', 'entree'] },
+        compte: { type: 'string', description: 'La passer sur un autre compte (son nom).' },
       },
       required: ['id'],
     },
@@ -315,11 +418,17 @@ export const budgetTools: Tool<BudgetContext>[] = [
     async run(args, { data }) {
       const entry = await data.getEntry(id(args.id));
       if (!entry) throw new Refused('Aucune opération avec cet identifiant.');
-      const categories = await data.listCategories();
+      const [categories, accounts] = await Promise.all([data.listCategories(), data.listAccounts()]);
+      const list = accountList(accounts);
       const row: Record<string, unknown> = {};
       if (args.label !== undefined) row.label = text(args.label, 'Le libellé', LABEL_MAX, true);
       if (args.note !== undefined) row.note = text(args.note, 'La note', NOTE_MAX);
       if (args.category !== undefined) row.category_id = resolveCategory(categories, args.category)?.id ?? null;
+      if (args.compte !== undefined) {
+        const account = resolveAccount(list, args.compte);
+        if (entry.source === 'import' && !account.is_default) throw new Refused('Une opération du relevé reste sur le compte du relevé.');
+        row.account_id = account.is_default ? null : account.id;
+      }
       if (args.day !== undefined || args.amount !== undefined || args.direction !== undefined) {
         if (entry.source === 'import') throw new Refused('Une opération du relevé garde le jour et le montant de la banque.');
         if (args.day !== undefined) row.day = day(args.day);
@@ -329,7 +438,7 @@ export const budgetTools: Tool<BudgetContext>[] = [
       }
       if (Object.keys(row).length === 0) throw new Refused('Rien à modifier : donne au moins un champ.');
       const updated = await data.updateEntry(entry.id, row);
-      return json({ message: 'Opération modifiée.', entry: updated && entryOut(updated, categories) });
+      return json({ message: 'Opération modifiée.', entry: updated && entryOut(updated, categories, list) });
     },
   },
   {

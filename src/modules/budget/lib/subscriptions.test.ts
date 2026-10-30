@@ -29,6 +29,7 @@ const entry = (day: string, label: string, amountCents: number): BudgetEntry => 
   source: 'import',
   importKey: null,
   note: '',
+  accountId: null,
   createdAt: '',
 });
 
