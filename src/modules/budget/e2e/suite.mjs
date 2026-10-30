@@ -1263,7 +1263,7 @@ export async function run({ browser, check, BASE }) {
     const rules = p.locator('.budget-rules');
     await rules.waitFor();
     check('La règle retenue apparaît dans les règles de classement', ((await rules.textContent()) ?? '').includes('« CB NETFLIX »'));
-    await p.getByRole('button', { name: '+ Nouvelle règle' }).click();
+    await p.getByRole('button', { name: '+ Nouvelle fiche ou règle' }).click();
     await p.locator('#budget-rule-pattern').fill('lo');
     await p.locator('#budget-rule-category').selectOption('c-logement');
     await p.getByRole('button', { name: 'Créer la règle' }).click();
@@ -1622,6 +1622,78 @@ export async function run({ browser, check, BASE }) {
     await p.waitForFunction(() => document.querySelectorAll('.budget-entry-row').length === 3);
     check('Supprimer Pluxee rend ses écritures au compte principal, sans rien effacer', (await p.locator('.budget-account-chip').count()) === 0);
     check('Aucune erreur JavaScript (comptes)', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // --- Le carnet des libellés et les notes (2026-10-30) -----------------------
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const p = await ctx.newPage();
+    const errors = [];
+    p.on('pageerror', (e) => errors.push(e.message));
+    await enterBudget(p, BASE);
+    await p.waitForSelector('.budget-tab');
+    await p.evaluate(() => {
+      const d = new Date();
+      const day = (n) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(n).padStart(2, '0')}`;
+      const e = (id, n, label, amountCents) => ({ id, day: day(n), label, amountCents, categoryId: null, source: 'import', importKey: id, note: '', createdAt: day(n) });
+      const snap = JSON.parse(localStorage.getItem('palier.v1') || '{}');
+      snap.budgetEntries = [e('k1', 1, 'Comptoir De Sta', -450), e('k2', 2, 'COMPTOIR DE STA NANCY', -650), e('k3', 3, 'Vir Inst Laurence Singer', -7000)];
+      snap.budgetRules = [];
+      // Une catégorie : l'onglet Catégories (et « Qui est qui » dessous) n'apparaît qu'avec elles.
+      snap.budgetCategories = [{ id: 'c-sorties', name: 'Sorties', emoji: '🎉', color: '#c9a0ff', kind: 'variable', position: 0, parentId: null }];
+      localStorage.setItem('palier.v1', JSON.stringify(snap));
+    });
+    await reloadBudget(p);
+    await p.waitForFunction(() => document.querySelectorAll('.budget-entry-row').length === 3);
+    const text = async (loc) => ((await loc.textContent()) ?? '').replace(/\s/g, ' ');
+
+    await p.getByRole('button', { name: 'C’est quoi « Comptoir De Sta » ?' }).click();
+    await p.waitForSelector('.budget-rule-editor');
+    check('« C’est quoi ? » propose le libellé comme motif', (await p.locator('#budget-rule-pattern').inputValue()) === 'Comptoir De Sta');
+    check('… et dit combien d’écritures il concerne', (await text(p.locator('.budget-rule-editor .field-hint').first())).includes('2 écritures'));
+    await p.locator('#budget-rule-label').fill('Buvette ASNL');
+    await p.locator('#budget-rule-description').fill('Le stade Marcel-Picot, les soirs de match');
+    await p.getByRole('button', { name: 'Retenir', exact: true }).click();
+    await p.waitForSelector('.budget-rule-editor', { state: 'detached' });
+    await p.waitForFunction(() => document.querySelectorAll('.budget-row-known').length === 2);
+    check('Les deux buvettes disent ce qu’elles sont', (await p.locator('.budget-row-known', { hasText: 'Buvette ASNL' }).count()) === 2);
+    check('… et ne proposent plus « C’est quoi ? »', (await p.getByRole('button', { name: /C’est quoi « COMPTOIR/ }).count()) === 0);
+    check('Elles restent à classer : une fiche ne range rien', (await p.locator('.budget-entry-row', { hasText: 'Comptoir De Sta' }).first().locator('.budget-row-category').textContent())?.startsWith('À classer'));
+
+    await p.locator('.budget-search input').fill('asnl');
+    await p.waitForSelector('.budget-search-summary');
+    check('La recherche trouve par le nom de la fiche', (await text(p.locator('.budget-search-summary'))).includes('2 écritures'));
+    await p.locator('.budget-search input').fill('marcel picot');
+    await p.waitForFunction(() => document.querySelector('.budget-search-summary')?.textContent?.includes('2 écritures'));
+    check('… et par sa description', true);
+    await p.locator('.budget-search input').fill('');
+
+    // La note d'une écriture, écrite dans la ligne.
+    const laurence = p.locator('.budget-entry-row', { hasText: 'Laurence' });
+    await laurence.getByRole('button', { name: /Note de/ }).click();
+    await laurence.locator('.budget-row-note-input').fill('Ma part du canapé');
+    await laurence.locator('.budget-row-note-input').press('Enter');
+    await p.waitForFunction(() => [...document.querySelectorAll('.budget-row-note')].some((el) => el.textContent?.includes('Ma part du canapé')));
+    check('Une note s’écrit dans la ligne, et s’y affiche', (await text(laurence.locator('.budget-row-note'))).includes('Ma part du canapé'));
+    await laurence.getByRole('button', { name: /Note de/ }).click();
+    await laurence.locator('.budget-row-note-input').fill('autre chose');
+    await laurence.locator('.budget-row-note-input').press('Escape');
+    await p.waitForSelector('.budget-row-note-input', { state: 'detached' });
+    check('Échap annule, sans rien réécrire', (await text(laurence.locator('.budget-row-note'))).includes('Ma part du canapé'));
+
+    await reloadBudget(p);
+    await p.waitForSelector('.budget-row-known');
+    check('Fiche et note survivent au rechargement', (await p.locator('.budget-row-known').count()) === 2 && (await p.locator('.budget-row-note').count()) === 1);
+    await p.locator('.budget-search input').fill('canape');
+    await p.waitForSelector('.budget-search-summary');
+    check('La recherche trouve par la note', (await text(p.locator('.budget-search-summary'))).includes('1 écriture'));
+    await p.locator('.budget-search input').fill('');
+
+    await p.getByRole('button', { name: 'Catégories', exact: true }).click();
+    await p.waitForSelector('.budget-rules');
+    check('La fiche est dans « Qui est qui »', (await text(p.locator('.budget-rule-row'))).includes('Buvette ASNL'));
+    check('Aucune erreur JavaScript (carnet des libellés)', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
 }

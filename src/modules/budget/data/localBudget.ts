@@ -39,7 +39,12 @@ function read(): Snapshot {
       ...e,
       accountId: e.accountId ?? null,
     })),
-    rules: Array.isArray(raw.budgetRules) ? (raw.budgetRules as BudgetRule[]) : [],
+    // Une règle d'avant le carnet des libellés (2026-10-30) n'a ni nom ni description.
+    rules: (Array.isArray(raw.budgetRules) ? (raw.budgetRules as BudgetRule[]) : []).map((r) => ({
+      ...r,
+      label: r.label ?? '',
+      description: r.description ?? '',
+    })),
     envelopes: Array.isArray(raw.budgetEnvelopes) ? (raw.budgetEnvelopes as BudgetEnvelope[]) : [],
     // Un mouvement d'avant le lien avec les dépenses (2026-10-07) n'a pas d'`entryId`.
     envelopeMoves: (Array.isArray(raw.budgetEnvelopeMoves) ? (raw.budgetEnvelopeMoves as BudgetEnvelopeMove[]) : []).map(
@@ -139,7 +144,11 @@ export class LocalBudget implements BudgetStore {
     snapshot.entries = snapshot.entries.map((e) =>
       e.categoryId === id ? { ...e, categoryId: null } : e,
     );
-    snapshot.rules = snapshot.rules.filter((r) => r.categoryId !== id);
+    // Une règle qui ne faisait que ranger part avec sa catégorie ; une fiche (un
+    // nom, une description) reste, sans catégorie — on n'oublie pas qui c'est.
+    snapshot.rules = snapshot.rules
+      .filter((r) => r.categoryId !== id || r.label.trim() !== '' || r.description.trim() !== '')
+      .map((r) => (r.categoryId === id ? { ...r, categoryId: null } : r));
     write(snapshot);
   }
 
@@ -247,6 +256,8 @@ export class LocalBudget implements BudgetStore {
       pattern: input.pattern,
       categoryId: input.categoryId,
       priority: input.priority ?? 0,
+      label: input.label?.trim() ?? '',
+      description: input.description?.trim() ?? '',
     };
     snapshot.rules.push(rule);
     write(snapshot);

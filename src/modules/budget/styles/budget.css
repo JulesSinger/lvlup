@@ -1703,3 +1703,72 @@
     justify-content: flex-end;
   }
 }
+
+/* ======================================= le carnet des libellés et les notes (30/10/2026) */
+
+/* Ce que cache le libellé : un lien discret, qui rouvre la fiche. */
+.budget-row-known {
+  display: block;
+  max-width: 100%;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.budget-row-known:hover {
+  text-decoration: underline;
+}
+
+.budget-row-known-more {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.budget-row-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.budget-row-note-input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.budget-row-icon {
+  padding-left: 7px;
+  padding-right: 7px;
+}
+
+.budget-rule-fiche {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.budget-rule-fiche b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Le nom d'une fiche, sur une ligne, ne pousse jamais le montant ni les boutons hors de la ligne. */
+.budget-entry-row .budget-row-name {
+  min-width: 0;
+}

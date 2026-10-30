@@ -1,7 +1,7 @@
 import { parseSignedAmountToCents } from './amount';
 import { parseCsvRows } from '../../../core/lib/csv';
 import { matchModuleEntries } from './moduleMatch';
-import type { BudgetCategory, BudgetEntry, BudgetRule } from './types';
+import type { BudgetCategory, BudgetEntry, BudgetRule, ClassifyingRule } from './types';
 
 /** Sépare les fragments d'une empreinte de dédoublonnage — un caractère qu'un libellé bancaire ne contiendra jamais. */
 const UNIT_SEPARATOR = '';
@@ -202,9 +202,12 @@ function findCategoryByExactName(categories: BudgetCategory[], name: string): Bu
  * docs/etude-astra.md — amélioration post-V1 du 31/08/2026), qui n'a rien
  * de spécifique à l'import — un libellé est un libellé.
  */
-export function matchRule(rawLabel: string, rules: BudgetRule[]): BudgetRule | null {
+export function matchRule(rawLabel: string, rules: readonly BudgetRule[]): ClassifyingRule | null {
   const haystack = rawLabel.toLowerCase();
-  const matching = rules.filter((r) => r.pattern.trim() !== '' && haystack.includes(r.pattern.trim().toLowerCase()));
+  // Une fiche sans catégorie (le carnet des libellés) dit ce que c'est, elle ne range rien.
+  const matching = rules.filter(
+    (r): r is ClassifyingRule => r.categoryId !== null && r.pattern.trim() !== '' && haystack.includes(r.pattern.trim().toLowerCase()),
+  );
   if (matching.length === 0) return null;
   return matching.reduce((best, r) => (r.priority > best.priority ? r : best));
 }

@@ -452,6 +452,8 @@ function budgetData(userId: string): BudgetData {
       fetchAll<BudgetCategoryRow>((first, last) => t('budget_categories').select('*').eq('user_id', userId).order('position').order('id').range(first, last)),
     listRules: () => fetchAll<BudgetRuleRow>((first, last) => t('budget_rules').select('*').eq('user_id', userId).order('priority').order('id').range(first, last)),
     insertRule: async (row) => check(await t('budget_rules').insert({ ...row, user_id: userId }).select('*').single()) as BudgetRuleRow,
+    updateRule: async (id, row) =>
+      (check(await t('budget_rules').update(row).eq('user_id', userId).eq('id', id).select('*').maybeSingle()) as BudgetRuleRow | null) ?? null,
     deleteRule: async (id) => (check(await t('budget_rules').delete().eq('user_id', userId).eq('id', id).select('id')) as unknown[]).length > 0,
     async listAccounts() {
       const { data, error } = await t('budget_accounts').select('*').eq('user_id', userId).order('position').order('id');
@@ -764,7 +766,7 @@ function serverInfo(day: string): ServerInfo {
       '- Nutrition (nutrition_*) : le journal des repas, calories et macros. Cherche chaque aliment (nutrition_chercher) avant de l’ajouter ; une estimation seulement à défaut, dite comme telle.',
       '- Projets (projets_*) : les projets clients du freelance (sites pour commerçants). Après un rendez-vous : une note au journal, les tâches, le temps passé, ce qu’on attend du client. Un paiement reçu va aussi à Budget.',
       '- Hauts faits (hautsfaits_*) : les grands moments d’une vie, sur une frise. Un souvenir raconté devient un haut fait, daté à la précision connue ; les photos s’ajoutent dans l’app.',
-      '- Budget (budget_*) : les opérations et leurs catégories. Pour les « à classer » : budget_ecritures (a_classer), budget_classer, puis une règle pour les suivantes. Plusieurs comptes (la banque, la carte Pluxee des titres-restaurant) : budget_comptes ; une capture de l’appli Pluxee = ses transactions, notées sur ce compte (compte: « Pluxee ») après avoir relu celles déjà là.',
+      '- Budget (budget_*) : les opérations et leurs catégories. Pour les « à classer » : budget_ecritures (a_classer), budget_classer, puis une règle pour les suivantes. Plusieurs comptes (la banque, la carte Pluxee des titres-restaurant) : budget_comptes ; une capture de l’appli Pluxee = ses transactions, notées sur ce compte (compte: « Pluxee ») après avoir relu celles déjà là. « C’est quoi cette dépense ? » : known et note dans budget_ecritures ; ce que l’utilisateur explique d’un libellé qui revient se retient avec budget_libelle_noter, ce qui ne vaut que pour une opération va dans sa note.',
       '- atlas_bilan : le bilan d’une semaine ou d’un mois, tous modules d’un coup.',
       'Entre modules : une recette vers les courses = recettes_lire, sans les ingrédients « toujours là » (recettes_toujours_la), quantités ajustées aux personnes, montrées à Jules avant courses_liste_ajouter — jamais sans sa relecture. Un ticket de caisse et un paiement de projet vont seuls dans Budget ; une sortie de Sport coche seule Objectifs.',
       `Aujourd’hui : ${day} (heure de Paris). Les jours s’écrivent AAAA-MM-JJ, les heures HH:MM.`,

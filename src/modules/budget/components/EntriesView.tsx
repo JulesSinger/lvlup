@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { budgetStore } from '../data';
 import { accountOf } from '../lib/accounts';
 import { formatCents } from '../lib/amount';
+import { suggestedPattern } from '../lib/classify';
 import { linkedMove, linkPlan } from '../lib/envelopes';
+import { knownFor, ruleWithPattern } from '../lib/labels';
 import type { BudgetAccount, BudgetCategory, BudgetEntry, BudgetEntryInput, BudgetEnvelope, BudgetEnvelopeMove, BudgetRule } from '../lib/types';
 import { BulkEntryEditor } from './BulkEntryEditor';
 import { EntryEditor } from './EntryEditor';
+import { RuleEditor, type RuleInput } from './RuleEditor';
 
 function categoryFor(categories: BudgetCategory[], id: string | null): BudgetCategory | null {
   if (!id) return null;
@@ -53,6 +56,12 @@ export function EntriesView({
 }) {
   const multiAccounts = accounts.length > 1;
   const [editing, setEditing] = useState<BudgetEntry | 'new' | 'bulk' | null>(null);
+  /** « C'est quoi ? » : la fiche du libellé à écrire (ou à compléter), docs/etude-astra.md §18. */
+  const [explaining, setExplaining] = useState<{ rule: BudgetRule | null; pattern: string } | null>(null);
+  /** La note d'une écriture, écrite dans la ligne même. */
+  const [noting, setNoting] = useState<{ id: string; text: string } | null>(null);
+  /** Entrée ou Échap ont déjà décidé : la perte du focus qui suit ne réenregistre pas (ni n'annule une annulation). */
+  const noteDecided = useRef(false);
 
   // Raccourci « N » : ouvre une nouvelle écriture sans passer par la souris.
   // Ignoré pendant la frappe (un champ de texte, un menu…) et avec un
@@ -70,14 +79,14 @@ export function EntriesView({
     function onKey(e: KeyboardEvent) {
       if (e.key.toLowerCase() !== 'n') return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (editing !== null) return;
+      if (editing !== null || explaining !== null || noting !== null) return;
       if (isTypingTarget(document.activeElement)) return;
       e.preventDefault();
       setEditing('new');
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editing]);
+  }, [editing, explaining, noting]);
 
   async function saveEntry(input: BudgetEntryInput, rememberPattern?: string, envelopeId?: string | null) {
     let saved: { id: string; amountCents: number; day: string; label: string };
@@ -111,6 +120,32 @@ export function EntriesView({
     await onChanged();
   }
 
+  function explain(entry: BudgetEntry) {
+    const known = knownFor(entry.label, rules);
+    const pattern = suggestedPattern(entry.label);
+    // La fiche déjà là, ou la règle du même motif (on la complète) ; sinon une nouvelle.
+    setExplaining({ rule: known ?? ruleWithPattern(pattern, rules), pattern });
+  }
+
+  async function saveFiche(input: RuleInput, alsoClassify: string[]) {
+    if (explaining?.rule) await budgetStore.updateRule(explaining.rule.id, input);
+    else await budgetStore.createRule({ ...input, priority: 10 });
+    if (alsoClassify.length > 0 && input.categoryId) await budgetStore.setEntriesCategory(alsoClassify, input.categoryId);
+    setExplaining(null);
+    await onChanged();
+  }
+
+  async function saveNote() {
+    if (!noting) return;
+    try {
+      await budgetStore.updateEntry(noting.id, { note: noting.text.trim() });
+      setNoting(null);
+      await onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Enregistrement impossible.');
+    }
+  }
+
   async function removeEntry(entry: BudgetEntry) {
     if (!window.confirm(`Supprimer « ${entry.label} » (${formatCents(entry.amountCents)}) ?`)) return;
     try {
@@ -139,6 +174,8 @@ export function EntriesView({
           <ul className="budget-list">
             {entries.map((entry) => {
               const category = categoryFor(categories, entry.categoryId);
+              const known = knownFor(entry.label, rules);
+              const isNoting = noting?.id === entry.id;
               return (
                 <li key={entry.id} className="budget-row budget-entry-row">
                   <span className="budget-row-day">{entry.day}</span>
@@ -164,6 +201,43 @@ export function EntriesView({
                         return envelope ? ` · payée par l’enveloppe ${envelope.emoji} ${envelope.name}` : null;
                       })()}
                     </span>
+                    {known && (
+                      <button
+                        type="button"
+                        className="budget-row-known"
+                        title={known.description || 'Ce que cache ce libellé'}
+                        onClick={() => explain(entry)}
+                      >
+                        💬 {known.label || known.description}
+                        {known.label && known.description && <span className="budget-row-known-more"> — {known.description}</span>}
+                      </button>
+                    )}
+                    {entry.note && !isNoting && <span className="budget-row-note">📝 {entry.note}</span>}
+                    {isNoting && (
+                      <input
+                        className="budget-row-note-input"
+                        aria-label={`Note de « ${entry.label} »`}
+                        autoFocus
+                        value={noting.text}
+                        maxLength={1000}
+                        placeholder="Ma part du canapé, cadeau de Julia…"
+                        onChange={(e) => setNoting({ id: entry.id, text: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            noteDecided.current = true;
+                            void saveNote();
+                          }
+                          if (e.key === 'Escape') {
+                            noteDecided.current = true;
+                            setNoting(null);
+                          }
+                        }}
+                        onBlur={() => {
+                          if (noteDecided.current) noteDecided.current = false;
+                          else void saveNote();
+                        }}
+                      />
+                    )}
                   </span>
                   <span
                     className={`budget-row-amount${entry.amountCents < 0 ? ' negative' : ' positive'}`}
@@ -171,6 +245,27 @@ export function EntriesView({
                     {formatCents(entry.amountCents)}
                   </span>
                   <span className="budget-row-actions">
+                    {!known && (
+                      <button
+                        className="btn btn-ghost btn-sm budget-row-icon"
+                        onClick={() => explain(entry)}
+                        title="C’est quoi ? Retenir ce que cache ce libellé"
+                        aria-label={`C’est quoi « ${entry.label} » ?`}
+                      >
+                        ⓘ
+                      </button>
+                    )}
+                    <button
+                      className="btn btn-ghost btn-sm budget-row-icon"
+                      onClick={() => {
+                        noteDecided.current = false;
+                        setNoting({ id: entry.id, text: entry.note });
+                      }}
+                      title={entry.note ? 'Modifier la note' : 'Ajouter une note'}
+                      aria-label={`Note de « ${entry.label} »`}
+                    >
+                      📝
+                    </button>
                     <button className="btn btn-ghost btn-sm" onClick={() => setEditing(entry)}>
                       Modifier
                     </button>
@@ -194,6 +289,19 @@ export function EntriesView({
             <span className="budget-add-icon" aria-hidden="true" />
           </button>
         </>
+      )}
+
+      {explaining && (
+        <RuleEditor
+          rule={explaining.rule}
+          initialPattern={explaining.pattern}
+          asFiche
+          rules={rules}
+          categories={categories}
+          entries={history}
+          onCancel={() => setExplaining(null)}
+          onSave={saveFiche}
+        />
       )}
 
       {editing === 'bulk' && (

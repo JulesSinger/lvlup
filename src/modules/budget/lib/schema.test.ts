@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ACCOUNT_NAME_MAX, BUDGET_CATEGORY_KINDS, BUDGET_ENTRY_SOURCES, SUBSCRIPTION_FREQUENCIES, SUBSCRIPTION_NAME_MAX, SUBSCRIPTION_REMIND_DAYS } from './types';
+import { ACCOUNT_NAME_MAX, BUDGET_CATEGORY_KINDS, RULE_DESCRIPTION_MAX, RULE_LABEL_MAX, BUDGET_ENTRY_SOURCES, SUBSCRIPTION_FREQUENCIES, SUBSCRIPTION_NAME_MAX, SUBSCRIPTION_REMIND_DAYS } from './types';
 
 /**
  * Le type TypeScript et la contrainte Postgres doivent dire la même chose —
@@ -86,5 +86,12 @@ describe('hygiène des migrations (Astra)', () => {
     expect(sql).toContain('on public.budget_accounts (user_id) where is_default');
     expect(sql).toContain('references public.budget_accounts (id) on delete set null');
     expect(sql).toContain('"budget_accounts_mfa"');
+  });
+
+  it('le carnet des libellés : nom et description bornés comme dans l’app (30/10/2026)', () => {
+    const sql = readFileSync(join(SQL_DIR, '2026-10-30-budget-rules-labels.sql'), 'utf8');
+    expect(sql).toContain(`check (char_length(label) <= ${RULE_LABEL_MAX})`);
+    expect(sql).toContain(`check (char_length(description) <= ${RULE_DESCRIPTION_MAX})`);
+    expect(sql).toContain('alter column category_id drop not null');
   });
 });

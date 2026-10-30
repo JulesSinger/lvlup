@@ -83,9 +83,25 @@ const accountColumn = (accountId: string | null | undefined): Record<string, str
 interface RuleRow {
   id: string;
   pattern: string;
-  category_id: string;
+  category_id: string | null;
   priority: number;
+  /** Absentes avant la migration du 2026-10-30 (carnet des libellés). */
+  label?: string | null;
+  description?: string | null;
 }
+
+/** Nom et description d'une fiche : envoyés seulement s'ils disent quelque chose (une base sans la migration accepte encore les règles). */
+function ficheColumns(input: { label?: string; description?: string }): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (input.label !== undefined && (input.label.trim() || input.description?.trim())) out.label = input.label.trim();
+  if (input.description !== undefined && (input.description.trim() || input.label?.trim())) out.description = input.description.trim();
+  return out;
+}
+
+const missingFiche = (message: string) =>
+  /label|description|budget_rules_useful_check|category_id.*null|null value in column "category_id"/i.test(message)
+    ? 'Le carnet des libellés demande une mise à jour de la base (migration du 30/10/2026) : rien n’a été enregistré.'
+    : message;
 
 interface EnvelopeRow {
   id: string;
@@ -134,7 +150,14 @@ function toEntry(row: EntryRow): BudgetEntry {
 }
 
 function toRule(row: RuleRow): BudgetRule {
-  return { id: row.id, pattern: row.pattern, categoryId: row.category_id, priority: row.priority };
+  return {
+    id: row.id,
+    pattern: row.pattern,
+    categoryId: row.category_id,
+    priority: row.priority,
+    label: row.label ?? '',
+    description: row.description ?? '',
+  };
 }
 
 function toEnvelope(row: EnvelopeRow): BudgetEnvelope {
@@ -287,6 +310,10 @@ export class SupabaseBudget implements BudgetStore {
   }
 
   async deleteCategory(id: string) {
+    // Une fiche du carnet des libellés reste, sans catégorie ; les simples règles
+    // partent avec elle (`on delete cascade`). Échoue sans bruit avant la migration.
+    await this.client.from('budget_rules').update({ category_id: null }).eq('category_id', id).neq('label', '');
+    await this.client.from('budget_rules').update({ category_id: null }).eq('category_id', id).neq('description', '');
     // `on delete set null` (2026-09-06-budget-subcategories.sql) détache déjà
     // les sous-catégories côté base — elles deviennent des catégories
     // normales plutôt que de disparaître avec leur parent.
@@ -419,19 +446,19 @@ export class SupabaseBudget implements BudgetStore {
 
   async createRule(input: BudgetRuleInput): Promise<BudgetRule> {
     const userId = await this.requireUserId();
-    const row = unwrap(
-      await this.client
-        .from('budget_rules')
-        .insert({
-          user_id: userId,
-          pattern: input.pattern,
-          category_id: input.categoryId,
-          priority: input.priority ?? 0,
-        })
-        .select()
-        .single(),
-    ) as RuleRow;
-    return toRule(row);
+    const { data, error } = await this.client
+      .from('budget_rules')
+      .insert({
+        user_id: userId,
+        pattern: input.pattern,
+        category_id: input.categoryId,
+        priority: input.priority ?? 0,
+        ...ficheColumns(input),
+      })
+      .select()
+      .single();
+    if (error) throw new Error(missingFiche(error.message));
+    return toRule(data as RuleRow);
   }
 
   async updateRule(id: string, patch: Partial<BudgetRuleInput>) {
@@ -439,8 +466,11 @@ export class SupabaseBudget implements BudgetStore {
     if (patch.pattern !== undefined) row.pattern = patch.pattern;
     if (patch.categoryId !== undefined) row.category_id = patch.categoryId;
     if (patch.priority !== undefined) row.priority = patch.priority;
+    // Vider un nom se fait aussi (`''`) : on envoie tel quel ce qui est donné.
+    if (patch.label !== undefined) row.label = patch.label.trim();
+    if (patch.description !== undefined) row.description = patch.description.trim();
     const { error } = await this.client.from('budget_rules').update(row).eq('id', id);
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(missingFiche(error.message));
   }
 
   async deleteRule(id: string) {
@@ -754,13 +784,15 @@ export class SupabaseBudget implements BudgetStore {
     }
 
     for (const rule of data.rules ?? []) {
-      const categoryId = categoryIdMap.get(rule.categoryId);
-      if (!categoryId) continue; // catégorie disparue entre-temps : règle ignorée
+      const categoryId = rule.categoryId ? (categoryIdMap.get(rule.categoryId) ?? null) : null;
+      const fiche = (rule.label ?? '').trim() !== '' || (rule.description ?? '').trim() !== '';
+      if (!categoryId && !fiche) continue; // catégorie disparue entre-temps, et rien d'autre à garder
       const { error } = await this.client.from('budget_rules').insert({
         user_id: userId,
         pattern: rule.pattern,
         category_id: categoryId,
         priority: rule.priority,
+        ...ficheColumns({ label: rule.label ?? '', description: rule.description ?? '' }),
       });
       if (error) throw new Error(error.message);
     }

@@ -164,15 +164,15 @@ describe('suggestCategoryId', () => {
 
   it('une règle utilisateur l’emporte toujours sur l’amorce BoursoBank', () => {
     const row = byLabel('SUPERMARCHE');
-    const rules: BudgetRule[] = [{ id: 'r1', pattern: 'SUPERMARCHE', categoryId: 'c-restaurants', priority: 5 }];
+    const rules: BudgetRule[] = [{ id: 'r1', pattern: 'SUPERMARCHE', categoryId: 'c-restaurants', priority: 5, label: '', description: '' }];
     expect(suggestCategoryId(row, STARTER_LIKE_CATEGORIES, rules)).toBe('c-restaurants');
   });
 
   it('parmi plusieurs règles qui matchent, la priorité la plus haute gagne', () => {
     const row = byLabel('SUPERMARCHE');
     const rules: BudgetRule[] = [
-      { id: 'r1', pattern: 'SUPERMARCHE', categoryId: 'c-restaurants', priority: 1 },
-      { id: 'r2', pattern: 'CARTE', categoryId: 'c-voyages', priority: 9 },
+      { id: 'r1', pattern: 'SUPERMARCHE', categoryId: 'c-restaurants', priority: 1, label: '', description: '' },
+      { id: 'r2', pattern: 'CARTE', categoryId: 'c-voyages', priority: 9, label: '', description: '' },
     ];
     expect(suggestCategoryId(row, STARTER_LIKE_CATEGORIES, rules)).toBe('c-voyages');
   });

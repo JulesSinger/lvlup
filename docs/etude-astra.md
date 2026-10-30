@@ -788,3 +788,36 @@ aux particuliers (vérifié le 30/10/2026) : la capture est le chemin le plus co
 **Pas fait.** Les règles des titres-restaurant (25 € par jour, pas le dimanche, l'expiration du
 solde) : non demandées. Ranger les dépenses Pluxee déjà saisies avant les comptes : à faire une
 fois (dans l'app, ou par Claude avec `budget_ecriture_modifier`).
+
+## 18. Le carnet des libellés, et la note d'une opération (30/10/2026)
+
+*Demande de Jules : « des fois je me demande à quoi correspond la dépense, j'oublie, je cherche, et
+je réoublie » — « COMPTOIR DE STA » = la buvette de l'ASNL. Deux besoins, réglés séparément (son
+accord) : ce qui **revient** (un libellé qu'on reverra) et ce qui **n'arrive qu'une fois** (« 70 € à
+maman, ma part du canapé »).*
+
+**Le carnet des libellés** : une règle de classement peut maintenant dire ce que cache un motif —
+un **nom** (« Buvette ASNL ») et une **description** — avec ou sans catégorie (migration
+`2026-10-30-budget-rules-labels.sql` : `label`, `description`, `category_id` facultative, et une
+contrainte « ranger, nommer ou décrire »). Un motif ne fait qu'une ligne : « ranger » et « se
+souvenir » sont la même règle, ce qui évite deux listes qui se contredisent. Une fiche sans
+catégorie ne range rien (`matchRule` l'ignore) ; supprimer une catégorie garde les fiches, sans
+catégorie, et emporte les simples règles.
+
+- Chaque écriture dont le libellé contient le motif (sans casse ni accents, `knownFor`) affiche le
+  nom sous le libellé, la description à côté (tronquée, entière au survol) ; toucher le nom
+  rouvre la fiche.
+- **« ⓘ C'est quoi ? »** sur une ligne sans fiche : le motif est proposé (le libellé sans ses
+  chiffres) avec le nombre d'écritures concernées ; s'il existe déjà une règle pour ce motif, elle
+  est complétée plutôt que doublée.
+- La recherche trouve aussi par le nom et la description (« asnl », « marcel picot »).
+- La liste vit sous les catégories : « Qui est qui, et règles de classement ».
+
+**La note d'une opération** existait mais ne se voyait nulle part : elle s'affiche maintenant
+sous la ligne, s'écrit dans la ligne même (📝, Entrée enregistre, Échap annule, quitter le champ
+enregistre) et dans la fenêtre d'une écriture.
+
+**Claude** : chaque opération rendue porte `known` (nom, description) et sa note ;
+`budget_libelle_noter` retient une fiche (ou complète la règle du même motif) ; `budget_ecritures`
+cherche aussi dans le carnet ; `budget_regle_creer` complète une fiche existante au lieu de la
+refuser.

@@ -66,9 +66,16 @@ export interface CategoryRow {
 export interface RuleRow {
   id: string;
   pattern: string;
-  category_id: string;
+  /** Nulle = une fiche du carnet des libellés, qui ne range rien (30/10/2026). */
+  category_id: string | null;
   priority: number;
+  /** Absentes avant la migration du 2026-10-30. */
+  label?: string | null;
+  description?: string | null;
 }
+
+export const RULE_LABEL_MAX = 60;
+export const RULE_DESCRIPTION_MAX = 500;
 
 export interface BudgetData {
   listEntries(from: string, to: string): Promise<EntryRow[]>;
@@ -79,6 +86,7 @@ export interface BudgetData {
   listCategories(): Promise<CategoryRow[]>;
   listRules(): Promise<RuleRow[]>;
   insertRule(row: Record<string, unknown>): Promise<RuleRow>;
+  updateRule(id: string, row: Record<string, unknown>): Promise<RuleRow | null>;
   deleteRule(id: string): Promise<boolean>;
   /** Les comptes ; aucun (table absente comprise) = le seul compte principal. */
   listAccounts(): Promise<AccountRow[]>;
@@ -92,7 +100,8 @@ export interface BudgetContext {
 /** La règle qui range un libellé (`matchRule` du module) : le motif contenu, la plus prioritaire. */
 export function matchRule(label: string, rules: readonly RuleRow[]): RuleRow | null {
   const haystack = label.toLowerCase();
-  const matching = rules.filter((r) => r.pattern.trim() !== '' && haystack.includes(r.pattern.trim().toLowerCase()));
+  // Une fiche sans catégorie dit ce que c'est, elle ne range rien.
+  const matching = rules.filter((r) => r.category_id !== null && r.pattern.trim() !== '' && haystack.includes(r.pattern.trim().toLowerCase()));
   if (matching.length === 0) return null;
   return matching.reduce((best, r) => (r.priority > best.priority ? r : best));
 }
@@ -123,6 +132,21 @@ export function accountBalance(account: AccountRow, entries: readonly EntryRow[]
     .filter((e) => accountOf(e, list).id === account.id)
     .filter((e) => e.day > since || (e.day === since && setAt !== null && (e.created_at ?? '') > setAt))
     .reduce((sum, e) => sum + e.amount_cents, Number(account.balance_cents));
+}
+
+const foldText = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const isFiche = (r: RuleRow) => (r.label ?? '').trim() !== '' || (r.description ?? '').trim() !== '';
+
+/** La fiche d'un libellé : la plus prioritaire, puis la plus précise (`knownFor` du module, comparé par le test). */
+export function knownFor(label: string, rules: readonly RuleRow[]): RuleRow | null {
+  const haystack = foldText(label);
+  let best: RuleRow | null = null;
+  for (const rule of rules) {
+    const pattern = foldText(rule.pattern);
+    if (!isFiche(rule) || pattern.length === 0 || !haystack.includes(pattern)) continue;
+    if (!best || rule.priority > best.priority || (rule.priority === best.priority && pattern.length > foldText(best.pattern).length)) best = rule;
+  }
+  return best;
 }
 
 class Refused extends Error {}
@@ -204,7 +228,8 @@ function monthRange(month: string): { from: string; to: string } {
   return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, '0')}` };
 }
 
-const entryOut = (e: EntryRow, categories: readonly CategoryRow[], accounts: readonly AccountRow[] = []) => {
+const entryOut = (e: EntryRow, categories: readonly CategoryRow[], accounts: readonly AccountRow[] = [], rules: readonly RuleRow[] = []) => {
+  const fiche = knownFor(e.label, rules);
   const c = e.category_id ? categories.find((x) => x.id === e.category_id) : undefined;
   const parent = c?.parent_id ? categories.find((x) => x.id === c.parent_id) : undefined;
   return {
@@ -216,6 +241,8 @@ const entryOut = (e: EntryRow, categories: readonly CategoryRow[], accounts: rea
     source: e.source === 'import' ? 'relevé' : e.import_key ? 'module' : 'saisie',
     // Le compte, seulement quand il y en a plusieurs.
     account: accounts.length > 1 ? accountOf(e, accounts).name : undefined,
+    // Ce que cache le libellé, d'après le carnet des libellés.
+    known: fiche ? { name: fiche.label || undefined, description: fiche.description || undefined } : undefined,
     note: e.note || undefined,
   };
 };
@@ -258,7 +285,8 @@ export const budgetTools: Tool<BudgetContext>[] = [
   {
     name: 'budget_categories',
     title: 'Les catégories de Budget',
-    description: 'Les catégories (id, nom, nature : fixe, variable, revenu, transfert, epargne ; sous-catégorie de…), et les règles de classement.',
+    description:
+      'Les catégories (id, nom, nature : fixe, variable, revenu, transfert, epargne ; sous-catégorie de…), et les règles de classement — dont le carnet des libellés : ce que cache un libellé de banque (name, description), avec ou sans catégorie.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
     async run(_args, { data }) {
@@ -271,7 +299,14 @@ export const budgetTools: Tool<BudgetContext>[] = [
           kind: c.kind,
           parent: c.parent_id ? (categories.find((p) => p.id === c.parent_id)?.name ?? null) : null,
         })),
-        rules: rules.map((r) => ({ id: r.id, pattern: r.pattern, category: categories.find((c) => c.id === r.category_id)?.name ?? '?', priority: r.priority })),
+        rules: rules.map((r) => ({
+          id: r.id,
+          pattern: r.pattern,
+          category: r.category_id ? (categories.find((c) => c.id === r.category_id)?.name ?? '?') : null,
+          priority: r.priority,
+          name: r.label || undefined,
+          description: r.description || undefined,
+        })),
       });
     },
   },
@@ -279,7 +314,7 @@ export const budgetTools: Tool<BudgetContext>[] = [
     name: 'budget_ecritures',
     title: 'Lire les opérations',
     description:
-      'Les opérations d’un mois (month, AAAA-MM ; le mois en cours par défaut) ou d’une période, avec leur catégorie. « a_classer » ne garde que celles sans catégorie ; « query » cherche dans le libellé et la note. Montants signés : négatif = dépense, positif = entrée.',
+      'Les opérations d’un mois (month, AAAA-MM ; le mois en cours par défaut) ou d’une période, avec leur catégorie, leur note, et ce que cache leur libellé (known, d’après le carnet des libellés). « a_classer » ne garde que celles sans catégorie ; « query » cherche dans le libellé, la note et le carnet. Montants signés : négatif = dépense, positif = entrée. « C’est quoi cette dépense ? » : regarde known et la note ; sans rien, demande à l’utilisateur, puis retiens-le (budget_libelle_noter).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -296,17 +331,21 @@ export const budgetTools: Tool<BudgetContext>[] = [
     async run(args, { data, today }) {
       const { from, to } =
         typeof args.from === 'string' && typeof args.to === 'string' ? { from: day(args.from, 'from'), to: day(args.to, 'to') } : monthRange(String(args.month ?? today.slice(0, 7)));
-      const [entries, categories, accounts] = await Promise.all([data.listEntries(from, to), data.listCategories(), data.listAccounts()]);
+      const [entries, categories, accounts, rules] = await Promise.all([data.listEntries(from, to), data.listCategories(), data.listAccounts(), data.listRules()]);
       const list = accountList(accounts);
       const account = args.compte === undefined ? null : resolveAccount(list, args.compte);
+      const knownText = (e: EntryRow) => {
+        const f = knownFor(e.label, rules);
+        return f ? ` ${f.label ?? ''} ${f.description ?? ''}` : '';
+      };
       const words = fold(text(args.query, 'query', 200)).split(/\s+/).filter(Boolean);
       const cat = args.category === undefined ? null : resolveCategory(categories, args.category);
       const inCat = (e: EntryRow) => !cat || e.category_id === cat.id || categories.find((c) => c.id === e.category_id)?.parent_id === cat.id;
       const found = entries
-        .filter((e) => (args.a_classer !== true || e.category_id === null) && inCat(e) && words.every((w) => fold(`${e.label} ${e.note}`).includes(w)))
+        .filter((e) => (args.a_classer !== true || e.category_id === null) && inCat(e) && words.every((w) => fold(`${e.label} ${e.note}${knownText(e)}`).includes(w)))
         .filter((e) => !account || accountOf(e, list).id === account.id)
         .sort((a, b) => b.day.localeCompare(a.day));
-      return json({ from, to, total: found.length, shown: Math.min(found.length, LIST_LIMIT), entries: found.slice(0, LIST_LIMIT).map((e) => entryOut(e, categories, list)) });
+      return json({ from, to, total: found.length, shown: Math.min(found.length, LIST_LIMIT), entries: found.slice(0, LIST_LIMIT).map((e) => entryOut(e, categories, list, rules)) });
     },
   },
   {
@@ -472,9 +511,13 @@ export const budgetTools: Tool<BudgetContext>[] = [
       const [categories, rules] = await Promise.all([data.listCategories(), data.listRules()]);
       const category = resolveCategory(categories, args.category);
       if (!category) throw new Refused('La catégorie de la règle manque.');
-      if (rules.some((r) => fold(r.pattern) === fold(pattern))) throw new Refused(`Une règle « ${pattern} » existe déjà.`);
+      const same = rules.find((r) => fold(r.pattern) === fold(pattern));
+      // Une fiche du carnet des libellés sans catégorie pour ce motif : on la complète.
+      if (same && same.category_id !== null) throw new Refused(`Une règle « ${pattern} » existe déjà.`);
       const priority = typeof args.priority === 'number' && Number.isInteger(args.priority) ? args.priority : 0;
-      const created = await data.insertRule({ pattern, category_id: category.id, priority });
+      const created = same
+        ? ((await data.updateRule(same.id, { category_id: category.id })) ?? { ...same, category_id: category.id })
+        : await data.insertRule({ pattern, category_id: category.id, priority });
       // Les « à classer » des trois derniers mois que la nouvelle règle aurait rangées : à proposer à budget_classer.
       const recent = await data.listEntries(shiftMonths(today, -3), today);
       const all = [...rules, created];
@@ -483,6 +526,40 @@ export const budgetTools: Tool<BudgetContext>[] = [
         message: `Règle créée : « ${pattern} » → ${category.name}.`,
         rule: { id: created.id, pattern, category: category.name, priority },
         to_classify_matching: would.map((e) => entryOut(e, categories)),
+      });
+    },
+  },
+  {
+    name: 'budget_libelle_noter',
+    title: 'Retenir ce que cache un libellé',
+    description:
+      'Le carnet des libellés : retient ce que cache un libellé de banque (« COMPTOIR DE STA » → nom « Buvette ASNL », description « le stade Marcel-Picot, les soirs de match »). Toutes les opérations dont le libellé contient le motif le montreront, passées et à venir. Si une règle existe déjà pour ce motif, elle est complétée (sa catégorie gardée, sauf si tu en donnes une). Pour une seule opération (« ma part du canapé »), écris plutôt sa note (budget_ecriture_modifier).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pattern: { type: 'string', maxLength: RULE_PATTERN_MAX, description: 'Un morceau court et sûr du libellé, tel qu’il apparaît.' },
+        nom: { type: 'string', maxLength: RULE_LABEL_MAX },
+        description: { type: 'string', maxLength: RULE_DESCRIPTION_MAX },
+        category: { type: ['string', 'null'], description: 'Facultatif : ranger aussi les prochaines dans cette catégorie.' },
+      },
+      required: ['pattern'],
+    },
+    annotations: { idempotentHint: true },
+    async run(args, { data }) {
+      const pattern = text(args.pattern, 'Le motif', RULE_PATTERN_MAX, true);
+      if (pattern.length < 3) throw new Refused('Un motif de 3 caractères au moins.');
+      const label = text(args.nom, 'Le nom', RULE_LABEL_MAX);
+      const description = text(args.description, 'La description', RULE_DESCRIPTION_MAX);
+      const [categories, rules] = await Promise.all([data.listCategories(), data.listRules()]);
+      const category = args.category === undefined ? undefined : resolveCategory(categories, args.category);
+      const existing = rules.find((r) => foldText(r.pattern) === foldText(pattern));
+      const categoryId = category === undefined ? (existing?.category_id ?? null) : (category?.id ?? null);
+      if (!label && !description && !categoryId) throw new Refused('Donne au moins un nom ou une description.');
+      const row = { label: label || (existing?.label ?? ''), description: description || (existing?.description ?? ''), category_id: categoryId };
+      const saved = existing ? await data.updateRule(existing.id, row) : await data.insertRule({ pattern, priority: 10, ...row });
+      return json({
+        message: existing ? `Fiche « ${pattern} » complétée.` : `Fiche « ${pattern} » retenue.`,
+        fiche: saved && { id: saved.id, pattern: saved.pattern, name: saved.label || undefined, description: saved.description || undefined, category: categories.find((c) => c.id === saved.category_id)?.name ?? null },
       });
     },
   },

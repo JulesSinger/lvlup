@@ -118,20 +118,43 @@ export interface BudgetEntryInput {
   accountId?: string | null;
 }
 
-/** Une règle de catégorisation automatique, appliquée à l'import. */
+/**
+ * Une règle de catégorisation automatique, appliquée à l'import — et, depuis
+ * le 30/10/2026, **une fiche du carnet des libellés** : ce que cache un
+ * libellé de banque (« COMPTOIR DE STA » = « Buvette ASNL », les soirs de
+ * match). Demande de Jules : « des fois je me demande à quoi correspond la
+ * dépense, j'oublie, je cherche, et je réoublie ». Voir docs/etude-astra.md §18.
+ *
+ * Un même motif ne fait qu'une ligne : la catégorie (ranger) et le nom (se
+ * souvenir) vont ensemble, ou l'un sans l'autre.
+ */
 export interface BudgetRule {
   id: string;
   /** Fragment cherché dans le libellé brut, insensible à la casse. */
   pattern: string;
-  categoryId: string;
+  /** `null` = une fiche qui ne range rien, elle dit seulement ce que c'est. */
+  categoryId: string | null;
   /** La plus haute gagne quand deux règles matchent la même ligne. */
   priority: number;
+  /** Le nom lisible (« Buvette ASNL ») ; vide = une simple règle. */
+  label: string;
+  /** Ce qu'on veut se rappeler (« le stade Marcel-Picot, les soirs de match »). */
+  description: string;
 }
+
+/** Une règle qui range : celles dont se sert le classement. */
+export type ClassifyingRule = BudgetRule & { categoryId: string };
+
+/** Comparés aux contraintes de la base par `schema.test.ts`. */
+export const RULE_LABEL_MAX = 60;
+export const RULE_DESCRIPTION_MAX = 500;
 
 export interface BudgetRuleInput {
   pattern: string;
-  categoryId: string;
+  categoryId: string | null;
   priority?: number;
+  label?: string;
+  description?: string;
 }
 
 /**

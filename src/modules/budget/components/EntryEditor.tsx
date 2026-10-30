@@ -69,6 +69,7 @@ export function EntryEditor({
   const isEdit = entry !== null;
   const [day, setDay] = useState(entry?.day ?? today());
   const [label, setLabel] = useState(entry?.label ?? '');
+  const [note, setNote] = useState(entry?.note ?? '');
   const [isExpense, setIsExpense] = useState(entry ? entry.amountCents <= 0 : true);
   const [amountText, setAmountText] = useState(entry ? centsToInputValue(entry.amountCents) : '');
   const [categoryId, setCategoryId] = useState<string>(entry?.categoryId ?? '');
@@ -140,6 +141,7 @@ export function EntryEditor({
           categoryId: categoryId || null,
           // Une écriture importée le reste quand on la corrige.
           source: entry?.source ?? 'manuelle',
+          note: note.trim(),
           // Seulement quand il y a des comptes : avant la migration, la colonne n'existe pas.
           ...(multiAccounts ? { accountId: entryAccountId(accounts.find((a) => a.id === accountId) ?? accounts[0]) } : {}),
         },
@@ -266,6 +268,18 @@ export function EntryEditor({
                 setCategoryId(id);
                 setCategoryTouched(true);
               }}
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="budget-entry-note">Note</label>
+            <input
+              id="budget-entry-note"
+              type="text"
+              value={note}
+              maxLength={1000}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Pour s’en souvenir : ma part du canapé, cadeau de Julia…"
             />
           </div>
 

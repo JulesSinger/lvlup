@@ -4,7 +4,8 @@
  * « Combien chez Amazon cette année ? » : l'écran du mois n'y répondait pas,
  * il ne montre qu'un mois à la fois.
  */
-import type { BudgetCategory, BudgetEntry } from './types';
+import { knownFor } from './labels';
+import type { BudgetCategory, BudgetEntry, BudgetRule } from './types';
 
 /** Minuscules, sans accents, espaces resserrés : « Électricité » trouve « electricite ». */
 export function fold(text: string): string {
@@ -24,17 +25,25 @@ function amountQuery(word: string): number | null {
 }
 
 /**
- * Les écritures dont le libellé, la note ou la catégorie contiennent TOUS les
+ * Les écritures dont le libellé, la note, la catégorie ou la fiche du libellé
+ * (son nom et sa description, docs/etude-astra.md §18) contiennent TOUS les
  * mots cherchés ; un mot qui est un montant (« 12,50 ») trouve aussi les
  * écritures de ce montant, au signe près. Les plus récentes d'abord.
  */
-export function searchEntries(entries: readonly BudgetEntry[], categories: readonly BudgetCategory[], query: string): BudgetEntry[] {
+export function searchEntries(
+  entries: readonly BudgetEntry[],
+  categories: readonly BudgetCategory[],
+  query: string,
+  rules: readonly BudgetRule[] = [],
+): BudgetEntry[] {
   const words = fold(query).split(' ').filter(Boolean);
   if (words.length === 0) return [];
   const name = new Map(categories.map((c) => [c.id, fold(c.name)]));
   return entries
     .filter((e) => {
-      const haystack = `${fold(e.label)} ${fold(e.note)} ${e.categoryId ? (name.get(e.categoryId) ?? '') : 'a classer'}`;
+      const fiche = knownFor(e.label, rules);
+      const known = fiche ? `${fold(fiche.label)} ${fold(fiche.description)}` : '';
+      const haystack = `${fold(e.label)} ${fold(e.note)} ${e.categoryId ? (name.get(e.categoryId) ?? '') : 'a classer'} ${known}`;
       return words.every((w) => haystack.includes(w) || amountQuery(w) === Math.abs(e.amountCents));
     })
     .sort((a, b) => b.day.localeCompare(a.day) || b.createdAt.localeCompare(a.createdAt));

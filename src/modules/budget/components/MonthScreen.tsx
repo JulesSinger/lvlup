@@ -145,7 +145,7 @@ export function MonthScreen({
       : null;
 
   const unclassifiedCount = entries.filter((e) => e.categoryId === null).length;
-  const results = query.trim() ? searchEntries(entries, categories, query) : null;
+  const results = query.trim() ? searchEntries(entries, categories, query, rules) : null;
   const summary = results ? summarize(results) : null;
 
   const searchBar = (
@@ -153,7 +153,7 @@ export function MonthScreen({
       <input
         type="search"
         aria-label="Rechercher dans toutes les écritures"
-        placeholder="Rechercher dans toutes les écritures : Amazon, EDF, 12,50…"
+        placeholder="Rechercher dans toutes les écritures : Amazon, EDF, buvette, 12,50…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => e.key === 'Escape' && setQuery('')}

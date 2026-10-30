@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import * as server from '../../../../supabase/functions/atlas-mcp/budget.ts';
 import { budgetTools, type AccountRow, type BudgetData, type CategoryRow, type EntryRow, type RuleRow } from '../../../../supabase/functions/atlas-mcp/budget.ts';
 import { accountBalance, accountList } from './accounts';
+import { knownFor } from './labels';
 import { matchRule } from './boursobankImport';
-import { BUDGET_CATEGORY_KINDS, BUDGET_ENTRY_SOURCES, type BudgetAccount, type BudgetEntry } from './types';
+import { BUDGET_CATEGORY_KINDS, BUDGET_ENTRY_SOURCES, RULE_DESCRIPTION_MAX, RULE_LABEL_MAX, type BudgetAccount, type BudgetEntry } from './types';
 
 // Les outils de Budget du connecteur (docs/connecteur-claude.md §13) : la fonction ne peut pas
 // importer le module, elle en recopie les bornes et la règle — comparées ici.
@@ -44,6 +45,12 @@ function memory() {
       rules.push(r);
       return r;
     },
+    updateRule: async (id, row) => {
+      const r = rules.find((x) => x.id === id);
+      if (!r) return null;
+      Object.assign(r, row);
+      return r;
+    },
     deleteRule: async (id) => {
       const i = rules.findIndex((r) => r.id === id);
       if (i < 0) return false;
@@ -80,8 +87,10 @@ describe('connecteur — Budget', () => {
       { id: 'a', pattern: 'carrefour', category_id: 'c1', priority: 0 },
       { id: 'b', pattern: 'CARREFOUR CITY', category_id: 'c2', priority: 5 },
       { id: 'c', pattern: '  ', category_id: 'c3', priority: 9 },
+      // Une fiche du carnet des libellés, sans catégorie : elle ne range rien (30/10/2026).
+      { id: 'd', pattern: 'CARREFOUR', category_id: null, priority: 20, label: 'Le Carrefour du coin', description: '' },
     ];
-    const asModule = rules.map((r) => ({ id: r.id, pattern: r.pattern, categoryId: r.category_id, priority: r.priority }));
+    const asModule = rules.map((r) => ({ id: r.id, pattern: r.pattern, categoryId: r.category_id, priority: r.priority, label: r.label ?? '', description: r.description ?? '' }));
     for (const label of ['CB CARREFOUR CITY 12/10', 'carrefour market', 'PICARD', '']) {
       expect(server.matchRule(label, rules)?.id ?? null).toBe(matchRule(label, asModule)?.id ?? null);
     }
@@ -218,5 +227,34 @@ describe('connecteur — Budget', () => {
     const serverList = server.accountList(m.accounts);
     expect(server.accountBalance(serverList[1], sample, serverList)).toBe(accountBalance(asModule, moduleEntries, accountList([asModule])));
     expect(server.MAIN_NAME).toBe(accountList([])[0].name);
+  });
+
+  it('le carnet des libellés : Claude retient ce que cache un libellé, et le retrouve', async () => {
+    const m = memory();
+    const sorties = m.cat('Sorties & loisirs', 'variable');
+    m.entry('2026-10-11', 'Comptoir De Sta', -450);
+    m.rules.push({ id: uuid(), pattern: 'Comptoir de Sta', category_id: sorties.id, priority: 10 });
+
+    const res = await m.call('budget_libelle_noter', { pattern: 'COMPTOIR DE STA', nom: 'Buvette ASNL', description: 'Le stade Marcel-Picot' });
+    expect(res.message).toMatch(/complétée/);
+    expect(m.rules).toHaveLength(1); // le même motif : une seule ligne, sa catégorie gardée
+    expect(m.rules[0]).toMatchObject({ category_id: sorties.id, label: 'Buvette ASNL' });
+
+    const found = await m.call('budget_ecritures', { month: '2026-10', query: 'asnl' });
+    expect(found.entries).toHaveLength(1);
+    expect(found.entries[0].known).toEqual({ name: 'Buvette ASNL', description: 'Le stade Marcel-Picot' });
+
+    // Une fiche sans catégorie, puis une règle sur le même motif : complétée, pas refusée.
+    await m.call('budget_libelle_noter', { pattern: 'EVA', nom: 'Laser game' });
+    await m.call('budget_regle_creer', { pattern: 'EVA', category: 'Sorties & loisirs' });
+    expect(m.rules.filter((r) => r.pattern === 'EVA')).toHaveLength(1);
+    await expect(m.call('budget_libelle_noter', { pattern: 'XYZ' })).rejects.toThrow(/nom ou une description/);
+
+    // Même fiche retrouvée que dans l'app.
+    const asModule = m.rules.map((r) => ({ id: r.id, pattern: r.pattern, categoryId: r.category_id, priority: r.priority, label: r.label ?? '', description: r.description ?? '' }));
+    for (const label of ['Comptoir De Sta', 'EVA (Esports Virtual Arenas)', 'Lidl']) {
+      expect(server.knownFor(label, m.rules)?.id ?? null).toBe(knownFor(label, asModule)?.id ?? null);
+    }
+    expect([server.RULE_LABEL_MAX, server.RULE_DESCRIPTION_MAX]).toEqual([RULE_LABEL_MAX, RULE_DESCRIPTION_MAX]);
   });
 });
