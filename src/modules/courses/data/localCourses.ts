@@ -49,10 +49,12 @@ export class LocalCourses implements CoursesStore {
     return read().items.slice();
   }
 
-  async createItem(input: ItemInput): Promise<Item> {
+  async createItem(input: ItemInput, id: string = newId()): Promise<Item> {
     const s = read();
+    const existing = s.items.find((i) => i.id === id);
+    if (existing) return existing; // rejoué : rien de plus
     const item: Item = {
-      id: newId(),
+      id,
       name: input.name,
       aisle: input.aisle ?? 'autre',
       recurrence: input.recurrence ?? null,
@@ -98,9 +100,11 @@ export class LocalCourses implements CoursesStore {
     return read().stores.slice();
   }
 
-  async createStore(name: string): Promise<Store> {
+  async createStore(name: string, id: string = newId()): Promise<Store> {
     const s = read();
-    const store: Store = { id: newId(), name, createdAt: now() };
+    const existing = s.stores.find((st) => st.id === id);
+    if (existing) return existing;
+    const store: Store = { id, name, createdAt: now() };
     s.stores.push(store);
     write(s);
     return store;
@@ -125,10 +129,12 @@ export class LocalCourses implements CoursesStore {
     return read().list.slice();
   }
 
-  async addEntry(itemId: string, quantity = '', note = ''): Promise<ListEntry> {
+  async addEntry(itemId: string, quantity = '', note = '', id: string = newId()): Promise<ListEntry> {
     const s = read();
+    const existing = s.list.find((e) => e.id === id);
+    if (existing) return existing;
     const entry: ListEntry = {
-      id: newId(),
+      id,
       itemId,
       quantity,
       note,

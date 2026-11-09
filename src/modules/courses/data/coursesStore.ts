@@ -26,20 +26,25 @@ export interface CoursesBackup {
 /** Contrat de stockage du module courses (Comète). */
 export interface CoursesStore {
   listItems(): Promise<Item[]>;
-  createItem(input: ItemInput): Promise<Item>;
+  /**
+   * `id` choisi par l'app (hors ligne, 09/11/2026) : rejouer la création ne
+   * crée pas un second article, elle rend celui déjà là.
+   */
+  createItem(input: ItemInput, id?: string): Promise<Item>;
   updateItem(id: string, patch: Partial<ItemInput>): Promise<void>;
   /** Retire aussi l'article de la liste en cours ; l'historique le garde, figé. */
   deleteItem(id: string): Promise<void>;
 
   listStores(): Promise<Store[]>;
-  createStore(name: string): Promise<Store>;
+  createStore(name: string, id?: string): Promise<Store>;
   renameStore(id: string, name: string): Promise<void>;
   /** Les courses passées gardent le nom figé du magasin. */
   deleteStore(id: string): Promise<void>;
 
   /** La liste en cours. */
   listEntries(): Promise<ListEntry[]>;
-  addEntry(itemId: string, quantity?: string, note?: string): Promise<ListEntry>;
+  /** `id` choisi par l'app : rejouable sans doublon, comme `createItem`. */
+  addEntry(itemId: string, quantity?: string, note?: string, id?: string): Promise<ListEntry>;
   updateEntry(id: string, patch: ListEntryPatch): Promise<void>;
   removeEntry(id: string): Promise<void>;
 

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { isNetworkError } from './outbox';
 
 /**
  * Un seul client pour toute l'application.
@@ -27,9 +28,19 @@ export function isolatedClient(url: string, anonKey: string): SupabaseClient {
 }
 
 export async function requireUserId(sb: SupabaseClient): Promise<string> {
-  const { data } = await sb.auth.getUser();
-  if (!data.user) throw new Error('Session expirée, reconnecte-toi.');
-  return data.user.id;
+  const { data, error } = await sb.auth.getUser();
+  if (data.user) return data.user.id;
+  // Sans réseau, `getUser` (qui interroge le serveur) échoue : ce n'est pas une
+  // session expirée. Le compte de la session gardée sur l'appareil suffit — la
+  // base vérifie de toute façon le jeton (RLS) — et surtout, l'erreur doit
+  // rester une **panne de réseau** pour que l'écriture parte en file au lieu
+  // d'être refusée (Courses à Auchan, 09/11/2026 ; vaut aussi pour Tâches et Nutrition).
+  if (error && (error.name === 'AuthRetryableFetchError' || isNetworkError(error))) {
+    const { data: local } = await sb.auth.getSession();
+    if (local.session?.user) return local.session.user.id;
+    throw new TypeError('Failed to fetch');
+  }
+  throw new Error('Session expirée, reconnecte-toi.');
 }
 
 export function unwrap<T>(result: { data: T | null; error: { message: string } | null }): T {

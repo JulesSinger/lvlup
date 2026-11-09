@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { newId } from '../../core/data/coreStore';
+import { isRemote } from '../../core/data';
+import { isNetworkError } from '../../core/data/outbox';
 import type { ExpenseAccount } from '../../core/lib/services';
 import type { ModuleScreenProps } from '../../core/lib/module';
 import { ModuleBrand } from '../../core/components/ModuleBrand';
@@ -9,6 +12,9 @@ import { ListLine } from './components/ListLine';
 import { StatsView } from './components/StatsView';
 import { TripsView } from './components/TripsView';
 import { coursesStore } from './data';
+import { applyPending, stamp, type CourseChange, type CourseData, type CourseOp } from './data/courseOutbox';
+import { courseWriter, withTimeout } from './data/courseWriter';
+import { readOfflineCopy, saveOfflineCopy } from './data/offlineCopy';
 import { groupByAisle, guessAisle } from './lib/aisles';
 import { formatEuros } from './lib/money';
 import { estimateList, lastPrice } from './lib/prices';
@@ -20,10 +26,20 @@ import {
   type ItemInput,
   type ListEntry,
   type ListEntryPatch,
-  type Store,
   type Trip,
-  type TripItem,
 } from './lib/types';
+
+/** Au-delà, la liste ne se charge pas : on montre la copie du téléphone plutôt que d'attendre. */
+const SLOW_LOAD_MS = 8000;
+
+const EMPTY: CourseData = { items: [], entries: [], stores: [], trips: [], tripItems: [] };
+
+const clock = (iso: string) => {
+  const d = new Date(iso);
+  const sameDay = d.toDateString() === new Date().toDateString();
+  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return sameDay ? `à ${time}` : `le ${d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} à ${time}`;
+};
 
 /**
  * Écran racine de Comète — la liste de courses, étape 3
@@ -35,19 +51,25 @@ import {
  * enregistre la course et remet les habituels ; l'onglet « Courses » en
  * garde l'historique, l'onglet « Chiffres » (étape 5) en tire les totaux.
  *
- * Pas de mode hors ligne (décision du 25/09/2026) : une écriture qui échoue
- * est annulée à l'écran et l'erreur s'affiche, sans rien perdre de ce qui
- * était tapé.
+ * **Hors ligne** depuis le 09/11/2026 (« à Auchan je n'ai plus de connexion ») :
+ * la liste se lit dans la copie gardée sur le téléphone (`data/offlineCopy.ts`),
+ * et tout ce qu'on y fait — ajouter, cocher, un prix, terminer la course — passe
+ * par `courseWriter`, qui écrit ou garde en file jusqu'au retour du réseau.
+ * L'écran montre toujours les données du serveur **plus** la file
+ * (`applyPending`) : rien de ce qui a été fait ne disparaît à un rafraîchissement.
+ * Un refus du serveur, lui, est annulé à l'écran et dit.
  */
 export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, reloadToken, services, label, emoji }: ModuleScreenProps) {
   const expenses = services.expenses;
-  const [items, setItems] = useState<Item[]>([]);
-  const [entries, setEntries] = useState<ListEntry[]>([]);
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [tripItems, setTripItems] = useState<TripItem[]>([]);
+  /** Les données du serveur (ou de la copie du téléphone), ce qui a été envoyé compris. */
+  const [server, setServer] = useState<CourseData>(EMPTY);
+  /** Ce qui attend le réseau, réappliqué par-dessus. */
+  const [pending, setPending] = useState<CourseOp[]>(() => courseWriter.pending());
+  /** Hors ligne : la liste vient de la copie du téléphone, de ce moment-là. */
+  const [offlineSince, setOfflineSince] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<ListEntry | null>(null);
-  const [stores, setStores] = useState<Store[]>([]);
+  const { items, entries, stores, trips, tripItems } = useMemo(() => applyPending(server, pending), [server, pending]);
   /** La liste, ou l'historique des courses (étape 4). */
   const [view, setView] = useState<'list' | 'trips' | 'stats'>('list');
   const [closing, setClosing] = useState(false);
@@ -70,21 +92,26 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
 
   const refresh = useCallback(async () => {
     try {
-      const [nextItems, nextEntries, nextTrips, nextTripItems, nextStores] = await Promise.all([
-        coursesStore.listItems(),
-        coursesStore.listEntries(),
-        coursesStore.listTrips(),
-        coursesStore.listTripItems(),
-        coursesStore.listStores(),
-      ]);
-      setStores(nextStores);
-      setItems(nextItems);
-      setEntries(nextEntries);
-      setTrips(nextTrips);
-      setTripItems(nextTripItems);
+      const [nextItems, nextEntries, nextTrips, nextTripItems, nextStores] = await withTimeout(
+        Promise.all([coursesStore.listItems(), coursesStore.listEntries(), coursesStore.listTrips(), coursesStore.listTripItems(), coursesStore.listStores()]),
+        SLOW_LOAD_MS,
+      );
+      const next = { items: nextItems, entries: nextEntries, trips: nextTrips, tripItems: nextTripItems, stores: nextStores };
+      setServer(next);
+      setOfflineSince(null);
+      // La copie pour le prochain passage sans réseau (seulement avec un compte).
+      if (isRemote) saveOfflineCopy(next);
       onError('');
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'Chargement impossible.');
+      if (!isNetworkError(err)) {
+        onError(err instanceof Error ? err.message : 'Chargement impossible.');
+        return;
+      }
+      // Pas de réseau, ou trop lent : la copie du téléphone, si on n'a rien de mieux sous la main.
+      const copy = readOfflineCopy();
+      setServer((current) => (current === EMPTY && copy ? copy : current));
+      setOfflineSince(copy?.savedAt ?? new Date().toISOString());
+      onError('');
     } finally {
       setLoading(false);
     }
@@ -95,6 +122,31 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
   useEffect(() => {
     void refresh();
   }, [refresh, reloadToken]);
+
+  // La file : suivie à l'écran, vidée dès que le réseau revient (ou que l'app revient au premier plan).
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  useEffect(() => {
+    courseWriter.useExpenses(expenses);
+    const off = courseWriter.onPendingChange(setPending);
+    const flush = () => {
+      if (courseWriter.pending().length === 0) return;
+      void courseWriter.flush().then((result) => {
+        if (result.dropped.length > 0) onError(`Pas pu être enregistré : ${result.dropped.join(' ; ')}`);
+        if (result.sent > 0) void refreshRef.current();
+      });
+    };
+    const onVisible = () => document.visibilityState === 'visible' && (flush(), void refreshRef.current());
+    window.addEventListener('online', flush);
+    document.addEventListener('visibilitychange', onVisible);
+    flush();
+    return () => {
+      off();
+      window.removeEventListener('online', flush);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expenses]);
 
   const groups = useMemo(() => groupByAisle(entries, items), [entries, items]);
   const nextTrip = useMemo(() => nextTripNumber(trips), [trips]);
@@ -109,12 +161,26 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
   );
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
 
-  /** Une écriture qui échoue remonte au hub et est relancée à l'appelant. */
-  async function guard<T>(action: () => Promise<T>, fallback: string): Promise<T> {
+  /**
+   * Toute écriture : elle se voit tout de suite (en magasin, chaque seconde
+   * compte), puis part au serveur ou en file. Appliquer d'avance est sans
+   * danger : réappliquer la même opération ne double rien. Un refus du
+   * serveur ramène l'écran à l'état d'avant et s'affiche.
+   */
+  async function write(change: CourseChange) {
+    const op = stamp(change);
+    let before: CourseData = EMPTY;
+    setServer((current) => {
+      before = current;
+      return applyPending(current, [op]);
+    });
     try {
-      return await action();
+      const result = await courseWriter.run(op);
+      onError('');
+      return result;
     } catch (err) {
-      onError(err instanceof Error ? err.message : fallback);
+      setServer(before);
+      onError(err instanceof Error ? err.message : 'Enregistrement impossible.');
       throw err;
     }
   }
@@ -123,35 +189,19 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
     // Déjà sur la liste (retapé, ou proposé par un autre chemin) : une
     // seule ligne par article, comme à la clôture d'une course.
     if (existing && entries.some((e) => e.itemId === existing.id)) return;
-    await guard(async () => {
-      const item = existing ?? (await coursesStore.createItem({ name, aisle: guessAisle(name) }));
-      await coursesStore.addEntry(item.id, item.defaultQuantity);
-    }, 'Ajout impossible.');
-    await refresh();
+    const itemId = existing?.id ?? newId();
+    if (!existing) await write({ kind: 'createItem', itemId, input: { name, aisle: guessAisle(name) } });
+    await write({ kind: 'addEntry', entryId: newId(), itemId, quantity: existing?.defaultQuantity ?? '', note: '' });
   }
 
-  /**
-   * Cocher et noter un prix se voient tout de suite, sans attendre le
-   * serveur — en magasin, chaque seconde compte. En cas d'échec, l'écran
-   * revient à l'état d'avant et l'erreur s'affiche.
-   */
   async function patchEntry(entry: ListEntry, patch: ListEntryPatch) {
-    const before = entries;
-    setEntries((list) => list.map((e) => (e.id === entry.id ? { ...e, ...patch } : e)));
-    try {
-      await coursesStore.updateEntry(entry.id, patch);
-      onError('');
-    } catch (err) {
-      setEntries(before);
-      onError(err instanceof Error ? err.message : 'Enregistrement impossible.');
-    }
+    await write({ kind: 'updateEntry', entryId: entry.id, patch }).catch(() => {});
   }
 
   async function saveEditor(entry: ListEntry, itemPatch: Partial<ItemInput>, entryPatch: ListEntryPatch) {
-    await coursesStore.updateItem(entry.itemId, itemPatch);
-    await coursesStore.updateEntry(entry.id, entryPatch);
+    await write({ kind: 'updateItem', itemId: entry.itemId, patch: itemPatch });
+    await write({ kind: 'updateEntry', entryId: entry.id, patch: entryPatch });
     setEditing(null);
-    await refresh();
   }
 
   /**
@@ -161,8 +211,11 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
    * il existe déjà et sera simplement repris au nouvel essai.
    */
   async function closeTrip(form: CloseForm) {
-    let store = form.store.existing;
-    if (!store && form.store.name) store = await coursesStore.createStore(form.store.name);
+    let store: { id: string; name: string } | null = form.store.existing;
+    if (!store && form.store.name) {
+      store = { id: newId(), name: form.store.name };
+      await write({ kind: 'createStore', storeId: store.id, name: store.name });
+    }
     const plan = buildClosePlan({
       items,
       entries,
@@ -172,11 +225,20 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
       totalCents: form.totalCents,
       note: form.note,
     });
-    const trip = await coursesStore.closeTrip(plan);
+    const sendToBudget = form.sendToBudget && expenses !== undefined;
+    const result = await write({ kind: 'closeTrip', plan, budget: sendToBudget ? (form.accountId ? { accountId: form.accountId } : {}) : null });
     setClosing(false);
     const back = plan.addItemIds.length;
+    if (result.status === 'queued' || !result.trip) {
+      // Gardée sur le téléphone : la course (et sa dépense) partira au retour du réseau.
+      setNotice(
+        `Course gardée sur le téléphone : ${formatEuros(plan.trip.totalCents)}${store ? ` chez ${store.name}` : ''}. Elle partira${sendToBudget ? ', avec sa dépense au budget,' : ''} dès le retour du réseau.`,
+      );
+      return;
+    }
+    const trip = result.trip;
     let budget = '';
-    if (form.sendToBudget && expenses) {
+    if (sendToBudget && expenses) {
       // La course est enregistrée quoi qu'il arrive ; un échec ici se
       // rattrape depuis l'historique (« Ajouter au budget »), sans rien
       // ressaisir — la référence rend l'envoi rejouable sans doublon.
@@ -235,6 +297,35 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
             <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => void refresh()}>
               Réessayer
             </button>
+          </div>
+        )}
+
+        {(offlineSince || pending.length > 0) && (
+          <div className="notice courses-offline" role="status">
+            {offlineSince ? (
+              <>
+                📴 <b>Hors ligne</b> — ta liste telle qu’elle était {clock(offlineSince)}. Ce que tu fais est gardé sur le
+                téléphone
+                {pending.length > 0 && ` (${pending.length} modification${pending.length > 1 ? 's' : ''} en attente)`} et partira
+                au retour du réseau.
+              </>
+            ) : (
+              <>
+                ⏳ {pending.length} modification{pending.length > 1 ? 's' : ''} en attente d’envoi.{' '}
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() =>
+                    void courseWriter.flush().then((r) => {
+                      if (r.dropped.length > 0) onError(`Pas pu être enregistré : ${r.dropped.join(' ; ')}`);
+                      if (r.sent > 0) void refresh();
+                    })
+                  }
+                >
+                  Envoyer
+                </button>
+              </>
+            )}
           </div>
         )}
 
@@ -356,14 +447,12 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
             onCancel={() => setEditing(null)}
             onSave={(itemPatch, entryPatch) => saveEditor(editing, itemPatch, entryPatch)}
             onRemoveFromList={async () => {
-              await coursesStore.removeEntry(editing.id);
+              await write({ kind: 'removeEntry', entryId: editing.id });
               setEditing(null);
-              await refresh();
             }}
             onDeleteItem={async () => {
-              await coursesStore.deleteItem(editing.itemId);
+              await write({ kind: 'deleteItem', itemId: editing.itemId });
               setEditing(null);
-              await refresh();
             }}
           />
         )}

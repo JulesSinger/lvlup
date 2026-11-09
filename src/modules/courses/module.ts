@@ -5,6 +5,7 @@ import { coursesStore } from './data';
 import { coursesDemo } from './demo';
 import { createCalendarSource } from './data/calendarSource';
 import { createShoppingService } from './data/shoppingService';
+import { forgetOfflineCopy } from './data/offlineCopy';
 import { createSpendService } from './data/spendService';
 
 /**
@@ -29,5 +30,7 @@ export const coursesModule: AtlasModule = {
   // La démo (15/10/2026) : des exemples et une visite, proposées à la première ouverture.
   demo: coursesDemo,
   // Les courses faites, en calque dans le calendrier (Éclipse).
+  // La copie de la liste gardée pour l'ouvrir sans réseau appartient au compte qui part (docs/securite.md §3).
+  forgetDevice: () => forgetOfflineCopy(),
   provides: { calendarSources: [createCalendarSource(coursesStore)], shopping: createShoppingService(coursesStore), shoppingSpend: createSpendService(coursesStore) },
 };

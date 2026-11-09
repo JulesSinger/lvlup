@@ -501,3 +501,43 @@ qui entre dans l'écran d'un autre module : c'est l'objet même du lien.
 - [Fonctionnalités de Listonic](https://listonic.com/fr/fonctionnalites) (articles fréquents,
   prix et total estimé) ; [Listonic contre Bring!](https://listonic.com/comparez-applis/listonic-vs-bring)
 - Prix relevés en septembre 2026, susceptibles d'évoluer
+
+## 19. Hors ligne, au fond du magasin (09/11/2026)
+
+*Demande de Jules : « quand je vais en courses à Auchan je n'ai plus de connexion, et je ne peux
+plus accéder ni mettre à jour ma liste ». La décision du 25/09/2026 (§12 : pas de mode sans
+réseau en V1) tombe : le magasin est précisément l'endroit où le réseau manque.*
+
+**Lire.** Chaque chargement réussi garde une copie de Courses sur l'appareil
+(`courses.offline.v1` : articles, liste, magasins, courses, ce qui y a été acheté). Sans réseau —
+ou avec un réseau qui traîne : au-delà de 8 s —, l'écran montre cette copie, avec un bandeau
+« Hors ligne — ta liste telle qu'elle était à 17 h 40 ». Seulement avec un compte ; oubliée à la
+déconnexion (`forgetDevice`).
+
+**Écrire.** Toutes les écritures de l'écran passent par `courseWriter` (même motif que Tâches et
+Nutrition, sur la file du socle, clé `courses.outbox.v1`) : ajouter un article, cocher, noter un
+prix, modifier, retirer, créer un magasin, **terminer la course**. Sans réseau, ou au-delà de 6 s,
+l'écriture est gardée et partira au retour du réseau (événement `online`, retour de l'app au
+premier plan, ou « Envoyer »). L'écran montre toujours le serveur **plus** la file
+(`applyPending`, pur et testé) : rien de ce qui a été fait ne disparaît.
+
+**Sans doublon.** Un article, une ligne ou un magasin reçoivent leur identifiant de l'app avant
+le premier envoi (`createItem(input, id)`, `addEntry(…, id)`, `createStore(name, id)`) : rejoués,
+ils ne doublent rien. Une course terminée est reconnue au retour par son numéro, son jour, son
+total et son magasin ; si son numéro a été pris entre-temps (une course terminée sur un autre
+appareil), elle prend le suivant ; son plan est ajusté à la liste du moment (une ligne déjà
+retirée, un habituel déjà revenu feraient refuser toute la clôture). Sa dépense au budget part
+avec elle. Dès que la file n'est pas vide, tout y passe dans l'ordre : une coche récente n'est
+jamais écrasée par une plus ancienne. Le vidage attend les envois lents encore en route.
+
+**Au socle.** Deux défauts trouvés en chemin, qui touchaient aussi Tâches et Nutrition :
+`requireUserId` interrogeait le serveur et, sans réseau, rendait « Session expirée » — une erreur
+qui n'était pas une panne de réseau, donc jamais mise en file ; il prend désormais la session de
+l'appareil. Et les réglages d'Atlas (modules affichés, ordre) sont gardés sur l'appareil
+(`atlas.settings.v1`) : sans réseau, Atlas s'ouvre tel qu'on l'a rangé, sans message d'erreur.
+
+**Limites.** Une ligne d'habituel remise sur la liste par une course terminée hors ligne n'a
+qu'un identifiant provisoire jusqu'au retour du réseau : la cocher avant ne se garde pas. Supprimer
+une course de l'historique, la reclasser ou l'ajouter au budget demandent le réseau. Ouvrir l'app
+pour la première fois sans réseau demande qu'elle ait déjà été ouverte avec (le cache du service
+worker et la copie de la liste).

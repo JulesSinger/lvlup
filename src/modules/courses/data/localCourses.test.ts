@@ -148,3 +148,20 @@ function plan(overrides: { trip?: Partial<ClosePlan['trip']> } & Partial<Omit<Cl
     trip: { number: 1, day: '2026-09-25', storeId: null, storeName: '', totalCents: 0, note: '', ...overrides.trip },
   };
 }
+
+describe('LocalCourses, hors ligne (09/11/2026)', () => {
+  beforeEach(() => memory.clear());
+
+  it('un article, une ligne ou un magasin créés avec leur id se rejouent sans doublon', async () => {
+    const store = new LocalCourses();
+    const item = await store.createItem({ name: 'Lait' }, 'item-1');
+    expect(await store.createItem({ name: 'Lait' }, 'item-1')).toEqual(item);
+    const entry = await store.addEntry('item-1', '2', '', 'entry-1');
+    expect(await store.addEntry('item-1', '2', '', 'entry-1')).toEqual(entry);
+    const shop = await store.createStore('Auchan', 'store-1');
+    expect(await store.createStore('Auchan', 'store-1')).toEqual(shop);
+    expect(await store.listItems()).toHaveLength(1);
+    expect(await store.listEntries()).toHaveLength(1);
+    expect(await store.listStores()).toHaveLength(1);
+  });
+});

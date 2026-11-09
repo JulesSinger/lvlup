@@ -13,6 +13,8 @@ import {
   type SecondFactorEnrollment,
   type Settings,
 } from './coreStore';
+import { isNetworkError } from './outbox';
+import { readSettingsCopy, saveSettingsCopy } from './settingsCopy';
 import { fetchAll, getClient, isolatedClient, requireUserId, unwrap } from './supabaseClient';
 
 function check(error: { message: string } | null) {
@@ -110,6 +112,25 @@ export class SupabaseCore implements CoreStore {
 
 
   async getSettings(): Promise<Settings> {
+    try {
+      const settings = await this.fetchSettings();
+      saveSettingsCopy(this.lastUserId, settings);
+      return settings;
+    } catch (err) {
+      // Sans réseau (au fond d'un magasin) : les réglages gardés sur l'appareil,
+      // pour ouvrir Atlas tel qu'on l'a rangé, sans message d'erreur.
+      const copy = isNetworkError(err) ? readSettingsCopy(this.lastUserId) : null;
+      if (copy) return copy;
+      throw err;
+    }
+  }
+
+  /** Le compte des derniers réglages lus : la copie de l'appareil ne sert qu'à lui. */
+  private lastUserId: string | null = null;
+
+  private async fetchSettings(): Promise<Settings> {
+    const { data: local } = await this.client.auth.getSession();
+    this.lastUserId = local.session?.user.id ?? null;
     const userId = await this.requireUserId();
     const { data, error } = await this.client
       .from('profiles')
@@ -150,6 +171,9 @@ export class SupabaseCore implements CoreStore {
       .from('profiles')
       .upsert(row, { onConflict: 'user_id' });
     if (error) throw new Error(error.message);
+    // La copie de l'appareil suit ce qui vient d'être enregistré.
+    const copy = readSettingsCopy(userId);
+    if (copy) saveSettingsCopy(userId, { ...copy, ...patch });
   }
 
 

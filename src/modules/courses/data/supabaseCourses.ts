@@ -158,8 +158,13 @@ export class SupabaseCourses implements CoursesStore {
     ).map(toItem);
   }
 
-  async createItem(input: ItemInput): Promise<Item> {
+  async createItem(input: ItemInput, id?: string): Promise<Item> {
     const userId = await this.requireUserId();
+    if (id) {
+      // Rejouable (hors ligne) : déjà là, l'envoi ne fait rien, et on relit.
+      check((await this.client.from('courses_items').upsert({ id, user_id: userId, ...itemColumns(input) }, { onConflict: 'id', ignoreDuplicates: true })).error);
+      return toItem(unwrap(await this.client.from('courses_items').select('*').eq('id', id).single()) as ItemRow);
+    }
     const row = unwrap(
       await this.client
         .from('courses_items')
@@ -194,8 +199,12 @@ export class SupabaseCourses implements CoursesStore {
     ).map(toStore);
   }
 
-  async createStore(name: string): Promise<Store> {
+  async createStore(name: string, id?: string): Promise<Store> {
     const userId = await this.requireUserId();
+    if (id) {
+      check((await this.client.from('courses_stores').upsert({ id, user_id: userId, name }, { onConflict: 'id', ignoreDuplicates: true })).error);
+      return toStore(unwrap(await this.client.from('courses_stores').select('*').eq('id', id).single()) as StoreRow);
+    }
     const row = unwrap(
       await this.client.from('courses_stores').insert({ user_id: userId, name }).select().single(),
     ) as StoreRow;
@@ -218,8 +227,15 @@ export class SupabaseCourses implements CoursesStore {
     ).map(toEntry);
   }
 
-  async addEntry(itemId: string, quantity = '', note = ''): Promise<ListEntry> {
+  async addEntry(itemId: string, quantity = '', note = '', id?: string): Promise<ListEntry> {
     const userId = await this.requireUserId();
+    if (id) {
+      check(
+        (await this.client.from('courses_list').upsert({ id, user_id: userId, item_id: itemId, quantity, note }, { onConflict: 'id', ignoreDuplicates: true }))
+          .error,
+      );
+      return toEntry(unwrap(await this.client.from('courses_list').select('*').eq('id', id).single()) as EntryRow);
+    }
     const row = unwrap(
       await this.client
         .from('courses_list')

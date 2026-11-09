@@ -414,5 +414,52 @@ export async function run({ browser, check, BASE }) {
     check('Aucune erreur JavaScript (payé avec)', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
+
+  // --- Sans réseau, au fond du magasin (2026-11-09) ----------------------------
+  // En mode local, rien ne passe par le réseau ; couper la connexion du navigateur
+  // fait tout de même passer chaque écriture par la file (navigator.onLine), qui
+  // part dès le retour du réseau — le chemin de l'écran, de bout en bout.
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const p = await ctx.newPage();
+    const errors = [];
+    p.on('pageerror', (e) => errors.push(e.message));
+    await openComete(p, BASE);
+    await addItem(p, 'Lait');
+    const outbox = () => p.evaluate(() => JSON.parse(localStorage.getItem('courses.outbox.v1') || '[]').length);
+    const saved = () => p.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') || '{}'));
+
+    await ctx.setOffline(true);
+    await p.locator('.courses-line', { hasText: 'Lait' }).getByRole('checkbox').click();
+    await addItem(p, 'Pain');
+    check('Sans réseau, la coche se voit tout de suite', await p.locator('.courses-line', { hasText: 'Lait' }).getByRole('checkbox').isChecked());
+    check('… et l’article ajouté aussi', (await p.locator('.courses-line-name', { hasText: 'Pain' }).count()) === 1);
+    check('Rien n’est perdu : trois écritures attendent sur le téléphone', (await outbox()) === 3, String(await outbox()));
+    check('Un bandeau dit ce qui attend', (await text(p.locator('.courses-offline'))).includes('3 modifications en attente'));
+    const before = await saved();
+    check('Rien n’est encore écrit dans les données', (before.coursesList ?? []).length === 1 && !(before.coursesList ?? [])[0].checked);
+
+    // Terminer la course sans réseau : gardée, elle partira avec le reste.
+    await p.getByRole('button', { name: 'Terminer la course' }).click();
+    await p.waitForSelector('.courses-close-dialog');
+    await p.getByLabel('Magasin').fill('Auchan');
+    await p.locator('#courses-close-total').fill('4,20');
+    await p.locator('.courses-close-dialog').getByRole('button', { name: 'Terminer la course' }).click();
+    await p.waitForSelector('.courses-close-dialog', { state: 'detached' });
+    check('La course terminée sans réseau est gardée, et le compte rendu le dit', (await text(p.locator('.courses-notice'))).includes('gardée sur le téléphone'));
+    check('La liste ne garde que ce qui n’était pas dans le panier', (await p.locator('.courses-line').count()) === 1 && (await p.locator('.courses-line-name', { hasText: 'Pain' }).count()) === 1);
+
+    await ctx.setOffline(false);
+    await p.waitForFunction(() => (JSON.parse(localStorage.getItem('courses.outbox.v1') || '[]').length === 0), null, { timeout: 10000 }).catch(() => {});
+    const after = await saved();
+    check('Le réseau revenu, tout part : la file est vide', (await outbox()) === 0, String(await outbox()));
+    check('La course est enregistrée, une seule fois', (after.coursesTrips ?? []).length === 1 && after.coursesTrips[0].totalCents === 420, JSON.stringify(after.coursesTrips));
+    check('Le magasin créé sans réseau existe', (after.coursesStores ?? []).some((st) => st.name === 'Auchan'));
+    check('Le pain attend la prochaine course', (after.coursesList ?? []).length === 1);
+    await p.waitForFunction(() => !document.querySelector('.courses-offline'), null, { timeout: 5000 }).catch(() => {});
+    check('Le bandeau disparaît', (await p.locator('.courses-offline').count()) === 0);
+    check('Aucune erreur JavaScript (hors ligne)', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
 }
 

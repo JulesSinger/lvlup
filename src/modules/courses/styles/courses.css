@@ -764,3 +764,11 @@
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   font-weight: 600;
 }
+
+/* Hors ligne (09/11/2026) : la liste vient du téléphone, ce qu'on fait attend le réseau. */
+.courses-offline {
+  background: color-mix(in srgb, var(--orange) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--orange) 40%, transparent);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
