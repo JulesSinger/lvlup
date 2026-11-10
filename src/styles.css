@@ -93,3 +93,6 @@
 
 /* --- Recettes : le carnet de recettes (étape 1) ------------------ */
 @import './modules/recettes/styles/recettes.css';
+
+/* --- Tier lists : créer et remplir des tier lists ---------------- */
+@import './modules/tierlists/styles/tierlists.css';

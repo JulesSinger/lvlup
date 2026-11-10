@@ -10,6 +10,7 @@ import { projetsModule } from './projets/module';
 import { recettesModule } from './recettes/module';
 import { sportModule } from './sport/module';
 import { tachesModule } from './taches/module';
+import { tierlistsModule } from './tierlists/module';
 
 /**
  * Le registre : la liste des modules actifs d'Atlas.
@@ -30,4 +31,5 @@ export const MODULES: readonly AtlasModule[] = [
   projetsModule,
   sportModule,
   recettesModule,
+  tierlistsModule,
 ];

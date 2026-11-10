@@ -4,7 +4,7 @@
  */
 
 /** Les espaces de fichiers d'Atlas : chaque compte y a son dossier, `<compte>/…`. */
-export const BUCKETS = ['hautsfaits', 'projets', 'recettes'] as const;
+export const BUCKETS = ['hautsfaits', 'projets', 'recettes', 'tierlists'] as const;
 
 /** Une connexion plus ancienne ne suffit pas : le mot de passe vient d'être redonné. */
 export const FRESH_LOGIN_SECONDS = 10 * 60;

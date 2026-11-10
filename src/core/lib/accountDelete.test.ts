@@ -9,8 +9,8 @@ const token = (claims: Record<string, unknown>) => `${b64url({ alg: 'HS256' })}.
 const now = 1_800_000_000;
 
 describe('supprimer son compte : la fonction', () => {
-  it('efface les fichiers des trois espaces de stockage', () => {
-    expect([...BUCKETS]).toEqual(['hautsfaits', 'projets', 'recettes']);
+  it('efface les fichiers des quatre espaces de stockage', () => {
+    expect([...BUCKETS]).toEqual(['hautsfaits', 'projets', 'recettes', 'tierlists']);
   });
 
   it('exige un mot de passe redonné il y a moins de dix minutes', () => {
