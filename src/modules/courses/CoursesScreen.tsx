@@ -30,7 +30,7 @@ import {
 } from './lib/types';
 
 /** Au-delà, la liste ne se charge pas : on montre la copie du téléphone plutôt que d'attendre. */
-const SLOW_LOAD_MS = 8000;
+const SLOW_LOAD_MS = 4000;
 
 const EMPTY: CourseData = { items: [], entries: [], stores: [], trips: [], tripItems: [] };
 

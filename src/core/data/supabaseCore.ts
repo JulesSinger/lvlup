@@ -13,7 +13,8 @@ import {
   type SecondFactorEnrollment,
   type Settings,
 } from './coreStore';
-import { isNetworkError } from './outbox';
+import { storedSessionUser } from '../lib/storedSession';
+import { isNetworkError, withTimeout } from './outbox';
 import { readSettingsCopy, saveSettingsCopy } from './settingsCopy';
 import { fetchAll, getClient, isolatedClient, requireUserId, unwrap } from './supabaseClient';
 
@@ -51,20 +52,46 @@ export class SupabaseCore implements CoreStore {
   }
 
 
+  /** Le compte de la session gardée sur l'appareil, lue sans réseau (`storedSessionUser`). */
+  private storedUser(): AppUser | null {
+    try {
+      const key = (this.client.auth as unknown as { storageKey?: string }).storageKey;
+      return key ? storedSessionUser(localStorage.getItem(key)) : null;
+    } catch {
+      return null;
+    }
+  }
+
   onUserChange(callback: (user: AppUser | null) => void) {
+    // Sans réseau (10/11/2026) : Supabase rend « personne » quand il n'a pas pu
+    // renouveler la session, mais la garde sur l'appareil — c'est encore le même
+    // compte (voir `storedSessionUser`). Et si le renouvellement traîne, on
+    // n'attend pas plus de quelques secondes pour ouvrir Atlas.
+    let answered = false;
+    const early = setTimeout(() => {
+      if (answered) return;
+      const user = this.storedUser();
+      if (user) callback(user);
+    }, 2500);
     // On s'appuie uniquement sur onAuthStateChange : l'événement INITIAL_SESSION
     // arrive une fois la session restaurée (et le jeton rafraîchi si besoin).
     // L'ancien appel parallèle à getUser() créait une course : sur un appareil
     // au jeton expiré, sa réponse « null » pouvait arriver APRÈS la session
     // restaurée et l'écraser — d'où des écrans vides au réveil de l'app.
-    const { data } = this.client.auth.onAuthStateChange((_event, session) => {
-      callback(
-        session?.user
-          ? { id: session.user.id, email: session.user.email ?? '', isLocal: false, needsSecondFactor: needsSecondFactor(session) }
-          : null,
-      );
+    const { data } = this.client.auth.onAuthStateChange((event, session) => {
+      answered = true;
+      clearTimeout(early);
+      if (session?.user) {
+        callback({ id: session.user.id, email: session.user.email ?? '', isLocal: false, needsSecondFactor: needsSecondFactor(session) });
+        return;
+      }
+      // Au démarrage, « personne » avec une session encore gardée = pas de réseau pour la renouveler.
+      callback(event === 'INITIAL_SESSION' ? this.storedUser() : null);
     });
-    return () => data.subscription.unsubscribe();
+    return () => {
+      clearTimeout(early);
+      data.subscription.unsubscribe();
+    };
   }
 
 
@@ -113,7 +140,8 @@ export class SupabaseCore implements CoreStore {
 
   async getSettings(): Promise<Settings> {
     try {
-      const settings = await this.fetchSettings();
+      // Borné : un réseau qui traîne ne doit pas laisser Atlas sur « Chargement… ».
+      const settings = await withTimeout(this.fetchSettings(), 4000);
       saveSettingsCopy(this.lastUserId, settings);
       return settings;
     } catch (err) {

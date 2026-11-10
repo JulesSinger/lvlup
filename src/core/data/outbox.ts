@@ -96,6 +96,27 @@ export function isNetworkError(error: unknown): boolean {
   return /failed to fetch|networkerror|network request failed|load failed|réseau/i.test(message);
 }
 
+/**
+ * Une attente bornée : au-delà de `ms`, on rend une panne de réseau. Un réseau
+ * qui traîne (le fond d'un magasin, un Wi-Fi à portail) ne doit pas laisser
+ * un écran attendre sans fin ; l'appelant traite le cas comme une coupure.
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new TypeError('Réseau trop lent.')), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 export interface FlushResult {
   sent: number;
   remaining: number;

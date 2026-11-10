@@ -32,6 +32,50 @@ export async function run({ browser, check, BASE }) {
     check('Une notification est toujours affichée (exigence iOS)', sw.includes('showNotification'));
   }
 
+  // --- S'ouvrir sans réseau (10/11/2026) ------------------------------------
+  // Essai de Jules à Auchan : écran noir. Le service worker allait chercher la
+  // page sur le réseau d'abord, sans délai maximum. Désormais, la page gardée
+  // d'abord : coupé du réseau, Atlas se rouvre.
+  {
+    const offline = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const p = await offline.newPage();
+    await p.goto(BASE);
+    await p.evaluate(async () => {
+      await navigator.serviceWorker.ready;
+    });
+    // Une première ouverture contrôlée par le service worker, comme sur le téléphone.
+    await p.reload();
+    await p.waitForSelector('.hub-picker-card, .module-rail, .topbar', { timeout: 10000 }).catch(() => {});
+    check('Le service worker garde la page d’Atlas', await p.evaluate(async () => !!(await (await caches.open('zenith-v3')).match('/index.html'))));
+    await offline.setOffline(true);
+    let opened = false;
+    try {
+      await p.reload({ timeout: 10000 });
+      await p.waitForSelector('.hub-picker-card, .module-rail, .topbar', { timeout: 10000 });
+      opened = true;
+    } catch {
+      opened = false;
+    }
+    check('Sans réseau, Atlas se rouvre (pas d’écran noir)', opened);
+    await offline.setOffline(false);
+    // Un réseau qui traîne (le cas d'Auchan) : la page demandée ne revient qu'après 15 s.
+    await offline.route(
+      (url) => url.pathname === '/' || url.pathname === '/index.html',
+      (route) => setTimeout(() => void route.continue().catch(() => {}), 15000),
+    );
+    let fast = false;
+    try {
+      await p.reload({ timeout: 6000, waitUntil: 'domcontentloaded' });
+      await p.waitForSelector('.hub-picker-card, .module-rail, .topbar', { timeout: 6000 });
+      fast = true;
+    } catch {
+      fast = false;
+    }
+    check('Avec un réseau qui traîne, Atlas s’ouvre sans attendre le réseau', fast);
+    await offline.unrouteAll({ behavior: 'ignoreErrors' });
+    await offline.close();
+  }
+
   // Écran de choix des modules : chaque carte porte, sous son nom de marque,
   // une description de son domaine (ajoutée le 07/09/2026 — un nom seul
   // comme Objectifs ou Budget ne dit rien à qui ne le connaît pas encore, voir

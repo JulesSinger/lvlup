@@ -3,8 +3,12 @@
  *
  * Stratégie de cache :
  * - assets fingerprintés (/assets/…) : cache-first, ils sont immuables ;
- * - navigations : réseau d'abord, dernière version en cache en secours
- *   (l'app s'ouvre dans le métro, les données locales font le reste) ;
+ * - navigations : la page gardée d'abord, le réseau la remet à jour en
+ *   arrière-plan (10/11/2026). Avant, le réseau passait d'abord, sans délai
+ *   maximum : au fond d'un hypermarché, un réseau qui traîne ou un Wi-Fi à
+ *   portail laissait l'app sur un écran noir (essai de Jules à Auchan). Une
+ *   nouvelle version se voit donc à l'ouverture suivante ;
+ *   une page qui n'est pas celle d'Atlas (le portail d'un Wi-Fi) n'est jamais gardée ;
  * - tout le reste (Supabase, etc.) : jamais intercepté.
  */
 // Changer ce nom vide l'ancien cache à l'activation. v3 (2026-09-29) : les
@@ -12,8 +16,34 @@
 // d'abord — sans ça, un appareil garderait l'ancienne icône pour toujours.
 const CACHE = 'zenith-v3';
 
-self.addEventListener('install', () => {
+/** Une réponse est-elle bien la page d'Atlas, et pas le portail d'un Wi-Fi public ? */
+async function isAtlasPage(response) {
+  if (!response || !response.ok || response.redirected || response.type === 'opaqueredirect') return false;
+  if (!(response.headers.get('content-type') || '').includes('text/html')) return false;
+  const text = await response.clone().text();
+  return text.includes('id="root"');
+}
+
+/** Va chercher la page d'Atlas et la garde, si c'est bien elle. */
+async function refreshPage(cache, request) {
+  const url = typeof request === 'string' ? request : request.url;
+  const response = await fetch(url, { cache: 'no-store', credentials: 'same-origin' });
+  if (await isAtlasPage(response)) await cache.put('/index.html', response.clone());
+  return response;
+}
+
+self.addEventListener('install', (event) => {
   self.skipWaiting();
+  // La page gardée dès l'installation : la première ouverture sans réseau la trouve.
+  event.waitUntil(
+    (async () => {
+      try {
+        await refreshPage(await caches.open(CACHE), '/');
+      } catch {
+        // Pas de réseau à l'installation : elle sera gardée à la prochaine navigation.
+      }
+    })(),
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -50,15 +80,15 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         const cache = await caches.open(CACHE);
-        try {
-          const response = await fetch(request);
-          if (response.ok) cache.put('/index.html', response.clone());
-          return response;
-        } catch {
-          const fallback = await cache.match('/index.html');
-          if (fallback) return fallback;
-          throw new Error('Hors ligne et aucune version en cache.');
+        const kept = await cache.match('/index.html');
+        const fresh = refreshPage(cache, request);
+        if (kept) {
+          // La page gardée tout de suite ; la mise à jour continue sans faire attendre.
+          event.waitUntil(fresh.catch(() => {}));
+          return kept;
         }
+        // Jamais gardée (toute première ouverture) : le réseau, il n'y a rien d'autre.
+        return fresh;
       })(),
     );
   }
