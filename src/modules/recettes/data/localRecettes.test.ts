@@ -123,6 +123,31 @@ describe('LocalRecettes', () => {
     await expect(store.addPlanEntry({ day: '2026-10-12', meal: 'soir', recipeId: null, title: ' ', servings: null, position: 0 })).rejects.toThrow('Restes');
   });
 
+  it('un repas du menu se cuisine, sauf s’il est dit « restes »', async () => {
+    const r = await store.createRecipe(lasagnes, 'r1');
+    await store.addPlanEntry({ day: '2026-10-12', meal: 'soir', recipeId: r.id, title: '', servings: 4, position: 0 });
+    await store.addPlanEntry({ day: '2026-10-13', meal: 'midi', recipeId: r.id, title: '', servings: null, leftovers: true, position: 0 });
+    const week = await store.listPlan('2026-10-12', '2026-10-18');
+    expect(week.map((e) => e.leftovers)).toEqual([false, true]);
+    await store.updatePlanEntry(week[1].id, { leftovers: false });
+    expect((await store.listPlan('2026-10-13', '2026-10-13'))[0].leftovers).toBe(false);
+  });
+
+  it('la semaine type : par jour, midi avant soir ; une recette supprimée en sort', async () => {
+    const r = await store.createRecipe(lasagnes, 'r1');
+    await store.addTemplateEntry({ weekday: 3, meal: 'soir', recipeId: null, title: 'À définir', servings: 4, leftovers: false, position: 0 }, 't1');
+    await store.addTemplateEntry({ weekday: 1, meal: 'soir', recipeId: r.id, title: '', servings: null, leftovers: true, position: 0 });
+    await store.addTemplateEntry({ weekday: 1, meal: 'midi', recipeId: null, title: 'Restes', servings: null, leftovers: true, position: 0 });
+    expect((await store.listTemplate()).map((t) => `${t.weekday} ${t.meal}`)).toEqual(['1 midi', '1 soir', '3 soir']);
+    await store.updateTemplateEntry('t1', { weekday: 2 });
+    expect((await store.listTemplate()).at(-1)?.weekday).toBe(2);
+    await expect(store.addTemplateEntry({ weekday: 8 as never, meal: 'midi', recipeId: null, title: 'x', servings: null, leftovers: false, position: 0 })).rejects.toThrow('lundi');
+    await store.deleteRecipe(r.id);
+    expect(await store.listTemplate()).toHaveLength(2);
+    await store.deleteTemplateEntry('t1');
+    expect((await store.listTemplate()).map((t) => t.title)).toEqual(['Restes']);
+  });
+
   it('les ingrédients « toujours là » ont une liste de départ, réglable', async () => {
     expect((await store.getSettings()).pantry).toContain('sel');
     await store.updateSettings({ pantry: ['sel', 'beurre'] });
@@ -133,6 +158,8 @@ describe('LocalRecettes', () => {
     const r = await store.createRecipe(lasagnes, 'r1');
     await store.setPhoto(r.id, photo(), 'p1');
     await store.addCooked({ recipeId: r.id, day: '2026-10-08', servings: 4, rating: 5, comment: '' });
+    await store.addPlanEntry({ day: '2026-10-13', meal: 'midi', recipeId: r.id, title: '', servings: null, leftovers: true, position: 0 });
+    await store.addTemplateEntry({ weekday: 7, meal: 'soir', recipeId: r.id, title: '', servings: 4, leftovers: false, position: 0 });
     const backup = await store.exportData();
     expect(JSON.stringify(backup)).not.toContain('grande');
     memory.clear();

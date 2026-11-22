@@ -17,7 +17,7 @@ globalThis.localStorage = {
   },
 } as Storage;
 
-const entry = (id: string, day: string, meal: 'midi' | 'soir', recipeId: string | null, title = ''): PlanEntry => ({ id, day, meal, recipeId, title, servings: 4, position: 0, createdAt: '' });
+const entry = (id: string, day: string, meal: 'midi' | 'soir', recipeId: string | null, title = ''): PlanEntry => ({ id, day, meal, recipeId, title, servings: 4, leftovers: false, position: 0, createdAt: '' });
 
 describe('le menu dans Calendar', () => {
   it('une marque par repas, sur la journée, qui ouvre la recette', () => {

@@ -17,6 +17,9 @@ import type { Tool, ToolResult } from './mcp.ts';
 // Les bornes de la base — `mcpTools.test.ts` les compare à `recettes/lib/types.ts`.
 export const RECIPE_CATEGORIES = ['entree', 'plat', 'dessert', 'aperitif', 'petit-dejeuner', 'accompagnement', 'sauce', 'boisson', 'autre'] as const;
 export const MEALS = ['midi', 'soir'] as const;
+/** Les jours de la semaine type : 1 = lundi … 7 = dimanche (`WEEKDAYS` du module). */
+export const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
+const WEEKDAY_NAMES = ['', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 export const RECIPE_TITLE_MAX = 200;
 export const SERVINGS_MAX = 100;
 export const MINUTES_MAX = 10_080;
@@ -72,6 +75,20 @@ export interface PlanRow {
   recipe_id: string | null;
   title: string;
   servings: number | null;
+  /** Des restes : rien à cuisiner (§22). Absente avant la migration du 22/11/2026. */
+  leftovers?: boolean;
+  position: number;
+}
+
+/** Un repas de la semaine type (`recettes_template`, §22). */
+export interface TemplateRow {
+  id: string;
+  weekday: number;
+  meal: string;
+  recipe_id: string | null;
+  title: string;
+  servings: number | null;
+  leftovers: boolean;
   position: number;
 }
 
@@ -103,6 +120,11 @@ export interface RecettesData {
   insertPlan(row: Record<string, unknown>): Promise<PlanRow>;
   updatePlan(id: string, row: Record<string, unknown>): Promise<PlanRow | null>;
   deletePlan(id: string): Promise<boolean>;
+  listTemplate(): Promise<TemplateRow[]>;
+  getTemplate(id: string): Promise<TemplateRow | null>;
+  insertTemplate(row: Record<string, unknown>): Promise<TemplateRow>;
+  updateTemplate(id: string, row: Record<string, unknown>): Promise<TemplateRow | null>;
+  deleteTemplate(id: string): Promise<boolean>;
   getPantry(): Promise<string[] | null>;
   setPantry(items: string[]): Promise<void>;
 }
@@ -404,12 +426,65 @@ const addDays = (day: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
+const mealOrder = (m: string) => (m === 'midi' ? 0 : 1);
+
+/**
+ * Recopier la semaine type dans la semaine de `day` : seules les cases vides
+ * se remplissent, à partir de `notBefore`. Même règle que `fromTemplate` du
+ * module (`recettes/lib/weekTemplate.ts`), comparée par `mcpTools.test.ts`.
+ */
+export function fromTemplate(
+  template: readonly TemplateRow[],
+  day: string,
+  existing: readonly { day: string; meal: string }[],
+  notBefore?: string,
+): { day: string; meal: string; recipe_id: string | null; title: string; servings: number | null; leftovers: boolean; position: number }[] {
+  const monday = mondayOf(day);
+  const filled = new Set(existing.map((e) => `${e.day}|${e.meal}`));
+  const out: ReturnType<typeof fromTemplate> = [];
+  for (const wd of WEEKDAYS) {
+    const date = addDays(monday, wd - 1);
+    if (notBefore && date < notBefore) continue;
+    for (const meal of MEALS) {
+      if (filled.has(`${date}|${meal}`)) continue;
+      template
+        .filter((t) => t.weekday === wd && t.meal === meal)
+        .sort((a, b) => a.position - b.position)
+        .forEach((t, position) => {
+          out.push({ day: date, meal, recipe_id: t.recipe_id, title: t.recipe_id ? '' : t.title, servings: t.servings, leftovers: t.leftovers, position });
+        });
+    }
+  }
+  return out;
+}
+
+function weekday(v: unknown): number {
+  if (typeof v !== 'number' || !(WEEKDAYS as readonly number[]).includes(v)) throw new Refused('weekday : 1 = lundi … 7 = dimanche.');
+  return v;
+}
+
+function meal(v: unknown): string {
+  if (!(MEALS as readonly string[]).includes(String(v))) throw new Refused('Le repas : midi ou soir.');
+  return String(v);
+}
+
+function bool(v: unknown, what: string): boolean {
+  if (typeof v !== 'boolean') throw new Refused(`${what} : vrai ou faux.`);
+  return v;
+}
+
 // --- Les schémas des arguments, que Claude lit pour appeler les outils ---------------------------
 
 const S = {
   id: { type: 'string', description: 'Identifiant (uuid), tel que rendu par un autre outil.' },
   day: { type: 'string', description: 'Jour au format AAAA-MM-JJ.' },
   servings: { type: 'integer', minimum: 1, maximum: SERVINGS_MAX },
+  leftovers: {
+    type: 'boolean',
+    description:
+      'Vrai : des restes, rien à cuisiner ni à acheter (on ressort ce qu’on a fait un autre jour, frigo ou congélateur). Faux (par défaut) : on cuisine ce repas-là, pour servings parts — le surplus sert à d’autres repas.',
+  },
+  weekday: { type: 'integer', minimum: 1, maximum: 7, description: 'Le jour de la semaine type : 1 = lundi … 7 = dimanche.' },
 };
 
 const RECIPE_FIELDS = {
@@ -579,7 +654,7 @@ export const recettesTools: Tool<RecettesContext>[] = [
     name: 'recettes_menu_lister',
     title: 'Lire le menu',
     description:
-      'Le menu prévu entre deux jours (par défaut, la semaine en cours, du lundi au dimanche) : pour chaque entrée, le jour, le repas (midi ou soir), la recette ou un simple titre (« Restes »), pour combien.',
+      'Le menu prévu entre deux jours (par défaut, la semaine en cours, du lundi au dimanche) : pour chaque entrée, le jour, le repas (midi ou soir), la recette ou un simple titre, pour combien, et leftovers (vrai : des restes, rien à cuisiner).',
     inputSchema: { type: 'object', properties: { from: S.day, to: S.day } },
     annotations: { readOnlyHint: true },
     async run(args, { data, today }) {
@@ -595,7 +670,15 @@ export const recettesTools: Tool<RecettesContext>[] = [
         to,
         entries: plan
           .sort((a, b) => a.day.localeCompare(b.day) || order(a.meal) - order(b.meal) || a.position - b.position)
-          .map((e) => ({ id: e.id, day: e.day, meal: e.meal, recipe_id: e.recipe_id, title: e.recipe_id ? titles.get(e.recipe_id) ?? e.title : e.title, servings: e.servings })),
+          .map((e) => ({
+            id: e.id,
+            day: e.day,
+            meal: e.meal,
+            recipe_id: e.recipe_id,
+            title: e.recipe_id ? titles.get(e.recipe_id) ?? e.title : e.title,
+            servings: e.servings,
+            leftovers: e.leftovers ?? false,
+          })),
       });
     },
   },
@@ -603,7 +686,7 @@ export const recettesTools: Tool<RecettesContext>[] = [
     name: 'recettes_menu_ajouter',
     title: 'Ajouter au menu',
     description:
-      'Prévoit un repas : une recette du carnet (recipe_id), ou un simple titre quand il n’y a rien à cuisiner (« Restes », « Resto »). Plusieurs entrées par repas sont possibles (un plat puis un dessert) : chacune s’ajoute à la suite.',
+      'Prévoit un repas : une recette du carnet (recipe_id), ou un simple titre (« Resto »). leftovers à vrai pour des restes (rien à cuisiner). Plusieurs entrées par repas sont possibles (un plat puis un dessert) : chacune s’ajoute à la suite.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -612,12 +695,14 @@ export const recettesTools: Tool<RecettesContext>[] = [
         recipe_id: S.id,
         title: { type: 'string', maxLength: PLAN_TITLE_MAX, description: 'Sans recette : ce qu’on mange.' },
         servings: { ...S.servings, description: 'Pour combien ; par défaut, celui de la recette.' },
+        leftovers: S.leftovers,
       },
       required: ['day', 'meal'],
     },
     annotations: {},
     async run(args, { data }) {
       const day = realDay(args.day);
+      const leftovers = args.leftovers === undefined ? false : bool(args.leftovers, 'leftovers');
       const meal = String(args.meal);
       if (!(MEALS as readonly string[]).includes(meal)) throw new Refused('Le repas : midi ou soir.');
       const recipe = args.recipe_id === undefined || args.recipe_id === null ? null : await ownRecipe(data, args.recipe_id);
@@ -630,16 +715,18 @@ export const recettesTools: Tool<RecettesContext>[] = [
         meal,
         recipe_id: recipe?.id ?? null,
         title: recipe ? '' : title,
-        servings,
+        servings: leftovers ? null : servings,
+        // Envoyé seulement à vrai : une base sans la migration du 22/11/2026 accepte encore le reste.
+        ...(leftovers ? { leftovers: true } : {}),
         position: cell.length ? Math.max(...cell.map((e) => e.position)) + 1 : 0,
       });
-      return json({ message: `Ajouté au menu du ${day}, ${meal} : ${recipe?.title ?? title}.`, entry: created });
+      return json({ message: `Ajouté au menu du ${day}, ${meal} : ${recipe?.title ?? title}${leftovers ? ' (restes)' : ''}.`, entry: created });
     },
   },
   {
     name: 'recettes_menu_modifier',
     title: 'Modifier une entrée du menu',
-    description: 'Déplace une entrée du menu (autre jour, autre repas), change sa recette, son titre ou pour combien.',
+    description: 'Déplace une entrée du menu (autre jour, autre repas), change sa recette, son titre, pour combien, ou si ce sont des restes (leftovers).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -649,6 +736,7 @@ export const recettesTools: Tool<RecettesContext>[] = [
         recipe_id: { type: ['string', 'null'], description: 'Une autre recette, ou null pour un simple titre.' },
         title: { type: 'string', maxLength: PLAN_TITLE_MAX },
         servings: { type: ['integer', 'null'], minimum: 1, maximum: SERVINGS_MAX },
+        leftovers: S.leftovers,
       },
       required: ['id'],
     },
@@ -665,6 +753,7 @@ export const recettesTools: Tool<RecettesContext>[] = [
       if (args.recipe_id !== undefined) row.recipe_id = args.recipe_id === null ? null : (await ownRecipe(data, args.recipe_id)).id;
       if (args.title !== undefined) row.title = text(args.title, 'Le titre', PLAN_TITLE_MAX);
       if (args.servings !== undefined) row.servings = int(args.servings, 'servings (personnes)', 1, SERVINGS_MAX);
+      if (args.leftovers !== undefined) row.leftovers = bool(args.leftovers, 'leftovers');
       if (Object.keys(row).length === 0) throw new Refused('Rien à modifier : donne au moins un champ.');
       const recipeId = row.recipe_id !== undefined ? row.recipe_id : entry.recipe_id;
       const title = row.title !== undefined ? row.title : entry.title;
@@ -684,6 +773,154 @@ export const recettesTools: Tool<RecettesContext>[] = [
       if (!entry) throw new Refused('Aucune entrée du menu avec cet identifiant.');
       await data.deletePlan(entry.id);
       return ok(`Entrée du ${entry.day}, ${entry.meal}, retirée du menu.`);
+    },
+  },
+  {
+    name: 'recettes_semaine_type_lire',
+    title: 'Lire la semaine type',
+    description:
+      'La semaine type de Jules (§22) : ce qu’il mange chaque semaine, jour par jour (weekday 1 = lundi … 7 = dimanche), midi et soir — la recette ou un titre, pour combien de parts, et leftovers (vrai : des restes, rien à cuisiner). Signale deux repas de suite pareils (il ne veut pas enchaîner le même plat ; il congèle).',
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
+    async run(_args, { data }) {
+      const [template, recipes] = await Promise.all([data.listTemplate(), data.listRecipes()]);
+      const titles = new Map(recipes.map((r) => [r.id, r.title]));
+      const sorted = [...template].sort((a, b) => a.weekday - b.weekday || mealOrder(a.meal) - mealOrder(b.meal) || a.position - b.position);
+      const name = (t: TemplateRow) => (t.recipe_id ? titles.get(t.recipe_id) ?? t.title : t.title);
+      const key = (t: TemplateRow) => (t.recipe_id ? `r:${t.recipe_id}` : `t:${fold(t.title.trim())}`);
+      const slots = WEEKDAYS.flatMap((wd) => MEALS.map((m) => sorted.filter((t) => t.weekday === wd && t.meal === m)));
+      const repeats: string[] = [];
+      slots.forEach((cur, i) => {
+        const before = new Set(slots[(i + slots.length - 1) % slots.length].map(key));
+        const same = cur.find((t) => before.has(key(t)));
+        if (same) repeats.push(`${name(same)} au ${same.meal} du ${WEEKDAY_NAMES[same.weekday]}`);
+      });
+      return json({
+        entries: sorted.map((t) => ({
+          id: t.id,
+          weekday: t.weekday,
+          day_name: WEEKDAY_NAMES[t.weekday],
+          meal: t.meal,
+          recipe_id: t.recipe_id,
+          title: name(t),
+          servings: t.servings,
+          leftovers: t.leftovers,
+        })),
+        cook_count: sorted.filter((t) => !t.leftovers).length,
+        leftovers_count: sorted.filter((t) => t.leftovers).length,
+        consecutive_repeats: repeats,
+      });
+    },
+  },
+  {
+    name: 'recettes_semaine_type_ajouter',
+    title: 'Ajouter à la semaine type',
+    description:
+      'Pose un repas dans la semaine type : un jour (weekday 1 = lundi … 7 = dimanche), midi ou soir, une recette du carnet (recipe_id) ou un titre (« À définir »). leftovers à faux (par défaut) quand on cuisine ce repas-là, avec servings = toutes les parts préparées ; à vrai pour des restes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        weekday: S.weekday,
+        meal: { type: 'string', enum: [...MEALS] },
+        recipe_id: S.id,
+        title: { type: 'string', maxLength: PLAN_TITLE_MAX, description: 'Sans recette : ce qu’on mange.' },
+        servings: { ...S.servings, description: 'Les parts préparées quand on cuisine.' },
+        leftovers: S.leftovers,
+      },
+      required: ['weekday', 'meal'],
+    },
+    annotations: {},
+    async run(args, { data }) {
+      const wd = weekday(args.weekday);
+      const m = meal(args.meal);
+      const recipe = args.recipe_id === undefined || args.recipe_id === null ? null : await ownRecipe(data, args.recipe_id);
+      const title = text(args.title, 'Le titre', PLAN_TITLE_MAX);
+      if (!recipe && !title) throw new Refused('Donne une recette (recipe_id) ou un titre (« À définir »).');
+      const leftovers = args.leftovers === undefined ? false : bool(args.leftovers, 'leftovers');
+      const servings = int(args.servings, 'servings (parts)', 1, SERVINGS_MAX);
+      const cell = (await data.listTemplate()).filter((t) => t.weekday === wd && t.meal === m);
+      const created = await data.insertTemplate({
+        weekday: wd,
+        meal: m,
+        recipe_id: recipe?.id ?? null,
+        title: recipe ? '' : title,
+        servings: leftovers ? null : servings,
+        leftovers,
+        position: cell.length ? Math.max(...cell.map((t) => t.position)) + 1 : 0,
+      });
+      return json({ message: `Semaine type, ${WEEKDAY_NAMES[wd]} ${m} : ${recipe?.title ?? title}${leftovers ? ' (restes)' : ''}.`, entry: created });
+    },
+  },
+  {
+    name: 'recettes_semaine_type_modifier',
+    title: 'Modifier la semaine type',
+    description: 'Change un repas de la semaine type : son jour, son repas, sa recette ou son titre, ses parts, ou si ce sont des restes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: S.id,
+        weekday: S.weekday,
+        meal: { type: 'string', enum: [...MEALS] },
+        recipe_id: { type: ['string', 'null'], description: 'Une autre recette, ou null pour un simple titre.' },
+        title: { type: 'string', maxLength: PLAN_TITLE_MAX },
+        servings: { type: ['integer', 'null'], minimum: 1, maximum: SERVINGS_MAX },
+        leftovers: S.leftovers,
+      },
+      required: ['id'],
+    },
+    annotations: { idempotentHint: true },
+    async run(args, { data }) {
+      const entry = await data.getTemplate(id(args.id));
+      if (!entry) throw new Refused('Aucun repas de la semaine type avec cet identifiant : lis-la d’abord.');
+      const row: Record<string, unknown> = {};
+      if (args.weekday !== undefined) row.weekday = weekday(args.weekday);
+      if (args.meal !== undefined) row.meal = meal(args.meal);
+      if (args.recipe_id !== undefined) row.recipe_id = args.recipe_id === null ? null : (await ownRecipe(data, args.recipe_id)).id;
+      if (args.title !== undefined) row.title = text(args.title, 'Le titre', PLAN_TITLE_MAX);
+      if (args.servings !== undefined) row.servings = int(args.servings, 'servings (parts)', 1, SERVINGS_MAX);
+      if (args.leftovers !== undefined) row.leftovers = bool(args.leftovers, 'leftovers');
+      if (Object.keys(row).length === 0) throw new Refused('Rien à modifier : donne au moins un champ.');
+      const recipeId = row.recipe_id !== undefined ? row.recipe_id : entry.recipe_id;
+      const title = row.title !== undefined ? row.title : entry.title;
+      if (!recipeId && !title) throw new Refused('Sans recette, le repas a besoin d’un titre (« À définir »).');
+      return json({ message: 'Semaine type modifiée.', entry: await data.updateTemplate(entry.id, row) });
+    },
+  },
+  {
+    name: 'recettes_semaine_type_retirer',
+    title: 'Retirer de la semaine type',
+    description: 'Retire un repas de la semaine type. Le menu des semaines déjà remplies ne change pas.',
+    inputSchema: { type: 'object', properties: { id: S.id }, required: ['id'] },
+    annotations: { destructiveHint: true },
+    async run(args, { data }) {
+      const entry = await data.getTemplate(id(args.id));
+      if (!entry) throw new Refused('Aucun repas de la semaine type avec cet identifiant.');
+      await data.deleteTemplate(entry.id);
+      return ok(`Repas du ${WEEKDAY_NAMES[entry.weekday]} ${entry.meal} retiré de la semaine type.`);
+    },
+  },
+  {
+    name: 'recettes_semaine_type_appliquer',
+    title: 'Mettre la semaine type au menu',
+    description:
+      'Recopie la semaine type dans le menu d’une semaine (par défaut la semaine en cours ; day = n’importe quel jour de la semaine voulue). Seules les cases vides se remplissent, à partir d’aujourd’hui : rien n’est écrasé, recopier deux fois ne double rien.',
+    inputSchema: { type: 'object', properties: { day: { ...S.day, description: 'Un jour de la semaine à remplir (AAAA-MM-JJ).' } } },
+    annotations: { idempotentHint: true },
+    async run(args, { data, today }) {
+      const day = args.day === undefined ? today : realDay(args.day);
+      const monday = mondayOf(day);
+      const [template, existing] = await Promise.all([data.listTemplate(), data.listPlan(monday, addDays(monday, 6))]);
+      if (template.length === 0) throw new Refused('La semaine type est vide : remplis-la d’abord (recettes_semaine_type_ajouter).');
+      const rows = fromTemplate(template, day, existing, today);
+      for (const r of rows) {
+        const { leftovers, ...rest } = r;
+        await data.insertPlan({ ...rest, ...(leftovers ? { leftovers: true } : {}) });
+      }
+      return json({
+        message: rows.length === 0 ? 'Rien à ajouter : chaque repas de la semaine est déjà prévu.' : `${rows.length} repas mis au menu de la semaine du ${monday}.`,
+        added: rows.length,
+        week: { from: monday, to: addDays(monday, 6) },
+      });
     },
   },
   {

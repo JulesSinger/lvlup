@@ -353,6 +353,73 @@ export async function run({ browser, check, BASE }) {
   check('Quitter (après confirmation) oublie la cuisine en cours', (await page.evaluate(() => localStorage.getItem('recettes.kitchen.v1'))) === null);
   await sheet.getByRole('button', { name: '← Carnet' }).click();
 
+  // --- La semaine type, les restes, l'échange de deux repas (§22) -----------------------------------
+  /** Glisser une pastille sur une case, à la souris, par petits pas (le glisser part après 5 px). */
+  const dragTo = async (from, to) => {
+    // Par le nom du repas : ses petits boutons (🍳, ✕) gardent leur geste.
+    const a = await from.locator('.recettes-menu-recipe, .recettes-menu-free').first().boundingBox();
+    const b = await to.boundingBox();
+    const [x0, y0, x1, y1] = [a.x + a.width / 2, a.y + a.height / 2, b.x + b.width / 2, b.y + b.height / 2];
+    await page.mouse.move(x0, y0);
+    await page.mouse.down();
+    for (let i = 1; i <= 12; i++) await page.mouse.move(x0 + ((x1 - x0) * i) / 12, y0 + ((y1 - y0) * i) / 12);
+    await page.mouse.up();
+  };
+  const tslot = (weekday, meal) => page.locator(`.recettes-template [data-meal-slot="${weekday}|${meal}"]`);
+  await page.getByRole('button', { name: /^Semaine type/ }).click();
+  await page.waitForSelector('.recettes-template');
+  check('La semaine type s’ouvre, vide, du lundi au dimanche', (await text(page.locator('.recettes-template-summary'))).includes('vide') && (await page.locator('.recettes-template .recettes-menu-day').count()) === 7);
+  await tslot(1, 'midi').locator('.recettes-menu-add').click();
+  check('Une case de la semaine type se remplit comme une case du menu', (await text(modal.locator('.modal-title'))).includes('Midi du lundi — semaine type'));
+  await modal.locator('.recettes-plan-option', { hasText: 'Lasagnes' }).click();
+  for (let i = 0; i < 4; i++) await modal.getByRole('button', { name: 'Une personne de plus' }).click();
+  await modal.getByRole('button', { name: 'Ajouter au menu' }).click();
+  await page.waitForFunction(() => document.querySelector('.recettes-template [data-meal-slot="1|midi"]')?.textContent?.includes('Lasagnes'));
+  check('À cuisiner : 🍳, ses parts et son temps', (await text(tslot(1, 'midi'))).includes('🍳') && (await text(tslot(1, 'midi'))).includes('×8'));
+  await tslot(1, 'soir').locator('.recettes-menu-add').click();
+  await modal.locator('.recettes-plan-option', { hasText: 'Lasagnes' }).click();
+  await modal.getByRole('button', { name: '♻️ Des restes' }).click();
+  check('Des restes n’ont pas de parts à choisir', (await modal.getByRole('group', { name: 'Nombre de personnes' }).count()) === 0);
+  await modal.getByRole('button', { name: 'Ajouter au menu' }).click();
+  await page.waitForFunction(() => document.querySelector('.recettes-template [data-meal-slot="1|soir"]')?.textContent?.includes('♻️'));
+  check('Deux repas de suite pareils sont signalés', (await text(page.locator('.recettes-template-repeats'))).includes('Lasagnes à la bolognaise au soir du lundi'));
+  check('Le résumé compte les fois en cuisine et les restes', (await text(page.locator('.recettes-template-summary'))).includes('2 repas sur 14 · 1 fois en cuisine · 1 repas de restes'));
+
+  await dragTo(tslot(1, 'soir').locator('.recettes-menu-entry'), tslot(3, 'soir'));
+  await page.waitForFunction(() => document.querySelector('.recettes-template [data-meal-slot="3|soir"]')?.textContent?.includes('Lasagnes'));
+  check('Glisser un repas sur une case vide l’y déplace', !(await text(tslot(1, 'soir'))).includes('Lasagnes') && (await page.locator('.recettes-template-repeats').count()) === 0);
+  await tslot(3, 'soir').getByRole('button', { name: /^Échanger le soir du mercredi/ }).click();
+  check('« ⇄ » demande la case d’arrivée', (await text(page.locator('.recettes-grid-moving'))).includes('soir du mercredi'));
+  await tslot(4, 'midi').getByRole('button', { name: 'Échanger avec le midi du jeudi' }).click();
+  await page.waitForFunction(() => document.querySelector('.recettes-template [data-meal-slot="4|midi"]')?.textContent?.includes('Lasagnes'));
+  check('… puis l’échange sans glisser', !(await text(tslot(3, 'soir'))).includes('Lasagnes'));
+  await page.reload();
+  await page.waitForSelector('.recettes-template');
+  check('La semaine type est gardée, échanges compris', (await text(tslot(4, 'midi'))).includes('♻️') && (await text(tslot(1, 'midi'))).includes('🍳'));
+
+  // Dans le menu d'une semaine : la semaine suivante, pour ne dépendre d'aucun jour de la semaine.
+  await page.getByRole('button', { name: /^Menu de la semaine/ }).click();
+  await page.getByRole('button', { name: 'Semaine suivante' }).click();
+  await page.waitForSelector('.recettes-menu-offer');
+  check('Une semaine vide propose la semaine type', (await text(page.locator('.recettes-menu-offer'))).includes('remplit 2 repas'));
+  await page.getByRole('button', { name: '📋 Remplir avec la semaine type' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.recettes-menu-entry').length === 2);
+  check('La semaine type se recopie dans le menu, restes compris', (await text(page.locator('.notice.info'))).includes('2 repas de ta semaine type mis au menu') && (await page.locator('.recettes-menu-entry.leftovers').count()) === 1);
+  check('Recopiée, plus rien à proposer', (await page.locator('.recettes-menu-offer').count()) === 0 && (await page.getByRole('button', { name: '📋 Compléter avec la semaine type' }).count()) === 0);
+  const mslot = (n, meal) => page.locator('.recettes-menu-day').nth(n).locator(`[data-meal-slot$="|${meal}"]`);
+  await dragTo(mslot(0, 'midi').locator('.recettes-menu-entry'), mslot(3, 'midi'));
+  await page.waitForFunction(() => document.querySelectorAll('.recettes-menu-day')[3]?.querySelectorAll('[data-meal-slot]')[0]?.textContent?.includes('🍳'));
+  check('Au bureau lundi : le repas à cuisiner passe à jeudi, les restes de jeudi à lundi', (await text(mslot(0, 'midi'))).includes('♻️') && (await text(mslot(3, 'midi'))).includes('🍳'));
+  await page.getByRole('button', { name: '🛒 Courses de la semaine' }).click();
+  await page.waitForSelector('.recettes-shopping');
+  check('Les courses ne comptent que ce qu’on cuisine, aux parts prévues', (await line('boeuf').locator('.recettes-shopping-qty').inputValue()) === '1,2 kg', await line('boeuf').locator('.recettes-shopping-qty').inputValue());
+  await modal.getByRole('button', { name: 'Annuler' }).click();
+  await mslot(3, 'midi').getByRole('button', { name: /à cuisiner — passer en restes/ }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.recettes-menu-entry.leftovers').length === 2);
+  check('Que des restes : pas de courses', await page.getByRole('button', { name: '🛒 Courses de la semaine' }).isDisabled());
+  await page.getByRole('button', { name: 'Revenir à cette semaine' }).click();
+  await page.getByRole('button', { name: /^Carnet/ }).click();
+
   // --- Téléphone ----------------------------------------------------------------------------------
   const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   for (const width of [390, 320]) {
@@ -373,8 +440,11 @@ export async function run({ browser, check, BASE }) {
     await page.getByRole('button', { name: /^Menu de la semaine/ }).click();
     await page.waitForSelector('.recettes-menu');
     const menuFits = await fits();
+    await page.getByRole('button', { name: /^Semaine type/ }).click();
+    await page.waitForSelector('.recettes-template');
+    const templateFits = await fits();
     await page.getByRole('button', { name: /^Carnet/ }).click();
-    check(`Rien ne déborde sur téléphone (${width} px) : carnet, fiche, cuisine, fenêtre, menu`, notebook && sheetFits && cookFits && editorFits && menuFits, `${notebook} ${sheetFits} ${cookFits} ${editorFits} ${menuFits}`);
+    check(`Rien ne déborde sur téléphone (${width} px) : carnet, fiche, cuisine, fenêtre, menu, semaine type`, notebook && sheetFits && cookFits && editorFits && menuFits && templateFits, `${notebook} ${sheetFits} ${cookFits} ${editorFits} ${menuFits} ${templateFits}`);
   }
 
   await page.getByRole('button', { name: 'Changer de module — Recettes' }).click();

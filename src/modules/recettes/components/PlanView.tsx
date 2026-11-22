@@ -111,7 +111,7 @@ export function PlanView({ plan, launchAt = null }: { plan: Schedule; launchAt?:
         </div>
       </div>
 
-      <ol className="recettes-plan-list" aria-label="Le plan, minute par minute">
+      <ol className="recettes-timeline-list" aria-label="Le plan, minute par minute">
         {[...byStart.entries()].map(([minute, slots]) => (
           <li key={minute}>
             <span className="recettes-plan-time">{clockLabel(minute, launchAt)}</span>

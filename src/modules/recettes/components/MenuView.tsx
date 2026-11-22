@@ -1,14 +1,16 @@
-import { MEAL_LABELS } from '../lib/calendarMarks';
 import { capitalized, weekdayLabel } from '../lib/format';
 import { slot, weekDays } from '../lib/menu';
-import { MEALS, type Meal, type PlanEntry, type Recipe } from '../lib/types';
+import type { Meal, PlanEntry, Recipe } from '../lib/types';
+import { MealGrid, type GridEntry } from './MealGrid';
 
 /**
- * Le menu de la semaine (docs/etude-recettes.md §5, §17) : sept jours, midi
- * et soir. Une case peut porter une recette du carnet (on l'ouvre d'un geste),
- * un simple titre (« Restes »), ou plusieurs choses (un plat, un dessert).
+ * Le menu de la semaine (docs/etude-recettes.md §5, §17, §22) : sept jours,
+ * midi et soir. Une case peut porter une recette du carnet (on l'ouvre d'un
+ * geste), un simple titre (« Restes »), ou plusieurs choses (un plat, un
+ * dessert) ; chacune dit s'il faut cuisiner ou sortir des restes. Deux repas
+ * s'échangent en glissant l'un sur l'autre.
  */
-export function MenuView({ day, today, entries, recipes, onWeek, onToday, onAdd, onOpen, onRemove, toolbar }: {
+export function MenuView({ day, today, entries, recipes, onWeek, onToday, onAdd, onOpen, onRemove, onToggleLeftovers, onSwap, template, toolbar }: {
   /** Un jour de la semaine affichée. */
   day: string;
   today: string;
@@ -19,12 +21,17 @@ export function MenuView({ day, today, entries, recipes, onWeek, onToday, onAdd,
   onAdd: (day: string, meal: Meal) => void;
   onOpen: (recipe: Recipe) => void;
   onRemove: (entry: PlanEntry) => void;
+  onToggleLeftovers: (entry: PlanEntry) => void;
+  onSwap: (from: { day: string; meal: Meal }, to: { day: string; meal: Meal }) => void;
+  /** La semaine type : combien de cases elle remplirait ici, et comment les remplir (§22). */
+  template?: { fills: number; onApply: () => void; onEdit: () => void };
   /** Les gestes de la semaine (les courses, étape 6). */
   toolbar?: React.ReactNode;
 }) {
   const days = weekDays(day);
-  const byId = new Map(recipes.map((r) => [r.id, r]));
   const thisWeek = days.includes(today);
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  const empty = days.every((d) => d < today) ? false : entries.filter((e) => e.day >= today).length === 0;
 
   return (
     <div className="recettes-menu">
@@ -44,44 +51,46 @@ export function MenuView({ day, today, entries, recipes, onWeek, onToday, onAdd,
           </button>
         )}
         <span className="recettes-spacer" />
+        {template && template.fills > 0 && !empty && (
+          <button type="button" className="btn btn-sm" onClick={template.onApply}>
+            📋 Compléter avec la semaine type
+          </button>
+        )}
         {toolbar}
       </div>
 
-      <div className="recettes-menu-grid" role="table" aria-label="Menu de la semaine">
-        {days.map((d) => (
-          <div key={d} className={`recettes-menu-day${d === today ? ' today' : ''}${d < today ? ' past' : ''}`} role="row">
-            <div className="recettes-menu-date" role="rowheader">
-              {capitalized(weekdayLabel(d))}
-            </div>
-            {MEALS.map((meal) => (
-              <div key={meal} className="recettes-menu-slot" role="cell" aria-label={`${MEAL_LABELS[meal]} du ${weekdayLabel(d)}`}>
-                <span className="recettes-menu-meal">{MEAL_LABELS[meal]}</span>
-                {slot(entries, d, meal).map((e) => {
-                  const recipe = e.recipeId ? byId.get(e.recipeId) : undefined;
-                  return (
-                    <span key={e.id} className="recettes-menu-entry">
-                      {recipe ? (
-                        <button type="button" className="recettes-menu-recipe" onClick={() => onOpen(recipe)}>
-                          {recipe.title}
-                        </button>
-                      ) : (
-                        <span className="recettes-menu-free">{e.title}</span>
-                      )}
-                      {e.servings && <span className="recettes-menu-servings">×{e.servings}</span>}
-                      <button type="button" className="recettes-menu-remove" aria-label={`Retirer ${recipe?.title ?? e.title} du menu`} onClick={() => onRemove(e)}>
-                        ✕
-                      </button>
-                    </span>
-                  );
-                })}
-                <button type="button" className="recettes-menu-add" aria-label={`Ajouter au ${MEAL_LABELS[meal].toLowerCase()} du ${weekdayLabel(d)}`} onClick={() => onAdd(d, meal)}>
-                  +
-                </button>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+      {template && empty && (
+        <div className="recettes-menu-offer" role="status">
+          {template.fills > 0 ? (
+            <>
+              <span>Rien de prévu : ta semaine type remplit {template.fills} repas d’un geste.</span>
+              <button type="button" className="btn btn-sm btn-primary" onClick={template.onApply}>
+                📋 Remplir avec la semaine type
+              </button>
+            </>
+          ) : (
+            <>
+              <span>Rien de prévu. Une semaine type, décidée une fois, remplirait chaque semaine d’un geste.</span>
+              <button type="button" className="btn btn-sm" onClick={template.onEdit}>
+                Préparer ma semaine type
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      <MealGrid
+        label="Menu de la semaine"
+        removeSuffix="du menu"
+        rows={days.map((d) => ({ key: d, label: capitalized(weekdayLabel(d)), of: `du ${weekdayLabel(d)}`, tone: d === today ? 'today' : d < today ? 'past' : undefined }))}
+        entriesOf={(d, meal) => slot(entries, d, meal)}
+        recipes={recipes}
+        onAdd={onAdd}
+        onOpen={onOpen}
+        onRemove={(e: GridEntry) => onRemove(byId.get(e.id)!)}
+        onToggleLeftovers={(e: GridEntry) => onToggleLeftovers(byId.get(e.id)!)}
+        onSwap={(from, to) => onSwap({ day: from.row, meal: from.meal }, { day: to.row, meal: to.meal })}
+      />
     </div>
   );
 }

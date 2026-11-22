@@ -9,6 +9,8 @@ import type {
   RecipePatch,
   RecipePhoto,
   RecettesSettings,
+  TemplateEntry,
+  TemplateEntryInput,
 } from '../lib/types';
 
 /**
@@ -21,6 +23,8 @@ export interface RecettesBackup {
   photos?: RecipePhoto[];
   cooked: Cooked[];
   plan: PlanEntry[];
+  /** La semaine type (§22) ; absente d'une sauvegarde d'avant le 22/11/2026. */
+  template?: TemplateEntry[];
   settings?: RecettesSettings;
 }
 
@@ -60,6 +64,12 @@ export interface RecettesStore {
   addPlanEntry(input: PlanEntryInput, id?: string): Promise<PlanEntry>;
   updatePlanEntry(id: string, patch: Partial<PlanEntryInput>): Promise<void>;
   deletePlanEntry(id: string): Promise<void>;
+
+  /** La semaine type (§22), par jour, repas et position. */
+  listTemplate(): Promise<TemplateEntry[]>;
+  addTemplateEntry(input: TemplateEntryInput, id?: string): Promise<TemplateEntry>;
+  updateTemplateEntry(id: string, patch: Partial<TemplateEntryInput>): Promise<void>;
+  deleteTemplateEntry(id: string): Promise<void>;
 
   getSettings(): Promise<RecettesSettings>;
   updateSettings(patch: Partial<RecettesSettings>): Promise<void>;

@@ -13,8 +13,10 @@ import {
   type RecipePatch,
   type RecipePhoto,
   type RecettesSettings,
+  type TemplateEntry,
+  type TemplateEntryInput,
 } from '../lib/types';
-import { validateCooked, validatePlanEntry, validateRecipe } from '../lib/validation';
+import { validateCooked, validatePlanEntry, validateRecipe, validateTemplateEntry } from '../lib/validation';
 import { cleanSteps } from '../lib/schedule';
 import { deviceBlobs } from './deviceImages';
 import type { RecettesBackup, RecettesStore } from './recettesStore';
@@ -26,6 +28,7 @@ interface Snapshot {
   photos: RecipePhoto[];
   cooked: Cooked[];
   plan: PlanEntry[];
+  template: TemplateEntry[];
   settings: RecettesSettings;
 }
 
@@ -36,7 +39,9 @@ function read(): Snapshot {
     recipes: arrayOf<Recipe>(raw.recettesRecipes),
     photos: arrayOf<RecipePhoto>(raw.recettesPhotos),
     cooked: arrayOf<Cooked>(raw.recettesCooked),
-    plan: arrayOf<PlanEntry>(raw.recettesPlan),
+    // Un repas d'avant la semaine type n'a pas `leftovers` : il se cuisine.
+    plan: arrayOf<PlanEntry>(raw.recettesPlan).map((p) => ({ ...p, leftovers: p.leftovers ?? false })),
+    template: arrayOf<TemplateEntry>(raw.recettesTemplate),
     settings: { ...DEFAULT_RECETTES_SETTINGS, ...(raw.recettesSettings as Partial<RecettesSettings> | undefined) },
   };
 }
@@ -49,6 +54,7 @@ function write(s: Snapshot) {
     recettesPhotos: s.photos,
     recettesCooked: s.cooked,
     recettesPlan: s.plan,
+    recettesTemplate: s.template,
     recettesSettings: s.settings,
   });
 }
@@ -60,6 +66,9 @@ function fail(problem: string | null) {
 const byTitle = (a: Recipe, b: Recipe) => a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' }) || a.id.localeCompare(b.id);
 const byPlan = (a: PlanEntry, b: PlanEntry) =>
   a.day.localeCompare(b.day) || (a.meal === b.meal ? 0 : a.meal === 'midi' ? -1 : 1) || a.position - b.position;
+
+const byTemplate = (a: TemplateEntry, b: TemplateEntry) =>
+  a.weekday - b.weekday || (a.meal === b.meal ? 0 : a.meal === 'midi' ? -1 : 1) || a.position - b.position;
 
 function toRecipe(input: RecipeInput, id: string, createdAt: string): Recipe {
   return {
@@ -125,6 +134,7 @@ export class LocalRecettes implements RecettesStore {
     s.photos = s.photos.filter((p) => p.recipeId !== id);
     s.cooked = s.cooked.filter((c) => c.recipeId !== id);
     s.plan = s.plan.filter((p) => p.recipeId !== id);
+    s.template = s.template.filter((t) => t.recipeId !== id);
     write(s);
     await this.blobs.delete(photos.flatMap((p) => [p.path, p.thumbPath]));
   }
@@ -219,7 +229,7 @@ export class LocalRecettes implements RecettesStore {
     const existing = s.plan.find((p) => p.id === id);
     if (existing) return existing;
     if (input.recipeId && !s.recipes.some((r) => r.id === input.recipeId)) throw new Error('Cette recette n’existe plus.');
-    const entry: PlanEntry = { ...input, title: input.title.trim(), id, createdAt: new Date().toISOString() };
+    const entry: PlanEntry = { ...input, title: input.title.trim(), leftovers: input.leftovers ?? false, id, createdAt: new Date().toISOString() };
     s.plan.push(entry);
     write(s);
     return entry;
@@ -241,6 +251,38 @@ export class LocalRecettes implements RecettesStore {
     write(s);
   }
 
+  async listTemplate(): Promise<TemplateEntry[]> {
+    return read().template.sort(byTemplate);
+  }
+
+  async addTemplateEntry(input: TemplateEntryInput, id: string = newId()): Promise<TemplateEntry> {
+    fail(validateTemplateEntry(input));
+    const s = read();
+    const existing = s.template.find((t) => t.id === id);
+    if (existing) return existing;
+    if (input.recipeId && !s.recipes.some((r) => r.id === input.recipeId)) throw new Error('Cette recette n’existe plus.');
+    const entry: TemplateEntry = { ...input, title: input.title.trim(), id, createdAt: new Date().toISOString() };
+    s.template.push(entry);
+    write(s);
+    return entry;
+  }
+
+  async updateTemplateEntry(id: string, patch: Partial<TemplateEntryInput>) {
+    const s = read();
+    const entry = s.template.find((t) => t.id === id);
+    if (!entry) return;
+    const next = { ...entry, ...patch };
+    fail(validateTemplateEntry(next));
+    s.template = s.template.map((t) => (t.id === id ? next : t));
+    write(s);
+  }
+
+  async deleteTemplateEntry(id: string) {
+    const s = read();
+    s.template = s.template.filter((t) => t.id !== id);
+    write(s);
+  }
+
   async getSettings(): Promise<RecettesSettings> {
     return read().settings;
   }
@@ -253,7 +295,7 @@ export class LocalRecettes implements RecettesStore {
 
   async exportData(): Promise<RecettesBackup> {
     const s = read();
-    return { recipes: s.recipes, photos: s.photos, cooked: s.cooked, plan: s.plan, settings: s.settings };
+    return { recipes: s.recipes, photos: s.photos, cooked: s.cooked, plan: s.plan, template: s.template, settings: s.settings };
   }
 
   async importData(data: RecettesBackup) {
@@ -261,7 +303,8 @@ export class LocalRecettes implements RecettesStore {
       recipes: data.recipes ?? [],
       photos: data.photos ?? [],
       cooked: data.cooked ?? [],
-      plan: data.plan ?? [],
+      plan: (data.plan ?? []).map((p) => ({ ...p, leftovers: p.leftovers ?? false })),
+      template: data.template ?? [],
       settings: { ...DEFAULT_RECETTES_SETTINGS, ...data.settings },
     });
   }

@@ -15,6 +15,8 @@ import {
   TAGS_MAX,
   type CookedInput,
   type PlanEntryInput,
+  type TemplateEntryInput,
+  WEEKDAYS,
   type RecipeInput,
 } from './types';
 
@@ -43,6 +45,16 @@ export function validateRecipe(input: RecipeInput): string | null {
 
 export function validatePlanEntry(input: PlanEntryInput): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.day)) return 'Jour invalide.';
+  if (!(MEALS as readonly string[]).includes(input.meal)) return 'Repas inconnu.';
+  if (!input.recipeId && input.title.trim().length === 0) return 'Choisis une recette, ou écris ce que tu manges (« Restes »).';
+  if (input.title.length > PLAN_TITLE_MAX) return `${PLAN_TITLE_MAX} caractères au plus.`;
+  if (!inRange(input.servings, 1, SERVINGS_MAX)) return `Le nombre de personnes va de 1 à ${SERVINGS_MAX}.`;
+  return null;
+}
+
+/** Un repas de la semaine type : les règles d'une case du menu, sur un jour de la semaine. */
+export function validateTemplateEntry(input: TemplateEntryInput): string | null {
+  if (!(WEEKDAYS as readonly number[]).includes(input.weekday)) return 'Jour de la semaine invalide (1 = lundi … 7 = dimanche).';
   if (!(MEALS as readonly string[]).includes(input.meal)) return 'Repas inconnu.';
   if (!input.recipeId && input.title.trim().length === 0) return 'Choisis une recette, ou écris ce que tu manges (« Restes »).';
   if (input.title.length > PLAN_TITLE_MAX) return `${PLAN_TITLE_MAX} caractères au plus.`;

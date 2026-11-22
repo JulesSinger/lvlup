@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import * as server from '../../../../supabase/functions/atlas-mcp/recettes.ts';
-import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from '../../../../supabase/functions/atlas-mcp/recettes.ts';
+import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow, type TemplateRow } from '../../../../supabase/functions/atlas-mcp/recettes.ts';
+import { fromTemplate } from './weekTemplate';
 import { cleanSteps, mergeStepTiming, schedule } from './schedule';
 import * as types from './types';
 
 /** Une base en mémoire, du seul compte du jeton, comme `recettesData` dans la fonction. */
-function memory(): RecettesData & { recipes: RecipeRow[]; plan: PlanRow[]; cooked: CookedRow[]; pantry: string[] | null } {
+function memory(): RecettesData & { recipes: RecipeRow[]; plan: PlanRow[]; template: TemplateRow[]; cooked: CookedRow[]; pantry: string[] | null } {
   let n = 0;
   const uuid = () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`;
-  const db = { recipes: [] as RecipeRow[], plan: [] as PlanRow[], cooked: [] as CookedRow[], pantry: null as string[] | null };
+  const db = { recipes: [] as RecipeRow[], plan: [] as PlanRow[], template: [] as TemplateRow[], cooked: [] as CookedRow[], pantry: null as string[] | null };
   const patch = <T extends { id: string }>(list: T[], id: string, row: Record<string, unknown>) => {
     const item = list.find((x) => x.id === id);
     if (item) Object.assign(item, row);
@@ -49,6 +50,7 @@ function memory(): RecettesData & { recipes: RecipeRow[]; plan: PlanRow[]; cooke
     updateRecipe: async (id: string, row: Record<string, unknown>) => patch(db.recipes, id, row),
     deleteRecipe: async (id: string) => {
       db.plan = db.plan.filter((p) => p.recipe_id !== id);
+      db.template = db.template.filter((t) => t.recipe_id !== id);
       db.cooked = db.cooked.filter((c) => c.recipe_id !== id);
       return drop(db.recipes, id);
     },
@@ -71,6 +73,15 @@ function memory(): RecettesData & { recipes: RecipeRow[]; plan: PlanRow[]; cooke
     },
     updatePlan: async (id: string, row: Record<string, unknown>) => patch(db.plan, id, row),
     deletePlan: async (id: string) => drop(db.plan, id),
+    listTemplate: async () => db.template,
+    getTemplate: async (id: string) => db.template.find((t) => t.id === id) ?? null,
+    insertTemplate: async (row: Record<string, unknown>) => {
+      const t = { id: uuid(), ...row } as TemplateRow;
+      db.template.push(t);
+      return t;
+    },
+    updateTemplate: async (id: string, row: Record<string, unknown>) => patch(db.template, id, row),
+    deleteTemplate: async (id: string) => drop(db.template, id),
     getPantry: async () => db.pantry,
     setPantry: async (items: string[]) => {
       db.pantry = items;
@@ -93,6 +104,7 @@ describe('les outils de Recettes pour Claude', () => {
   it('ont les bornes du module', () => {
     expect(server.RECIPE_CATEGORIES).toEqual(types.RECIPE_CATEGORIES);
     expect(server.MEALS).toEqual(types.MEALS);
+    expect(server.WEEKDAYS).toEqual(types.WEEKDAYS);
     expect([server.RECIPE_TITLE_MAX, server.SERVINGS_MAX, server.MINUTES_MAX, server.INGREDIENTS_MAX, server.STEPS_MAX, server.TAGS_MAX, server.PLAN_TITLE_MAX]).toEqual([
       types.RECIPE_TITLE_MAX,
       types.SERVINGS_MAX,
@@ -232,6 +244,65 @@ describe('les outils de Recettes pour Claude', () => {
     expect(data.plan).toHaveLength(2);
   });
 
+  it('disent si un repas du menu est des restes (§22)', async () => {
+    const data = memory();
+    const curry = (await use(data, 'recettes_creer', { title: 'Curry' })).value.recipe;
+    const cook = (await use(data, 'recettes_menu_ajouter', { day: '2026-10-13', meal: 'soir', recipe_id: curry.id, servings: 4 })).value.entry;
+    expect(cook).not.toHaveProperty('leftovers');
+    const rest = await use(data, 'recettes_menu_ajouter', { day: '2026-10-14', meal: 'midi', recipe_id: curry.id, servings: 4, leftovers: true });
+    expect(rest.text).toContain('(restes)');
+    expect(rest.value.entry).toMatchObject({ leftovers: true, servings: null });
+    await use(data, 'recettes_menu_modifier', { id: cook.id, leftovers: true });
+    const week = (await use(data, 'recettes_menu_lister', { from: '2026-10-12' })).value.entries;
+    expect(week.map((e: { leftovers: boolean }) => e.leftovers)).toEqual([true, true]);
+    expect((await use(data, 'recettes_menu_modifier', { id: cook.id, leftovers: 'oui' })).text).toMatch(/vrai ou faux/);
+  });
+
+  it('tiennent la semaine type, et la recopient dans le menu comme l’app', async () => {
+    const data = memory();
+    const bolo = (await use(data, 'recettes_creer', { title: 'Bolognaise', servings: 2 })).value.recipe;
+    await use(data, 'recettes_semaine_type_ajouter', { weekday: 7, meal: 'soir', recipe_id: bolo.id, servings: 4 });
+    await use(data, 'recettes_semaine_type_ajouter', { weekday: 1, meal: 'soir', recipe_id: bolo.id, leftovers: true });
+    const midi = (await use(data, 'recettes_semaine_type_ajouter', { weekday: 1, meal: 'midi', title: 'À définir (plat 4)', leftovers: true })).value.entry;
+    expect((await use(data, 'recettes_semaine_type_ajouter', { weekday: 0, meal: 'midi', title: 'x' })).text).toMatch(/1 = lundi/);
+    expect((await use(data, 'recettes_semaine_type_ajouter', { weekday: 2, meal: 'midi' })).text).toMatch(/recette .* ou un titre/);
+
+    const read = (await use(data, 'recettes_semaine_type_lire')).value;
+    expect(read.entries.map((e: { day_name: string; meal: string; title: string }) => `${e.day_name} ${e.meal} ${e.title}`)).toEqual([
+      'lundi midi À définir (plat 4)',
+      'lundi soir Bolognaise',
+      'dimanche soir Bolognaise',
+    ]);
+    expect([read.cook_count, read.leftovers_count]).toEqual([1, 2]);
+    // Dimanche soir puis lundi midi : la semaine se répète, ce n'est pas un enchaînement ; lundi soir non plus.
+    expect(read.consecutive_repeats).toEqual([]);
+    await use(data, 'recettes_semaine_type_modifier', { id: midi.id, recipe_id: bolo.id });
+    expect((await use(data, 'recettes_semaine_type_lire')).value.consecutive_repeats).toEqual(['Bolognaise au midi du lundi', 'Bolognaise au soir du lundi']);
+    await use(data, 'recettes_semaine_type_modifier', { id: midi.id, recipe_id: null, title: 'À définir (plat 4)' });
+
+    // Même règle que l'app : comparée sur le même cas (aujourd'hui, le 11/10/2026, est un dimanche).
+    const asModule = data.template.map((t) => ({ ...t, recipeId: t.recipe_id, weekday: t.weekday as types.Weekday, meal: t.meal as types.Meal, createdAt: '' }));
+    for (const [day, notBefore] of [['2026-10-14', undefined], ['2026-10-14', '2026-10-13'], ['2026-10-11', '2026-10-11']] as const) {
+      const existing = [{ day: '2026-10-12', meal: 'soir' }];
+      expect(server.fromTemplate(data.template, day, existing, notBefore)).toEqual(
+        fromTemplate(asModule, day, existing as never, notBefore).map((e) => ({ day: e.day, meal: e.meal, recipe_id: e.recipeId, title: e.title, servings: e.servings, leftovers: e.leftovers, position: e.position })),
+      );
+    }
+
+    const applied = (await use(data, 'recettes_semaine_type_appliquer', { day: '2026-10-12' })).value;
+    expect(applied).toMatchObject({ added: 3, week: { from: '2026-10-12', to: '2026-10-18' } });
+    expect(data.plan.map((p) => [p.day, p.meal, p.leftovers ?? false])).toEqual([
+      ['2026-10-12', 'midi', true],
+      ['2026-10-12', 'soir', true],
+      ['2026-10-18', 'soir', false],
+    ]);
+    expect((await use(data, 'recettes_semaine_type_appliquer', { day: '2026-10-12' })).value.added).toBe(0);
+    // La semaine en cours : seul ce qui reste à venir (dimanche soir).
+    expect((await use(data, 'recettes_semaine_type_appliquer')).value.added).toBe(1);
+    expect((await use(data, 'recettes_semaine_type_retirer', { id: midi.id })).text).toMatch(/retiré/);
+    expect(data.template).toHaveLength(2);
+  });
+
   it('notent les recettes faites, aujourd’hui par défaut', async () => {
     const data = memory();
     const curry = (await use(data, 'recettes_creer', { title: 'Curry' })).value.recipe;
@@ -258,6 +329,8 @@ describe('les outils de Recettes pour Claude', () => {
     expect(hints.recettes_lister.readOnlyHint).toBe(true);
     expect(hints.recettes_supprimer.destructiveHint).toBe(true);
     expect(hints.recettes_menu_retirer.destructiveHint).toBe(true);
+    expect(hints.recettes_semaine_type_lire.readOnlyHint).toBe(true);
+    expect(hints.recettes_semaine_type_retirer.destructiveHint).toBe(true);
     expect(recettesTools.every((t) => t.name.startsWith('recettes_') && t.description.length > 20)).toBe(true);
   });
 });
