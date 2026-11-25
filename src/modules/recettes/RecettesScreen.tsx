@@ -10,6 +10,7 @@ import { CookMode } from './components/CookMode';
 import { CookedDialog } from './components/CookedDialog';
 import { KitchenMode } from './components/KitchenMode';
 import { MenuView } from './components/MenuView';
+import { TemplateView } from './components/TemplateView';
 import { ShoppingDialog } from './components/ShoppingDialog';
 import { PlanPicker } from './components/PlanPicker';
 import { Notebook } from './components/Notebook';
@@ -22,21 +23,23 @@ import { canImportFromLink, importFromLink } from './data/importFromLink';
 import { readOfflineCopy, saveOfflineCopy } from './data/offlineCopy';
 import { MEAL_LABELS } from './lib/calendarMarks';
 import { weekdayLabel } from './lib/format';
-import { nextPosition, shoppingLines, weekDays, type ShoppingLine } from './lib/menu';
+import { nextPosition, shoppingLines, slot, weekDays, type ShoppingLine } from './lib/menu';
 import { isTimed } from './lib/schedule';
-import { DEFAULT_RECETTES_SETTINGS, type Cooked, type CookedInput, type Meal, type PlanEntry, type PlanEntryInput, type Recipe, type RecipeInput, type RecipePhoto, type RecettesSettings } from './lib/types';
+import { DEFAULT_RECETTES_SETTINGS, type Cooked, type CookedInput, type Meal, type PlanEntry, type PlanEntryInput, type Recipe, type RecipeInput, type RecipePhoto, type RecettesSettings, type TemplateEntry, type Weekday } from './lib/types';
+import { fromTemplate, swapSlots, templateSlot, WEEKDAY_NAMES } from './lib/weekTemplate';
 
 /** Une photo réduite dans le navigateur avant tout envoi : 1 600 px et une vignette (étude §12). */
 export const PHOTO_SIZES = { full: 1600, thumb: 600 };
 
-type View = 'carnet' | 'menu';
+type View = 'carnet' | 'menu' | 'semaine';
 
 /** La dernière vue ouverte, retenue sur cet appareil — un confort, pas une donnée. */
 const VIEW_KEY = 'recettes.view.v1';
 
 function savedView(): View {
   try {
-    if (localStorage.getItem(VIEW_KEY) === 'menu') return 'menu';
+    const saved = localStorage.getItem(VIEW_KEY);
+    if (saved === 'menu' || saved === 'semaine') return saved;
   } catch {
     // Stockage refusé : le carnet suffit.
   }
@@ -69,7 +72,8 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
   const [view, setViewState] = useState<View>(savedView);
   const [menuDay, setMenuDay] = useState(dayString());
   const [plan, setPlan] = useState<PlanEntry[]>([]);
-  const [picking, setPicking] = useState<{ day: string; meal: Meal } | 'recipe' | null>(null);
+  const [template, setTemplate] = useState<TemplateEntry[]>([]);
+  const [picking, setPicking] = useState<{ day: string; meal: Meal } | { weekday: Weekday; meal: Meal } | 'recipe' | null>(null);
   const today = dayString();
   const week = weekDays(menuDay);
 
@@ -88,6 +92,8 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
       // Les photos à part : un bucket ou une table manquante n'empêche pas le carnet.
       const nextPhotos = await store.listPhotos().catch(() => []);
       setPhotos(nextPhotos);
+      // La semaine type à part aussi : une base sans la migration du 22/11/2026 n'en a pas.
+      setTemplate(await store.listTemplate().catch(() => []));
       setOffline(null);
       onError('');
       if (isRemote) saveOfflineCopy({ recipes: nextRecipes, photos: nextPhotos, cooked: nextCooked, plan: nextPlan });
@@ -156,6 +162,59 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
     await refresh();
   }
 
+  async function addToTemplate(weekday: Weekday, input: Omit<PlanEntryInput, 'position' | 'day'>) {
+    const position = templateSlot(template, weekday, input.meal).reduce((m, e) => Math.max(m, e.position + 1), 0);
+    await store.addTemplateEntry(
+      { weekday, meal: input.meal, recipeId: input.recipeId, title: input.title, servings: input.servings, leftovers: input.leftovers ?? false, position },
+      crypto.randomUUID(),
+    );
+    setPicking(null);
+    await refresh();
+  }
+
+  /** Échanger deux cases du menu : chacune passe dans l'autre (§22). */
+  function swapMenu(from: { day: string; meal: Meal }, to: { day: string; meal: Meal }) {
+    const moves = swapSlots({ slot: from, entries: slot(plan, from.day, from.meal) }, { slot: to, entries: slot(plan, to.day, to.meal) });
+    setPlan((current) => current.map((e) => {
+      const m = moves.find((x) => x.id === e.id);
+      return m ? { ...e, day: m.slot.day, meal: m.slot.meal, position: m.position } : e;
+    }));
+    void write(async () => {
+      for (const m of moves) await store.updatePlanEntry(m.id, { day: m.slot.day, meal: m.slot.meal, position: m.position });
+    });
+  }
+
+  function swapTemplate(from: { weekday: Weekday; meal: Meal }, to: { weekday: Weekday; meal: Meal }) {
+    const moves = swapSlots(
+      { slot: from, entries: templateSlot(template, from.weekday, from.meal) },
+      { slot: to, entries: templateSlot(template, to.weekday, to.meal) },
+    );
+    setTemplate((current) => current.map((e) => {
+      const m = moves.find((x) => x.id === e.id);
+      return m ? { ...e, weekday: m.slot.weekday, meal: m.slot.meal, position: m.position } : e;
+    }));
+    void write(async () => {
+      for (const m of moves) await store.updateTemplateEntry(m.id, { weekday: m.slot.weekday, meal: m.slot.meal, position: m.position });
+    });
+  }
+
+  /** Ce que la semaine type mettrait dans la semaine affichée : les cases vides, à partir d'aujourd'hui. */
+  const templateFills = useMemo(() => fromTemplate(template, menuDay, plan, today), [template, menuDay, plan, today]);
+
+  async function applyTemplate(day: string = menuDay) {
+    const days = weekDays(day);
+    const inputs = fromTemplate(template, day, await store.listPlan(days[0], days[6]), today);
+    try {
+      for (const input of inputs) await store.addPlanEntry(input, crypto.randomUUID());
+      setNotice(inputs.length === 0 ? 'Rien à ajouter : chaque repas de la semaine est déjà prévu.' : `${inputs.length} repas de ta semaine type mis au menu. Glisse-les pour les échanger.`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Enregistrement impossible.');
+    }
+    setMenuDay(day);
+    setView('menu');
+    await refresh();
+  }
+
   const open = useMemo(() => recipes.find((r) => r.id === openId) ?? null, [recipes, openId]);
   const photoOf = (id: string) => photos.find((p) => p.recipeId === id) ?? null;
 
@@ -214,7 +273,8 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
   function weekShopping() {
     const byId = new Map(recipes.map((r) => [r.id, r]));
     const items = plan
-      .filter((e) => e.day >= today && e.recipeId && byId.has(e.recipeId))
+      // Des restes ne s'achètent pas : seuls les repas qu'on cuisine font la liste (§22).
+      .filter((e) => e.day >= today && !e.leftovers && e.recipeId && byId.has(e.recipeId))
       .map((e) => ({ recipe: byId.get(e.recipeId!)!, servings: e.servings }));
     openShopping(items, 'le menu de la semaine');
   }
@@ -293,6 +353,7 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
               [
                 ['carnet', 'Carnet', recipes.length],
                 ['menu', 'Menu de la semaine', 0],
+                ['semaine', 'Semaine type', 0],
               ] as const
             ).map(([id, text, n]) => (
               <button key={id} type="button" className={`recettes-nav-item${view === id ? ' on' : ''}`} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>
@@ -358,13 +419,27 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
             onAdd={(day, meal) => setPicking({ day, meal })}
             onOpen={openRecipe}
             onRemove={(e) => void write(() => store.deletePlanEntry(e.id))}
+            onToggleLeftovers={(e) => void write(() => store.updatePlanEntry(e.id, { leftovers: !e.leftovers }))}
+            onSwap={swapMenu}
+            template={{ fills: templateFills.length, onApply: () => void applyTemplate(), onEdit: () => setView('semaine') }}
             toolbar={
               shoppingService && (
-                <button type="button" className="btn btn-sm" onClick={weekShopping} disabled={!plan.some((e) => e.recipeId && e.day >= today)}>
+                <button type="button" className="btn btn-sm" onClick={weekShopping} disabled={!plan.some((e) => e.recipeId && !e.leftovers && e.day >= today)}>
                   🛒 Courses de la semaine
                 </button>
               )
             }
+          />
+        ) : view === 'semaine' ? (
+          <TemplateView
+            entries={template}
+            recipes={recipes}
+            onAdd={(weekday, meal) => setPicking({ weekday, meal })}
+            onOpen={openRecipe}
+            onRemove={(e) => void write(() => store.deleteTemplateEntry(e.id))}
+            onToggleLeftovers={(e) => void write(() => store.updateTemplateEntry(e.id, { leftovers: !e.leftovers }))}
+            onSwap={swapTemplate}
+            onApply={() => void applyTemplate(today)}
           />
         ) : recipes.length === 0 ? (
           <div className="recettes-empty">
@@ -435,10 +510,12 @@ export function RecettesScreen({ error, onError, onOpenSettings, onSwitchModule,
           <PlanPicker
             recipes={recipes}
             recipe={picking === 'recipe' && open ? open : undefined}
-            slot={picking !== 'recipe' ? picking : undefined}
+            // La semaine type n'a pas de date : la fenêtre en prend une quelconque, que l'ajout ignore.
+            slot={picking === 'recipe' ? undefined : 'weekday' in picking ? { day: today, meal: picking.meal } : picking}
+            heading={picking !== 'recipe' && 'weekday' in picking ? `${MEAL_LABELS[picking.meal]} du ${WEEKDAY_NAMES[picking.weekday].toLowerCase()} — semaine type` : undefined}
             today={today}
             servings={picking === 'recipe' ? servings : null}
-            onAdd={addToMenu}
+            onAdd={(input) => (picking !== 'recipe' && 'weekday' in picking ? addToTemplate(picking.weekday, input) : addToMenu(input))}
             onClose={() => setPicking(null)}
           />
         )}

@@ -22,7 +22,8 @@ export function menuMarks(entries: PlanEntry[], recipes: Recipe[], from: string,
       return {
         id: `plan:${e.id}`,
         day: e.day,
-        title: `${MEAL_LABELS[e.meal]} · ${title}`,
+        // Des restes (§22) : rien à cuisiner ce jour-là, le calendrier le dit.
+        title: `${MEAL_LABELS[e.meal]} · ${title}${e.leftovers ? ' (restes)' : ''}`,
         detail: [e.servings ? `pour ${e.servings}` : null, recipe ? 'recette du carnet' : null].filter(Boolean).join(' · ') || undefined,
         movable: true,
         link: recipe ? `recipe:${recipe.id}` : 'menu',

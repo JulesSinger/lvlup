@@ -39,7 +39,7 @@ import { objectifsTools, type ObjectifsData, type Checkin as GoalCheckin } from 
 import { calendarTools, type CalendarData, type CalendarEvent, type EventInput as CalendarEventInput, type EventException } from './calendar.ts';
 import { budgetTools, type AccountRow as BudgetAccountRow, type BudgetData, type CategoryRow as BudgetCategoryRow, type EntryRow as BudgetEntryRow, type RuleRow as BudgetRuleRow } from './budget.ts';
 import { bilanTools, type BilanData } from './bilan.ts';
-import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow } from './recettes.ts';
+import { recettesTools, type CookedRow, type PlanRow, type RecettesData, type RecipeRow, type TemplateRow } from './recettes.ts';
 
 const VERSION = '2026-10-26.1';
 /** Le fuseau de Jules : « aujourd'hui » et la semaine en cours se comptent ici. */
@@ -159,6 +159,14 @@ function recettesData(userId: string): RecettesData {
     insertPlan: (row) => insert<PlanRow>('recettes_plan', row),
     updatePlan: (id, row) => update<PlanRow>('recettes_plan', id, row),
     deletePlan: (id) => remove('recettes_plan', id),
+    listTemplate: () =>
+      fetchAll<TemplateRow>((first, last) =>
+        t('recettes_template').select('*').eq('user_id', userId).order('weekday').order('position').order('id').range(first, last),
+      ),
+    getTemplate: (id) => one<TemplateRow>('recettes_template', id),
+    insertTemplate: (row) => insert<TemplateRow>('recettes_template', row),
+    updateTemplate: (id, row) => update<TemplateRow>('recettes_template', id, row),
+    deleteTemplate: (id) => remove('recettes_template', id),
     async getPantry() {
       const row = check(await t('recettes_settings').select('pantry').eq('user_id', userId).maybeSingle()) as { pantry: string[] } | null;
       return row ? (row.pantry ?? []) : null;
@@ -756,7 +764,7 @@ function serverInfo(day: string): ServerInfo {
     version: VERSION,
     instructions: [
       'Atlas est l’application personnelle de Jules : un module par domaine de sa vie. Ce connecteur en ouvre plusieurs, un préfixe d’outils chacun :',
-      '- Recettes (recettes_*) : le carnet, le menu de la semaine midi et soir, les recettes faites, les ingrédients « toujours là ». Retrouve l’identifiant d’une recette avec recettes_lister avant de la modifier ; une recette d’un site : les ingrédients un par ligne, quantité en tête, et les étapes dans l’ordre. Minuter une recette (plusieurs choses en parallèle : l’eau qui chauffe pendant qu’on émince) = recettes_minuter, étape par étape : poste, durée, « ça cuit tout seul » ou non, ce qui la déclenche ; recettes_lire rend les temps déjà réglés (steps_timing).',
+      '- Recettes (recettes_*) : le carnet, le menu de la semaine midi et soir, la semaine type (recettes_semaine_type_* : jour 1 = lundi … 7 = dimanche, recopiée dans le menu par recettes_semaine_type_appliquer), les recettes faites, les ingrédients « toujours là ». Un repas du menu ou de la semaine type est à cuisiner (servings = toutes les parts préparées) ou des restes (leftovers : rien à cuisiner ni à acheter) ; Jules évite de manger deux repas de suite la même chose et congèle. Retrouve l’identifiant d’une recette avec recettes_lister avant de la modifier ; une recette d’un site : les ingrédients un par ligne, quantité en tête, et les étapes dans l’ordre. Minuter une recette (plusieurs choses en parallèle : l’eau qui chauffe pendant qu’on émince) = recettes_minuter, étape par étape : poste, durée, « ça cuit tout seul » ou non, ce qui la déclenche ; recettes_lire rend les temps déjà réglés (steps_timing).',
       '- Courses (courses_*) : la liste, le catalogue, l’historique. Une photo de ticket de caisse : lis-la, puis courses_catalogue, puis courses_enregistrer_ticket.',
       '- Sport (sport_*) : la course à pied, le plan marathon, le renforcement et le vélo. Commence par sport_resume ; pour les séances d’une semaine, sport_semaine_programmer (elles remplacent celles de la semaine).',
       '- Tâches (taches_*) : la to-do list. Lis toi-même les dates (« demain 9 h » → planned_day et planned_time).',

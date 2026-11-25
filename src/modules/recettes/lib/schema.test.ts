@@ -11,6 +11,7 @@ import {
   SERVINGS_MAX,
   STEPS_MAX,
   TAGS_MAX,
+  WEEKDAYS,
 } from './types';
 
 /**
@@ -62,6 +63,18 @@ describe('le type et la base disent la même chose (Recettes)', () => {
       expect(sql).toContain(`alter table public.${table} enable row level security`);
       for (const verb of ['select', 'insert', 'update', 'delete']) expect(sql).toContain(`create policy "${table}_${verb}_own"`);
     }
+  });
+
+  it('la semaine type (§22) : mêmes repas et bornes que le menu, jours de 1 à 7, ses politiques', () => {
+    const sql = readFileSync(join(SQL_DIR, '2026-11-22-recettes-semaine-type.sql'), 'utf8');
+    expect(allowedBy('recettes_template_meal_check')).toEqual([...MEALS].sort());
+    expect(lastDefinition('recettes_template_weekday_check')).toContain(`between ${WEEKDAYS[0]} and ${WEEKDAYS.at(-1)}`);
+    expect(lastDefinition('recettes_template_title_check')).toContain(`<= ${PLAN_TITLE_MAX}`);
+    expect(lastDefinition('recettes_template_servings_check')).toContain(`between 1 and ${SERVINGS_MAX}`);
+    expect(sql).toContain('alter table public.recettes_template enable row level security');
+    for (const verb of ['select', 'insert', 'update', 'delete']) expect(sql).toContain(`create policy "recettes_template_${verb}_own"`);
+    expect(sql).toContain('create policy "recettes_template_mfa"');
+    expect(sql).toContain('add column if not exists leftovers boolean not null default false');
   });
 
   it('le bucket des photos est privé, et chaque compte n’y touche qu’à son dossier', () => {

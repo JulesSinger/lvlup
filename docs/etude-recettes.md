@@ -776,3 +776,87 @@ tombait à 21 min quand le riz cuisait jusqu'à 26.
 **Les temps déjà enregistrés ne changent pas** : la proposition ne remplace jamais un réglage. Pour
 une recette réglée avant, « ⏱ Régler les temps » → « Tout effacer » → « ✨ Compléter d'après le
 texte ».
+
+## 22. La semaine type, et les restes (22/11/2026)
+
+**La demande de Jules** : « je n'aime pas cuisiner, et encore moins réfléchir à quoi faire, quels
+aliments avoir, quelles courses. » Un planning de la semaine qui **se répète chaque semaine** (manger
+la même chose ne le dérange pas), un repas pour chaque midi et chaque soir, et pour chacun **s'il
+faut cuisiner, et quoi** — on cuisine pour 2 ou 3 repas, le reste revient un autre jour. Flexible :
+ses jours de bureau changent d'une semaine à l'autre (2 au bureau, 3 en télétravail), sa fatigue
+aussi.
+
+**Ses choix** (dans l'ordre de la conversation) :
+- des repas **posés sur des jours par défaut**, et un **échange facile** d'un jour à l'autre
+  (« drag and drop par exemple ») — plutôt qu'une réserve de portions sans jour, proposée d'abord ;
+- tout dans Atlas, quitte à améliorer le module ;
+- **ne pas enchaîner deux repas pareils** : il congèle ;
+- la bolognaise reste ; les autres plats sont « à définir ».
+
+### Ce qui est construit
+
+- **La semaine type** (onglet « Semaine type », `TemplateView`) : sept jours, midi et soir, comme le
+  menu, sans date. Chaque repas est une recette du carnet ou un titre, et il est soit **🍳 à
+  cuisiner** — `servings` dit alors *toutes* les parts préparées, et ce sont elles qui font les
+  courses —, soit **♻️ des restes** : rien à cuisiner ni à acheter, on ressort ce qu'on a fait un
+  autre jour. Toucher le pictogramme bascule. En tête : « 14 repas sur 14 · 4 fois en cuisine · 10
+  repas de restes ».
+- **Deux repas de suite pareils sont signalés** (`consecutiveRepeats`) : la semaine se répète, le
+  dimanche soir précède donc le lundi midi ; une case vide sépare ; un titre se compare sans
+  majuscules ni accents.
+- **Recopier dans le menu** (`fromTemplate`) : « 📋 Mettre au menu de cette semaine », ou la
+  proposition d'une semaine vide (« Rien de prévu : ta semaine type remplit 14 repas d'un geste »),
+  ou « Compléter avec la semaine type » quand il reste des cases vides. **Seules les cases vides se
+  remplissent, à partir d'aujourd'hui** : recopier deux fois ne double rien, un repas déplacé à la
+  main n'est jamais écrasé, on ne prévoit pas ce qu'on a déjà mangé. **Jamais automatique** : un
+  geste, comme l'envoi à Courses (§12).
+- **Échanger deux repas** (`MealGrid`, `useSlotDrag`, `swapSlots`), dans le menu comme dans la
+  semaine type : glisser un repas sur une autre case — à la souris après 5 px, au doigt après un
+  appui de 280 ms, comme Tier lists — **échange les deux cases entières** (« au bureau mardi : le
+  repas à cuisiner passe à mercredi, celui de mercredi prend sa place »), une case vide le reçoit
+  simplement. Sans glisser : « ⇄ » sur une case, puis « Ici » sur l'autre.
+- **Les courses de la semaine ne comptent que ce qu'on cuisine**, aux parts prévues ; une semaine
+  faite de restes n'a pas de courses. Dans Calendar, un repas de restes se lit « Midi · Bolognaise
+  (restes) ».
+- **Le connecteur** : `leftovers` sur `recettes_menu_*`, et `recettes_semaine_type_lire` (avec les
+  enchaînements), `_ajouter`, `_modifier`, `_retirer`, `_appliquer` (la règle de recopie est
+  écrite deux fois, comparée par `mcpTools.test.ts`).
+
+### Le modèle
+
+Une table `recettes_template` au motif de `recettes_plan` : `weekday` de **1 = lundi à 7 =
+dimanche** (ISO 8601 — pas 0 = dimanche, la convention de `Date.getDay()` qui avait déjà égaré une
+description), `meal`, `recipe_id` (`on delete cascade`) ou `title`, `servings`, `leftovers`,
+`position`. Et `recettes_plan.leftovers`, faux par défaut : les repas d'avant se cuisinent.
+`leftovers` n'est envoyé qu'à vrai (ou quand on le change) : une base sans la migration accepte
+encore tout le reste. La sauvegarde emporte la semaine type.
+
+### La semaine de Jules, proposée
+
+Quatre fois en cuisine, dix repas de restes, jamais deux repas de suite pareils (vérifiée par
+`weekTemplate.test.ts`) :
+
+| | Midi | Soir |
+|---|---|---|
+| Lundi | ♻️ Plat 4 | ♻️ Bolognaise |
+| Mardi | ♻️ Plat 4 | 🍳 Plat 2 (4 parts) |
+| Mercredi | ♻️ Bolognaise | ♻️ Plat 2 |
+| Jeudi | ♻️ Bolognaise | 🍳 Plat 3 (3 parts) |
+| Vendredi | ♻️ Plat 2 | ♻️ Plat 3 |
+| Samedi | 🍳 Plat 4 (3 parts) | ♻️ Plat 2 |
+| Dimanche | ♻️ Plat 3 | 🍳 Bolognaise (4 parts) |
+
+Les plats 2, 3 et 4 sont « à définir ». Des restes à plus de trois jours passent par le
+congélateur.
+
+### Trouvé en route
+
+Depuis le 14/10 (§20), le plan minute par minute (`PlanView`) portait la classe
+`.recettes-plan-list`, déjà prise par la liste des recettes du choix d'un repas (`PlanPicker`) :
+sa règle `display: none` (montrée seulement sur téléphone) **cachait la liste des recettes sur
+ordinateur** — on ne pouvait plus mettre une recette du carnet au menu depuis une case. La suite
+ne le voyait pas : elle n'y écrivait qu'un titre. Classe renommée `.recettes-timeline-list` ; la
+suite choisit désormais une recette depuis une case.
+
+**À faire par Jules** : appliquer `2026-11-22-recettes-semaine-type.sql` **avant de fusionner**, puis
+redéployer `atlas-mcp`.

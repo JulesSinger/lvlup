@@ -782,6 +782,112 @@
   color: var(--text);
 }
 
+/* --- La semaine type, les restes, l'échange de deux repas (§22) ---------- */
+.recettes-menu-entry {
+  -webkit-touch-callout: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.recettes-menu-entry.leftovers {
+  background: color-mix(in srgb, var(--sky) 12%, var(--surface-2));
+}
+
+.recettes-menu-kind {
+  padding: 0 2px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.recettes-menu-kind:hover {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.recettes-menu-actions {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.recettes-menu-actions .recettes-menu-add {
+  margin-left: 0;
+}
+
+.recettes-menu-swap {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  cursor: pointer;
+}
+
+.recettes-menu-swap:hover {
+  color: var(--text);
+}
+
+.recettes-menu-slot.source {
+  border-style: dashed;
+  opacity: 0.7;
+}
+
+.recettes-menu-slot.target {
+  border-color: color-mix(in srgb, var(--orange) 55%, var(--border));
+}
+
+.recettes-menu-slot.over {
+  background: color-mix(in srgb, var(--orange) 14%, var(--surface));
+}
+
+.recettes-menu-grid.dragging,
+.recettes-menu-grid.dragging * {
+  cursor: grabbing;
+}
+
+.recettes-drag-ghost {
+  position: fixed;
+  z-index: 60;
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--shadow-ink) 35%, transparent);
+  font-size: 13.5px;
+  pointer-events: none;
+  transform: translate(-50%, -120%);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recettes-grid-moving,
+.recettes-menu-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--orange) 10%, var(--surface));
+  font-size: 13.5px;
+}
+
+.recettes-template-summary {
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.recettes-template .recettes-hint {
+  margin: 0 0 10px;
+}
+
 @media (max-width: 640px) {
   /* Sur téléphone, midi et soir l'un sous l'autre : les noms tiennent en entier. */
   .recettes-menu-day {
@@ -1252,14 +1358,17 @@
   opacity: 0.7;
 }
 
-.recettes-plan-list {
+/* Le plan minute par minute, sur téléphone. Une classe à lui : il prenait
+   celle de la liste des recettes du choix d'un repas (`PlanPicker`), qui
+   disparaissait alors sur ordinateur (trouvé le 22/11/2026, §22). */
+.recettes-timeline-list {
   display: none;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.recettes-plan-list > li {
+.recettes-timeline-list > li {
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);
   gap: 8px;
@@ -1352,7 +1461,7 @@
     display: none;
   }
 
-  .recettes-plan-list {
+  .recettes-timeline-list {
     display: block;
   }
 }

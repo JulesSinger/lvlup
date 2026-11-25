@@ -14,6 +14,15 @@ export type RecipeCategory = (typeof RECIPE_CATEGORIES)[number];
 export const MEALS = ['midi', 'soir'] as const;
 export type Meal = (typeof MEALS)[number];
 
+/**
+ * Les jours de la semaine type (§22) : 1 = lundi … 7 = dimanche, comme la
+ * norme ISO 8601 — et pas 0 = dimanche, la convention de `Date.getDay()` et
+ * du moteur de récurrence, qui avait déjà égaré une description (journal du
+ * 12/10/2026).
+ */
+export const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
+export type Weekday = (typeof WEEKDAYS)[number];
+
 export const RECIPE_TITLE_MAX = 200;
 export const SERVINGS_MAX = 100;
 /** Une semaine : une marinade, un levain. */
@@ -154,12 +163,38 @@ export interface PlanEntry {
   recipeId: string | null;
   title: string;
   servings: number | null;
+  /**
+   * Des restes (§22) : rien à cuisiner ni à acheter, on sort ce qu'on a fait
+   * un autre jour (frigo, congélateur). Faux : la recette se cuisine ce
+   * repas-là, pour `servings` parts — le reste ira à d'autres repas.
+   */
+  leftovers: boolean;
   /** L'ordre dans la case (un plat puis un dessert). */
   position: number;
   createdAt: string;
 }
 
-export type PlanEntryInput = Omit<PlanEntry, 'id' | 'createdAt'>;
+/** `leftovers` facultatif : faux quand il manque (un repas d'avant la semaine type). */
+export type PlanEntryInput = Omit<PlanEntry, 'id' | 'createdAt' | 'leftovers'> & { leftovers?: boolean };
+
+/**
+ * Un repas de la semaine type (§22) : le même qu'une case du menu, posé sur
+ * un jour de la semaine plutôt que sur une date. La semaine type se recopie
+ * dans le menu d'une semaine, où l'on déplace ensuite ce qu'on veut.
+ */
+export interface TemplateEntry {
+  id: string;
+  weekday: Weekday;
+  meal: Meal;
+  recipeId: string | null;
+  title: string;
+  servings: number | null;
+  leftovers: boolean;
+  position: number;
+  createdAt: string;
+}
+
+export type TemplateEntryInput = Omit<TemplateEntry, 'id' | 'createdAt'>;
 
 /** Ce qu'on a toujours chez soi : décoché d'office avant d'envoyer à Courses (§12). */
 export const DEFAULT_PANTRY = ['sel', 'poivre', 'huile', 'huile d’olive', 'sucre', 'farine', 'eau', 'vinaigre'];

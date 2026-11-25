@@ -12,12 +12,14 @@ import { Modal } from './Modal';
  * du menu : choisir une recette du carnet, ou écrire ce qu'on mange
  * (« Restes », « Resto »). Depuis une recette : choisir le jour et le repas.
  */
-export function PlanPicker({ recipes, recipe, slot, today, servings, onAdd, onClose }: {
+export function PlanPicker({ recipes, recipe, slot, heading, today, servings, onAdd, onClose }: {
   recipes: Recipe[];
   /** Depuis la fiche : la recette est connue, on choisit le jour. */
   recipe?: Recipe;
   /** Depuis le menu : la case est connue, on choisit la recette. */
   slot?: { day: string; meal: Meal };
+  /** Le titre de la fenêtre, quand la case n'est pas une date (la semaine type, §22). */
+  heading?: string;
   today: string;
   servings: number | null;
   onAdd: (input: Omit<PlanEntryInput, 'position'>) => Promise<void>;
@@ -29,6 +31,8 @@ export function PlanPicker({ recipes, recipe, slot, today, servings, onAdd, onCl
   const [day, setDay] = useState(slot?.day ?? today);
   const [meal, setMeal] = useState<Meal>(slot?.meal ?? 'soir');
   const [count, setCount] = useState<number | null>(servings ?? recipe?.servings ?? null);
+  /** Des restes (§22) : rien à cuisiner, donc ni parts ni courses. */
+  const [leftovers, setLeftovers] = useState(false);
   const [error, setError] = useState('');
 
   const found = useMemo(() => {
@@ -38,7 +42,7 @@ export function PlanPicker({ recipes, recipe, slot, today, servings, onAdd, onCl
   }, [recipes, query]);
 
   async function add() {
-    const input = { day, meal, recipeId: chosen?.id ?? null, title: chosen ? '' : free.trim(), servings: count };
+    const input = { day, meal, recipeId: chosen?.id ?? null, title: chosen ? '' : free.trim(), servings: leftovers ? null : count, leftovers };
     const problem = validatePlanEntry({ ...input, position: 0 });
     if (problem) return setError(problem);
     try {
@@ -52,7 +56,7 @@ export function PlanPicker({ recipes, recipe, slot, today, servings, onAdd, onCl
 
   return (
     <Modal
-      title={recipe ? `Au menu — ${recipe.title}` : `${MEAL_LABELS[meal]} du ${weekdayLabel(day)}`}
+      title={heading ?? (recipe ? `Au menu — ${recipe.title}` : `${MEAL_LABELS[meal]} du ${weekdayLabel(day)}`)}
       onClose={onClose}
       footer={
         <>
@@ -138,6 +142,22 @@ export function PlanPicker({ recipes, recipe, slot, today, servings, onAdd, onCl
       )}
 
       <div className="field">
+        <span className="recettes-label">Ce repas-là</span>
+        <div className="recettes-choice" role="group" aria-label="Ce repas-là">
+          <button type="button" className={`recettes-choice-item${!leftovers ? ' on' : ''}`} aria-pressed={!leftovers} onClick={() => setLeftovers(false)}>
+            🍳 Je cuisine
+          </button>
+          <button type="button" className={`recettes-choice-item${leftovers ? ' on' : ''}`} aria-pressed={leftovers} onClick={() => setLeftovers(true)}>
+            ♻️ Des restes
+          </button>
+        </div>
+        <p className="recettes-hint">
+          {leftovers ? 'Rien à cuisiner ni à acheter : tu ressors ce que tu as fait un autre jour.' : 'Fais-en plus que pour ce repas : le reste ira au frigo ou au congélateur.'}
+        </p>
+      </div>
+
+      {!leftovers && (
+      <div className="field">
         <span className="recettes-label">Pour</span>
         <div className="recettes-servings" role="group" aria-label="Nombre de personnes">
           <button type="button" className="btn btn-sm" aria-label="Une personne de moins" disabled={!count || count <= 1} onClick={() => setCount((c) => (c ? c - 1 : c))}>
@@ -149,6 +169,7 @@ export function PlanPicker({ recipes, recipe, slot, today, servings, onAdd, onCl
           </button>
         </div>
       </div>
+      )}
       {error && (
         <p className="recettes-error" role="alert">
           {error}

@@ -163,7 +163,7 @@ describe('retrouver une recette', () => {
 describe('le menu et la liste de courses', () => {
   it('une semaine du lundi au dimanche, et les cases', () => {
     expect(weekDays('2026-10-08')).toEqual(['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11']);
-    const e = (id: string, meal: 'midi' | 'soir', position: number): PlanEntry => ({ id, day: '2026-10-08', meal, recipeId: null, title: id, servings: null, position, createdAt: '' });
+    const e = (id: string, meal: 'midi' | 'soir', position: number): PlanEntry => ({ id, day: '2026-10-08', meal, recipeId: null, title: id, servings: null, leftovers: false, position, createdAt: '' });
     const entries = [e('b', 'soir', 1), e('a', 'soir', 0), e('m', 'midi', 0)];
     expect(slot(entries, '2026-10-08', 'soir').map((x) => x.id)).toEqual(['a', 'b']);
     expect(nextPosition(entries, '2026-10-08', 'soir')).toBe(2);

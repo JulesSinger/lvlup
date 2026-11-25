@@ -16,8 +16,11 @@ import {
   type RecipePhoto,
   type RecettesSettings,
   type Step,
+  type TemplateEntry,
+  type TemplateEntryInput,
+  type Weekday,
 } from '../lib/types';
-import { validateCooked, validatePlanEntry, validateRecipe } from '../lib/validation';
+import { validateCooked, validatePlanEntry, validateRecipe, validateTemplateEntry } from '../lib/validation';
 import { cleanSteps } from '../lib/schedule';
 import { photoCache } from './deviceImages';
 import type { RecettesBackup, RecettesStore } from './recettesStore';
@@ -87,6 +90,20 @@ interface PlanRow {
   recipe_id: string | null;
   title: string;
   servings: number | null;
+  /** Absente avant la migration du 22/11/2026. */
+  leftovers?: boolean;
+  position: number;
+  created_at: string;
+}
+
+interface TemplateRow {
+  id: string;
+  weekday: Weekday;
+  meal: Meal;
+  recipe_id: string | null;
+  title: string;
+  servings: number | null;
+  leftovers: boolean;
   position: number;
   created_at: string;
 }
@@ -144,6 +161,19 @@ const toPlan = (r: PlanRow): PlanEntry => ({
   recipeId: r.recipe_id,
   title: r.title,
   servings: r.servings,
+  leftovers: r.leftovers ?? false,
+  position: r.position,
+  createdAt: r.created_at,
+});
+
+const toTemplate = (r: TemplateRow): TemplateEntry => ({
+  id: r.id,
+  weekday: r.weekday,
+  meal: r.meal,
+  recipeId: r.recipe_id,
+  title: r.title,
+  servings: r.servings,
+  leftovers: r.leftovers,
   position: r.position,
   createdAt: r.created_at,
 });
@@ -168,13 +198,31 @@ function recipeColumns(p: Partial<RecipeInput>): Record<string, unknown> {
   return row;
 }
 
-function planColumns(p: Partial<PlanEntryInput>): Record<string, unknown> {
+/**
+ * `leftovers` n'est envoyé que s'il dit quelque chose : à vrai, ou quand on le
+ * change. Une base sans la migration du 22/11/2026 accepte encore les repas
+ * à cuisiner — les autres modules ont suivi la même règle (journal du 30/10).
+ */
+function planColumns(p: Partial<PlanEntryInput>, sendFalse = false): Record<string, unknown> {
   const row: Record<string, unknown> = {};
   if (p.day !== undefined) row.day = p.day;
   if (p.meal !== undefined) row.meal = p.meal;
   if (p.recipeId !== undefined) row.recipe_id = p.recipeId;
   if (p.title !== undefined) row.title = p.title.trim();
   if (p.servings !== undefined) row.servings = p.servings;
+  if (p.leftovers === true || (sendFalse && p.leftovers === false)) row.leftovers = p.leftovers;
+  if (p.position !== undefined) row.position = p.position;
+  return row;
+}
+
+function templateColumns(p: Partial<TemplateEntryInput>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (p.weekday !== undefined) row.weekday = p.weekday;
+  if (p.meal !== undefined) row.meal = p.meal;
+  if (p.recipeId !== undefined) row.recipe_id = p.recipeId;
+  if (p.title !== undefined) row.title = p.title.trim();
+  if (p.servings !== undefined) row.servings = p.servings;
+  if (p.leftovers !== undefined) row.leftovers = p.leftovers;
   if (p.position !== undefined) row.position = p.position;
   return row;
 }
@@ -348,11 +396,34 @@ export class SupabaseRecettes implements RecettesStore {
   }
 
   async updatePlanEntry(id: string, patch: Partial<PlanEntryInput>) {
-    check((await this.client.from('recettes_plan').update(planColumns(patch)).eq('id', id)).error);
+    check((await this.client.from('recettes_plan').update(planColumns(patch, true)).eq('id', id)).error);
   }
 
   async deletePlanEntry(id: string) {
     check((await this.client.from('recettes_plan').delete().eq('id', id)).error);
+  }
+
+  async listTemplate(): Promise<TemplateEntry[]> {
+    const rows = await fetchAll<TemplateRow>((first, last) =>
+      this.client.from('recettes_template').select('*').order('weekday').order('meal').order('position').order('id').range(first, last),
+    );
+    return rows
+      .map(toTemplate)
+      .sort((a, b) => a.weekday - b.weekday || (a.meal === b.meal ? a.position - b.position : a.meal === 'midi' ? -1 : 1));
+  }
+
+  async addTemplateEntry(input: TemplateEntryInput, id?: string): Promise<TemplateEntry> {
+    fail(validateTemplateEntry(input));
+    const userId = await this.requireUserId();
+    return toTemplate(await this.insert<TemplateRow>('recettes_template', { user_id: userId, ...templateColumns(input) }, id));
+  }
+
+  async updateTemplateEntry(id: string, patch: Partial<TemplateEntryInput>) {
+    check((await this.client.from('recettes_template').update(templateColumns(patch)).eq('id', id)).error);
+  }
+
+  async deleteTemplateEntry(id: string) {
+    check((await this.client.from('recettes_template').delete().eq('id', id)).error);
   }
 
   async getSettings(): Promise<RecettesSettings> {
@@ -377,7 +448,9 @@ export class SupabaseRecettes implements RecettesStore {
     ]);
     // Les photos à part : une table ou un bucket manquant n'empêche pas la sauvegarde du reste.
     const photos = await this.listPhotos().catch(() => []);
-    return { recipes, photos, cooked, plan, settings };
+    // La semaine type aussi : une base sans la migration du 22/11/2026 n'en a pas.
+    const template = await this.listTemplate().catch(() => []);
+    return { recipes, photos, cooked, plan, template, settings };
   }
 
   async importData(data: RecettesBackup) {
@@ -394,9 +467,27 @@ export class SupabaseRecettes implements RecettesStore {
       const rows = batch.map((c) => ({ id: c.id, user_id: userId, created_at: c.createdAt, ...cookedColumns(c) }));
       check((await this.client.from('recettes_cooked').insert(rows)).error);
     }
+    // Un envoi groupé veut les mêmes colonnes partout : `leftovers` sur toutes
+    // les lignes dès qu'une seule en a, sinon sur aucune (base d'avant le 22/11).
+    const anyLeftovers = (data.plan ?? []).some((p) => p.leftovers);
     for (const batch of batches(data.plan ?? [])) {
-      const rows = batch.map((p) => ({ id: p.id, user_id: userId, created_at: p.createdAt, ...planColumns(p) }));
+      const rows = batch.map((p) => ({
+        id: p.id,
+        user_id: userId,
+        created_at: p.createdAt,
+        ...planColumns(p),
+        ...(anyLeftovers ? { leftovers: p.leftovers ?? false } : {}),
+      }));
       check((await this.client.from('recettes_plan').insert(rows)).error);
+    }
+    const template = data.template ?? [];
+    if (template.length > 0) {
+      // Celles des recettes sont parties avec elles ; une semaine faite de titres seuls reste.
+      check((await this.client.from('recettes_template').delete().eq('user_id', userId)).error);
+      for (const batch of batches(template)) {
+        const rows = batch.map((t) => ({ id: t.id, user_id: userId, created_at: t.createdAt, ...templateColumns(t) }));
+        check((await this.client.from('recettes_template').insert(rows)).error);
+      }
     }
     const photos = data.photos ?? [];
     if (photos.length > 0) {

@@ -75,8 +75,11 @@ sur une base en mémoire — test qui compare aussi les bornes (catégories, rep
 | `recettes_minuter` | le temps des étapes (§20 de l'étude) : poste, durée, « tu es dessus » ou non, ce qui les déclenche (`launch`, `after_previous`, `{ end_of: N }`, `{ start_of: N, offset_minutes: M }`) ; `recettes_lire` le rend dans `steps_timing` |
 | `recettes_supprimer` | avec sa photo (fichiers compris), son historique et ses places au menu — **marqué destructeur** |
 | `recettes_menu_lister` | le menu entre deux jours, la semaine en cours par défaut |
-| `recettes_menu_ajouter` | une recette ou un simple titre (« Restes »), à la suite dans le repas |
-| `recettes_menu_modifier` / `recettes_menu_retirer` | déplacer, changer, retirer une entrée |
+| `recettes_menu_ajouter` | une recette ou un simple titre (« Restes »), à la suite dans le repas ; `leftovers` à vrai pour des restes (depuis le 22/11/2026) |
+| `recettes_menu_modifier` / `recettes_menu_retirer` | déplacer, changer, retirer une entrée, ou en faire des restes |
+| `recettes_semaine_type_lire` | la semaine type (étude de Recettes §22) : jour 1 = lundi … 7 = dimanche, midi et soir, à cuisiner ou restes, et les repas qui suivent le même plat |
+| `recettes_semaine_type_ajouter` / `_modifier` / `_retirer` | tenir la semaine type ; **retirer est marqué destructeur** |
+| `recettes_semaine_type_appliquer` | la recopier dans le menu d'une semaine (la semaine en cours par défaut) : seules les cases vides, à partir d'aujourd'hui — même règle que l'app, comparée par le test |
 | `recettes_faite_ajouter` / `_modifier` / `_retirer` | « je l'ai faite » : jour (aujourd'hui par défaut), pour combien, note de 1 à 5, un mot |
 | `recettes_toujours_la` | les ingrédients « toujours là » : lire, ajouter, retirer, remplacer |
 
