@@ -7,7 +7,11 @@ import type {
   ItemInput,
   ListEntry,
   ListEntryPatch,
+  ListTemplate,
   Store,
+  TemplateLine,
+  TemplateLinePatch,
+  TemplatePatch,
   Trip,
   TripItem,
 } from '../lib/types';
@@ -63,6 +67,42 @@ interface TripItemRow {
   price_cents: number | null;
   typology?: Typology | null;
   food_kind?: FoodKind | null;
+}
+
+interface TemplateRow {
+  id: string;
+  name: string;
+  emoji: string;
+  position: number;
+  created_at: string;
+}
+
+interface TemplateLineRow {
+  id: string;
+  template_id: string;
+  item_id: string;
+  quantity: string;
+  note: string;
+  position: number;
+}
+
+const toTemplate = (r: TemplateRow): ListTemplate => ({ id: r.id, name: r.name, emoji: r.emoji, position: r.position, createdAt: r.created_at });
+
+const toTemplateLine = (r: TemplateLineRow): TemplateLine => ({
+  id: r.id,
+  templateId: r.template_id,
+  itemId: r.item_id,
+  quantity: r.quantity,
+  note: r.note,
+  position: r.position,
+});
+
+/** Les bornes de `courses_templates_name_check`, dites lisiblement plutôt qu'un refus de Postgres. */
+function checkName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Donne un nom au modèle.');
+  if (trimmed.length > 80) throw new Error('80 caractères au plus pour le nom du modèle.');
+  return trimmed;
 }
 
 const toItem = (r: ItemRow): Item => ({
@@ -284,8 +324,75 @@ export class SupabaseCourses implements CoursesStore {
     check((await this.client.from('courses_trips').delete().eq('id', id)).error);
   }
 
+  async listTemplates(): Promise<ListTemplate[]> {
+    return (
+      await fetchAll<TemplateRow>((first, last) =>
+        this.client.from('courses_templates').select('*').order('position').order('id').range(first, last),
+      )
+    ).map(toTemplate);
+  }
+
+  async listTemplateLines(): Promise<TemplateLine[]> {
+    return (
+      await fetchAll<TemplateLineRow>((first, last) =>
+        this.client.from('courses_template_lines').select('*').order('position').order('id').range(first, last),
+      )
+    ).map(toTemplateLine);
+  }
+
+  async createTemplate(name: string, emoji = '📋', id?: string): Promise<ListTemplate> {
+    const userId = await this.requireUserId();
+    const position = (await this.listTemplates()).reduce((m, t) => Math.max(m, t.position + 1), 0);
+    const row = { user_id: userId, name: checkName(name), emoji: emoji || '📋', position };
+    if (id) {
+      check((await this.client.from('courses_templates').upsert({ id, ...row }, { onConflict: 'id', ignoreDuplicates: true })).error);
+      return toTemplate(unwrap(await this.client.from('courses_templates').select('*').eq('id', id).single()) as TemplateRow);
+    }
+    return toTemplate(unwrap(await this.client.from('courses_templates').insert(row).select().single()) as TemplateRow);
+  }
+
+  async updateTemplate(id: string, patch: TemplatePatch) {
+    const row: Record<string, unknown> = {};
+    if (patch.name !== undefined) row.name = checkName(patch.name);
+    if (patch.emoji !== undefined) row.emoji = patch.emoji || '📋';
+    if (patch.position !== undefined) row.position = patch.position;
+    check((await this.client.from('courses_templates').update(row).eq('id', id)).error);
+  }
+
+  async deleteTemplate(id: string) {
+    // `on delete cascade` emporte ses lignes.
+    check((await this.client.from('courses_templates').delete().eq('id', id)).error);
+  }
+
+  async addTemplateLine(templateId: string, itemId: string, quantity = '', note = '', id?: string): Promise<TemplateLine> {
+    const userId = await this.requireUserId();
+    const position = (await this.listTemplateLines()).filter((l) => l.templateId === templateId).reduce((m, l) => Math.max(m, l.position + 1), 0);
+    const row = { user_id: userId, template_id: templateId, item_id: itemId, quantity: quantity.slice(0, 30), note: note.slice(0, 200), position };
+    if (id) {
+      check((await this.client.from('courses_template_lines').upsert({ id, ...row }, { onConflict: 'id', ignoreDuplicates: true })).error);
+      return toTemplateLine(unwrap(await this.client.from('courses_template_lines').select('*').eq('id', id).single()) as TemplateLineRow);
+    }
+    return toTemplateLine(unwrap(await this.client.from('courses_template_lines').insert(row).select().single()) as TemplateLineRow);
+  }
+
+  async updateTemplateLine(id: string, patch: TemplateLinePatch) {
+    const row: Record<string, unknown> = {};
+    if (patch.quantity !== undefined) row.quantity = patch.quantity;
+    if (patch.note !== undefined) row.note = patch.note;
+    if (patch.position !== undefined) row.position = patch.position;
+    check((await this.client.from('courses_template_lines').update(row).eq('id', id)).error);
+  }
+
+  async removeTemplateLine(id: string) {
+    check((await this.client.from('courses_template_lines').delete().eq('id', id)).error);
+  }
+
   async exportData(): Promise<CoursesBackup> {
+    // Les modèles à part : une base sans la migration du 28/11/2026 n'en a pas.
+    const [templates, templateLines] = await Promise.all([this.listTemplates().catch(() => []), this.listTemplateLines().catch(() => [])]);
     return {
+      templates,
+      templateLines,
       items: await this.listItems(),
       stores: await this.listStores(),
       list: await this.listEntries(),
@@ -303,6 +410,10 @@ export class SupabaseCourses implements CoursesStore {
    */
   async importData(data: CoursesBackup) {
     const userId = await this.requireUserId();
+    // Les modèles d'abord ; une base sans leur migration n'en a pas, et c'est
+    // seulement grave si la sauvegarde en apporte.
+    const wipeTemplates = (await this.client.from('courses_templates').delete().eq('user_id', userId)).error;
+    if (wipeTemplates && (data.templates ?? []).length > 0) throw new Error(wipeTemplates.message);
     for (const table of ['courses_trip_items', 'courses_trips', 'courses_list', 'courses_items', 'courses_stores']) {
       check((await this.client.from(table).delete().eq('user_id', userId)).error);
     }
@@ -375,6 +486,26 @@ export class SupabaseCourses implements CoursesStore {
             typology: ti.typology ?? null,
             food_kind: ti.foodKind ?? null,
           })
+        ).error,
+      );
+    }
+
+    const templateIds = new Map<string, string>();
+    for (const t of data.templates ?? []) {
+      const row = unwrap(
+        await this.client.from('courses_templates').insert({ user_id: userId, name: t.name, emoji: t.emoji, position: t.position }).select('id').single(),
+      ) as { id: string };
+      templateIds.set(t.id, row.id);
+    }
+    for (const l of data.templateLines ?? []) {
+      const templateId = templateIds.get(l.templateId);
+      const itemId = itemIds.get(l.itemId);
+      if (!templateId || !itemId) continue;
+      check(
+        (
+          await this.client
+            .from('courses_template_lines')
+            .insert({ user_id: userId, template_id: templateId, item_id: itemId, quantity: l.quantity, note: l.note, position: l.position })
         ).error,
       );
     }

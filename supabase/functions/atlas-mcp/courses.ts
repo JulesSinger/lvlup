@@ -161,6 +161,80 @@ export interface TripItemRow {
   price_cents: number | null;
 }
 
+/** Un modèle de liste (§20 de l'étude, 28/11/2026) et ses lignes. */
+export interface ListTemplateRow {
+  id: string;
+  name: string;
+  emoji: string;
+  position: number;
+}
+export interface TemplateLineRow {
+  id: string;
+  template_id: string;
+  item_id: string;
+  quantity: string;
+  note: string;
+  position: number;
+}
+
+export const TEMPLATE_NAME_MAX = 80;
+
+/** Comme `lib/listMerge.ts` du module (comparé par le test). */
+export function mergeQuantity(old: string, extra: string, note: string): { quantity: string; note: string } {
+  if (!extra) return { quantity: old, note };
+  if (!old) return { quantity: extra.slice(0, QUANTITY_MAX), note };
+  const merged = `${old} + ${extra}`;
+  if (merged.length <= QUANTITY_MAX) return { quantity: merged, note };
+  return { quantity: old, note: [note, `+ ${extra}`].filter(Boolean).join(' ') };
+}
+const joinNote = (old: string, extra: string) => [old, extra].filter(Boolean).join(' · ').slice(0, NOTE_MAX);
+
+/**
+ * Remplir la liste avec un modèle : `templatePlan` de `lib/templates.ts`,
+ * recopiée (le test compare les deux sur les mêmes cas). Une ligne par
+ * article : déjà sur la liste, sa quantité est complétée et il repasse à
+ * prendre ; sans quantité à ajouter, il reste tel quel.
+ */
+export function templatePlan(
+  lines: readonly TemplateLineRow[],
+  entries: readonly EntryRow[],
+  items: readonly ItemRow[],
+  skip: ReadonlySet<string> = new Set(),
+): { add: { item_id: string; quantity: string; note: string }[]; merge: { entry_id: string; quantity: string; note: string }[]; already: number } {
+  const known = new Map(items.map((i) => [i.id, i]));
+  const onList = new Map(entries.map((e) => [e.item_id, e]));
+  const plan = { add: [] as { item_id: string; quantity: string; note: string }[], merge: [] as { entry_id: string; quantity: string; note: string }[], already: 0 };
+  const added = new Map<string, { item_id: string; quantity: string; note: string }>();
+  for (const line of lines) {
+    if (skip.has(line.id)) continue;
+    const item = known.get(line.item_id);
+    if (!item) continue;
+    const quantity = line.quantity.trim();
+    const note = line.note.trim();
+    const pending = added.get(item.id);
+    if (pending) {
+      const next = mergeQuantity(pending.quantity, quantity, pending.note);
+      pending.quantity = next.quantity;
+      pending.note = joinNote(next.note, note);
+      continue;
+    }
+    const entry = onList.get(item.id);
+    if (entry) {
+      if (!quantity && !note) {
+        plan.already += 1;
+        continue;
+      }
+      const next = mergeQuantity(entry.quantity, quantity, entry.note);
+      plan.merge.push({ entry_id: entry.id, quantity: next.quantity, note: joinNote(next.note, note) });
+      continue;
+    }
+    const row = { item_id: item.id, quantity: (quantity || item.default_quantity).slice(0, QUANTITY_MAX), note: note.slice(0, NOTE_MAX) };
+    added.set(item.id, row);
+    plan.add.push(row);
+  }
+  return plan;
+}
+
 export interface ExpenseRequest {
   ref: string;
   day: string;
@@ -191,6 +265,13 @@ export interface CoursesData {
   recordExpense(request: ExpenseRequest): Promise<void>;
   removeExpense(ref: string): Promise<void>;
   expenseRefs(refs: string[]): Promise<Set<string>>;
+  listTemplates(): Promise<ListTemplateRow[]>;
+  listTemplateLines(): Promise<TemplateLineRow[]>;
+  insertTemplate(row: Record<string, unknown>): Promise<ListTemplateRow>;
+  updateTemplate(id: string, row: Record<string, unknown>): Promise<ListTemplateRow | null>;
+  deleteTemplate(id: string): Promise<boolean>;
+  insertTemplateLine(row: Record<string, unknown>): Promise<TemplateLineRow>;
+  deleteTemplateLine(id: string): Promise<boolean>;
 }
 
 export interface CoursesContext {
@@ -389,10 +470,50 @@ const TYPOLOGY_HELP =
 
 // --- Les outils --------------------------------------------------------------------------------
 
+/** Les articles d'un modèle, tels que Claude les donne. */
+function templateItems(v: unknown): { name: string; quantity: string; note: string }[] {
+  if (v === undefined) return [];
+  if (!Array.isArray(v)) throw new Refused('items : une liste d’articles ({ name, quantity }).');
+  if (v.length > 200) throw new Refused('200 articles au plus dans un modèle.');
+  return v.map((raw, i) => {
+    const o = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+    return {
+      name: text(o.name, `Le nom de l’article n° ${i + 1}`, ITEM_NAME_MAX, true),
+      quantity: text(o.quantity, 'La quantité', QUANTITY_MAX),
+      note: text(o.note, 'La note', NOTE_MAX),
+    };
+  });
+}
+
+/** Écrit les lignes d'un modèle, dans l'ordre ; un article retrouvé (au pluriel près) ou créé. Deux fois le même article : une ligne. */
+async function writeTemplateLines(data: CoursesData, templateId: string, wanted: { name: string; quantity: string; note: string }[]): Promise<string[]> {
+  const items = await data.listItems();
+  const done = new Map<string, string>();
+  let position = 0;
+  for (const w of wanted) {
+    const found = findItemLoosely(items, w.name);
+    const item = found ?? (await data.insertItem({ name: w.name, aisle: guessAisle(w.name) }));
+    if (!found) items.push(item);
+    if (done.has(item.id)) continue;
+    await data.insertTemplateLine({ template_id: templateId, item_id: item.id, quantity: w.quantity, note: w.note, position: position++ });
+    done.set(item.id, `${item.name}${w.quantity ? ` (${w.quantity})` : ''}`);
+  }
+  return [...done.values()];
+}
+
 const S = {
   id: { type: 'string', description: 'Identifiant (uuid), tel que rendu par un autre outil.' },
   aisle: { type: 'string', enum: [...AISLES], description: 'Le rayon ; deviné d’après le nom s’il manque.' },
   price: { type: ['number', 'null'], minimum: 0, description: 'Prix payé pour la ligne, en euros (1.89), remises déduites.' },
+  templateItem: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', maxLength: ITEM_NAME_MAX },
+      quantity: { type: 'string', maxLength: QUANTITY_MAX, description: '« 500 g », « 2 pots », « 6 »' },
+      note: { type: 'string', maxLength: NOTE_MAX },
+    },
+    required: ['name'],
+  },
 };
 
 export const coursesTools: Tool<CoursesContext>[] = [
@@ -616,6 +737,140 @@ export const coursesTools: Tool<CoursesContext>[] = [
       let gone = 0;
       for (const raw of args.ids) if (await data.deleteEntry(id(raw))) gone++;
       return { text: `${gone} ligne${gone > 1 ? 's' : ''} retirée${gone > 1 ? 's' : ''} de la liste.` };
+    },
+  },
+  {
+    name: 'courses_modeles',
+    title: 'Lire les modèles de liste',
+    description:
+      'Les modèles de liste de Jules (« Semaine type », « Raclette »…) : des listes toutes faites qu’il choisit pour remplir sa liste de courses d’un geste, avant d’y ajouter le ponctuel. Pour chaque modèle, ses articles et leurs quantités.',
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
+    async run(_args, { data }) {
+      const [templates, lines, items] = await Promise.all([data.listTemplates(), data.listTemplateLines(), data.listItems()]);
+      const names = new Map(items.map((i) => [i.id, i.name]));
+      return json({
+        templates: [...templates]
+          .sort((a, b) => a.position - b.position)
+          .map((t) => ({
+            id: t.id,
+            name: t.name,
+            emoji: t.emoji,
+            items: lines
+              .filter((l) => l.template_id === t.id && names.has(l.item_id))
+              .sort((a, b) => a.position - b.position)
+              .map((l) => ({ line_id: l.id, name: names.get(l.item_id), quantity: l.quantity, note: l.note })),
+          })),
+      });
+    },
+  },
+  {
+    name: 'courses_modele_creer',
+    title: 'Créer un modèle de liste',
+    description:
+      'Crée un modèle de liste : un nom (« Semaine type »), une icône facultative, et ses articles avec leur quantité (« 500 g », « 2 pots »). Un article déjà connu est repris, un nouveau entre au catalogue dans son rayon deviné.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', maxLength: TEMPLATE_NAME_MAX },
+        emoji: { type: 'string', maxLength: 8 },
+        items: { type: 'array', items: S.templateItem, maxItems: 200 },
+      },
+      required: ['name'],
+    },
+    annotations: {},
+    async run(args, { data }) {
+      const name = text(args.name, 'Le nom du modèle', TEMPLATE_NAME_MAX, true);
+      const wanted = templateItems(args.items);
+      const existing = await data.listTemplates();
+      if (existing.some((t) => singular(t.name) === singular(name))) throw new Refused(`Un modèle « ${name} » existe déjà : modifie-le (courses_modele_modifier).`);
+      const template = await data.insertTemplate({
+        name,
+        emoji: text(args.emoji, 'L’icône', 8) || '📋',
+        position: existing.reduce((m, t) => Math.max(m, t.position + 1), 0),
+      });
+      const names = await writeTemplateLines(data, template.id, wanted);
+      return json({ message: `Modèle « ${name} » créé, ${names.length} article${names.length > 1 ? 's' : ''}.`, template: { id: template.id, name, items: names } });
+    },
+  },
+  {
+    name: 'courses_modele_modifier',
+    title: 'Modifier un modèle de liste',
+    description:
+      'Renomme un modèle, change son icône, ou remplace ses articles : une liste donnée dans items REMPLACE tous les articles du modèle (relis-le d’abord avec courses_modeles pour n’en perdre aucun).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: S.id,
+        name: { type: 'string', maxLength: TEMPLATE_NAME_MAX },
+        emoji: { type: 'string', maxLength: 8 },
+        items: { type: 'array', items: S.templateItem, maxItems: 200 },
+      },
+      required: ['id'],
+    },
+    annotations: { idempotentHint: true },
+    async run(args, { data }) {
+      const template = (await data.listTemplates()).find((t) => t.id === id(args.id));
+      if (!template) throw new Refused('Aucun modèle avec cet identifiant : lis-les d’abord (courses_modeles).');
+      const row: Record<string, unknown> = {};
+      if (args.name !== undefined) row.name = text(args.name, 'Le nom du modèle', TEMPLATE_NAME_MAX, true);
+      if (args.emoji !== undefined) row.emoji = text(args.emoji, 'L’icône', 8) || '📋';
+      const wanted = args.items === undefined ? null : templateItems(args.items);
+      if (Object.keys(row).length === 0 && wanted === null) throw new Refused('Rien à modifier : donne au moins un champ.');
+      if (Object.keys(row).length > 0) await data.updateTemplate(template.id, row);
+      let names: string[] | undefined;
+      if (wanted !== null) {
+        // Les nouvelles lignes d'abord, les anciennes ensuite : une coupure laisse au pire un doublon, jamais un modèle vide.
+        const old = (await data.listTemplateLines()).filter((l) => l.template_id === template.id);
+        names = await writeTemplateLines(data, template.id, wanted);
+        for (const l of old) await data.deleteTemplateLine(l.id);
+      }
+      return json({ message: `Modèle « ${(row.name as string) ?? template.name} » modifié.`, ...(names ? { items: names } : {}) });
+    },
+  },
+  {
+    name: 'courses_modele_supprimer',
+    title: 'Supprimer un modèle de liste',
+    description: 'Supprime un modèle de liste et ses lignes. La liste de courses en cours n’est pas touchée.',
+    inputSchema: { type: 'object', properties: { id: S.id }, required: ['id'] },
+    annotations: { destructiveHint: true },
+    async run(args, { data }) {
+      const template = (await data.listTemplates()).find((t) => t.id === id(args.id));
+      if (!template) throw new Refused('Aucun modèle avec cet identifiant.');
+      await data.deleteTemplate(template.id);
+      return json({ message: `Modèle « ${template.name} » supprimé ; la liste n’a pas bougé.` });
+    },
+  },
+  {
+    name: 'courses_modele_appliquer',
+    title: 'Remplir la liste avec un modèle',
+    description:
+      'Remplit la liste de courses avec un modèle, comme le bouton de l’app : chaque article du modèle est ajouté avec sa quantité ; un article déjà sur la liste n’est pas doublé (sa quantité est complétée). sauf : les articles du modèle à laisser de côté (« j’en ai encore »), par leur nom.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: S.id,
+        sauf: { type: 'array', items: { type: 'string' }, description: 'Noms d’articles du modèle à ne pas ajouter cette fois.' },
+      },
+      required: ['id'],
+    },
+    annotations: {},
+    async run(args, { data }) {
+      const template = (await data.listTemplates()).find((t) => t.id === id(args.id));
+      if (!template) throw new Refused('Aucun modèle avec cet identifiant : lis-les d’abord (courses_modeles).');
+      const [allLines, items, entries] = await Promise.all([data.listTemplateLines(), data.listItems(), data.listEntries()]);
+      const lines = allLines.filter((l) => l.template_id === template.id).sort((a, b) => a.position - b.position);
+      const names = new Map(items.map((i) => [i.id, i.name]));
+      const except = Array.isArray(args.sauf) ? args.sauf.map((n) => singular(String(n))) : [];
+      const skip = new Set(lines.filter((l) => except.some((n) => n && singular(names.get(l.item_id) ?? '').includes(n))).map((l) => l.id));
+      const plan = templatePlan(lines, entries, items, skip);
+      for (const a of plan.add) await data.insertEntry(a);
+      for (const m of plan.merge) await data.updateEntry(m.entry_id, { quantity: m.quantity, note: m.note, checked: false });
+      return json({
+        message: `« ${template.name} » : ${plan.add.length} article${plan.add.length > 1 ? 's' : ''} ajouté${plan.add.length > 1 ? 's' : ''}, ${plan.merge.length} complété${plan.merge.length > 1 ? 's' : ''}, ${plan.already} déjà sur la liste.`,
+        added: plan.add.map((a) => `${names.get(a.item_id)}${a.quantity ? ` (${a.quantity})` : ''}`),
+        skipped: lines.filter((l) => skip.has(l.id)).map((l) => names.get(l.item_id)),
+      });
     },
   },
   {

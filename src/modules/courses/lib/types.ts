@@ -142,3 +142,30 @@ export interface ClosePlan {
   /** Articles habituels à remettre sur la liste pour la course suivante */
   addItemIds: string[];
 }
+
+/**
+ * Un modèle de liste (docs/etude-courses.md §20, 28/11/2026) : une liste
+ * toute faite qu'on choisit (« Semaine type », « Raclette ») pour remplir la
+ * liste en cours d'un geste, avant d'y ajouter le ponctuel. Demande de Jules :
+ * « je choisis mon template prérempli et je peux en rajouter ponctuellement ».
+ */
+export interface ListTemplate {
+  id: string;
+  name: string;
+  emoji: string;
+  position: number;
+  createdAt: string;
+}
+
+/** Une ligne d'un modèle : un article du catalogue, avec sa quantité pour ce modèle. */
+export interface TemplateLine {
+  id: string;
+  templateId: string;
+  itemId: string;
+  quantity: string;
+  note: string;
+  position: number;
+}
+
+export type TemplatePatch = Partial<Pick<ListTemplate, 'name' | 'emoji' | 'position'>>;
+export type TemplateLinePatch = Partial<Pick<TemplateLine, 'quantity' | 'note' | 'position'>>;

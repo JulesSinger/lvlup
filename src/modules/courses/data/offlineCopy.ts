@@ -1,3 +1,4 @@
+import type { ListTemplate, TemplateLine } from '../lib/types';
 import type { CourseData } from './courseOutbox';
 
 /**
@@ -12,11 +13,17 @@ import type { CourseData } from './courseOutbox';
  */
 export const COURSES_OFFLINE_KEY = 'courses.offline.v1';
 
-export interface OfflineCopy extends CourseData {
+/** Les modèles de liste voyagent avec la copie (§20) : on les applique aussi au fond du magasin. */
+export interface TemplateData {
+  templates: ListTemplate[];
+  templateLines: TemplateLine[];
+}
+
+export interface OfflineCopy extends CourseData, TemplateData {
   savedAt: string;
 }
 
-export function saveOfflineCopy(data: CourseData, storage: Storage | undefined = globalThis.localStorage, now = new Date()): void {
+export function saveOfflineCopy(data: CourseData & Partial<TemplateData>, storage: Storage | undefined = globalThis.localStorage, now = new Date()): void {
   try {
     storage?.setItem(COURSES_OFFLINE_KEY, JSON.stringify({ ...data, savedAt: now.toISOString() }));
   } catch {
@@ -37,6 +44,8 @@ export function readOfflineCopy(storage: Storage | undefined = globalThis.localS
       stores: copy.stores ?? [],
       trips: copy.trips ?? [],
       tripItems: copy.tripItems ?? [],
+      templates: copy.templates ?? [],
+      templateLines: copy.templateLines ?? [],
     };
   } catch {
     return null;

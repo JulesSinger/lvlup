@@ -27,7 +27,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { handleBody, type ServerInfo, type Tool } from './mcp.ts';
-import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type StoreRow, type TripItemRow, type TripRow } from './courses.ts';
+import { coursesTools, type CoursesData, type EntryRow, type ItemRow, type ListTemplateRow, type StoreRow, type TemplateLineRow, type TripItemRow, type TripRow } from './courses.ts';
 import { sportTools, type ActivityRow, type PlanRow as SportPlanRow, type RunRow, type SessionRow, type SettingsRow, type SportData } from './sport.ts';
 import { tachesTools, type ListRow as TachesListRow, type TachesData, type TaskRow } from './taches.ts';
 import { hautsfaitsTools, type FeatRow, type HautsFaitsData } from './hautsfaits.ts';
@@ -225,6 +225,13 @@ function coursesData(userId: string): CoursesData {
     insertEntry: (row) => insert<EntryRow>('courses_list', row),
     updateEntry: (id, row) => update<EntryRow>('courses_list', id, row),
     deleteEntry: (id) => remove('courses_list', id),
+    listTemplates: () => all<ListTemplateRow>('courses_templates', 'id, name, emoji, position'),
+    listTemplateLines: () => all<TemplateLineRow>('courses_template_lines', 'id, template_id, item_id, quantity, note, position'),
+    insertTemplate: (row) => insert<ListTemplateRow>('courses_templates', row),
+    updateTemplate: (id, row) => update<ListTemplateRow>('courses_templates', id, row),
+    deleteTemplate: (id) => remove('courses_templates', id),
+    insertTemplateLine: (row) => insert<TemplateLineRow>('courses_template_lines', row),
+    deleteTemplateLine: (id) => remove('courses_template_lines', id),
     async closeTrip(plan) {
       // Le compte est passé en paramètre : la fonction SQL n'est appelable qu'avec la clé de service.
       const trip = check(await admin.rpc('courses_close_trip_for', { p_user: userId, plan })) as TripRow;
@@ -765,7 +772,7 @@ function serverInfo(day: string): ServerInfo {
     instructions: [
       'Atlas est l’application personnelle de Jules : un module par domaine de sa vie. Ce connecteur en ouvre plusieurs, un préfixe d’outils chacun :',
       '- Recettes (recettes_*) : le carnet, le menu de la semaine midi et soir, la semaine type (recettes_semaine_type_* : jour 1 = lundi … 7 = dimanche, recopiée dans le menu par recettes_semaine_type_appliquer), les recettes faites, les ingrédients « toujours là ». Un repas du menu ou de la semaine type est à cuisiner (servings = toutes les parts préparées) ou des restes (leftovers : rien à cuisiner ni à acheter) ; Jules évite de manger deux repas de suite la même chose et congèle. Retrouve l’identifiant d’une recette avec recettes_lister avant de la modifier ; une recette d’un site : les ingrédients un par ligne, quantité en tête, et les étapes dans l’ordre. Minuter une recette (plusieurs choses en parallèle : l’eau qui chauffe pendant qu’on émince) = recettes_minuter, étape par étape : poste, durée, « ça cuit tout seul » ou non, ce qui la déclenche ; recettes_lire rend les temps déjà réglés (steps_timing).',
-      '- Courses (courses_*) : la liste, le catalogue, l’historique. Une photo de ticket de caisse : lis-la, puis courses_catalogue, puis courses_enregistrer_ticket.',
+      '- Courses (courses_*) : la liste, le catalogue, l’historique, les modèles de liste (courses_modele_* : « Semaine type »… ; courses_modele_appliquer remplit la liste, le ponctuel s’ajoute ensuite). Une photo de ticket de caisse : lis-la, puis courses_catalogue, puis courses_enregistrer_ticket.',
       '- Sport (sport_*) : la course à pied, le plan marathon, le renforcement et le vélo. Commence par sport_resume ; pour les séances d’une semaine, sport_semaine_programmer (elles remplacent celles de la semaine).',
       '- Tâches (taches_*) : la to-do list. Lis toi-même les dates (« demain 9 h » → planned_day et planned_time).',
       '- Calendar (calendrier_*) : les rendez-vous et événements. Une série répétée se modifie ou se supprime pour cet événement, les suivants ou tous : demande si ce n’est pas clair. Une série peut avoir des variantes (« Travail » au bureau ou en télétravail) : la variante d’un jour se choisit avec calendrier_variante, sans toucher au reste.',
