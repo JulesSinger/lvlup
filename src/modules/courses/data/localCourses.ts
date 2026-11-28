@@ -6,14 +6,21 @@ import type {
   ItemInput,
   ListEntry,
   ListEntryPatch,
+  ListTemplate,
   Store,
+  TemplateLine,
+  TemplateLinePatch,
+  TemplatePatch,
   Trip,
   TripItem,
 } from '../lib/types';
 import type { FoodKind, Typology } from '../lib/typology';
 import type { CoursesBackup, CoursesStore } from './coursesStore';
 
-interface Snapshot extends CoursesBackup {}
+interface Snapshot extends CoursesBackup {
+  templates: ListTemplate[];
+  templateLines: TemplateLine[];
+}
 
 const arrayOf = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
 
@@ -26,6 +33,8 @@ function read(): Snapshot {
     list: arrayOf<ListEntry>(raw.coursesList),
     trips: arrayOf<Trip>(raw.coursesTrips),
     tripItems: arrayOf<TripItem>(raw.coursesTripItems),
+    templates: arrayOf<ListTemplate>(raw.coursesTemplates),
+    templateLines: arrayOf<TemplateLine>(raw.coursesTemplateLines),
   };
 }
 
@@ -38,10 +47,20 @@ function write(s: Snapshot) {
     coursesList: s.list,
     coursesTrips: s.trips,
     coursesTripItems: s.tripItems,
+    coursesTemplates: s.templates,
+    coursesTemplateLines: s.templateLines,
   });
 }
 
 const now = () => new Date().toISOString();
+
+/** Les bornes de `courses_templates_name_check`. */
+function checkName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Donne un nom au modèle.');
+  if (trimmed.length > 80) throw new Error('80 caractères au plus pour le nom du modèle.');
+  return trimmed;
+}
 
 /** Comète stockée dans le navigateur, sans compte ni serveur. */
 export class LocalCourses implements CoursesStore {
@@ -92,6 +111,7 @@ export class LocalCourses implements CoursesStore {
     // Comme côté base : `on delete cascade` sur la liste, `set null` sur
     // l'historique, qui garde le nom figé.
     s.list = s.list.filter((e) => e.itemId !== id);
+    s.templateLines = s.templateLines.filter((l) => l.itemId !== id);
     for (const ti of s.tripItems) if (ti.itemId === id) ti.itemId = null;
     write(s);
   }
@@ -216,9 +236,78 @@ export class LocalCourses implements CoursesStore {
     write(s);
   }
 
+  async listTemplates(): Promise<ListTemplate[]> {
+    return read().templates.slice().sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async listTemplateLines(): Promise<TemplateLine[]> {
+    return read().templateLines.slice();
+  }
+
+  async createTemplate(name: string, emoji = '📋', id: string = newId()): Promise<ListTemplate> {
+    const s = read();
+    const existing = s.templates.find((t) => t.id === id);
+    if (existing) return existing;
+    const template: ListTemplate = { id, name: checkName(name), emoji: emoji || '📋', position: s.templates.reduce((m, t) => Math.max(m, t.position + 1), 0), createdAt: now() };
+    s.templates.push(template);
+    write(s);
+    return template;
+  }
+
+  async updateTemplate(id: string, patch: TemplatePatch) {
+    const s = read();
+    const template = s.templates.find((t) => t.id === id);
+    if (!template) return;
+    Object.assign(template, patch.name !== undefined ? { ...patch, name: checkName(patch.name) } : patch);
+    write(s);
+  }
+
+  async deleteTemplate(id: string) {
+    const s = read();
+    s.templates = s.templates.filter((t) => t.id !== id);
+    s.templateLines = s.templateLines.filter((l) => l.templateId !== id);
+    write(s);
+  }
+
+  async addTemplateLine(templateId: string, itemId: string, quantity = '', note = '', id: string = newId()): Promise<TemplateLine> {
+    const s = read();
+    const existing = s.templateLines.find((l) => l.id === id);
+    if (existing) return existing;
+    // Comme les clés étrangères côté base.
+    if (!s.templates.some((t) => t.id === templateId)) throw new Error('Ce modèle n’existe plus.');
+    if (!s.items.some((i) => i.id === itemId)) throw new Error('Cet article n’existe plus.');
+    const line: TemplateLine = {
+      id,
+      templateId,
+      itemId,
+      quantity: quantity.slice(0, 30),
+      note: note.slice(0, 200),
+      position: s.templateLines.filter((l) => l.templateId === templateId).reduce((m, l) => Math.max(m, l.position + 1), 0),
+    };
+    s.templateLines.push(line);
+    write(s);
+    return line;
+  }
+
+  async updateTemplateLine(id: string, patch: TemplateLinePatch) {
+    const s = read();
+    const line = s.templateLines.find((l) => l.id === id);
+    if (!line) return;
+    Object.assign(line, patch);
+    write(s);
+  }
+
+  async removeTemplateLine(id: string) {
+    const s = read();
+    s.templateLines = s.templateLines.filter((l) => l.id !== id);
+    write(s);
+  }
+
   async exportData(): Promise<CoursesBackup> {
     const s = read();
     return {
+      templates: s.templates.slice(),
+      templateLines: s.templateLines.slice(),
       items: s.items.slice(),
       stores: s.stores.slice(),
       list: s.list.slice(),
@@ -234,6 +323,8 @@ export class LocalCourses implements CoursesStore {
       list: data.list ?? [],
       trips: data.trips ?? [],
       tripItems: data.tripItems ?? [],
+      templates: data.templates ?? [],
+      templateLines: data.templateLines ?? [],
     });
   }
 }

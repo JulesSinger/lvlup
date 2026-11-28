@@ -5,7 +5,11 @@ import type {
   ItemInput,
   ListEntry,
   ListEntryPatch,
+  ListTemplate,
   Store,
+  TemplateLine,
+  TemplateLinePatch,
+  TemplatePatch,
   Trip,
   TripItem,
 } from '../lib/types';
@@ -21,6 +25,9 @@ export interface CoursesBackup {
   list: ListEntry[];
   trips: Trip[];
   tripItems: TripItem[];
+  /** Les modèles de liste (§20) ; absents d'une sauvegarde d'avant le 28/11/2026. */
+  templates?: ListTemplate[];
+  templateLines?: TemplateLine[];
 }
 
 /** Contrat de stockage du module courses (Comète). */
@@ -66,6 +73,21 @@ export interface CoursesStore {
   classifyTripItem(id: string, typology: Typology | null, foodKind: FoodKind | null): Promise<void>;
   /** Supprime une course et ce qui y a été acheté ; la liste n'est pas touchée. */
   deleteTrip(id: string): Promise<void>;
+
+  /**
+   * Les modèles de liste (docs/etude-courses.md §20). Écrits à tête reposée,
+   * hors de la file hors ligne ; seul les appliquer passe par la liste, donc
+   * par la file (`courseWriter`).
+   */
+  listTemplates(): Promise<ListTemplate[]>;
+  listTemplateLines(): Promise<TemplateLine[]>;
+  createTemplate(name: string, emoji?: string, id?: string): Promise<ListTemplate>;
+  updateTemplate(id: string, patch: TemplatePatch): Promise<void>;
+  /** Ses lignes partent avec lui ; la liste en cours n'est pas touchée. */
+  deleteTemplate(id: string): Promise<void>;
+  addTemplateLine(templateId: string, itemId: string, quantity?: string, note?: string, id?: string): Promise<TemplateLine>;
+  updateTemplateLine(id: string, patch: TemplateLinePatch): Promise<void>;
+  removeTemplateLine(id: string): Promise<void>;
 
   /** Sa section de la sauvegarde — le socle ne fait que l'assembler. */
   exportData(): Promise<CoursesBackup>;

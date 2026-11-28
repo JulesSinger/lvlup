@@ -42,4 +42,18 @@ describe('le type et la base disent la même chose (Comète)', () => {
       expect(allowedBy(`${table}_food_kind_check`)).toEqual([...FOOD_KINDS].sort());
     }
   });
+
+  it('les modèles de liste (§20) : RLS, double authentification, et les bornes de la liste', () => {
+    const sql = readFileSync(join(SQL_DIR, '2026-11-28-courses-templates.sql'), 'utf8');
+    for (const table of ['courses_templates', 'courses_template_lines']) {
+      expect(sql).toContain(`alter table public.${table} enable row level security`);
+      for (const verb of ['select', 'insert', 'update', 'delete']) expect(sql).toContain(`create policy "${table}_${verb}_own"`);
+      expect(sql).toContain(`create policy "${table}_mfa"`);
+    }
+    // Une ligne d'un modèle devient une ligne de la liste : mêmes bornes (`lib/listMerge.ts`).
+    expect(sql).toMatch(/courses_template_lines_quantity_check\s+check \(char_length\(quantity\) <= 30\)/);
+    expect(sql).toMatch(/courses_template_lines_note_check\s+check \(char_length\(note\) <= 200\)/);
+    expect(sql).toContain('references public.courses_items (id) on delete cascade');
+  });
 });
+

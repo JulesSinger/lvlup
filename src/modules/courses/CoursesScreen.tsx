@@ -10,11 +10,14 @@ import { CloseTripDialog, type CloseForm } from './components/CloseTripDialog';
 import { ItemEditor } from './components/ItemEditor';
 import { ListLine } from './components/ListLine';
 import { StatsView } from './components/StatsView';
+import { TemplatesDialog, type TemplateActions } from './components/TemplatesDialog';
 import { TripsView } from './components/TripsView';
 import { coursesStore } from './data';
 import { applyPending, stamp, type CourseChange, type CourseData, type CourseOp } from './data/courseOutbox';
 import { courseWriter, withTimeout } from './data/courseWriter';
-import { readOfflineCopy, saveOfflineCopy } from './data/offlineCopy';
+import { readOfflineCopy, saveOfflineCopy, type TemplateData } from './data/offlineCopy';
+import { findItemLoosely } from './lib/catalog';
+import { linesFromList, linesOf, templatePlan } from './lib/templates';
 import { groupByAisle, guessAisle } from './lib/aisles';
 import { formatEuros } from './lib/money';
 import { estimateList, lastPrice } from './lib/prices';
@@ -87,6 +90,10 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
       alive = false;
     };
   }, [closing, expenses]);
+  /** Les modèles de liste (§20) ; vides tant que leur migration n'est pas passée. */
+  const [templateData, setTemplateData] = useState<TemplateData>({ templates: [], templateLines: [] });
+  /** Fermée, ouverte sur les modèles, ou directement sur l'aperçu d'un modèle. */
+  const [templatesOpen, setTemplatesOpen] = useState<false | { applyId?: string }>(false);
   /** Le compte rendu de la dernière course terminée, jusqu'à la prochaine action. */
   const [notice, setNotice] = useState('');
 
@@ -99,8 +106,14 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
       const next = { items: nextItems, entries: nextEntries, trips: nextTrips, tripItems: nextTripItems, stores: nextStores };
       setServer(next);
       setOfflineSince(null);
+      // Les modèles à part : une base sans leur migration (28/11/2026) n'empêche pas la liste.
+      const templates = await Promise.all([coursesStore.listTemplates(), coursesStore.listTemplateLines()]).then(
+        ([t, l]) => ({ templates: t, templateLines: l }),
+        () => null,
+      );
+      if (templates) setTemplateData(templates);
       // La copie pour le prochain passage sans réseau (seulement avec un compte).
-      if (isRemote) saveOfflineCopy(next);
+      if (isRemote) saveOfflineCopy({ ...next, ...(templates ?? {}) });
       onError('');
     } catch (err) {
       if (!isNetworkError(err)) {
@@ -110,6 +123,7 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
       // Pas de réseau, ou trop lent : la copie du téléphone, si on n'a rien de mieux sous la main.
       const copy = readOfflineCopy();
       setServer((current) => (current === EMPTY && copy ? copy : current));
+      if (copy) setTemplateData((current) => (current.templates.length > 0 ? current : { templates: copy.templates, templateLines: copy.templateLines }));
       setOfflineSince(copy?.savedAt ?? new Date().toISOString());
       onError('');
     } finally {
@@ -271,6 +285,61 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
     }
   }
 
+  /**
+   * Les modèles de liste (§20). Les modifier se fait en ligne, à tête
+   * reposée ; **les appliquer passe par la liste**, donc par la file : on
+   * remplit sa liste avec un modèle même au fond du magasin, sans réseau.
+   */
+  const reloadTemplates = async () => {
+    setTemplateData({ templates: await coursesStore.listTemplates(), templateLines: await coursesStore.listTemplateLines() });
+  };
+  const templateActions: TemplateActions = {
+    async create(name, fromList) {
+      const template = await coursesStore.createTemplate(name, '📋', newId());
+      if (fromList) for (const l of linesFromList(entries)) await coursesStore.addTemplateLine(template.id, l.itemId, l.quantity, l.note, newId());
+      await reloadTemplates();
+      if (fromList) setNotice(`Modèle « ${template.name} » enregistré depuis ta liste.`);
+      return template;
+    },
+    async rename(template, name, emoji) {
+      await coursesStore.updateTemplate(template.id, { name, emoji: emoji.trim() || '📋' });
+      await reloadTemplates();
+    },
+    async remove(template) {
+      await coursesStore.deleteTemplate(template.id);
+      await reloadTemplates();
+    },
+    async addLine(template, name, quantity) {
+      let item = findItemLoosely(items, name);
+      if (!item) {
+        item = await coursesStore.createItem({ name, aisle: guessAisle(name) }, newId());
+        await refresh();
+      }
+      await coursesStore.addTemplateLine(template.id, item.id, quantity, '', newId());
+      await reloadTemplates();
+    },
+    async updateLine(line, quantity) {
+      await coursesStore.updateTemplateLine(line.id, { quantity });
+      await reloadTemplates();
+    },
+    async removeLine(line) {
+      await coursesStore.removeTemplateLine(line.id);
+      await reloadTemplates();
+    },
+    async apply(template, skip) {
+      const plan = templatePlan(linesOf(templateData.templateLines, template.id), entries, items, skip);
+      for (const a of plan.add) await write({ kind: 'addEntry', entryId: newId(), itemId: a.itemId, quantity: a.quantity, note: a.note });
+      for (const m of plan.merge) await write({ kind: 'updateEntry', entryId: m.entryId, patch: { quantity: m.quantity, note: m.note, checked: false } });
+      setTemplatesOpen(false);
+      setNotice(
+        `« ${template.name} » : ${plan.add.length} article${plan.add.length > 1 ? 's' : ''} ajouté${plan.add.length > 1 ? 's' : ''}` +
+          (plan.merge.length > 0 ? `, ${plan.merge.length} complété${plan.merge.length > 1 ? 's' : ''}` : '') +
+          (plan.already > 0 ? `, ${plan.already} déjà sur la liste` : '') +
+          '. Ajoute ce qui manque ci-dessus.',
+      );
+    },
+  };
+
   const editingItem = editing ? itemById.get(editing.itemId) : undefined;
 
   return (
@@ -362,6 +431,23 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
         ) : (
           <>
             <AddItemBar items={items} entries={entries} nextTrip={nextTrip} onAdd={addItem} />
+            <div className="courses-templates-bar">
+              <button type="button" className="btn btn-sm" onClick={() => setTemplatesOpen({})}>
+                📋 Modèles{templateData.templates.length > 0 ? ` (${templateData.templates.length})` : ''}
+              </button>
+              {/* Les premiers modèles en raccourci : un toucher ouvre leur aperçu. */}
+              {templateData.templates.slice(0, 3).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className="courses-templates-chip"
+                  aria-label={`Remplir avec ${t.name}`}
+                  onClick={() => setTemplatesOpen({ applyId: t.id })}
+                >
+                  {t.emoji} {t.name}
+                </button>
+              ))}
+            </div>
 
             {entries.length > 0 && (
               <section className="courses-summary" aria-label="Résumé de la liste">
@@ -426,6 +512,18 @@ export function CoursesScreen({ error, onError, onOpenSettings, onSwitchModule, 
               </div>
             )}
           </>
+        )}
+
+        {templatesOpen && (
+          <TemplatesDialog
+            templates={templateData.templates}
+            lines={templateData.templateLines}
+            items={items}
+            entries={entries}
+            actions={templateActions}
+            initialApply={templatesOpen.applyId}
+            onClose={() => setTemplatesOpen(false)}
+          />
         )}
 
         {closing && (

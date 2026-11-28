@@ -131,6 +131,9 @@ connecteur reçoit des données déjà propres. Ses décisions : le ticket **coc
 | `courses_article_modifier` | renommer un article, son rayon, sa quantité habituelle, sa récurrence |
 | `courses_historique` | les dernières courses, leurs articles et prix, et si la dépense est dans Budget |
 | `courses_supprimer_course` | une course enregistrée par erreur, et sa dépense — **marqué destructeur** |
+| `courses_modeles` | les modèles de liste (« Semaine type »…), leurs articles et quantités (depuis le 28/11/2026, étude de Courses §20) |
+| `courses_modele_creer` / `_modifier` / `_supprimer` | tenir un modèle ; des articles donnés **remplacent** ceux du modèle ; supprimer est **marqué destructeur** |
+| `courses_modele_appliquer` | remplir la liste avec un modèle, sauf les articles qu'on a encore (`sauf`) — même règle que l'app (`templatePlan`, comparée par le test) |
 
 **Le ticket, comme « Terminer la course »** (`ticketPlan`, comparé par un test à `buildClosePlan`
 du module sur le même cas) : chaque ligne retrouve son article du catalogue (par `item_id`, ou par

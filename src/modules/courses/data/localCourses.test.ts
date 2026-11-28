@@ -164,4 +164,36 @@ describe('LocalCourses, hors ligne (09/11/2026)', () => {
     expect(await store.listEntries()).toHaveLength(1);
     expect(await store.listStores()).toHaveLength(1);
   });
+
+  it('les modèles de liste : lignes ordonnées, un article supprimé en sort, le modèle supprimé emporte ses lignes (§20)', async () => {
+    const store = new LocalCourses();
+    const lait = await store.createItem({ name: 'Lait' });
+    const oeufs = await store.createItem({ name: 'Œufs' });
+    const semaine = await store.createTemplate('  Semaine type ', '🍝');
+    expect(semaine).toMatchObject({ name: 'Semaine type', emoji: '🍝', position: 0 });
+    const raclette = await store.createTemplate('Raclette');
+    expect(raclette.position).toBe(1);
+    await expect(store.createTemplate('  ')).rejects.toThrow('nom');
+
+    await store.addTemplateLine(semaine.id, lait.id, '1 L');
+    const l2 = await store.addTemplateLine(semaine.id, oeufs.id, '6');
+    expect(l2.position).toBe(1);
+    await expect(store.addTemplateLine('inconnu', lait.id)).rejects.toThrow('modèle');
+    await store.updateTemplateLine(l2.id, { quantity: '12' });
+    await store.updateTemplate(semaine.id, { name: 'Ma semaine' });
+    expect((await store.listTemplates()).map((t) => t.name)).toEqual(['Ma semaine', 'Raclette']);
+    expect((await store.listTemplateLines()).map((l) => l.quantity)).toEqual(['1 L', '12']);
+
+    await store.deleteItem(lait.id);
+    expect((await store.listTemplateLines()).map((l) => l.itemId)).toEqual([oeufs.id]);
+    const backup = await store.exportData();
+    expect(backup.templates).toHaveLength(2);
+    await store.deleteTemplate(semaine.id);
+    expect(await store.listTemplateLines()).toEqual([]);
+    await store.importData(backup);
+    expect(await store.listTemplateLines()).toHaveLength(1);
+    // Une sauvegarde d'avant les modèles se restaure sans eux.
+    await store.importData({ ...backup, templates: undefined, templateLines: undefined });
+    expect(await store.listTemplates()).toEqual([]);
+  });
 });

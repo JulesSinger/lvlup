@@ -461,5 +461,78 @@ export async function run({ browser, check, BASE }) {
     check('Aucune erreur JavaScript (hors ligne)', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
-}
 
+  // --- Les modèles de liste (§20, 2026-11-28) ------------------------------------
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const p = await ctx.newPage();
+    const errors = [];
+    p.on('pageerror', (e) => errors.push(e.message));
+    await openComete(p, BASE);
+    const dialog = p.locator('.courses-templates');
+    const saved = () => p.evaluate(() => JSON.parse(localStorage.getItem('palier.v1') || '{}'));
+
+    await addItem(p, 'Lardons');
+    await addItem(p, 'Crème fraîche');
+    await p.getByRole('button', { name: /^📋 Modèles/ }).click();
+    await p.waitForSelector('.courses-templates');
+    check('Sans modèle, la fenêtre explique ce qu’est un modèle', (await text(dialog.locator('.courses-templates-empty'))).includes('liste toute faite'));
+    await dialog.getByLabel('Nouveau modèle').fill('Semaine type');
+    await dialog.getByRole('button', { name: 'Depuis la liste actuelle (2)' }).click();
+    await p.waitForFunction(() => document.querySelector('.courses-template-row')?.textContent?.includes('2 articles'));
+    check('La liste en cours devient un modèle', (await text(dialog.locator('.courses-template-row'))).includes('Semaine type'));
+
+    // Le modifier : une quantité, un article du catalogue, un article nouveau.
+    await dialog.getByRole('button', { name: 'Modifier Semaine type' }).click();
+    await dialog.getByLabel('Quantité de Lardons').fill('500 g');
+    await dialog.getByLabel('Quantité de Lardons').press('Enter');
+    await dialog.getByLabel('Article à ajouter au modèle').fill('Œufs');
+    await dialog.getByLabel('Quantité', { exact: true }).fill('6');
+    await dialog.getByRole('button', { name: 'Ajouter', exact: true }).click();
+    await p.waitForFunction(() => document.querySelectorAll('.courses-template-line').length === 3);
+    await dialog.getByLabel('Article à ajouter au modèle').fill('lardon');
+    check('Un article déjà dans le modèle n’y entre pas deux fois (au pluriel près)', await dialog.getByRole('button', { name: 'Ajouter', exact: true }).isDisabled());
+    await dialog.getByLabel('Article à ajouter au modèle').fill('');
+    const data = await saved();
+    check(
+      'Le modèle est gardé, avec ses quantités, et l’article nouveau entre au catalogue',
+      (data.coursesTemplates ?? []).length === 1 &&
+        (data.coursesTemplateLines ?? []).map((l) => l.quantity).join('|') === '500 g||6' &&
+        (data.coursesItems ?? []).some((i) => i.name === 'Œufs'),
+      JSON.stringify(data.coursesTemplateLines),
+    );
+
+    // Vider la liste, puis la remplir avec le modèle — sauf ce qu'on a encore.
+    await dialog.getByRole('button', { name: 'Fermer' }).click();
+    for (const name of ['Lardons', 'Crème fraîche']) {
+      await p.locator('.courses-line', { hasText: name }).locator('.courses-line-name').click();
+      await p.getByRole('button', { name: 'Retirer de la liste' }).click();
+      await p.waitForFunction((n) => ![...document.querySelectorAll('.courses-line-name')].some((el) => el.textContent === n), name);
+    }
+    await addItem(p, 'Œufs');
+    check('Le modèle se propose en raccourci sous le champ d’ajout', await p.getByRole('button', { name: 'Remplir avec Semaine type' }).isVisible());
+    await p.getByRole('button', { name: 'Remplir avec Semaine type' }).click();
+    await p.waitForSelector('.courses-template-apply');
+    check('Le raccourci ouvre l’aperçu du modèle', (await text(dialog.locator('.modal-title'))).includes('Remplir avec « Semaine type »'));
+    check('L’aperçu dit ce qui est déjà sur la liste', (await text(dialog.locator('.courses-template-check', { hasText: 'Œufs' }))).includes('déjà sur la liste'));
+    await dialog.locator('.courses-template-check', { hasText: 'Crème' }).getByRole('checkbox').uncheck();
+    await dialog.getByRole('button', { name: 'Ajouter à la liste (2)' }).click();
+    await p.waitForSelector('.courses-templates', { state: 'detached' });
+    check('Le compte rendu dit ce qui a été ajouté et complété', (await text(p.locator('.courses-notice'))).includes('« Semaine type » : 1 article ajouté, 1 complété'), await text(p.locator('.courses-notice')));
+    const after = await saved();
+    const lines = (after.coursesList ?? []).map((e) => `${(after.coursesItems ?? []).find((i) => i.id === e.itemId)?.name}:${e.quantity}`).sort();
+    check('Les lardons arrivent avec leur quantité, les œufs ne sont pas doublés, la crème décochée reste dehors', JSON.stringify(lines) === JSON.stringify(['Lardons:500 g', 'Œufs:6']), JSON.stringify(lines));
+    await addItem(p, 'Pain');
+    check('On ajoute ensuite le ponctuel comme d’habitude', (await p.locator('.courses-line').count()) === 3);
+
+    // Le supprimer : la liste n'est pas touchée.
+    await p.getByRole('button', { name: /^📋 Modèles/ }).click();
+    await dialog.getByRole('button', { name: 'Modifier Semaine type' }).click();
+    await dialog.getByRole('button', { name: 'Supprimer le modèle' }).click();
+    await dialog.getByRole('button', { name: 'Oui, supprimer' }).click();
+    await p.waitForSelector('.courses-templates-empty');
+    check('Supprimer un modèle ne touche pas à la liste', (await p.locator('.courses-line').count()) === 3 && ((await saved()).coursesTemplateLines ?? []).length === 0);
+    check('Aucune erreur JavaScript (modèles)', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+}

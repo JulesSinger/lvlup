@@ -541,3 +541,55 @@ qu'un identifiant provisoire jusqu'au retour du réseau : la cocher avant ne se 
 une course de l'historique, la reclasser ou l'ajouter au budget demandent le réseau. Ouvrir l'app
 pour la première fois sans réseau demande qu'elle ait déjà été ouverte avec (le cache du service
 worker et la copie de la liste).
+
+## 20. Les modèles de liste (28/11/2026)
+
+**La demande de Jules** : « dans les courses, je n'ai pas la possibilité d'avoir des templates tout
+faits d'une liste ? Je choisis mon template prérempli avec tous ces aliments, et je peux en rajouter
+ponctuellement. » Le contexte : sa semaine type de repas (Recettes §22) demande chaque semaine les
+mêmes courses. Deux chemins existaient déjà — les articles habituels (« à chaque course ») et
+« Courses de la semaine » depuis le menu de Recettes — ; il a choisi des modèles dans Courses.
+
+### Ce qui est construit
+
+- **Un modèle** (`ListTemplate`) : un nom, une icône, et des lignes (`TemplateLine`), chacune un
+  article du catalogue avec sa quantité pour ce modèle (« 500 g », « 2 pots de 30 cl ») et une note.
+  Plusieurs modèles possibles (« Semaine type », « Raclette », « Apéro »).
+- **« 📋 Modèles »** sous le champ d'ajout, et les trois premiers modèles en raccourci : un toucher
+  ouvre l'aperçu.
+- **Remplir la liste** (`templatePlan`, `lib/templates.ts`) : l'aperçu liste les articles, cochés ;
+  on décoche ce qu'on a encore. **Une seule ligne par article**, comme partout : un article déjà sur
+  la liste voit sa quantité complétée (« 1 pot + 2 pots ») et repasse « à prendre » s'il était dans
+  le panier ; sans quantité à ajouter, il reste tel quel. Le compte rendu dit ce qui a été ajouté et
+  complété ; le ponctuel s'ajoute ensuite comme d'habitude.
+- **Créer** un modèle vide (il s'ouvre pour qu'on le remplisse), ou **depuis la liste actuelle** —
+  le plus rapide : faire sa liste une fois, puis l'enregistrer.
+- **Modifier** : le nom, l'icône, la quantité de chaque article, en ajouter (un article connu est
+  repris au pluriel près, un nouveau entre au catalogue dans son rayon deviné), en retirer.
+  **Supprimer** : en deux temps, sans toucher à la liste.
+- **Le connecteur** : `courses_modeles`, `courses_modele_creer`, `_modifier`, `_supprimer`,
+  `_appliquer` (`docs/connecteur-claude.md` §8).
+
+### Les choix
+
+- **Appliquer passe par la file hors ligne** (`courseWriter`, §19) : on remplit sa liste avec un
+  modèle même au fond du magasin. Les modèles voyagent dans la copie hors ligne (`courses.offline.v1`,
+  deux champs de plus, lus à vide sur une copie d'avant). **Modifier un modèle se fait en ligne** :
+  c'est un geste à tête reposée, comme les listes de Tâches.
+- **Une ligne pointe un article du catalogue**, pas un nom : supprimer l'article la retire
+  (`on delete cascade`), le renommer la suit, et sa récurrence et ses prix restent les siens.
+- **Jamais automatique** : un modèle ne remplit la liste que quand on le demande, comme Recettes →
+  Courses (§18 de l'étude de Recettes).
+- Pas de lien avec la semaine type de Recettes : un modèle est figé, tandis que « Courses de la
+  semaine » suit le menu. Les deux coexistent.
+
+### Le modèle de données
+
+Migration `2026-11-28-courses-templates.sql` : `courses_templates` (nom 1 à 80 caractères, icône,
+position) et `courses_template_lines` (modèle et article en `on delete cascade`, quantité ≤ 30 et note
+≤ 200 — les bornes de la liste), RLS et double authentification. La sauvegarde les emporte ; une
+sauvegarde d'avant se restaure sans eux, et une base sans la migration garde une liste qui marche
+(les modèles se lisent à part).
+
+**À faire par Jules** : appliquer la migration **avant de fusionner** (sans elle, créer un modèle
+échoue ; la liste, elle, marche), puis redéployer `atlas-mcp`.

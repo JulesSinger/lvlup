@@ -1,27 +1,13 @@
 import type { ShoppingService } from '../../../core/lib/services';
 import { guessAisle } from '../lib/aisles';
 import { findItemLoosely } from '../lib/catalog';
+import { joinNote, mergeQuantity, NOTE_MAX, QUANTITY_MAX } from '../lib/listMerge';
 import type { CoursesStore } from './coursesStore';
 
-/** Les bornes de la base (`courses_items`, `courses_list`). */
 const NAME_MAX = 80;
-const QUANTITY_MAX = 30;
-const NOTE_MAX = 200;
 
-/**
- * Compléter une quantité déjà sur la liste : « 1 kg » + « 500 g » →
- * « 1 kg + 500 g ». Trop long pour la colonne (30 caractères) : l'ajout part
- * dans la note, jamais perdu.
- */
-export function mergeQuantity(old: string, extra: string, note: string): { quantity: string; note: string } {
-  if (!extra) return { quantity: old, note };
-  if (!old) return { quantity: extra.slice(0, QUANTITY_MAX), note };
-  const merged = `${old} + ${extra}`;
-  if (merged.length <= QUANTITY_MAX) return { quantity: merged, note };
-  return { quantity: old, note: [note, `+ ${extra}`].filter(Boolean).join(' ') };
-}
-
-const joinNote = (old: string, extra: string) => [old, extra].filter(Boolean).join(' · ').slice(0, NOTE_MAX);
+/** Pour les tests et les appels d'avant le 28/11/2026, qui la prenaient ici. */
+export { mergeQuantity };
 
 /**
  * Le service `shopping` que Courses rend aux autres modules

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as server from '../../../../supabase/functions/atlas-mcp/courses.ts';
-import { coursesTools, ticketPlan, type CoursesData, type EntryRow, type ItemRow, type TicketPlan, type TripRow } from '../../../../supabase/functions/atlas-mcp/courses.ts';
+import { coursesTools, ticketPlan, type CoursesData, type EntryRow, type ItemRow, type ListTemplateRow, type TemplateLineRow, type TicketPlan, type TripRow } from '../../../../supabase/functions/atlas-mcp/courses.ts';
+import { mergeQuantity } from './listMerge';
+import { templatePlan } from './templates';
 import { AISLE_KEYWORDS, guessAisle } from './aisles';
 import { BUDGET_CATEGORY, expenseForTrip, tripRef } from './budgetLink';
 import { findItemLoosely } from './catalog';
@@ -27,6 +29,42 @@ describe('les règles de Courses recopiées dans le connecteur', () => {
     expect(server.tripRef(12)).toBe(tripRef(trip));
     const fromServer = server.expenseForTrip({ number: 12, day: '2026-10-11', store_name: 'Lidl', total_cents: 5420 });
     expect(fromServer).toEqual({ ...expenseForTrip(trip), note: expenseForTrip(trip).note ?? '' });
+  });
+
+  it('remplir la liste avec un modèle donne le même plan que l’app (§20)', () => {
+    for (const [a, b] of [['', '2'], ['1 pot', ''], ['1 pot', '2 pots'], ['un très long article déjà', 'et encore un autre']]) {
+      expect(server.mergeQuantity(a, b, 'n')).toEqual(mergeQuantity(a, b, 'n'));
+    }
+    const items: ItemRow[] = [
+      { id: 'lardons', name: 'Lardons', aisle: 'boucherie_poissonnerie', recurrence: null, default_quantity: '', last_trip_number: null },
+      { id: 'oeufs', name: 'Œufs', aisle: 'cremerie', recurrence: null, default_quantity: '6', last_trip_number: null },
+      { id: 'creme', name: 'Crème', aisle: 'cremerie', recurrence: null, default_quantity: '', last_trip_number: null },
+      { id: 'lait', name: 'Lait', aisle: 'cremerie', recurrence: null, default_quantity: '', last_trip_number: null },
+    ];
+    const lines: TemplateLineRow[] = [
+      { id: 'l1', template_id: 'm', item_id: 'lardons', quantity: '300 g', note: '', position: 0 },
+      { id: 'l2', template_id: 'm', item_id: 'lardons', quantity: '200 g', note: '', position: 1 },
+      { id: 'l3', template_id: 'm', item_id: 'oeufs', quantity: '', note: 'bio', position: 2 },
+      { id: 'l4', template_id: 'm', item_id: 'creme', quantity: '2 pots', note: '', position: 3 },
+      { id: 'l5', template_id: 'm', item_id: 'lait', quantity: '', note: '', position: 4 },
+      { id: 'l6', template_id: 'm', item_id: 'disparu', quantity: '1', note: '', position: 5 },
+    ];
+    const entries: EntryRow[] = [
+      { id: 'e-creme', item_id: 'creme', quantity: '1 pot', note: '', checked: true, price_cents: null },
+      { id: 'e-lait', item_id: 'lait', quantity: '1 L', note: '', checked: false, price_cents: null },
+    ];
+    const skip = new Set(['l3']);
+    const app = templatePlan(
+      lines.map((l) => ({ id: l.id, templateId: l.template_id, itemId: l.item_id, quantity: l.quantity, note: l.note, position: l.position })),
+      entries.map((e) => ({ id: e.id, itemId: e.item_id, quantity: e.quantity, note: e.note, checked: e.checked, priceCents: null, createdAt: '' })),
+      items.map((i) => ({ id: i.id, name: i.name, aisle: i.aisle, recurrence: null, defaultQuantity: i.default_quantity, lastTripNumber: null, createdAt: '' })),
+      skip,
+    );
+    const fromServer = server.templatePlan(lines, entries, items, skip);
+    expect(fromServer.add).toEqual(app.add.map((a) => ({ item_id: a.itemId, quantity: a.quantity, note: a.note })));
+    expect(fromServer.merge).toEqual(app.merge.map((m) => ({ entry_id: m.entryId, quantity: m.quantity, note: m.note })));
+    expect(fromServer.already).toBe(app.already);
+    expect(fromServer.add).toEqual([{ item_id: 'lardons', quantity: '300 g + 200 g', note: '' }]);
   });
 
   it('un ticket donne le même plan que « Terminer la course » avec les mêmes articles cochés', () => {
@@ -89,6 +127,8 @@ function memory() {
     tripItems: [] as { trip_id: string; item_id: string | null; name: string; aisle: string; quantity: string; price_cents: number | null }[],
     expenses: [] as { ref: string; amountCents: number; label: string }[],
     plans: [] as TicketPlan[],
+    templates: [] as ListTemplateRow[],
+    lines: [] as TemplateLineRow[],
   };
   const data: CoursesData = {
     listItems: async () => [...db.items],
@@ -148,6 +188,33 @@ function memory() {
       db.expenses = db.expenses.filter((e) => e.ref !== ref);
     },
     expenseRefs: async (refs) => new Set(db.expenses.filter((e) => refs.includes(e.ref)).map((e) => e.ref)),
+    listTemplates: async () => [...db.templates],
+    listTemplateLines: async () => [...db.lines],
+    insertTemplate: async (row) => {
+      const t = { id: uuid(), emoji: '📋', position: 0, ...row } as ListTemplateRow;
+      db.templates.push(t);
+      return t;
+    },
+    updateTemplate: async (id, row) => {
+      const t = db.templates.find((x) => x.id === id);
+      return t ? Object.assign(t, row) : null;
+    },
+    deleteTemplate: async (id) => {
+      const before = db.templates.length;
+      db.templates = db.templates.filter((t) => t.id !== id);
+      db.lines = db.lines.filter((l) => l.template_id !== id);
+      return db.templates.length < before;
+    },
+    insertTemplateLine: async (row) => {
+      const l = { id: uuid(), quantity: '', note: '', position: 0, ...row } as TemplateLineRow;
+      db.lines.push(l);
+      return l;
+    },
+    deleteTemplateLine: async (id) => {
+      const before = db.lines.length;
+      db.lines = db.lines.filter((l) => l.id !== id);
+      return db.lines.length < before;
+    },
   };
   return { db, data };
 }
@@ -246,10 +313,48 @@ describe('les outils de Courses pour Claude', () => {
     expect(db.items).toHaveLength(1);
   });
 
+  it('tiennent les modèles de liste, et remplissent la liste avec (§20)', async () => {
+    const { db, data } = memory();
+    await use(data, 'courses_liste_ajouter', { items: [{ name: 'Œufs', quantity: '6' }] });
+    const created = await use(data, 'courses_modele_creer', {
+      name: 'Semaine type',
+      emoji: '🍝',
+      items: [{ name: 'Lardons', quantity: '500 g' }, { name: 'oeuf', quantity: '6' }, { name: 'Crème fraîche', quantity: '2 pots de 30 cl' }, { name: 'lardon' }],
+    });
+    expect(created.error).toBe(false);
+    expect(created.value.template.items).toEqual(['Lardons (500 g)', 'Œufs (6)', 'Crème fraîche (2 pots de 30 cl)']);
+    expect(db.items.map((i) => i.name).sort()).toEqual(['Crème fraîche', 'Lardons', 'Œufs']);
+    expect((await use(data, 'courses_modele_creer', { name: 'semaine TYPE' })).text).toMatch(/existe déjà/);
+
+    const listed = (await use(data, 'courses_modeles')).value.templates;
+    expect(listed).toHaveLength(1);
+    expect(listed[0].items.map((i: { name: string }) => i.name)).toEqual(['Lardons', 'Œufs', 'Crème fraîche']);
+    const id = listed[0].id;
+
+    const applied = await use(data, 'courses_modele_appliquer', { id, sauf: ['creme'] });
+    expect(applied.text).toContain('1 article ajouté, 1 complété');
+    expect(applied.value.skipped).toEqual(['Crème fraîche']);
+    const onList = db.entries.map((e) => `${db.items.find((i) => i.id === e.item_id)?.name}:${e.quantity}`).sort();
+    expect(onList).toEqual(['Lardons:500 g', 'Œufs:6 + 6']);
+
+    await use(data, 'courses_modele_modifier', { id, name: 'Ma semaine', items: [{ name: 'Spaghettis', quantity: '2 × 500 g' }] });
+    const after = (await use(data, 'courses_modeles')).value.templates[0];
+    expect(after.name).toBe('Ma semaine');
+    expect(after.items.map((i: { name: string; quantity: string }) => `${i.name}:${i.quantity}`)).toEqual(['Spaghettis:2 × 500 g']);
+    expect((await use(data, 'courses_modele_modifier', { id })).text).toMatch(/Rien à modifier/);
+
+    expect((await use(data, 'courses_modele_supprimer', { id })).text).toContain('la liste n’a pas bougé');
+    expect(db.templates).toHaveLength(0);
+    expect(db.lines).toHaveLength(0);
+    expect(db.entries).toHaveLength(2);
+  });
+
   it('disent à Claude ce qui détruit', () => {
     const hints = Object.fromEntries(coursesTools.map((t) => [t.name, t.annotations]));
     expect(hints.courses_supprimer_course.destructiveHint).toBe(true);
     expect(hints.courses_liste.readOnlyHint).toBe(true);
+    expect(hints.courses_modele_supprimer.destructiveHint).toBe(true);
+    expect(hints.courses_modeles.readOnlyHint).toBe(true);
     expect(coursesTools.every((t) => t.name.startsWith('courses_'))).toBe(true);
   });
 
